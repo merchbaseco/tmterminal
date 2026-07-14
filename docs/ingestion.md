@@ -180,3 +180,5 @@ Canonical ingestion does not begin until the repository contains:
 - Real PostgreSQL replay tests for out-of-order ingestion, reissues, idempotency, provenance, and frontier behavior
 
 Small committed fixtures are byte-exact excerpts with their original root, version, action-key context, artifact checksum, record index, and expected observation. Full ZIPs live outside Git in a content-addressed integration cache.
+
+The pinned inventory and current blockers live in [USPTO source contracts](specs/uspto-source-contracts.md). As of 2026-07-14, retained real artifacts prove annual status-only `TX`, daily `NA`/`TX`/`IB`, presence semantics, replacement, revival, publication, registration/cancellation evidence, and goods markup. The gate remains closed on authenticated current ODP metadata/DOC bytes, complete annual generation enumeration and ordering, a matching full annual application part, numeric Official Gazette action evidence, and registration/cancellation observation sequences.

@@ -6,6 +6,8 @@ node_modules/
 dist/
 coverage/
 tmp/
+fixtures/uspto/**/*.zip
+fixtures/uspto/**/*.doc
 .codex/*
 !.codex/environments/
 !.codex/environments/environment.toml

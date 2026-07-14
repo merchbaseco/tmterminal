@@ -1,0 +1,320 @@
+                <case-file>
+                    <serial-number>85017257</serial-number>
+                    <registration-number>3886011</registration-number>
+                    <transaction-date>20240914</transaction-date>
+                    <case-file-header>
+                        <filing-date>20100419</filing-date>
+                        <registration-date>20101207</registration-date>
+                        <status-code>710</status-code>
+                        <status-date>20181207</status-date>
+                        <mark-identification>BLONDE SUMMER</mark-identification>
+                        <mark-drawing-code>4</mark-drawing-code>
+                        <published-for-opposition-date>20100921</published-for-opposition-date>
+                        <cancellation-code>2</cancellation-code>
+                        <cancellation-date>20181207</cancellation-date>
+                        <attorney-name>Richard G. Eldredge</attorney-name>
+                        <principal-register-amended-in>F</principal-register-amended-in>
+                        <supplemental-register-amended-in>F</supplemental-register-amended-in>
+                        <trademark-in>F</trademark-in>
+                        <collective-trademark-in>F</collective-trademark-in>
+                        <service-mark-in>T</service-mark-in>
+                        <collective-service-mark-in>F</collective-service-mark-in>
+                        <collective-membership-mark-in>F</collective-membership-mark-in>
+                        <certification-mark-in>F</certification-mark-in>
+                        <cancellation-pending-in>F</cancellation-pending-in>
+                        <published-concurrent-in>F</published-concurrent-in>
+                        <concurrent-use-in>F</concurrent-use-in>
+                        <concurrent-use-proceeding-in>F</concurrent-use-proceeding-in>
+                        <interference-pending-in>F</interference-pending-in>
+                        <opposition-pending-in>F</opposition-pending-in>
+                        <section-12c-in>F</section-12c-in>
+                        <section-2f-in>F</section-2f-in>
+                        <section-2f-in-part-in>F</section-2f-in-part-in>
+                        <renewal-filed-in>F</renewal-filed-in>
+                        <section-8-filed-in>F</section-8-filed-in>
+                        <section-8-partial-accept-in>F</section-8-partial-accept-in>
+                        <section-8-accepted-in>F</section-8-accepted-in>
+                        <section-15-acknowledged-in>F</section-15-acknowledged-in>
+                        <section-15-filed-in>F</section-15-filed-in>
+                        <supplemental-register-in>F</supplemental-register-in>
+                        <foreign-priority-in>F</foreign-priority-in>
+                        <change-registration-in>F</change-registration-in>
+                        <intent-to-use-in>F</intent-to-use-in>
+                        <intent-to-use-current-in>F</intent-to-use-current-in>
+                        <filed-as-use-application-in>T</filed-as-use-application-in>
+                        <amended-to-use-application-in>F</amended-to-use-application-in>
+                        <use-application-currently-in>T</use-application-currently-in>
+                        <amended-to-itu-application-in>F</amended-to-itu-application-in>
+                        <filing-basis-filed-as-44d-in>F</filing-basis-filed-as-44d-in>
+                        <amended-to-44d-application-in>F</amended-to-44d-application-in>
+                        <filing-basis-current-44d-in>F</filing-basis-current-44d-in>
+                        <filing-basis-filed-as-44e-in>F</filing-basis-filed-as-44e-in>
+                        <filing-basis-current-44e-in>F</filing-basis-current-44e-in>
+                        <amended-to-44e-application-in>F</amended-to-44e-application-in>
+                        <without-basis-currently-in>F</without-basis-currently-in>
+                        <filing-current-no-basis-in>F</filing-current-no-basis-in>
+                        <color-drawing-filed-in>F</color-drawing-filed-in>
+                        <color-drawing-current-in>F</color-drawing-current-in>
+                        <drawing-3d-filed-in>F</drawing-3d-filed-in>
+                        <drawing-3d-current-in>F</drawing-3d-current-in>
+                        <standard-characters-claimed-in>T</standard-characters-claimed-in>
+                        <filing-basis-filed-as-66a-in>F</filing-basis-filed-as-66a-in>
+                        <filing-basis-current-66a-in>F</filing-basis-current-66a-in>
+                        <law-office-assigned-location-code>M40</law-office-assigned-location-code>
+                        <current-location>POST REGISTRATION</current-location>
+                        <location-date>20181207</location-date>
+                        <employee-name>COOPER, CHRISTINE</employee-name>
+                    </case-file-header>
+                    <case-file-statements>
+                        <case-file-statement>
+                            <type-code>GS0411</type-code>
+                            <text>Entertainment, namely, live performances by a musical band</text>
+                        </case-file-statement>
+                    </case-file-statements>
+                    <case-file-event-statements>
+                        <case-file-event-statement>
+                            <code>CNSA</code>
+                            <type>O</type>
+                            <description-text>APPROVED FOR PUB - PRINCIPAL REGISTER</description-text>
+                            <date>20100727</date>
+                            <number>4</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>NWAP</code>
+                            <type>I</type>
+                            <description-text>NEW APPLICATION ENTERED</description-text>
+                            <date>20100422</date>
+                            <number>1</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>NWOS</code>
+                            <type>I</type>
+                            <description-text>NEW APPLICATION OFFICE SUPPLIED DATA ENTERED</description-text>
+                            <date>20100422</date>
+                            <number>2</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>DOCK</code>
+                            <type>D</type>
+                            <description-text>ASSIGNED TO EXAMINER</description-text>
+                            <date>20100727</date>
+                            <number>3</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>ALIE</code>
+                            <type>A</type>
+                            <description-text>ASSIGNED TO LIE</description-text>
+                            <date>20100813</date>
+                            <number>5</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>PREV</code>
+                            <type>O</type>
+                            <description-text>LAW OFFICE PUBLICATION REVIEW COMPLETED</description-text>
+                            <date>20100813</date>
+                            <number>6</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>PUBO</code>
+                            <type>A</type>
+                            <description-text>PUBLISHED FOR OPPOSITION</description-text>
+                            <date>20100921</date>
+                            <number>7</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>NPUB</code>
+                            <type>E</type>
+                            <description-text>OFFICIAL GAZETTE PUBLICATION CONFIRMATION E-MAILED</description-text>
+                            <date>20100921</date>
+                            <number>8</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>R.PR</code>
+                            <type>A</type>
+                            <description-text>REGISTERED-PRINCIPAL REGISTER</description-text>
+                            <date>20101207</date>
+                            <number>9</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>EWAF</code>
+                            <type>I</type>
+                            <description-text>TEAS WITHDRAWAL OF ATTORNEY RECEIVED-FIRM RETAINS</description-text>
+                            <date>20121023</date>
+                            <number>10</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>APRE</code>
+                            <type>A</type>
+                            <description-text>CASE ASSIGNED TO POST REGISTRATION PARALEGAL</description-text>
+                            <date>20161005</date>
+                            <number>14</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>CORV</code>
+                            <type>4</type>
+                            <description-text>REVIEW OF CORRESPONDENCE COMPLETE - POWER OF ATTORNEY ENTERED</description-text>
+                            <date>20121031</date>
+                            <number>11</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>TCCA</code>
+                            <type>I</type>
+                            <description-text>TEAS CHANGE OF CORRESPONDENCE RECEIVED</description-text>
+                            <date>20160802</date>
+                            <number>12</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>E815</code>
+                            <type>I</type>
+                            <description-text>TEAS SECTION 8 &amp; 15 RECEIVED</description-text>
+                            <date>20160802</date>
+                            <number>13</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>PR23</code>
+                            <type>O</type>
+                            <description-text>POST REGISTRATION ACTION MAILED - SEC. 8 &amp; 15</description-text>
+                            <date>20161005</date>
+                            <number>15</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>REAP</code>
+                            <type>I</type>
+                            <description-text>TEAS REVOKE/APP/CHANGE ADDR OF ATTY/DOM REP RECEIVED</description-text>
+                            <date>20170616</date>
+                            <number>16</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>ARAA</code>
+                            <type>I</type>
+                            <description-text>ATTORNEY/DOM.REP.REVOKED AND/OR APPOINTED</description-text>
+                            <date>20170616</date>
+                            <number>17</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>PR23</code>
+                            <type>O</type>
+                            <description-text>POST REGISTRATION ACTION MAILED - SEC. 8 &amp; 15</description-text>
+                            <date>20180213</date>
+                            <number>18</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>C8..</code>
+                            <type>O</type>
+                            <description-text>CANCELLED SEC. 8 (6-YR)</description-text>
+                            <date>20181207</date>
+                            <number>19</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>TCCA</code>
+                            <type>I</type>
+                            <description-text>TEAS CHANGE OF CORRESPONDENCE RECEIVED</description-text>
+                            <date>20190103</date>
+                            <number>20</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>EWAF</code>
+                            <type>I</type>
+                            <description-text>TEAS WITHDRAWAL OF ATTORNEY RECEIVED-FIRM RETAINS</description-text>
+                            <date>20240910</date>
+                            <number>26</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>TCCA</code>
+                            <type>I</type>
+                            <description-text>TEAS CHANGE OF CORRESPONDENCE RECEIVED</description-text>
+                            <date>20240910</date>
+                            <number>25</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>ARAA</code>
+                            <type>I</type>
+                            <description-text>ATTORNEY/DOM.REP.REVOKED AND/OR APPOINTED</description-text>
+                            <date>20240910</date>
+                            <number>24</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>REAP</code>
+                            <type>I</type>
+                            <description-text>TEAS REVOKE/APP/CHANGE ADDR OF ATTY/DOM REP RECEIVED</description-text>
+                            <date>20240910</date>
+                            <number>23</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>REAP</code>
+                            <type>I</type>
+                            <description-text>TEAS REVOKE/APP/CHANGE ADDR OF ATTY/DOM REP RECEIVED</description-text>
+                            <date>20190415</date>
+                            <number>21</number>
+                        </case-file-event-statement>
+                        <case-file-event-statement>
+                            <code>ARAA</code>
+                            <type>I</type>
+                            <description-text>ATTORNEY/DOM.REP.REVOKED AND/OR APPOINTED</description-text>
+                            <date>20190415</date>
+                            <number>22</number>
+                        </case-file-event-statement>
+                    </case-file-event-statements>
+                    <classifications>
+                        <classification>
+                            <international-code-total-no>1</international-code-total-no>
+                            <us-code-total-no>3</us-code-total-no>
+                            <international-code>041</international-code>
+                            <us-code>100</us-code>
+                            <us-code>101</us-code>
+                            <us-code>107</us-code>
+                            <status-code>2</status-code>
+                            <status-date>20181207</status-date>
+                            <first-use-anywhere-date>20090901</first-use-anywhere-date>
+                            <first-use-in-commerce-date>20091203</first-use-in-commerce-date>
+                            <primary-code>041</primary-code>
+                        </classification>
+                    </classifications>
+                    <correspondent>
+                        <address-1>Richard G. Eldredge Leavitt &amp; Eldredge Law Firm LLC</address-1>
+                        <address-2>4204 SW Green Oaks Blvd. Suite 140</address-2>
+                        <address-3>Arlington, TX 76017</address-3>
+                        <address-4>United States</address-4>
+                    </correspondent>
+                    <case-file-owners>
+                        <case-file-owner>
+                            <entry-number>1</entry-number>
+                            <party-type>30</party-type>
+                            <nationality>
+<country>US</country>
+                            </nationality>
+                            <legal-entity-type-code>01</legal-entity-type-code>
+                            <party-name>Pope, Christopher</party-name>
+                            <address-1>2629 Manhattan Avenue PMB 103</address-1>
+                            <city>Hermosa Beach</city>
+                            <state>CA</state>
+                            <postcode>90254</postcode>
+                        </case-file-owner>
+                        <case-file-owner>
+                            <entry-number>1</entry-number>
+                            <party-type>20</party-type>
+                            <nationality>
+<country>US</country>
+                            </nationality>
+                            <legal-entity-type-code>01</legal-entity-type-code>
+                            <party-name>Pope, Christopher</party-name>
+                            <address-1>2030 Manhattan Ave.</address-1>
+                            <city>Hermosa Beach</city>
+                            <state>CA</state>
+                            <postcode>90254</postcode>
+                        </case-file-owner>
+                        <case-file-owner>
+                            <entry-number>1</entry-number>
+                            <party-type>10</party-type>
+                            <nationality>
+<country>US</country>
+                            </nationality>
+                            <legal-entity-type-code>01</legal-entity-type-code>
+                            <party-name>Pope, Christopher</party-name>
+                            <address-1>2030 Manhattan Ave.</address-1>
+                            <city>Hermosa Beach</city>
+                            <state>CA</state>
+                            <postcode>90254</postcode>
+                        </case-file-owner>
+                    </case-file-owners>
+                </case-file>
