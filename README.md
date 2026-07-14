@@ -6,9 +6,11 @@ It continuously discovers and ingests the latest USPTO bulk trademark artifacts,
 
 ## Status
 
-Planning complete. Implementation has not started.
+Planning is complete. The Bun workspace and production-shaped local runtime spine are runnable; product data procedures, ingestion, authentication, and search remain unimplemented.
 
 Start with the [docs front door](docs/README.md). Architecture and scope live in [docs/plan.md](docs/plan.md), source authority in [docs/ingestion.md](docs/ingestion.md), the command contract in [docs/cli.md](docs/cli.md), and website behavior in [docs/website.md](docs/website.md).
+
+Run the workspace and PostgreSQL integration harness through [local runtime operations](docs/operations/local-runtime.md).
 
 ## v1 shape
 
