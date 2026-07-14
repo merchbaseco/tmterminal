@@ -52,7 +52,15 @@ services:
       target: runtime
     command: ["bun", "run", "--cwd", "apps/server", "worker"]
     environment:
+      ARTIFACT_STORE_ROOT: /var/lib/tmturtle/artifacts
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      USPTO_API_KEY: ${USPTO_API_KEY:?set USPTO_API_KEY}
+      USPTO_DISCOVERY_INTERVAL_MS: ${USPTO_DISCOVERY_INTERVAL_MS:-21600000}
+      USPTO_REQUEST_TIMEOUT_MS: ${USPTO_REQUEST_TIMEOUT_MS:-900000}
+      USPTO_RETRY_BASE_MS: ${USPTO_RETRY_BASE_MS:-30000}
+      USPTO_RETRY_MAX_ATTEMPTS: ${USPTO_RETRY_MAX_ATTEMPTS:-8}
+      USPTO_RETRY_MAX_MS: ${USPTO_RETRY_MAX_MS:-21600000}
+      USPTO_SCHEDULER_POLL_MS: ${USPTO_SCHEDULER_POLL_MS:-10000}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -62,6 +70,8 @@ services:
       timeout: 3s
       retries: 15
     restart: unless-stopped
+    volumes:
+      - artifact-data:/var/lib/tmturtle/artifacts
 
   web:
     build:
@@ -109,4 +119,5 @@ services:
         condition: service_healthy
 
 volumes:
+  artifact-data:
   database-data:
