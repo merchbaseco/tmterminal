@@ -63,6 +63,16 @@ Direct `docker compose` deployment requires stable `TMTURTLE_API_PORT` and `TMTU
 
 Set `DATABASE_URL` and `POSTGRES_PASSWORD` in the ignored `.env` before starting Compose. `POSTGRES_DB` and `POSTGRES_USER` default to `tmturtle`; production must replace the example password. The API, worker, and one-shot migration all receive the configured `DATABASE_URL`.
 
+Authenticated website use also requires `CLERK_SECRET_KEY`, `CLERK_AUTHORIZED_PARTIES`, and `VITE_CLERK_PUBLISHABLE_KEY`. The Compose wrapper derives `CLERK_AUTHORIZED_PARTIES` from the worktree website port; direct deployments must set the public website origin explicitly. The API stays ready without Clerk credentials but rejects Clerk sessions; the website intentionally fails fast when its publishable key is absent.
+
+Bootstrap or recover a host-managed caller directly against the service database:
+
+```bash
+bun run api-keys:create --name merchbase
+```
+
+The root command executes inside the running API container for the current Compose project, resolves one stable named host account, writes the raw `ttk_...` token once to stdout, and stores only its SHA-256 secret hash.
+
 Healthy readiness returns only:
 
 ```json

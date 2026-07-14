@@ -18,6 +18,9 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "ES2024",
+    "paths": {
+      "@/*": ["./apps/web/src/*"]
+    },
     "types": ["bun"]
   },
   "include": ["apps/**/*.ts", "apps/**/*.tsx", "packages/**/*.ts"]
