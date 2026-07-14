@@ -61,6 +61,8 @@ TMTURTLE_API_PORT=3300 TMTURTLE_WEB_PORT=8800 bun run compose:smoke
 
 Direct `docker compose` deployment requires stable `TMTURTLE_API_PORT` and `TMTURTLE_WEB_PORT` values in the environment or `.env`; it never chooses ephemeral production ports.
 
+Set `DATABASE_URL` and `POSTGRES_PASSWORD` in the ignored `.env` before starting Compose. `POSTGRES_DB` and `POSTGRES_USER` default to `tmturtle`; production must replace the example password. The API, worker, and one-shot migration all receive the configured `DATABASE_URL`.
+
 Healthy readiness returns only:
 
 ```json

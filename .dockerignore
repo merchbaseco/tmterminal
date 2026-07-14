@@ -6,5 +6,6 @@
 coverage
 dist
 **/dist
+fixtures/uspto
 node_modules
 tmp
