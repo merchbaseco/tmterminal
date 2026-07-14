@@ -6,4 +6,6 @@ node_modules/
 dist/
 coverage/
 tmp/
-.codex/
+.codex/*
+!.codex/environments/
+!.codex/environments/environment.toml
