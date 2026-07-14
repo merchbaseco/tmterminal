@@ -38,6 +38,8 @@ All discovery and downloads pass through one credential-scoped scheduler. Initia
 
 “Daily” and “annual” describe source-product cadence, not a promised publication time. Discovery is idempotent and does not assume a release hour.
 
+The v1 worker uses one persisted `uspto-odp` lane and a PostgreSQL advisory lock, so multiple worker processes cannot issue simultaneous discovery or download calls for the credential. The lane stores retry eligibility, consecutive transient failures, sanitized response state, and terminal stop reason. Attempts remain durable; credential, permanent, and retry-exhaustion failures also create durable operator alerts. Runtime pacing is configured with `USPTO_DISCOVERY_INTERVAL_MS`, `USPTO_SCHEDULER_POLL_MS`, `USPTO_REQUEST_TIMEOUT_MS`, `USPTO_RETRY_BASE_MS`, `USPTO_RETRY_MAX_ATTEMPTS`, and `USPTO_RETRY_MAX_MS`.
+
 Official references:
 
 - [ODP bulk-data search API](https://data.uspto.gov/apis/bulk-data/search)
@@ -51,6 +53,8 @@ An artifact has two identities:
 - **Artifact version:** logical artifact plus downloaded SHA-256.
 
 Discovery timestamps, release metadata, byte size, coverage dates, and URL are observations about a logical artifact. Changed bytes under the same filename create a new immutable version. Unchanged bytes are a no-op.
+
+Each changed discovery observation is its own persisted download queue item, so later metadata cannot overwrite an undownloaded reissue. The worker streams that observation's response into the artifact store while calculating SHA-256, then links the observation to the retained version. A repeated hash reuses the retained object and existing version; a different hash inserts one new immutable version. The database stores content-addressed object keys, never host paths.
 
 Annual files sharing one coverage range form one generation. Part suffixes are opaque until current USPTO metadata or fixtures establish their ordering. A generation publishes only after every enumerated part is present and valid.
 

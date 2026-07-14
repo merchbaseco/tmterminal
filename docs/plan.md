@@ -206,6 +206,9 @@ Required indexes:
 - `artifact`
 - `artifact_version`
 - `artifact_discovery`
+- `source_lane`
+- `source_attempt`
+- `source_alert`
 - `parse_run`
 - `source_record`
 - `source_claim`

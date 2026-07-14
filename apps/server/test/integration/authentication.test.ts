@@ -3,6 +3,7 @@ import postgres from "postgres";
 
 import { buildServer } from "../../src/api/server.ts";
 import { migrateDatabase } from "../../src/db/migrate.ts";
+import { resetTestDatabase } from "./test-database.ts";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 
@@ -10,12 +11,10 @@ if (!databaseUrl) {
   throw new Error("TEST_DATABASE_URL is required for PostgreSQL integration tests");
 }
 
-const database = postgres(databaseUrl, { max: 1 });
+const database = postgres(databaseUrl, { max: 1, prepare: false });
 
 beforeAll(async () => {
-  await database.unsafe("drop schema if exists drizzle cascade");
-  await database.unsafe("drop table if exists role_assignment, api_key, clerk_identity, account cascade");
-  await database.unsafe("drop extension if exists pg_trgm cascade");
+  await resetTestDatabase(database);
   await migrateDatabase(databaseUrl);
 });
 
@@ -139,7 +138,7 @@ describe("account authentication", () => {
       expect(listed.body).not.toContain(token);
       expect(listed.json().result.data).toEqual([key]);
       expect(stored).toEqual({ secretHash: expect.stringMatching(/^[0-9a-f]{64}$/), revokedAt: null });
-      expect(stored?.secretHash).not.toContain(token.split("_").at(-1));
+      expect(stored?.secretHash).not.toContain(token.slice(`ttk_${key.id}_`.length));
     } finally {
       await server.close();
     }
