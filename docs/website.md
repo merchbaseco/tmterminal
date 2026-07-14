@@ -39,9 +39,10 @@ The top navigation contains Search, a Reports preset menu, API Keys, the corpus-
 - Archivo Variable as the sole typeface
 - Mastheads and result names use heavy condensed Archivo
 - Shared primary color `#D7F52A` in light and dark themes
+- The turtle logomark is chartreuse on near-black. Dark themes may use the transparent mark directly; light themes use its protected near-black field rather than an inverted logo.
 - Light, dark, and system appearance; follow system initially and persist user choice
 - Flat neutral backgrounds, thin rules, and large typography
-- No mascot, grain, cards, gradients, glass, shadows, or decorative empty states
+- The turtle is a brand mark, not a UI mascot. No mascot illustrations, grain, cards, gradients, glass, shadows, or decorative empty states.
 
 The composition borrows Cassette's oversized typographic scale and sparse utilitarian rhythm without copying its identity or imagery.
 
