@@ -6,6 +6,7 @@ export DATABASE_URL="${DATABASE_URL:-postgres://unused:unused@database:5432/unus
 export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-unused}"
 export TMTURTLE_API_PORT="${TMTURTLE_API_PORT:-0}"
 export TMTURTLE_WEB_PORT="${TMTURTLE_WEB_PORT:-0}"
+export USPTO_API_KEY="${USPTO_API_KEY:-unused-test-key}"
 
 cleanup() {
   docker compose --project-name "$project" --profile test down --volumes --remove-orphans

@@ -1,0 +1,45 @@
+{
+  "count": 1,
+  "bulkDataProductBag": [
+    {
+      "productIdentifier": "TRTDXFAP",
+      "productDescriptionText": "Trademark daily applications",
+      "productTitleText": "Trademark Daily XML Files",
+      "productFrequencyText": "Daily",
+      "productLabelArrayText": ["Trademarks"],
+      "productDatasetArrayText": ["Applications"],
+      "productDatasetCategoryArrayText": ["Bulk data"],
+      "productFromDate": "2024-09-25",
+      "productToDate": "2024-09-25",
+      "productTotalFileSize": 12395,
+      "productFileTotalQuantity": 2,
+      "lastModifiedDateTime": "2024-09-26T12:00:00Z",
+      "mimeTypeIdentifierArrayText": ["application/zip", "application/pdf"],
+      "productFileBag": {
+        "count": 2,
+        "fileDataBag": [
+          {
+            "fileName": "apc240925.zip",
+            "fileSize": 12345,
+            "fileDataFromDate": "2024-09-25",
+            "fileDataToDate": "2024-09-25",
+            "fileTypeText": "Data",
+            "fileDownloadURI": "https://api.uspto.gov/api/v1/datasets/products/files/TRTDXFAP/apc240925.zip",
+            "fileReleaseDate": "2024-09-26",
+            "fileLastModifiedDateTime": "2024-09-26T11:30:00Z"
+          },
+          {
+            "fileName": "trademark-applications-documentation.pdf",
+            "fileSize": 50,
+            "fileDataFromDate": "2024-09-25",
+            "fileDataToDate": "2024-09-25",
+            "fileTypeText": "Documentation",
+            "fileDownloadURI": "https://data.uspto.gov/trademark-applications-documentation.pdf",
+            "fileReleaseDate": "2024-09-26",
+            "fileLastModifiedDateTime": "2024-09-26T11:30:00Z"
+          }
+        ]
+      }
+    }
+  ]
+}
