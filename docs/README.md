@@ -17,6 +17,7 @@ Trademark Turtle owns USPTO trademark discovery, ingestion, normalization, persi
 | Change USPTO ingestion, projection, replay, or freshness | [USPTO ingestion](ingestion.md), [ordered-claims decision](adr/0002-model-uspto-records-as-ordered-claims.md) |
 | Change USPTO source contracts, artifact enumeration, action profiles, or fixture evidence | [USPTO source contracts](specs/uspto-source-contracts.md) |
 | Change deployment, backups, artifact storage, or hosting | [Implementation plan](plan.md), [Mac mini hosting decision](adr/0003-host-v1-on-mac-mini.md) |
+| Run or verify the local production-shaped stack | [Local runtime operations](operations/local-runtime.md) |
 | Change HTTP procedures or automation behavior | [Implementation plan](plan.md), [CLI](cli.md) |
 | Change CLI commands, output, or errors | [CLI](cli.md) |
 | Change the authenticated web product or visual system | [Website](website.md), [website decision](adr/0001-include-thin-website-in-v1.md) |

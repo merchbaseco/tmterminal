@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+.git
+.codex
+coverage
+dist
+**/dist
+fixtures/uspto
+node_modules
+tmp

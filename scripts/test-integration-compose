@@ -1,0 +1,20 @@
+#!/bin/sh
+set -eu
+
+project="${COMPOSE_PROJECT_NAME:-tmturtle-test-$$}"
+export DATABASE_URL="${DATABASE_URL:-postgres://unused:unused@database:5432/unused}"
+export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-unused}"
+export TMTURTLE_API_PORT="${TMTURTLE_API_PORT:-0}"
+export TMTURTLE_WEB_PORT="${TMTURTLE_WEB_PORT:-0}"
+
+cleanup() {
+  docker compose --project-name "$project" --profile test down --volumes --remove-orphans
+}
+
+trap cleanup EXIT
+
+docker compose --project-name "$project" --profile test up \
+  --build \
+  --abort-on-container-exit \
+  --exit-code-from integration-test \
+  integration-test

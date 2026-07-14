@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+
+if [ -z "${TMTURTLE_WEB_PORT:-}" ] || [ -z "${TMTURTLE_API_PORT:-}" ]; then
+  TMTURTLE_WEB_PORT="${TMTURTLE_WEB_PORT:-$(dev-port 0)}"
+  TMTURTLE_API_PORT="${TMTURTLE_API_PORT:-$(dev-port 1)}"
+fi
+
+export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-tmturtle-${TMTURTLE_WEB_PORT}}"
+export TMTURTLE_WEB_PORT TMTURTLE_API_PORT
+
+exec docker compose "$@"

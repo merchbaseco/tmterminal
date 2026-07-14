@@ -1,0 +1,108 @@
+services:
+  database:
+    image: postgres:16.14-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tmturtle}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER:-tmturtle}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+    volumes:
+      - database-data:/var/lib/postgresql/data
+
+  migrate:
+    build:
+      context: .
+      target: runtime
+    command: ["bun", "run", "db:migrate"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+    depends_on:
+      database:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      target: runtime
+    command: ["bun", "run", "--cwd", "apps/server", "start"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "bun", "-e", "const r=await fetch('http://127.0.0.1:3000/api/health');if(!r.ok)process.exit(1)"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+    ports:
+      - "127.0.0.1:${TMTURTLE_API_PORT:?set TMTURTLE_API_PORT}:3000"
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      target: runtime
+    command: ["bun", "run", "--cwd", "apps/server", "worker"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "bun", "-e", "if(Date.now()-Number(await Bun.file('/tmp/tmturtle-worker-ready').text())>30000)process.exit(1)"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      target: web
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:8080/"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+    ports:
+      - "127.0.0.1:${TMTURTLE_WEB_PORT:?set TMTURTLE_WEB_PORT}:8080"
+    restart: unless-stopped
+
+  test-database:
+    profiles: ["test"]
+    image: postgres:16.14-alpine
+    environment:
+      POSTGRES_DB: tmturtle_test
+      POSTGRES_PASSWORD: tmturtle_test
+      POSTGRES_USER: tmturtle_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tmturtle_test -d tmturtle_test"]
+      interval: 1s
+      timeout: 3s
+      retries: 15
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  integration-test:
+    profiles: ["test"]
+    build:
+      context: .
+      target: runtime
+    command: ["bun", "run", "test:integration"]
+    environment:
+      TEST_DATABASE_URL: postgres://tmturtle_test:tmturtle_test@test-database:5432/tmturtle_test
+    depends_on:
+      test-database:
+        condition: service_healthy
+
+volumes:
+  database-data:

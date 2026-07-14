@@ -352,13 +352,26 @@ Mac mini Docker Compose topology:
 
 All host ports bind to loopback behind the existing reverse-proxy/Tailscale setup.
 
+The workspace is runnable before product procedures land:
+
+```bash
+bun install --frozen-lockfile
+bun run check
+bun run test:integration:compose
+bun run compose:up
+bun run compose:smoke
+```
+
+Compose waits for PostgreSQL, applies Drizzle migrations once, and starts the API and worker only after migration success. The anonymous `/api/health` endpoint reports process/database readiness with no corpus fields. Caddy serves the website shell and proxies `/api`; the API process never owns worker schedules. See [Local runtime operations](operations/local-runtime.md) for startup, verification, and cleanup.
+
 Deployment follows the house pattern:
 
 1. Self-hosted GitHub Actions runner on push to `main`
 2. `git pull --ff-only` in `/Users/zknicker/srv/tmturtle`
-3. `docker compose build`
-4. `docker compose up -d`
-5. Verify migration, API/database readiness, worker registration, and corpus state
+3. Configure stable `TMTURTLE_WEB_PORT` and `TMTURTLE_API_PORT` values in the deployment environment
+4. `docker compose build`
+5. `docker compose up -d`
+6. Verify migration, API/database readiness, worker registration, and corpus state
 
 Operations:
 
