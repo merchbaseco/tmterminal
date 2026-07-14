@@ -63,6 +63,19 @@ Direct `docker compose` deployment requires stable `TMTURTLE_API_PORT` and `TMTU
 
 Set `DATABASE_URL` and `POSTGRES_PASSWORD` in the ignored `.env` before starting Compose. `POSTGRES_DB` and `POSTGRES_USER` default to `tmturtle`; production must replace the example password. The API, worker, and one-shot migration all receive the configured `DATABASE_URL`.
 
+The worker also requires a rotated `USPTO_API_KEY` associated with an account authorized for ODP. Do not start the live worker with an exposed or retired key. Provider pacing stays configurable without assuming an undocumented quota:
+
+```dotenv
+USPTO_DISCOVERY_INTERVAL_MS=21600000
+USPTO_SCHEDULER_POLL_MS=10000
+USPTO_REQUEST_TIMEOUT_MS=900000
+USPTO_RETRY_BASE_MS=30000
+USPTO_RETRY_MAX_ATTEMPTS=8
+USPTO_RETRY_MAX_MS=21600000
+```
+
+Retained downloads live in the dedicated `artifact-data` volume under content-addressed keys. Normal `compose:down` preserves both database and artifact volumes.
+
 Authenticated website use also requires `CLERK_SECRET_KEY`, `CLERK_AUTHORIZED_PARTIES`, and `VITE_CLERK_PUBLISHABLE_KEY`. The Compose wrapper derives `CLERK_AUTHORIZED_PARTIES` from the worktree website port; direct deployments must set the public website origin explicitly. The API stays ready without Clerk credentials but rejects Clerk sessions; the website intentionally fails fast when its publishable key is absent.
 
 Bootstrap or recover a host-managed caller directly against the service database:
@@ -99,3 +112,5 @@ For an intentional clean local reset only:
 ```bash
 bun run compose -- down --volumes
 ```
+
+That reset deletes both the database and retained-artifact volumes. It is never a routine deployment or retry operation.
