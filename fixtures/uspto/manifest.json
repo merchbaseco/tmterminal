@@ -1,0 +1,534 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-07-14",
+  "cacheRootDefault": "~/Library/Caches/tmturtle/uspto",
+  "officialContracts": [
+    {
+      "id": "xml-resources",
+      "url": "https://www.uspto.gov/learning-and-resources/xml-resources",
+      "retainedEvidencePath": "contracts/sha256/79836c1ed39e4f3f520a91fe5da677afea0a9ce1ae5092fa333a5c51c85ad6c0/xml-resources.html",
+      "currentApplicationDocument": "https://data.uspto.gov/ui/datasets/products/files/TRTDXFAP/Trademark-Applications-Documentation-v2.3-20250813.doc",
+      "currentStatusTable": "https://data.uspto.gov/ui/datasets/products/files/TRTDXFAP/Table1TrademarkStatusCodes_20250813.doc",
+      "documentResponses": {
+        "checkedAt": "2026-07-14T18:51:54Z",
+        "httpStatus": 200,
+        "content": "ODP HTML application shell, not DOC bytes",
+        "responseBytes": 20666,
+        "responseSha256": "b96a82ac9ce8acb0a753bcb6a6dc4a1486bb3174f53e949df3d019fbad3a297a",
+        "applicationRetainedPath": "contracts/sha256/b96a82ac9ce8acb0a753bcb6a6dc4a1486bb3174f53e949df3d019fbad3a297a/application-documentation-response.html",
+        "statusTableRetainedPath": "contracts/sha256/b96a82ac9ce8acb0a753bcb6a6dc4a1486bb3174f53e949df3d019fbad3a297a/status-table-response.html"
+      }
+    },
+    {
+      "id": "odp-registration",
+      "url": "https://www.uspto.gov/subscription-center/2026/register-access-usptos-open-data-portal",
+      "retainedEvidencePath": "contracts/sha256/ad99dcd0fe0e4d1ed3c8ca698f31dc837226ab2b379351d79cc87cf3c897b9c4/odp-registration.html"
+    },
+    {
+      "id": "TRTYRAP-product-metadata",
+      "url": "https://api.uspto.gov/api/v1/datasets/products/TRTYRAP",
+      "checkedAt": "2026-07-14T18:46:50Z",
+      "httpStatus": 403,
+      "responseBytes": 23,
+      "responseSha256": "12a22880bc2e59f8278b4a5e547567f0aa14d020ea456598267fa00208cfebc5",
+      "retainedResponsePath": "contracts/sha256/12a22880bc2e59f8278b4a5e547567f0aa14d020ea456598267fa00208cfebc5/odp-forbidden.json"
+    },
+    {
+      "id": "TRTDXFAP-product-metadata",
+      "url": "https://api.uspto.gov/api/v1/datasets/products/TRTDXFAP",
+      "checkedAt": "2026-07-14T18:46:50Z",
+      "httpStatus": 403,
+      "responseBytes": 23,
+      "responseSha256": "12a22880bc2e59f8278b4a5e547567f0aa14d020ea456598267fa00208cfebc5",
+      "retainedResponsePath": "contracts/sha256/12a22880bc2e59f8278b4a5e547567f0aa14d020ea456598267fa00208cfebc5/odp-forbidden.json"
+    }
+  ],
+  "retainedEvidence": [
+    {
+      "path": "contracts/sha256/79836c1ed39e4f3f520a91fe5da677afea0a9ce1ae5092fa333a5c51c85ad6c0/xml-resources.html",
+      "bytes": 123684,
+      "sha256": "79836c1ed39e4f3f520a91fe5da677afea0a9ce1ae5092fa333a5c51c85ad6c0"
+    },
+    {
+      "path": "contracts/sha256/ad99dcd0fe0e4d1ed3c8ca698f31dc837226ab2b379351d79cc87cf3c897b9c4/odp-registration.html",
+      "bytes": 131755,
+      "sha256": "ad99dcd0fe0e4d1ed3c8ca698f31dc837226ab2b379351d79cc87cf3c897b9c4"
+    },
+    {
+      "path": "contracts/sha256/12a22880bc2e59f8278b4a5e547567f0aa14d020ea456598267fa00208cfebc5/odp-forbidden.json",
+      "bytes": 23,
+      "sha256": "12a22880bc2e59f8278b4a5e547567f0aa14d020ea456598267fa00208cfebc5"
+    },
+    {
+      "path": "contracts/sha256/b96a82ac9ce8acb0a753bcb6a6dc4a1486bb3174f53e949df3d019fbad3a297a/application-documentation-response.html",
+      "bytes": 20666,
+      "sha256": "b96a82ac9ce8acb0a753bcb6a6dc4a1486bb3174f53e949df3d019fbad3a297a"
+    },
+    {
+      "path": "contracts/sha256/b96a82ac9ce8acb0a753bcb6a6dc4a1486bb3174f53e949df3d019fbad3a297a/status-table-response.html",
+      "bytes": 20666,
+      "sha256": "b96a82ac9ce8acb0a753bcb6a6dc4a1486bb3174f53e949df3d019fbad3a297a"
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "TRTYRAP-apc18840407-20241231-02",
+      "product": "TRTYRAP",
+      "cachePath": "sha256/5fd3d811d780939101778281af4de9b400107e5147addfc6ac57146c8202b848/apc18840407-20241231-02.zip",
+      "retainedFrom": "~/Library/Application Support/@merchbase/desktop/trademark/apc18840407-20241231-02.zip",
+      "upstreamDownloadUri": null,
+      "coverage": {
+        "upstreamFilenameLabel": "18840407-20241231-02",
+        "officialMetadata": null
+      },
+      "zip": {
+        "filename": "apc18840407-20241231-02.zip",
+        "bytes": 4094031,
+        "sha256": "5fd3d811d780939101778281af4de9b400107e5147addfc6ac57146c8202b848"
+      },
+      "xml": {
+        "filename": "apc18840407-20241231-02.xml",
+        "bytes": 560520706,
+        "sha256": "4256bd72fd6af6ee861b89243adf0e7271729859fe266871727dea7c6a648359",
+        "recordCount": 155000,
+        "actionRecordCounts": {
+          "TX": 155000
+        },
+        "actionGroups": [
+          {
+            "actionKey": "TX",
+            "actionOccurrence": 1,
+            "recordCount": 155000
+          }
+        ],
+        "transactionDateRange": {
+          "from": "20160316",
+          "to": "20230602"
+        },
+        "root": {
+          "name": "trademark-applications-daily",
+          "version": "2.0",
+          "versionDate": "20041108",
+          "creationDatetime": "202502251643"
+        }
+      }
+    },
+    {
+      "id": "TRTDXFAP-apc240914",
+      "product": "TRTDXFAP",
+      "cachePath": "sha256/e1f029e0c061ae7f673aa6e2d444d5e49918053858612c4d106aade67fbb342f/apc240914.zip",
+      "retainedFrom": "~/Library/Application Support/@merchbase/desktop/trademark/apc240914.zip",
+      "upstreamDownloadUri": null,
+      "coverage": {
+        "observedTransactionDate": "20240914",
+        "officialMetadata": null
+      },
+      "zip": {
+        "filename": "apc240914.zip",
+        "bytes": 10560420,
+        "sha256": "e1f029e0c061ae7f673aa6e2d444d5e49918053858612c4d106aade67fbb342f"
+      },
+      "xml": {
+        "filename": "apc240914.xml",
+        "bytes": 186479785,
+        "sha256": "f79a43bf6fee73383a60b381f2138a7cd2a7f078c320a42cff2de2955aeee80e",
+        "recordCount": 11012,
+        "actionRecordCounts": {
+          "NA": 501,
+          "TX": 10511
+        },
+        "actionGroups": [
+          {
+            "actionKey": "TX",
+            "actionOccurrence": 1,
+            "recordCount": 10362
+          },
+          {
+            "actionKey": "NA",
+            "actionOccurrence": 1,
+            "recordCount": 501
+          },
+          {
+            "actionKey": "TX",
+            "actionOccurrence": 2,
+            "recordCount": 149
+          }
+        ],
+        "transactionDateRange": {
+          "from": "20240914",
+          "to": "20240914"
+        },
+        "root": {
+          "name": "trademark-applications-daily",
+          "version": "2.0",
+          "versionDate": "20041108",
+          "creationDatetime": "202409142348"
+        }
+      }
+    },
+    {
+      "id": "TRTDXFAP-apc240925",
+      "product": "TRTDXFAP",
+      "cachePath": "sha256/ab61f5aa3be3cd698e6cc756d4ece10235026d421e2b4b2a3e2d74234ebf0495/apc240925.zip",
+      "retainedFrom": "~/Library/Application Support/@merchbase/desktop/trademark/apc240925.zip",
+      "upstreamDownloadUri": null,
+      "coverage": {
+        "observedTransactionDate": "20240925",
+        "officialMetadata": null
+      },
+      "zip": {
+        "filename": "apc240925.zip",
+        "bytes": 29385034,
+        "sha256": "ab61f5aa3be3cd698e6cc756d4ece10235026d421e2b4b2a3e2d74234ebf0495"
+      },
+      "xml": {
+        "filename": "apc240925.xml",
+        "bytes": 531918968,
+        "sha256": "31ce7c62693841eac59c3a2550c20e00e0db6ba3b1d2abcb3289eb67cfe00d14",
+        "recordCount": 38179,
+        "actionRecordCounts": {
+          "IB": 201,
+          "NA": 1556,
+          "TX": 36422
+        },
+        "actionGroups": [
+          {
+            "actionKey": "IB",
+            "actionOccurrence": 1,
+            "recordCount": 201
+          },
+          {
+            "actionKey": "NA",
+            "actionOccurrence": 1,
+            "recordCount": 1556
+          },
+          {
+            "actionKey": "TX",
+            "actionOccurrence": 1,
+            "recordCount": 36422
+          }
+        ],
+        "transactionDateRange": {
+          "from": "20240925",
+          "to": "20240925"
+        },
+        "root": {
+          "name": "trademark-applications-daily",
+          "version": "2.0",
+          "versionDate": "20041108",
+          "creationDatetime": "202409252348"
+        }
+      }
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "annual-status-only-tx",
+      "artifactId": "TRTYRAP-apc18840407-20241231-02",
+      "actionKey": "TX",
+      "actionOccurrence": 1,
+      "recordIndex": 1,
+      "actionRecordIndex": 1,
+      "serialNumber": "60172053",
+      "path": "fixtures/uspto/records/annual-status-only-tx-60172053.xml",
+      "bytes": 3618,
+      "sha256": "a96e34c8f5f58a4ac83f13bc0f4e0ce82042c1a845524e30db9b1c46f2110f38",
+      "sequence": "annual-full-to-status-only",
+      "evidence": [
+        "status-only annual TX",
+        "present empty correspondent",
+        "missing mark, owner, classification, and goods groups"
+      ],
+      "expectedPresence": {
+        "present": [
+          "serial-number",
+          "registration-number",
+          "transaction-date",
+          "case-file-header",
+          "correspondent"
+        ],
+        "absent": [
+          "mark-identification",
+          "case-file-statements",
+          "classifications",
+          "case-file-owners"
+        ],
+        "empty": [
+          "correspondent"
+        ]
+      }
+    },
+    {
+      "id": "daily-ib",
+      "artifactId": "TRTDXFAP-apc240925",
+      "actionKey": "IB",
+      "actionOccurrence": 1,
+      "recordIndex": 1,
+      "actionRecordIndex": 1,
+      "serialNumber": "72269147",
+      "path": "fixtures/uspto/records/daily-ib-72269147.xml",
+      "bytes": 20725,
+      "sha256": "a2c21edd3eefb229bc9e3ae4d53b0fee017559e56a7a9c056937245d3b05f6cb",
+      "sequence": null,
+      "evidence": [
+        "daily IB action",
+        "full application groups"
+      ],
+      "expectedPresence": {
+        "present": [
+          "mark-identification",
+          "case-file-statements",
+          "classifications",
+          "case-file-owners"
+        ],
+        "absent": [],
+        "empty": []
+      }
+    },
+    {
+      "id": "daily-na",
+      "artifactId": "TRTDXFAP-apc240925",
+      "actionKey": "NA",
+      "actionOccurrence": 1,
+      "recordIndex": 202,
+      "actionRecordIndex": 1,
+      "serialNumber": "98763166",
+      "path": "fixtures/uspto/records/daily-na-98763166.xml",
+      "bytes": 8042,
+      "sha256": "807cb064b83a0cd58a0e0a1859bdfef5ed15f692c6f6db0c6e5d0981c23b3067",
+      "sequence": null,
+      "evidence": [
+        "daily NA action",
+        "new-application shape"
+      ],
+      "expectedPresence": {
+        "present": [
+          "filing-date",
+          "mark-identification",
+          "case-file-statements",
+          "classifications",
+          "case-file-owners"
+        ],
+        "absent": [],
+        "empty": []
+      }
+    },
+    {
+      "id": "goods-before-replacement",
+      "artifactId": "TRTDXFAP-apc240914",
+      "actionKey": "TX",
+      "actionOccurrence": 1,
+      "recordIndex": 7456,
+      "actionRecordIndex": 7456,
+      "serialNumber": "75932504",
+      "path": "fixtures/uspto/records/goods-before-replacement-75932504.xml",
+      "bytes": 28138,
+      "sha256": "99427d74682359d7abae10aae48fe39efdde96c7fbbeef55a5f21d07a0700fae",
+      "sequence": "goods-and-classification-replacement",
+      "evidence": [
+        "earlier daily TX",
+        "classification group before replacement"
+      ],
+      "expectedPresence": {
+        "present": [
+          "case-file-statements",
+          "classifications",
+          "case-file-owners"
+        ],
+        "absent": [],
+        "empty": []
+      }
+    },
+    {
+      "id": "goods-after-replacement",
+      "artifactId": "TRTDXFAP-apc240925",
+      "actionKey": "TX",
+      "actionOccurrence": 1,
+      "recordIndex": 25948,
+      "actionRecordIndex": 24191,
+      "serialNumber": "75932504",
+      "path": "fixtures/uspto/records/goods-after-replacement-75932504.xml",
+      "bytes": 30421,
+      "sha256": "21a3b3e5c90b895e8a21a2cd6d6f54a0e317ca1e869fb1804663a2847aa189a9",
+      "sequence": "goods-and-classification-replacement",
+      "evidence": [
+        "later daily TX",
+        "classification group replacement",
+        "goods text with brackets, double parentheses, and asterisks"
+      ],
+      "expectedPresence": {
+        "present": [
+          "case-file-statements",
+          "classifications",
+          "case-file-owners"
+        ],
+        "absent": [],
+        "empty": []
+      }
+    },
+    {
+      "id": "revival-before",
+      "artifactId": "TRTDXFAP-apc240914",
+      "actionKey": "TX",
+      "actionOccurrence": 1,
+      "recordIndex": 5288,
+      "actionRecordIndex": 5288,
+      "serialNumber": "98186103",
+      "path": "fixtures/uspto/records/revival-before-98186103.xml",
+      "bytes": 18624,
+      "sha256": "34f2cec502db9074af200de2509255800f7ce83ba3781df9afa4063b5c4172ef",
+      "sequence": "revival",
+      "evidence": [
+        "status 602 before revival"
+      ],
+      "expectedPresence": {
+        "present": [
+          "status-code",
+          "case-file-event-statements"
+        ],
+        "absent": [],
+        "empty": []
+      }
+    },
+    {
+      "id": "revival-after",
+      "artifactId": "TRTDXFAP-apc240925",
+      "actionKey": "TX",
+      "actionOccurrence": 1,
+      "recordIndex": 20094,
+      "actionRecordIndex": 18337,
+      "serialNumber": "98186103",
+      "path": "fixtures/uspto/records/revival-after-98186103.xml",
+      "bytes": 20014,
+      "sha256": "d073c5220246c0bf545272185344de056a6f9893b5018ee42d4ca7de0add6dff",
+      "sequence": "revival",
+      "evidence": [
+        "status 616 after status 602",
+        "petition-to-revive event evidence"
+      ],
+      "expectedPresence": {
+        "present": [
+          "status-code",
+          "case-file-event-statements"
+        ],
+        "absent": [],
+        "empty": []
+      }
+    },
+    {
+      "id": "publication-before",
+      "artifactId": "TRTDXFAP-apc240914",
+      "actionKey": "TX",
+      "actionOccurrence": 1,
+      "recordIndex": 4041,
+      "actionRecordIndex": 4041,
+      "serialNumber": "79366581",
+      "path": "fixtures/uspto/records/publication-before-79366581.xml",
+      "bytes": 29216,
+      "sha256": "ed48531b8cd4a06211b4a2a9183bc951ad310197b44f39c09779704ebcc93edb",
+      "sequence": "publication-and-classification-replacement",
+      "evidence": [
+        "status 774 before publication",
+        "five-class classification group"
+      ],
+      "expectedPresence": {
+        "present": [
+          "status-code",
+          "case-file-statements",
+          "classifications"
+        ],
+        "absent": [],
+        "empty": []
+      }
+    },
+    {
+      "id": "publication-after",
+      "artifactId": "TRTDXFAP-apc240925",
+      "actionKey": "TX",
+      "actionOccurrence": 1,
+      "recordIndex": 22251,
+      "actionRecordIndex": 20494,
+      "serialNumber": "79366581",
+      "path": "fixtures/uspto/records/publication-after-79366581.xml",
+      "bytes": 29301,
+      "sha256": "62b9e3fc29921e295965d4bdbb32bb14c73b3bd645304d1e20f7730e83084675",
+      "sequence": "publication-and-classification-replacement",
+      "evidence": [
+        "status 686 after status 774",
+        "PUBLISHED FOR OPPOSITION event",
+        "four-class replacement omits prior class 025"
+      ],
+      "expectedPresence": {
+        "present": [
+          "status-code",
+          "case-file-statements",
+          "classifications"
+        ],
+        "absent": [],
+        "empty": []
+      }
+    },
+    {
+      "id": "registration-evidence",
+      "artifactId": "TRTDXFAP-apc240914",
+      "actionKey": "TX",
+      "actionOccurrence": 1,
+      "recordIndex": 1829,
+      "actionRecordIndex": 1829,
+      "serialNumber": "98423838",
+      "path": "fixtures/uspto/records/registration-evidence-98423838.xml",
+      "bytes": 16471,
+      "sha256": "512d5c578b3ae5840bbec62e68f30b38ba4d89e6d45f7ebcff04f8d89ced36b6",
+      "sequence": null,
+      "evidence": [
+        "status 700",
+        "registration date and number",
+        "REGISTERED-PRINCIPAL REGISTER event"
+      ],
+      "expectedPresence": {
+        "present": [
+          "registration-number",
+          "registration-date",
+          "case-file-event-statements"
+        ],
+        "absent": [],
+        "empty": []
+      }
+    },
+    {
+      "id": "cancellation-evidence",
+      "artifactId": "TRTDXFAP-apc240914",
+      "actionKey": "TX",
+      "actionOccurrence": 1,
+      "recordIndex": 4935,
+      "actionRecordIndex": 4935,
+      "serialNumber": "85017257",
+      "path": "fixtures/uspto/records/cancellation-evidence-85017257.xml",
+      "bytes": 19220,
+      "sha256": "e80b9a15001fe0f0203aaa98f59333bfd3b8effc027dea6b6cc3884ff6f47b9f",
+      "sequence": null,
+      "evidence": [
+        "status 710",
+        "CANCELLED SEC. 8 (6-YR) event",
+        "class status 2"
+      ],
+      "expectedPresence": {
+        "present": [
+          "status-code",
+          "case-file-event-statements",
+          "classifications"
+        ],
+        "absent": [],
+        "empty": []
+      }
+    }
+  ],
+  "blockingGaps": [
+    "ODP product metadata returns HTTP 403 under the retained API key after the June 18, 2026 sign-in requirement; no unattended login path is assumed.",
+    "The current application-documentation and status-table links resolve to the ODP HTML application shell, so their DOC bytes and checksums are not retained.",
+    "Only annual suffix -02 is retained. Official annual part presence, ordering, overlap, complete generation enumeration, and the full annual application part remain unproved.",
+    "The retained daily artifacts contain IB, NA, and TX action keys but no numeric Official Gazette action key.",
+    "Registration and cancellation are evidenced by real records and event histories, but retained artifacts do not establish multi-observation registration or cancellation sequences.",
+    "The annual full-to-status-only sequence is incomplete until the matching full annual part is retained."
+  ]
+}
