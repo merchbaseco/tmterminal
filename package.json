@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "docs:list": "docs-list",
-    "fixtures:verify": "bun scripts/uspto-fixtures.ts"
+    "fixtures:verify": "bun scripts/uspto-fixtures.ts",
+    "test:fixtures": "bun test scripts/uspto-fixtures.test.ts"
   }
 }

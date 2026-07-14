@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 type CachedEvidence = {
     path: string;
@@ -54,10 +54,25 @@ type Manifest = {
 };
 
 const repositoryRoot = join(import.meta.dir, '..');
-const manifestPath = join(repositoryRoot, 'fixtures/uspto/manifest.json');
+const manifestPath = process.env.TMTURTLE_USPTO_MANIFEST
+    ? resolve(repositoryRoot, process.env.TMTURTLE_USPTO_MANIFEST)
+    : join(repositoryRoot, 'fixtures/uspto/manifest.json');
 const manifest = (await Bun.file(manifestPath).json()) as Manifest;
 const writeFixtures = Bun.argv.includes('--write');
 const cacheRoot = process.env.TMTURTLE_USPTO_CACHE ?? join(homedir(), 'Library/Caches/tmturtle/uspto');
+
+const artifactCounts = new Map<string, number>();
+for (const artifact of manifest.artifacts) {
+    artifactCounts.set(artifact.id, (artifactCounts.get(artifact.id) ?? 0) + 1);
+}
+for (const fixture of manifest.fixtures) {
+    const matchCount = artifactCounts.get(fixture.artifactId) ?? 0;
+    if (matchCount !== 1) {
+        throw new Error(
+            `Fixture ${fixture.id} must resolve to exactly one artifact; found ${matchCount} for ${fixture.artifactId}`,
+        );
+    }
+}
 
 const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 
