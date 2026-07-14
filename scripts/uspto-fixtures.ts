@@ -61,11 +61,6 @@ const writeFixtures = Bun.argv.includes('--write');
 const cacheRoot = join(homedir(), 'Library/Caches/tmturtle/uspto');
 
 assertFixtureArtifactReferences(manifest.artifacts, manifest.fixtures);
-const recordDirectory = join(repositoryRoot, 'fixtures/uspto/records');
-const recordPaths = (await readdir(recordDirectory, { withFileTypes: true }))
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.xml'))
-    .map((entry) => `fixtures/uspto/records/${entry.name}`);
-assertFixturePathInventory(recordPaths, manifest.fixtures.map((fixture) => fixture.path));
 
 const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 
@@ -302,6 +297,12 @@ for (const artifact of manifest.artifacts) {
         manifest.fixtures.filter((fixture) => fixture.artifactId === artifact.id),
     );
 }
+
+const recordDirectory = join(repositoryRoot, 'fixtures/uspto/records');
+const recordPaths = (await readdir(recordDirectory, { withFileTypes: true }))
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.xml'))
+    .map((entry) => `fixtures/uspto/records/${entry.name}`);
+assertFixturePathInventory(recordPaths, manifest.fixtures.map((fixture) => fixture.path));
 
 if (writeFixtures) {
     await Bun.write(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
