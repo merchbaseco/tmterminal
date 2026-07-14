@@ -1,0 +1,182 @@
+---
+summary: Defines USPTO source authority, artifact discovery, immutable observations, canonical projection, replay, and corpus freshness.
+read_when:
+  - changing USPTO discovery, downloads, parsing, projection, publication, or freshness
+  - changing corpus source authority, provenance, replay, or status derivation
+---
+
+# USPTO ingestion
+
+Trademark Turtle turns USPTO bulk artifacts into a searchable corpus without exposing source-file mechanics to callers. Raw artifacts and parsed observations are immutable; canonical marks are rebuildable materializations.
+
+## Source authority
+
+- `TRTYRAP` provides annual retrospective application XML.
+- `TRTDXFAP` provides current-calendar-year daily application XML.
+- An annual generation owns the records and groups it supplies through its inclusive coverage cutoff `C`.
+- A daily observation at or before `C` may fill a serial or group absent from the annual generation, but never overwrite an annual observation.
+- Daily observations after `C` advance canonical state in source order.
+- Artifact or generation absence never deletes a mark. Only explicit USPTO facts change canonical state.
+- Every daily ZIP remains retained after an annual generation covers its date.
+
+`status_date` is a trademark-status fact. It is never whole-record source precedence.
+
+## Provider access and pacing
+
+USPTO Open Data Portal access uses one operator-managed `USPTO_API_KEY` associated with a valid USPTO.gov account. The key is a server secret. It never enters browser or client output, logs, database rows, fixtures, source manifests, or application error payloads. The operator keeps the associated ODP account profile current.
+
+USPTO currently publishes no numeric request, download, or concurrency limit for the ODP bulk-product API and documents no stable rate-limit-header or retry contract. Numeric limits published for TSDR are a different service and do not apply to ODP. Trademark Turtle therefore does not hardcode an assumed USPTO quota.
+
+All discovery and downloads pass through one credential-scoped scheduler. Initial artifact downloads are serial. Discovery interval, concurrency, timeouts, retry attempts, and backoff bounds remain runtime-configurable. The scheduler:
+
+- honors `Retry-After` or reset headers when actually returned;
+- pauses the provider lane and applies persisted exponential backoff with jitter after observed throttling;
+- retries timeouts and server failures within a configured cap;
+- stops and alerts on authentication, authorization, or permanent request failures;
+- persists next eligibility, attempts, sanitized response state, and artifact verification state so restart cannot hammer USPTO;
+- never advances artifact or corpus state before verified download and committed publication.
+
+“Daily” and “annual” describe source-product cadence, not a promised publication time. Discovery is idempotent and does not assume a release hour.
+
+Official references:
+
+- [ODP bulk-data search API](https://data.uspto.gov/apis/bulk-data/search)
+- [USPTO.gov account requirement for ODP](https://www.uspto.gov/subscription-center/2026/register-access-usptos-open-data-portal)
+
+## Artifact identity
+
+An artifact has two identities:
+
+- **Logical artifact:** USPTO product plus upstream filename.
+- **Artifact version:** logical artifact plus downloaded SHA-256.
+
+Discovery timestamps, release metadata, byte size, coverage dates, and URL are observations about a logical artifact. Changed bytes under the same filename create a new immutable version. Unchanged bytes are a no-op.
+
+Annual files sharing one coverage range form one generation. Part suffixes are opaque until current USPTO metadata or fixtures establish their ordering. A generation publishes only after every enumerated part is present and valid.
+
+Artifact versions move through explicit states:
+
+```text
+discovered -> downloading -> downloaded -> verified -> parsing -> staged -> published
+                                                                    \-> quarantined
+```
+
+Superseded versions remain available for provenance and replay.
+
+## Source observations
+
+USPTO `case-file` records are variably complete observations, not unconditional mark snapshots. Each stored source observation includes:
+
+- Artifact version and parse run
+- Physical record index and action key
+- Serial number and source transaction date
+- Schema version and record-shape profile
+- Element/group presence
+- Lossless parsed values and digest
+- Parser, projection-profile, normalization, and authority-policy versions
+
+Raw XML slices are retained for rejects and unresolved shapes. Raw ZIPs remain the full replay source.
+
+## Canonicalization
+
+The canonicalizer folds ordered typed claims for one serial number. It never performs a generic row merge.
+
+Scalar claims distinguish:
+
+- **Unmentioned:** preserve the prior fact or remain unknown.
+- **Set:** replace the scalar with the supplied value.
+- **Clear:** clear only when a versioned source profile proves that the present empty or zero value means clear.
+
+Collection claims distinguish:
+
+- **Unmentioned:** preserve the prior group.
+- **Replace:** replace a present complete group, such as a classification or statement set.
+- **Assert:** add a fact when the source contract is additive.
+
+Action keys establish provenance and documented source order; they do not alone establish record completeness. A status-only annual `TX` observation updates lifecycle facts without erasing the word mark, filing facts, owners, classes, or goods.
+
+Unknown shapes and unproven clear/collection semantics do not mutate the affected canonical group. They remain durable unresolved observations and block complete publication until supported.
+
+Canonical provenance is group-specific. Mark presentation, application facts, registration facts, lifecycle, owners, classifications, goods/services, and prosecution history each reference the source observation that established them.
+
+## Derived domain values
+
+Trademark Turtle preserves raw USPTO values and derives query values through versioned maps.
+
+- **Status:** raw status code and date plus `live | dead | unknown`.
+- **Registration:** a nonzero registration number means ever registered; it is independent of current liveness.
+- **Type:** `typeset = 1`, `text = 4`, `design = 2 | 3 | 5`, and `other = 0 | 6 | unknown`.
+- **Class:** raw class code, class status, and class-status date remain distinct from whole-mark status.
+- **Live Class 025:** the mark is live and its Class 025 classification is active.
+- **Published for opposition:** the current versioned USPTO status semantic, currently associated with status code 686. It is not a claim that the legal opposition window remains open.
+
+Goods/services retain raw type code and source text. Display cleanup is versioned and fixture-tested because brackets, double parentheses, and asterisks carry source meaning.
+
+Date-only USPTO values use PostgreSQL `date`, not JavaScript local-time timestamps. Partial or zero-filled dates preserve raw value and precision rather than rolling into invented dates.
+
+## Parsing and publication
+
+The reader is tolerant of documented source sparsity and strict about structure.
+
+Valid absence includes optional elements, empty tags, zero registration numbers, nullable word marks for design marks, opaque class codes such as `A` and `B`, and unknown raw codes. These values become null, unknown, or raw facts according to a versioned profile; they are not guessed.
+
+The following quarantine an artifact version:
+
+- Incomplete download, checksum failure, or invalid ZIP
+- Malformed or truncated XML
+- Unsupported root or schema version
+- Ambiguous record boundaries or source order
+- Missing mandatory case identity
+- Unknown record-shape profile that could mutate canonical state
+- Observation-count, digest, or canonical invariant failure
+
+v1 publishes with zero unresolved record rejects. The parser stages the full artifact, validates it, and publishes canonical changes in one database transaction. A valid `data-available-code=N` artifact publishes successfully with zero records.
+
+Publication transaction:
+
+1. Acquire the corpus publication advisory lock.
+2. Revalidate the staged artifact version and parse-run digest.
+3. Fold affected serials from eligible observations.
+4. Replace canonical groups and provenance.
+5. Append distinct source-reported status events.
+6. Update corpus state and `corpusVersion` only for query-visible changes.
+7. Insert durable corpus events and call `pg_notify(eventId)`.
+8. Commit.
+
+PostgreSQL notification is wake-up only. Durable event rows are the recovery source.
+
+## Freshness
+
+Corpus state keeps separate facts:
+
+- `publishedThroughDate`: newest source date represented by a successful publication.
+- `completeThroughDate`: contiguous authoritative frontier with every required artifact resolved.
+- `lastSuccessfulMergeAt`: wall-clock time of the last committed publication.
+- `corpusVersion`: monotonic version of query-visible canonical state.
+
+Public `corpusThroughDate` means `completeThroughDate`. A later artifact may publish beyond a gap, but the complete frontier remains behind and the service reports degraded state. A changed artifact version at or before the frontier makes completeness provisional until reconciled.
+
+## Module interfaces
+
+The ingestion implementation is hidden behind deep modules:
+
+- **Source catalog module:** reconciles USPTO product metadata into logical artifacts and versions.
+- **Artifact pipeline module:** downloads, verifies, parses, and stages one immutable version.
+- **Canonicalizer module:** folds ordered observations for one serial into canonical groups, provenance, and diagnostics.
+- **Corpus publisher module:** validates a parse run and atomically publishes its affected serials.
+- **Reconciliation runtime:** reads database state and enqueues eligible work; jobs do not recursively chain one another.
+
+The USPTO client is a true-external adapter. Production uses the HTTP adapter; tests use fixtures through an in-memory adapter. PostgreSQL behavior is tested through the module interface using a real test database.
+
+## Fixture gate
+
+Canonical ingestion does not begin until the repository contains:
+
+- Current USPTO application documentation, status table, and source manifest with checksums
+- A complete enumerated annual generation
+- Full annual application and status-only annual `TX` fixtures
+- Daily `NA`, `TX`, `IB`, and numeric Official Gazette action fixtures
+- Full-to-partial, missing-versus-empty, collection replacement, revival, class cancellation, registration, and publication sequences
+- Real PostgreSQL replay tests for out-of-order ingestion, reissues, idempotency, provenance, and frontier behavior
+
+Small committed fixtures are byte-exact excerpts with their original root, version, action-key context, artifact checksum, record index, and expected observation. Full ZIPs live outside Git in a content-addressed integration cache.
