@@ -13,6 +13,8 @@ COPY . .
 FROM workspace AS runtime
 
 FROM workspace AS web-build
+ARG VITE_CLERK_PUBLISHABLE_KEY
+ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
 RUN bun run --cwd apps/web build
 
 FROM caddy:2.11.4-alpine AS web

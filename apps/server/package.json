@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "api-keys:create": "bun run src/api-keys-create.ts",
     "build": "bun build src/server.ts src/worker.ts src/db/migrate.ts --outdir dist --target bun",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun run src/db/migrate.ts",
@@ -10,10 +11,12 @@
     "worker": "bun run src/worker.ts"
   },
   "dependencies": {
+    "@clerk/backend": "3.11.5",
     "@trpc/server": "11.18.0",
     "drizzle-orm": "0.45.2",
     "fastify": "5.10.0",
-    "postgres": "3.4.9"
+    "postgres": "3.4.9",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "drizzle-kit": "0.31.10"

@@ -36,7 +36,7 @@ describe("runtime database spine", () => {
     `;
 
     expect(extension?.installed).toBe(true);
-    expect(migrationCount?.count).toBe(1);
+    expect(migrationCount?.count).toBe(2);
   });
 
   test("reports ready after migrations complete", async () => {
