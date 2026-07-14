@@ -1,0 +1,21 @@
+{
+  "name": "@tmturtle/core-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build src/server.ts src/worker.ts src/db/migrate.ts --outdir dist --target bun",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "bun run src/db/migrate.ts",
+    "start": "bun run src/server.ts",
+    "worker": "bun run src/worker.ts"
+  },
+  "dependencies": {
+    "@trpc/server": "11.18.0",
+    "drizzle-orm": "0.45.2",
+    "fastify": "5.10.0",
+    "postgres": "3.4.9"
+  },
+  "devDependencies": {
+    "drizzle-kit": "0.31.10"
+  }
+}

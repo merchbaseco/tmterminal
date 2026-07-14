@@ -1,0 +1,23 @@
+#!/bin/sh
+set -eu
+
+if [ -z "${TMTURTLE_WEB_PORT:-}" ] || [ -z "${TMTURTLE_API_PORT:-}" ]; then
+  TMTURTLE_WEB_PORT="${TMTURTLE_WEB_PORT:-$(dev-port 0)}"
+  TMTURTLE_API_PORT="${TMTURTLE_API_PORT:-$(dev-port 1)}"
+fi
+export TMTURTLE_WEB_PORT TMTURTLE_API_PORT
+
+test "$(curl --fail --silent "http://127.0.0.1:${TMTURTLE_API_PORT}/api/health")" = '{"status":"ready"}'
+curl --fail --silent --output /dev/null "http://127.0.0.1:${TMTURTLE_WEB_PORT}/"
+
+for service in database api worker web; do
+  container_id="$(./scripts/compose ps --quiet "$service")"
+  test -n "$container_id"
+  test "$(docker inspect --format '{{.State.Health.Status}}' "$container_id")" = "healthy"
+done
+
+migrate_id="$(./scripts/compose ps --all --quiet migrate)"
+test -n "$migrate_id"
+test "$(docker inspect --format '{{.State.ExitCode}}' "$migrate_id")" = "0"
+
+echo "Compose smoke passed: migration, API readiness, worker, and web shell"

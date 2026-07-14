@@ -1,0 +1,10 @@
+.env
+.env.*
+!.env.example
+.git
+.codex
+coverage
+dist
+**/dist
+node_modules
+tmp
