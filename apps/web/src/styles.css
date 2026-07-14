@@ -5,7 +5,7 @@
 
 :root {
   color-scheme: light dark;
-  --background: #f4f4ee;
+  --background: #f5f2ea;
   --foreground: #171714;
   --card: var(--background);
   --card-foreground: var(--foreground);
@@ -29,7 +29,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #151513;
+    --background: #151616;
     --foreground: #f1f1e9;
     --card: var(--background);
     --card-foreground: var(--foreground);
