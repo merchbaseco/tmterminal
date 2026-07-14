@@ -55,7 +55,7 @@ services:
       migrate:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "bun", "-e", "process.kill(1,0)"]
+      test: ["CMD", "bun", "-e", "if(Date.now()-Number(await Bun.file('/tmp/tmturtle-worker-ready').text())>30000)process.exit(1)"]
       interval: 2s
       timeout: 3s
       retries: 15

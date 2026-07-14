@@ -7,7 +7,13 @@ if (!databaseUrl) {
 }
 
 const database = createDatabaseClient(databaseUrl);
+const healthFile = "/tmp/tmturtle-worker-ready";
 let stopping = false;
+
+async function checkDatabase() {
+  await database`select 1`;
+  await Bun.write(healthFile, String(Date.now()));
+}
 
 async function stop() {
   if (stopping) return;
@@ -20,11 +26,12 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, () => void stop());
 }
 
-await database`select 1`;
+await Bun.write(healthFile, "0");
+await checkDatabase();
 
 setInterval(async () => {
   try {
-    await database`select 1`;
+    await checkDatabase();
   } catch (error) {
     console.error("Worker database readiness failed", error);
     await database.end({ timeout: 1 });

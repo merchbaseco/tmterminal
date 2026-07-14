@@ -43,7 +43,7 @@ bun run compose:up
 bun run compose:smoke
 ```
 
-The startup order is PostgreSQL health, one-shot Drizzle migration, API and worker, then the Caddy website shell. `dev-port` allocates four deterministic ports per checkout. The root scripts also derive a distinct Compose project name, so each worktree owns its containers, network, and volumes. The website uses the first port and the API uses the second:
+The startup order is PostgreSQL health, one-shot Drizzle migration, API and worker database readiness, then the Caddy website shell. `dev-port` allocates four deterministic ports per checkout. The root scripts also derive a distinct Compose project name, so each worktree owns its containers, network, and volumes. The website uses the first port and the API uses the second:
 
 ```bash
 dev-port --group
