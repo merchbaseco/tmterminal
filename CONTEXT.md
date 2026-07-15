@@ -39,6 +39,12 @@ _Avoid_: Snapshot, canonical row
 **Canonical Mark**:
 The rebuildable current trademark materialization produced by folding eligible source observations for one serial number.
 
+**Authority Conflict**:
+An unresolved canonical claim path for which source-authorized fold orders produce different semantic values. Different observation identities supporting the same value are contributors, not a conflict.
+
+**Unsupported Semantics**:
+An unresolved source shape whose operation is not proved by its versioned profile. It is distinct from an authority conflict between known claim effects.
+
 **Corpus Version**:
 The monotonic identity of query-visible canonical state. Paged requests use it to detect a changed corpus.
 
