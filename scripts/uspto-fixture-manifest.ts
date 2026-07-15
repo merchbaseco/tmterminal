@@ -16,6 +16,28 @@ export const assertFixtureArtifactReferences = (
     }
 };
 
+export const assertArtifactMetadataReferences = (
+    metadataSources: ReadonlyArray<{ id: string }>,
+    artifacts: ReadonlyArray<{ id: string; officialMetadata?: { sourceId: string } }>,
+) => {
+    const sourceCounts = new Map<string, number>();
+    for (const source of metadataSources) {
+        sourceCounts.set(source.id, (sourceCounts.get(source.id) ?? 0) + 1);
+    }
+    for (const artifact of artifacts) {
+        const sourceId = artifact.officialMetadata?.sourceId;
+        if (!sourceId) {
+            continue;
+        }
+        const matchCount = sourceCounts.get(sourceId) ?? 0;
+        if (matchCount !== 1) {
+            throw new Error(
+                `Artifact ${artifact.id} must resolve to exactly one official metadata source; found ${matchCount} for ${sourceId}`,
+            );
+        }
+    }
+};
+
 export const assertFixturePathInventory = (recordPaths: readonly string[], manifestPaths: readonly string[]) => {
     const recordPathSet = new Set(recordPaths);
     const manifestPathSet = new Set(manifestPaths);
@@ -31,5 +53,64 @@ export const assertFixturePathInventory = (recordPaths: readonly string[], manif
             .filter(Boolean)
             .join('; ');
         throw new Error(`Fixture path inventory mismatch: ${details}`);
+    }
+};
+
+type AnnualFixturePair = {
+    id: string;
+    generationFromDate: string;
+    generationToDate: string;
+    fullFixtureId: string;
+    statusOnlyFixtureId: string;
+};
+
+type PairFixture = {
+    id: string;
+    artifactId: string;
+    actionKey: string;
+    expectedPresence: { present: string[]; absent: string[] };
+};
+
+type PairArtifact = {
+    id: string;
+    officialMetadata?: { generationFromDate: string; generationToDate: string };
+};
+
+export const assertAnnualFixturePairs = (
+    pairs: readonly AnnualFixturePair[],
+    artifacts: readonly PairArtifact[],
+    fixtures: readonly PairFixture[],
+) => {
+    const artifactsById = new Map(artifacts.map((artifact) => [artifact.id, artifact]));
+    const fixturesById = new Map(fixtures.map((fixture) => [fixture.id, fixture]));
+
+    for (const pair of pairs) {
+        const full = fixturesById.get(pair.fullFixtureId);
+        const statusOnly = fixturesById.get(pair.statusOnlyFixtureId);
+        if (!full || !statusOnly) {
+            throw new Error(`Annual fixture pair ${pair.id} references a missing fixture`);
+        }
+        if (full.actionKey !== 'TX' || statusOnly.actionKey !== 'TX') {
+            throw new Error(`Annual fixture pair ${pair.id} must use TX observations`);
+        }
+
+        for (const fixture of [full, statusOnly]) {
+            const metadata = artifactsById.get(fixture.artifactId)?.officialMetadata;
+            if (
+                !metadata ||
+                metadata.generationFromDate !== pair.generationFromDate ||
+                metadata.generationToDate !== pair.generationToDate
+            ) {
+                throw new Error(`Annual fixture pair ${pair.id} crosses official generations`);
+            }
+        }
+
+        const fullGroups = ['mark-identification', 'case-file-statements', 'classifications', 'case-file-owners'];
+        if (!fullGroups.every((group) => full.expectedPresence.present.includes(group))) {
+            throw new Error(`Annual fixture pair ${pair.id} does not identify a full application fixture`);
+        }
+        if (!fullGroups.every((group) => statusOnly.expectedPresence.absent.includes(group))) {
+            throw new Error(`Annual fixture pair ${pair.id} does not identify a status-only fixture`);
+        }
     }
 };

@@ -13,9 +13,9 @@ Trademark Turtle turns USPTO bulk artifacts into a searchable corpus without exp
 
 - `TRTYRAP` provides annual retrospective application XML.
 - `TRTDXFAP` provides current-calendar-year daily application XML.
-- An annual generation owns the records and groups it supplies through its inclusive coverage cutoff `C`.
-- A daily observation at or before `C` may fill a serial or group absent from the annual generation, but never overwrite an annual observation.
-- Daily observations after `C` advance canonical state in source order.
+- Annual metadata coverage dates establish generation membership and completeness only. They do not bound XML transaction dates or establish observation precedence.
+- Annual part suffixes and product-response position are artifact identity evidence, not processing order.
+- Annual and daily observations reconcile through a versioned source-authority policy. Unsupported overlap remains unresolved and cannot publish canonical state.
 - Artifact or generation absence never deletes a mark. Only explicit USPTO facts change canonical state.
 - Every daily ZIP remains retained after an annual generation covers its date.
 
@@ -56,7 +56,7 @@ Discovery timestamps, release metadata, byte size, coverage dates, and URL are o
 
 Each changed discovery observation is its own persisted download queue item, so later metadata cannot overwrite an undownloaded reissue. The worker streams that observation's response into the artifact store while calculating SHA-256, then links the observation to the retained version. A repeated hash reuses the retained object and existing version; a different hash inserts one new immutable version. The database stores content-addressed object keys, never host paths.
 
-Annual files sharing one coverage range form one generation. Part suffixes are opaque until current USPTO metadata or fixtures establish their ordering. A generation publishes only after every enumerated part is present and valid.
+Annual files sharing one official metadata coverage range form one generation. The product response enumerates membership but does not establish semantic part order. A generation publishes only after every enumerated part is present and valid.
 
 Artifact versions move through explicit states:
 
@@ -177,7 +177,7 @@ The USPTO client is a true-external adapter. Production uses the HTTP adapter; t
 Canonical ingestion does not begin until the repository contains:
 
 - Current USPTO application documentation, status table, and source manifest with checksums
-- A complete enumerated annual generation
+- Official metadata enumerating one complete annual generation
 - Full annual application and status-only annual `TX` fixtures
 - Daily `NA`, `TX`, `IB`, and numeric Official Gazette action fixtures
 - Full-to-partial, missing-versus-empty, collection replacement, revival, class cancellation, registration, and publication sequences
@@ -185,4 +185,4 @@ Canonical ingestion does not begin until the repository contains:
 
 Small committed fixtures are byte-exact excerpts with their original root, version, action-key context, artifact checksum, record index, and expected observation. Full ZIPs live outside Git in a content-addressed integration cache.
 
-The pinned inventory and current blockers live in [USPTO source contracts](specs/uspto-source-contracts.md). As of 2026-07-14, retained real artifacts prove annual status-only `TX`, daily `NA`/`TX`/`IB`, presence semantics, replacement, revival, publication, registration/cancellation evidence, and goods markup. The gate remains closed on authenticated current ODP metadata/DOC bytes, complete annual generation enumeration and ordering, a matching full annual application part, numeric Official Gazette action evidence, and registration/cancellation observation sequences.
+The pinned inventory and current blockers live in [USPTO source contracts](specs/uspto-source-contracts.md). Retained official metadata and source bytes now prove complete 2025-generation enumeration plus byte-exact full, status-only, and post-metadata-to-date annual `TX` shapes. The broader canonical-ingestion gate remains closed on current DOC bytes, numeric Official Gazette action evidence, registration/cancellation observation sequences, and verified annual-versus-daily precedence.

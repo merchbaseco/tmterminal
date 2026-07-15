@@ -172,13 +172,14 @@ The ingestion module exposes a small service interface while hiding USPTO produc
 - Raw ZIPs and lossless source observations are retained for deterministic replay.
 - USPTO records are ordered partial observations. Canonical state comes from presence-aware claim folding, never generic row replacement.
 - `status_date` orders only status facts where the source profile requires it; it never establishes whole-record authority.
-- Annual generations establish authority through cutoff `C`; later daily observations advance state.
+- Annual metadata dates establish generation membership, not transaction coverage or cross-product precedence.
+- Annual and daily observations reconcile through a versioned, fixture-proven source-authority policy; unresolved overlap cannot publish.
 - Source absence never deletes a mark or group.
 - Parsing, validation, canonical publication, corpus state, and durable event insertion commit atomically.
 - A dead or cancelled mark is a state transition, not a row deletion.
 - Unknown values remain raw/unknown instead of being guessed.
 
-Bootstrap publishes a complete annual generation first, then applies daily artifacts after its cutoff. Current/live-first bootstrap and historical backfill are prohibited because a later annual publication could regress already-current state.
+Bootstrap publishes a complete annual generation first, then reconciles retained daily artifacts without selecting them by the annual metadata to-date. Current/live-first bootstrap and historical backfill are prohibited because a later annual publication could regress already-current state.
 
 ## Database map
 
@@ -439,8 +440,8 @@ Acceptance:
 - Logical artifact/version/discovery/parse/publication state model
 - Quota-aware downloads, checksums, and retained raw artifacts
 - Streaming lossless parser, action profiles, claim folding, and atomic publication
-- Complete annual generation bootstrap through cutoff `C`
-- Daily reconciliation after `C`, plus pre-cutoff gap-fill observations for serials/groups absent from the annual generation
+- Complete annual generation bootstrap from officially enumerated membership
+- Daily reconciliation through a fixture-proven source-authority policy; metadata coverage dates never select or order observations
 - Freshness frontiers, retries, quarantine, durable corpus events, observability, backup, and recovery
 
 Acceptance: corpus-through date is accurate; replay is a no-op; a partial amendment changes only asserted groups; an out-of-order artifact cannot regress canonical state.
@@ -475,7 +476,7 @@ Acceptance: the deployed service rebuilds from retained artifacts, restores acco
 - Website searches fixed to International Class 025 in v1; API and CLI retain all-class access
 - Daily batch freshness, not realtime USPTO sync
 - Immutable source observations and presence-aware claim folding; no whole-record `status_date` merge
-- Annual generation authority through cutoff plus later daily reconciliation
+- Annual generation membership distinct from transaction coverage; versioned annual/daily reconciliation
 - Public complete frontier distinct from newest published source date
 - Private operator diagnostics and database-backed operator roles
 - No external realtime subscription in v1
