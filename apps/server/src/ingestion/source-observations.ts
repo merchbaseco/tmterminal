@@ -2,8 +2,9 @@ import { createHash, randomUUID } from "node:crypto";
 import type postgres from "postgres";
 
 import type { SourceValue } from "../db/schema.ts";
+import { lockCorpusPublication } from "../queries/corpus-publication-lock.ts";
 
-const parserVersion = "uspto-application-xml-v2";
+export const sourceObservationParserVersion = "uspto-application-xml-v2";
 const recordStart = Buffer.from("<case-file>");
 const recordEnd = Buffer.from("</case-file>");
 const recordBatchSize = 100;
@@ -489,7 +490,7 @@ export function createSourceObservationModule(database: postgres.Sql) {
           r.record_count as "recordCount", r.reject_count as "rejectCount"
         from artifact_version v
         join artifact a on a.id = v.artifact_id
-        left join parse_run r on r.artifact_version_id = v.id and r.parser_version = ${parserVersion}
+        left join parse_run r on r.artifact_version_id = v.id and r.parser_version = ${sourceObservationParserVersion}
         where v.id = ${input.artifactVersionId}
       `;
       if (!artifactVersion) throw new Error("Artifact version not found");
@@ -530,7 +531,7 @@ export function createSourceObservationModule(database: postgres.Sql) {
         return await database.begin(async (transaction) => {
           const [inserted] = await transaction<Array<{ id: string }>>`
             insert into parse_run (id, artifact_version_id, parser_version)
-            values (${parseRunId}, ${input.artifactVersionId}, ${parserVersion})
+            values (${parseRunId}, ${input.artifactVersionId}, ${sourceObservationParserVersion})
             on conflict (artifact_version_id, parser_version) do nothing
             returning id
           `;
@@ -539,7 +540,7 @@ export function createSourceObservationModule(database: postgres.Sql) {
               select id as "parseRunId", state, digest, record_count as "recordCount",
                 reject_count as "rejectCount"
               from parse_run
-              where artifact_version_id = ${input.artifactVersionId} and parser_version = ${parserVersion}
+              where artifact_version_id = ${input.artifactVersionId} and parser_version = ${sourceObservationParserVersion}
             `;
             if (!concurrentRun) throw new Error("Concurrent parse run disappeared");
             const concurrentResult = terminalParseResult(concurrentRun);
@@ -754,6 +755,7 @@ export function createSourceObservationModule(database: postgres.Sql) {
           }
           await flush();
           const runDigest = digest.digest("hex");
+          await lockCorpusPublication(transaction);
           await transaction`
             update parse_run set state = 'staged', digest = ${runDigest}, record_count = ${recordCount},
               finished_at = now() where id = ${parseRunId}
@@ -770,7 +772,7 @@ export function createSourceObservationModule(database: postgres.Sql) {
             insert into parse_run (
               id, artifact_version_id, state, parser_version, digest, record_count, reject_count, finished_at
             ) values (
-              ${parseRunId}, ${input.artifactVersionId}, 'quarantined', ${parserVersion}, ${runDigest}, 0, 1, now()
+              ${parseRunId}, ${input.artifactVersionId}, 'quarantined', ${sourceObservationParserVersion}, ${runDigest}, 0, 1, now()
             )
             on conflict (artifact_version_id, parser_version) do nothing
             returning id
@@ -780,7 +782,7 @@ export function createSourceObservationModule(database: postgres.Sql) {
               select id as "parseRunId", state, digest, record_count as "recordCount",
                 reject_count as "rejectCount"
               from parse_run
-              where artifact_version_id = ${input.artifactVersionId} and parser_version = ${parserVersion}
+              where artifact_version_id = ${input.artifactVersionId} and parser_version = ${sourceObservationParserVersion}
             `;
             if (!winner) throw new Error("Concurrent parse run disappeared");
             const winnerResult = terminalParseResult(winner);

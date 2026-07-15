@@ -1,0 +1,1 @@
+ALTER TABLE "publication_artifact" ADD COLUMN "retained_version_fingerprint" varchar(64) NOT NULL;
