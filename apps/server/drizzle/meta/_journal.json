@@ -64,6 +64,13 @@
       "when": 1784141800313,
       "tag": "0008_supreme_sugar_man",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784152325880,
+      "tag": "0009_previous_genesis",
+      "breakpoints": true
     }
   ]
 }

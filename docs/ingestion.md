@@ -129,11 +129,11 @@ Canonical provenance is group-specific. Mark presentation, application facts, re
 
 Trademark Turtle preserves raw USPTO values and derives query values through versioned maps.
 
-- **Status:** raw status code and date plus `live | dead | unknown`.
+- **Status:** raw status code and date plus `live | dead | unknown` from policy `uspto-trademark-status-20250813`. The explicit 169-code table maps 124 Live and 41 Dead entries directly; Indifferent codes `000`, `622`, `715`, and `970`, null, and unlisted future codes are `unknown`.
 - **Registration:** a nonzero registration number means ever registered; it is independent of current liveness.
 - **Type:** `typeset = 1`, `text = 4`, `design = 2 | 3 | 5`, and `other = 0 | 6 | unknown`.
-- **Class:** raw class code, class status, and class-status date remain distinct from whole-mark status.
-- **Live Class 025:** the mark is live and its Class 025 classification is active.
+- **Class:** raw class code, class status, and class-status date remain distinct from whole-mark status. Only raw class status `6` is Active; other raw codes stay uninterpreted.
+- **Class 025 search:** Live requires a live mark and an active Class 025 row. Dead and unknown require Class 025 membership without an active-class requirement. All is the union of those categories.
 - **Published for opposition:** the current versioned USPTO status semantic, currently associated with status code 686. It is not a claim that the legal opposition window remains open.
 
 Goods/services retain raw type code and source text. Display cleanup is versioned and fixture-tested because brackets, double parentheses, and asterisks carry source meaning.

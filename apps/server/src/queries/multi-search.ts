@@ -1,0 +1,152 @@
+import type postgres from "postgres";
+
+import type { MultiSearchInput, MultiSearchPage } from "../api/contracts.ts";
+import { ACTIVE_CLASS_STATUS_CODE } from "../search/status-policy.ts";
+
+type CorpusState = {
+  completeThroughDate: string | null;
+  corpusVersion: string;
+};
+
+export class CorpusUnavailableError extends Error {}
+export class CorpusVersionConflictError extends Error {}
+
+type QueryValue = number | string | string[];
+
+export function buildMultiSearchQueries(input: MultiSearchInput) {
+  const normalizedQuery = `query_value as (
+    select lower(normalize(btrim($1::text), NFKC) collate "und-x-icu") collate "default" as value
+  ), normalized as (
+    select value, replace(
+      replace(replace(value, chr(92), chr(92) || chr(92)), '%', chr(92) || '%'),
+      '_', chr(92) || '_'
+    ) as pattern from query_value
+  )`;
+  const containsPredicate = "m.word_mark_normalized like '%' || normalized.pattern || '%' escape E'\\\\'";
+  const matchPredicate = input.match === "exact"
+    ? "m.word_mark_normalized = normalized.value"
+    : input.match === "partial"
+      ? `${containsPredicate} and m.word_mark_normalized <> normalized.value`
+      : containsPredicate;
+  const values: QueryValue[] = [input.query];
+  const parameter = (value: QueryValue) => {
+    values.push(value);
+    return `$${values.length}`;
+  };
+  const markType = `case
+    when m.mark_drawing_code = '1' then 'typeset'
+    when m.mark_drawing_code = '4' then 'text'
+    when m.mark_drawing_code in ('2', '3', '5') then 'design'
+    else 'other'
+  end`;
+  const conditions = [matchPredicate];
+  if (input.status === "live") conditions.push("m.search_status = 'live'");
+  if (input.status === "dead") conditions.push("m.search_status = 'dead'");
+  if (input.classes.length > 0) {
+    const classesParameter = parameter(input.classes);
+    const classMembership = `exists (
+      select 1 from mark_class classification
+      where classification.serial_number = m.serial_number
+        and classification.international_code = any(${classesParameter}::text[])
+    )`;
+    const activeClassMembership = `exists (
+      select 1 from mark_class classification
+      where classification.serial_number = m.serial_number
+        and classification.international_code = any(${classesParameter}::text[])
+        and classification.status_code = '${ACTIVE_CLASS_STATUS_CODE}'
+    )`;
+    conditions.push(input.status === "live"
+      ? activeClassMembership
+      : input.status === "all"
+        ? `((m.search_status = 'live' and ${activeClassMembership})
+          or (m.search_status <> 'live' and ${classMembership}))`
+        : classMembership);
+  }
+  if (input.type !== "all") conditions.push(`${markType} = ${parameter(input.type)}`);
+  if (input.registered === "yes") conditions.push("m.registration_number is not null");
+  if (input.registered === "no") conditions.push("m.registration_number is null");
+  const predicate = conditions.join(" and ");
+  const orderBy = input.sort === "newest-activity"
+    ? "m.source_transaction_date desc nulls last, m.serial_number"
+    : input.sort === "oldest-activity"
+      ? "m.source_transaction_date asc nulls last, m.serial_number"
+      : `case when m.word_mark_normalized = normalized.value then 0 else 1 end,
+        similarity(m.word_mark_normalized, normalized.value) desc,
+        m.serial_number`;
+  const itemValues: QueryValue[] = [...values, input.limit, input.offset];
+  const limitParameter = `$${values.length + 1}`;
+  const offsetParameter = `$${values.length + 2}`;
+
+  return {
+    count: {
+      text: `with ${normalizedQuery}
+        select count(*)::int as total from mark m cross join normalized where ${predicate}`,
+      values,
+    },
+    items: {
+      text: `with ${normalizedQuery}
+        select
+          m.serial_number as "serialNumber",
+          m.registration_number as "registrationNumber",
+          m.word_mark as "wordMark",
+          m.search_status as status,
+          m.status_date::text as "statusDate",
+          m.source_transaction_date::text as "sourceTransactionDate",
+          ${markType} as type,
+          case when m.word_mark_normalized = normalized.value then 'exact' else 'partial' end as match,
+          array(
+            select distinct classification.international_code
+            from mark_class classification
+            where classification.serial_number = m.serial_number
+              and classification.international_code is not null
+            order by classification.international_code
+          ) as "internationalClasses",
+          (select owner.party_name from mark_owner owner
+            where owner.serial_number = m.serial_number order by owner.ordinal limit 1) as owner,
+          (select goods.text from mark_goods_services goods
+            where goods.serial_number = m.serial_number order by goods.ordinal limit 1) as "goodsServicesExcerpt"
+        from mark m cross join normalized
+        where ${predicate}
+        order by ${orderBy}
+        limit ${limitParameter} offset ${offsetParameter}`,
+      values: itemValues,
+    },
+  };
+}
+
+export async function searchMulti(
+  database: postgres.Sql,
+  input: MultiSearchInput,
+): Promise<MultiSearchPage> {
+  return database.begin("isolation level repeatable read read only", async (transaction) => {
+    const [state] = await transaction<CorpusState[]>`
+      select complete_through_date::text as "completeThroughDate", corpus_version::text as "corpusVersion"
+      from corpus_state where id = 'uspto'
+    `;
+    if (!state?.completeThroughDate) throw new CorpusUnavailableError("Trademark corpus is unavailable");
+    if (input.expectedCorpusVersion && input.expectedCorpusVersion !== state.corpusVersion) {
+      throw new CorpusVersionConflictError("Trademark corpus changed during pagination");
+    }
+
+    const queries = buildMultiSearchQueries(input);
+    const [count] = await transaction.unsafe<Array<{ total: number }>>(
+      queries.count.text,
+      queries.count.values,
+    );
+    const items = await transaction.unsafe<MultiSearchPage["items"]>(
+      queries.items.text,
+      queries.items.values,
+    );
+
+    return {
+      items,
+      limit: input.limit,
+      meta: {
+        corpusThroughDate: state.completeThroughDate,
+        corpusVersion: state.corpusVersion,
+      },
+      offset: input.offset,
+      total: count!.total,
+    };
+  });
+}

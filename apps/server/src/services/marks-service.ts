@@ -7,6 +7,7 @@ import {
 } from "../api/contracts.ts";
 import type { ResolvedCanonicalMark } from "../ingestion/canonical-mark-types.ts";
 import { createCanonicalMarkRepository } from "../queries/canonical-mark-repository.ts";
+import { searchMulti } from "../queries/multi-search.ts";
 
 export function createMarksService(database: postgres.Sql): MarksService {
   const repository = createCanonicalMarkRepository(database);
@@ -21,6 +22,7 @@ export function createMarksService(database: postgres.Sql): MarksService {
   }
 
   return {
+    search: (input) => searchMulti(database, input),
     async getBySerialNumber(serialNumber: string) {
       const materialization = await repository.read(serialNumber);
       return materialization ? publicMark(materialization) : null;

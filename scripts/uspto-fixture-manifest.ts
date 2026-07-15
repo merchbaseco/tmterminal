@@ -56,6 +56,58 @@ export const assertFixturePathInventory = (recordPaths: readonly string[], manif
     }
 };
 
+export type TrademarkSourceContract = {
+    id: string;
+    currentApplicationDocument?: {
+        url: string;
+        bytes: number;
+        sha256: string;
+        activeClassStatusCode: string;
+        retainedInRepository: boolean;
+    };
+    currentStatusTable?: {
+        url: string;
+        bytes: number;
+        sha256: string;
+        entryCount: number;
+        dispositionSha256: string;
+        tableUpdated: string;
+        retainedInRepository: boolean;
+    };
+};
+
+export const assertTrademarkSourceContract = (
+    contracts: readonly TrademarkSourceContract[],
+    expected: Pick<TrademarkSourceContract, 'currentApplicationDocument' | 'currentStatusTable'>,
+) => {
+    const sources = contracts.filter(({ id }) => id === 'xml-resources');
+    if (sources.length !== 1) {
+        throw new Error(`Expected one xml-resources source contract; found ${sources.length}`);
+    }
+    const application = sources[0]!.currentApplicationDocument;
+    const status = sources[0]!.currentStatusTable;
+    const expectedApplication = expected.currentApplicationDocument;
+    const expectedStatus = expected.currentStatusTable;
+    if (
+        !application || !expectedApplication ||
+        application.url !== expectedApplication.url ||
+        application.bytes !== expectedApplication.bytes ||
+        application.sha256 !== expectedApplication.sha256 ||
+        application.activeClassStatusCode !== expectedApplication.activeClassStatusCode ||
+        application.retainedInRepository !== expectedApplication.retainedInRepository ||
+        !status || !expectedStatus ||
+        status.url !== expectedStatus.url ||
+        status.bytes !== expectedStatus.bytes ||
+        status.sha256 !== expectedStatus.sha256 ||
+        status.entryCount !== expectedStatus.entryCount ||
+        status.dispositionSha256 !== expectedStatus.dispositionSha256 ||
+        status.tableUpdated !== expectedStatus.tableUpdated ||
+        status.retainedInRepository !== expectedStatus.retainedInRepository
+    ) {
+        throw new Error('Current trademark source contract drift');
+    }
+};
+
 type AnnualFixturePair = {
     id: string;
     generationFromDate: string;
