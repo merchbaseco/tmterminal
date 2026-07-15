@@ -119,6 +119,32 @@ bun run compose -- ps
 bun run compose -- logs api
 ```
 
+## Corpus recovery
+
+The authenticated operator page at `/ops/sync` is read-only. It shows current dataset state, bounded logical artifacts, every retained version through a bounded version table, publications, and rejections. Use the full artifact-version UUID shown there for version-specific host commands. Recovery mutations run only inside the current checkout's worker container through the Compose wrapper:
+
+```bash
+bun run sync:ops -- quarantine <artifact-version-id> --reason "<operator reason>"
+bun run sync:ops -- select-reissue <artifact-version-id> --reason "<selection reason>"
+bun run sync:ops -- replay-parser <artifact-version-id>
+bun run sync:ops -- recover-source-lane --confirm-all-current-alerts --reason "<recovery reason>"
+bun run sync:ops -- recover-frontier
+```
+
+`quarantine` accepts only a verified or staged version, preserves the reason and time, and invalidates a selection of that version. `select-reissue` accepts only a parsed, publication-policy-eligible version from a logical artifact with multiple retained versions. `replay-parser` accepts only a version without a run for the current parser. Parser upgrades are completed version by version; publication remains blocked while any logical artifact from the parent publication lacks a current-parser eligible replacement.
+
+`recover-source-lane` locks the lane, requires explicit confirmation, resolves the complete current unresolved USPTO alert set with the supplied reason, and resumes the lane. It refuses a ready lane or a stopped lane with no unresolved alert. `recover-frontier` stages and publishes the currently eligible database-derived source set through the normal corpus publisher. Every command fails closed on a wrong state. There is no automated recovery or command retry loop.
+
+A full rebuild is a distinct offline preflight and wake, not a second ingestion engine:
+
+```bash
+bun run sync:rebuild
+```
+
+The wrapper stops the current checkout's worker, confirms an empty canonical/publication target with a retained artifact catalog, and wakes the same pg-boss reconciliation queue before restarting the worker. Under the corpus lock, staged or published retained versions that lack a current-parser run are normalized to verified so normal reconciliation can replay them; quarantined evidence is never reset. Completed artifact parses remain durable, so rerunning the command after an interrupted rebuild resumes from database state. The command refuses a non-empty target or an outstanding reconciliation delivery.
+
+Drizzle owns application schema migration. pg-boss owns its separate `pgboss` schema: the one-shot migration entrypoint starts pg-boss with migration enabled after Drizzle, while the production worker starts with `migrate:false` and fails closed if that schema is absent. Repeated migration is expected to be idempotent.
+
 Production deployment, public HTTPS verification, monitoring hooks, and rollback are defined in [Mac mini deployment](deployment.md).
 
 Stop containers while preserving the database volume:

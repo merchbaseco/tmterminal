@@ -275,11 +275,13 @@ External realtime subscriptions are deferred in v1. Cross-process worker complet
 
 ### Operator
 
+- `ops.sync.status`
 - `ops.sync.artifacts`
+- `ops.sync.artifact-versions`
 - `ops.sync.rejects`
 - `ops.sync.publications`
 
-These private procedures require a database-backed operator role. They are not exposed by the website, published client, or CLI.
+These private procedures require a Clerk session plus a database-backed operator role. The website exposes them only on the operator-only `/ops/sync` route; they do not enter the published client or CLI.
 
 ### Account
 
