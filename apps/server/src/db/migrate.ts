@@ -1,6 +1,7 @@
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { fileURLToPath } from "node:url";
+import { PgBoss } from "pg-boss";
 import postgres from "postgres";
 
 const defaultMigrationsFolder = fileURLToPath(new URL("../../drizzle", import.meta.url));
@@ -15,6 +16,16 @@ export async function migrateDatabase(databaseUrl: string, migrationsFolder = de
   }
 }
 
+export async function migrateSchedulerDatabase(databaseUrl: string) {
+  const boss = new PgBoss({
+    connectionString: databaseUrl,
+    migrate: true,
+    supervise: false,
+  });
+  await boss.start();
+  await boss.stop({ close: true, graceful: true, timeout: 30_000 });
+}
+
 if (import.meta.main) {
   const databaseUrl = process.env.DATABASE_URL;
 
@@ -23,4 +34,5 @@ if (import.meta.main) {
   }
 
   await migrateDatabase(databaseUrl);
+  await migrateSchedulerDatabase(databaseUrl);
 }

@@ -1,13 +1,16 @@
 import { createHash } from "node:crypto";
 import type postgres from "postgres";
 
-import { annualGenerationV1Artifacts, annualGenerationV1MetadataSha256 } from "./annual-generation-v1.ts";
+import { annualGenerationV1MetadataSha256 } from "./annual-generation-v1.ts";
+import { retainedVersionFingerprint } from "./artifact-version-selection.ts";
 import {
   appendPublicationDiagnostics,
   finishPublication,
   readCorpusPublicationId,
   readCorpusVersion,
+  readCurrentPublicationArtifactIds,
   readEligibleParseRuns,
+  readArtifactVersionSelections,
   readPublicationObservations,
   readPublicationCandidate,
   readPublishedPublication,
@@ -27,8 +30,12 @@ import {
 } from "./canonical-mark-types.ts";
 import { sourceObservationParserVersion, type SourceObservation } from "./source-observations.ts";
 import { publishCanonicalMarks } from "../queries/canonical-mark-repository.ts";
+import {
+  annualGenerationArtifactCount,
+  isPublicationPolicyArtifact,
+  isPublicationPolicyDiscovery,
+} from "./publication-policy.ts";
 
-const annualGenerationArtifacts = new Set<string>(annualGenerationV1Artifacts);
 const canonicalBatchSize = 250;
 const publicationSemanticVersions = {
   authorityPolicy: canonicalVersions.authorityPolicy,
@@ -72,27 +79,12 @@ function sourceFingerprint(artifacts: CandidateIdentity[]) {
   ])).digest("hex");
 }
 
-function retainedVersionFingerprint(sha256s: string[]) {
-  return createHash("sha256").update(JSON.stringify([...sha256s].sort())).digest("hex");
-}
-
 function candidateFingerprint(sourceIdentity: string, parentPublicationId: string | null) {
   return createHash("sha256").update(JSON.stringify([sourceIdentity, parentPublicationId])).digest("hex");
 }
 
-function isRelevantDiscovery(discovery: { filename: string; product: string }) {
-  return discovery.product === "TRTDXFAP" || (
-    discovery.product === "TRTYRAP" && annualGenerationArtifacts.has(discovery.filename)
-  );
-}
-
 function policyEligibleRows(rows: EligibleParseRun[]) {
-  return rows.filter((row) => row.product === "TRTDXFAP" || (
-    row.product === "TRTYRAP" &&
-    row.sourceFromDate === "1884-04-07" &&
-    row.sourceToDate === "2025-12-31" &&
-    annualGenerationArtifacts.has(row.filename)
-  ));
+  return rows.filter(isPublicationPolicyArtifact);
 }
 
 async function* canonicalResults(
@@ -133,12 +125,11 @@ function completeFrontier(artifacts: Array<{ product: string; sourceFromDate: st
 
 export function createCorpusPublisher(database: postgres.Sql) {
   return {
-    async stage(options: {
-      reissues?: Array<{ artifactVersionSha256: string; filename: string; product: string }>;
-    } = {}) {
+    async stage() {
       return database.begin(async (transaction) => {
         await lockCorpusPublication(transaction);
-        const unresolved = (await readUnresolvedLatestDiscoveries(transaction)).filter(isRelevantDiscovery);
+        const reissues = await readArtifactVersionSelections(transaction);
+        const unresolved = (await readUnresolvedLatestDiscoveries(transaction)).filter(isPublicationPolicyDiscovery);
         if (unresolved.length > 0) {
           return {
             artifacts: unresolved.map(({ filename, product }) => ({ filename, product })),
@@ -149,7 +140,7 @@ export function createCorpusPublisher(database: postgres.Sql) {
         const eligibleRows = policyEligibleRows(await readEligibleParseRuns(transaction));
         const annualRows = eligibleRows.filter((row) => row.product === "TRTYRAP");
         const complete = new Set(annualRows.map((row) => row.filename));
-        const missingAnnualArtifacts = annualGenerationArtifacts.size - complete.size;
+        const missingAnnualArtifacts = annualGenerationArtifactCount() - complete.size;
         if (missingAnnualArtifacts > 0) {
           return {
             missingAnnualArtifacts,
@@ -164,7 +155,7 @@ export function createCorpusPublisher(database: postgres.Sql) {
           byArtifact.set(row.artifactId, versions);
         }
         const requested = new Map<string, string>();
-        for (const selection of options.reissues ?? []) {
+        for (const selection of reissues) {
           const key = `${selection.product}\u0000${selection.filename}`;
           if (requested.has(key)) throw new Error(`Duplicate reissue selection: ${selection.product}/${selection.filename}`);
           requested.set(key, selection.artifactVersionSha256);
@@ -206,6 +197,16 @@ export function createCorpusPublisher(database: postgres.Sql) {
         }).sort((left, right) => (
           `${left.product}\u0000${left.filename}`.localeCompare(`${right.product}\u0000${right.filename}`)
         ));
+        const eligibleArtifactIds = new Set(eligible.map((artifact) => artifact.artifactId));
+        const missingParentArtifacts = (await readCurrentPublicationArtifactIds(transaction))
+          .filter((artifactId) => !eligibleArtifactIds.has(artifactId));
+        if (missingParentArtifacts.length > 0) {
+          return {
+            artifactIds: missingParentArtifacts,
+            reason: "incomplete-current-parser-replay" as const,
+            status: "ineligible" as const,
+          };
+        }
         const identity = sourceFingerprint(eligible);
         const candidate = await stagePublicationCandidate(transaction, identity, publicationSemanticVersions, eligible);
         return {
@@ -246,7 +247,7 @@ export function createCorpusPublisher(database: postgres.Sql) {
         if (await readCorpusPublicationId(transaction) !== candidate.parentPublicationId) {
           throw new Error("Publication candidate parent changed");
         }
-        if ((await readUnresolvedLatestDiscoveries(transaction)).some(isRelevantDiscovery)) {
+        if ((await readUnresolvedLatestDiscoveries(transaction)).some(isPublicationPolicyDiscovery)) {
           throw new Error("Publication candidate source discovery is unresolved");
         }
         const eligibleArtifactIds = new Set(
@@ -274,7 +275,12 @@ export function createCorpusPublisher(database: postgres.Sql) {
             artifact.rejectCount !== 0 ||
             (artifact.versionState !== "staged" && artifact.versionState !== "published") ||
             artifact.retainedVersionFingerprint !== retainedVersionFingerprint(artifact.retainedVersionSha256s) ||
-            (!artifact.selectedExplicitly && artifact.retainedVersionCount !== 1)
+            (!artifact.selectedExplicitly && artifact.retainedVersionCount !== 1) ||
+            (artifact.selectedExplicitly && (
+              artifact.currentSelectedArtifactVersionId !== artifact.artifactVersionId ||
+              artifact.currentSelectedRetainedVersionCount !== artifact.retainedVersionCount ||
+              artifact.currentSelectedRetainedVersionFingerprint !== artifact.retainedVersionFingerprint
+            ))
           ) {
             throw new Error("Publication candidate eligibility changed");
           }
@@ -283,9 +289,9 @@ export function createCorpusPublisher(database: postgres.Sql) {
           artifact.product === "TRTYRAP" &&
           artifact.sourceFromDate === "1884-04-07" &&
           artifact.sourceToDate === "2025-12-31" &&
-          annualGenerationArtifacts.has(artifact.filename)
+          isPublicationPolicyArtifact(artifact)
         )).map((artifact) => artifact.filename));
-        if (annual.size !== annualGenerationArtifacts.size) {
+        if (annual.size !== annualGenerationArtifactCount()) {
           throw new Error("Pinned annual generation became incomplete");
         }
 

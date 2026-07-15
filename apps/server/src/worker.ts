@@ -1,7 +1,12 @@
 import { createDatabaseClient } from "./db/client.ts";
 import { createArtifactScheduler } from "./ingestion/artifact-scheduler.ts";
+import { createIngestionReconciler } from "./ingestion/ingestion-reconciler.ts";
+import { createIngestionScheduler } from "./ingestion/ingestion-scheduler.ts";
 import { createLocalArtifactStore } from "./ingestion/local-artifact-store.ts";
 import { createOdpSourceCatalog } from "./ingestion/odp-source-catalog.ts";
+import { extractZipXml } from "./ingestion/zip-artifact-xml.ts";
+import { createSyncService } from "./services/sync-service.ts";
+import { isWorkerReady } from "./worker-readiness.ts";
 
 const databaseUrl = process.env.DATABASE_URL;
 
@@ -23,10 +28,11 @@ const database = createDatabaseClient(databaseUrl);
 const healthFile = "/tmp/tmturtle-worker-ready";
 const pollMs = milliseconds("USPTO_SCHEDULER_POLL_MS", 10_000);
 const requestTimeoutMs = milliseconds("USPTO_REQUEST_TIMEOUT_MS", 15 * 60 * 1_000);
-const scheduler = createArtifactScheduler({
-  artifactStore: createLocalArtifactStore(process.env.ARTIFACT_STORE_ROOT ?? "/var/lib/tmturtle/artifacts", {
+const artifactStore = createLocalArtifactStore(process.env.ARTIFACT_STORE_ROOT ?? "/var/lib/tmturtle/artifacts", {
     stagingMaxAgeMs: requestTimeoutMs * 2,
-  }),
+});
+const artifactScheduler = createArtifactScheduler({
+  artifactStore,
   database,
   discoveryIntervalMs: milliseconds("USPTO_DISCOVERY_INTERVAL_MS", 6 * 60 * 60 * 1_000),
   products: ["TRTDXFAP", "TRTYRAP"],
@@ -41,10 +47,21 @@ const scheduler = createArtifactScheduler({
     timeoutMs: requestTimeoutMs,
   }),
 });
+const reconciler = createIngestionReconciler({
+  artifactScheduler,
+  artifactStore,
+  database,
+  extractXml: extractZipXml,
+});
+const scheduler = createIngestionScheduler({
+  databaseUrl,
+  onError: (error) => console.error("Ingestion scheduler error", error),
+  pollMs,
+  reconcile: () => reconciler.reconcile(),
+});
+const sync = createSyncService(database);
 let stopping = false;
-let timer: Timer | undefined;
 let heartbeatTimer: Timer | undefined;
-let reportedStop = false;
 
 async function checkDatabase() {
   await database`select 1`;
@@ -52,31 +69,17 @@ async function checkDatabase() {
 
 async function markReady() {
   await checkDatabase();
-  await Bun.write(healthFile, String(Date.now()));
+  const status = await sync.status();
+  await Bun.write(healthFile, isWorkerReady(status.activeState) ? String(Date.now()) : "0");
 }
 
 async function stop() {
   if (stopping) return;
   stopping = true;
-  if (timer) clearTimeout(timer);
   if (heartbeatTimer) clearInterval(heartbeatTimer);
+  await scheduler.stop();
   await database.end({ timeout: 1 });
   process.exit(0);
-}
-
-async function run() {
-  try {
-    const result = await scheduler.runOnce();
-    if (result.status === "stopped" && !reportedStop) {
-      console.error("USPTO source lane stopped", result);
-      reportedStop = true;
-    }
-  } catch (error) {
-    console.error("Worker reconciliation failed", error);
-    await database.end({ timeout: 1 });
-    process.exit(1);
-  }
-  if (!stopping) timer = setTimeout(() => void run(), pollMs);
 }
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
@@ -85,8 +88,9 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 
 await Bun.write(healthFile, "0");
 await checkDatabase();
-await run();
-await markReady();
+await scheduler.start();
+const firstReconciliation = await scheduler.waitForFirstReconciliation();
+if (firstReconciliation.ok) await markReady();
 heartbeatTimer = setInterval(() => {
   void markReady().catch(async (error) => {
     console.error("Worker database readiness failed", error);

@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type postgres from "postgres";
 
 import type { CanonicalDiagnostic } from "../ingestion/canonical-mark-types.ts";
+import { retainedVersionFingerprint } from "../ingestion/artifact-version-selection.ts";
 import { sourceObservationParserVersion, type SourceObservation } from "../ingestion/source-observations.ts";
 type Database = postgres.Sql | postgres.TransactionSql;
 
@@ -60,8 +61,52 @@ export async function readEligibleParseRuns(database: Database) {
       and p.state = 'staged'
       and p.reject_count = 0
       and p.digest is not null
+      and v.state in ('staged', 'published')
     order by a.product_id, a.filename, v.sha256
   `;
+}
+
+export async function readArtifactVersionSelections(database: Database) {
+  const rows = await database<Array<{
+    artifactVersionSha256: string;
+    filename: string;
+    product: string;
+    retainedVersionFingerprint: string;
+    retainedVersionSha256s: string[];
+  }>>`
+    select
+      selected.sha256 as "artifactVersionSha256",
+      artifact.filename,
+      artifact.product_id as product,
+      selection.retained_version_fingerprint as "retainedVersionFingerprint",
+      retained.sha256s as "retainedVersionSha256s"
+    from artifact_version_selection selection
+    join artifact on artifact.id = selection.artifact_id
+    join artifact_version selected on selected.id = selection.artifact_version_id
+      and selected.artifact_id = selection.artifact_id
+    join lateral (
+      select count(*)::int as count, array_agg(sha256 order by sha256) as sha256s
+      from artifact_version where artifact_id = selection.artifact_id
+    ) retained on retained.count = selection.retained_version_count
+    join parse_run run on run.artifact_version_id = selected.id
+      and run.parser_version = ${sourceObservationParserVersion}
+      and run.state = 'staged'
+    order by artifact.product_id, artifact.filename
+  `;
+  return rows
+    .filter((row) => retainedVersionFingerprint(row.retainedVersionSha256s) === row.retainedVersionFingerprint)
+    .map(({ retainedVersionFingerprint: _fingerprint, retainedVersionSha256s: _sha256s, ...selection }) => selection);
+}
+
+export async function readCurrentPublicationArtifactIds(database: Database) {
+  const rows = await database<Array<{ artifactId: string }>>`
+    select artifact.artifact_id as "artifactId"
+    from corpus_state state
+    join publication_artifact artifact on artifact.publication_id = state.publication_id
+    where state.id = 'uspto'
+    order by artifact.artifact_id
+  `;
+  return rows.map((row) => row.artifactId);
 }
 
 export async function readUnresolvedLatestDiscoveries(database: Database) {
@@ -169,6 +214,9 @@ export async function stagePublicationCandidate(
 }
 
 export type PublicationArtifactSnapshot = EligibleParseRun & {
+  currentSelectedArtifactVersionId: string | null;
+  currentSelectedRetainedVersionCount: number | null;
+  currentSelectedRetainedVersionFingerprint: string | null;
   currentDiscoveryId: string;
   currentArtifactVersionSha256: string;
   currentParseRunDigest: string;
@@ -231,6 +279,9 @@ export async function readPublicationCandidate(database: Database, candidateId: 
       snapshot_d.source_to_date::text as "snapshotSourceToDate",
       current_d.source_from_date::text as "currentSourceFromDate",
       current_d.source_to_date::text as "currentSourceToDate",
+      selection.artifact_version_id as "currentSelectedArtifactVersionId",
+      selection.retained_version_count as "currentSelectedRetainedVersionCount",
+      selection.retained_version_fingerprint as "currentSelectedRetainedVersionFingerprint",
       pa.retained_version_fingerprint as "retainedVersionFingerprint",
       pa.selected_explicitly as "selectedExplicitly",
       v.state as "versionState"
@@ -242,6 +293,7 @@ export async function readPublicationCandidate(database: Database, candidateId: 
       from artifact_version where artifact_id = a.id
     ) retained on true
     join parse_run p on p.id = pa.parse_run_id
+    left join artifact_version_selection selection on selection.artifact_id = a.id
     join artifact_discovery snapshot_d on snapshot_d.id = pa.discovery_id
     join lateral (
       select id, source_from_date, source_to_date

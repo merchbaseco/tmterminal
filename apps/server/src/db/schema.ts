@@ -3,6 +3,7 @@ import {
   boolean,
   customType,
   date,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -137,9 +138,30 @@ export const artifactVersion = pgTable(
     bytes: bigint("bytes", { mode: "number" }).notNull(),
     objectKey: text("object_key").notNull(),
     state: artifactVersionState("state").notNull().default("verified"),
+    quarantinedAt: timestamp("quarantined_at", { withTimezone: true }),
+    quarantineReason: text("quarantine_reason"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [uniqueIndex("artifact_version_artifact_sha256_unique").on(table.artifactId, table.sha256)],
+);
+
+export const artifactVersionSelection = pgTable(
+  "artifact_version_selection",
+  {
+    artifactId: uuid("artifact_id")
+      .primaryKey()
+      .references(() => artifact.id),
+    artifactVersionId: uuid("artifact_version_id").notNull(),
+    retainedVersionCount: integer("retained_version_count").notNull(),
+    retainedVersionFingerprint: varchar("retained_version_fingerprint", { length: 64 }).notNull(),
+    reason: text("reason").notNull(),
+    selectedAt: timestamp("selected_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [foreignKey({
+    columns: [table.artifactVersionId],
+    foreignColumns: [artifactVersion.id],
+    name: "artifact_version_selection_version_fk",
+  })],
 );
 
 export type SourceValue = {
@@ -283,6 +305,8 @@ export const sourceAlert = pgTable(
     kind: sourceAlertKind("kind").notNull(),
     message: text("message").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolutionReason: text("resolution_reason"),
   },
   (table) => [uniqueIndex("source_alert_attempt_unique").on(table.attemptId)],
 );
