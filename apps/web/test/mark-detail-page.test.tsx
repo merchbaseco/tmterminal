@@ -46,7 +46,7 @@ const mark = {
 test("renders the retained mark as one provenance-rich detail document", async () => {
   const api: MarkApi = { get: async () => mark };
 
-  render(<MarkDetailPage api={api} serialNumber="60146682" />);
+  render(<MarkDetailPage api={api} onBack={() => {}} serialNumber="60146682" />);
 
   expect(await screen.findByRole("heading", { name: "MACHINE-PISTOL" })).toBeTruthy();
   expect(screen.getByText("0146682")).toBeTruthy();
@@ -62,7 +62,7 @@ test("renders the exact not-found document without stale mark data", async () =>
   const notFound = Object.assign(new Error("Trademark not found"), { data: { code: "NOT_FOUND" } });
   const api: MarkApi = { get: async () => { throw notFound; } };
 
-  render(<MarkDetailPage api={api} serialNumber="99999999" />);
+  render(<MarkDetailPage api={api} onBack={() => {}} serialNumber="99999999" />);
 
   expect((await screen.findByRole("alert")).textContent).toBe("Trademark not found");
   expect(screen.queryByText("MACHINE-PISTOL")).toBeNull();

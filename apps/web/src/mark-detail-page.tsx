@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
 
 import type { AppRouter } from "../../server/src/api/router.ts";
@@ -9,9 +9,23 @@ export type MarkApi = {
   get(serialNumber: string): Promise<MarkDetail>;
 };
 
-export function MarkDetailPage({ api, serialNumber }: { api: MarkApi; serialNumber: string }) {
+export function MarkDetailPage({
+  api,
+  onBack,
+  serialNumber,
+}: {
+  api: MarkApi;
+  onBack(): void;
+  serialNumber: string;
+}) {
   const [mark, setMark] = useState<MarkDetail | null>(null);
   const [error, setError] = useState<"failed" | "not-found" | null>(null);
+
+  function handleBack(event: MouseEvent<HTMLAnchorElement>) {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    onBack();
+  }
 
   useEffect(() => {
     let active = true;
@@ -30,7 +44,7 @@ export function MarkDetailPage({ api, serialNumber }: { api: MarkApi; serialNumb
   if (error) {
     return (
       <main className="mark-detail-shell">
-        <a className="back-link" href="/">← Back to results</a>
+        <a className="back-link" href="/search" onClick={handleBack}>← Back to results</a>
         <p role="alert">{error === "not-found" ? "Trademark not found" : "Trademark detail could not be loaded."}</p>
       </main>
     );
@@ -42,7 +56,7 @@ export function MarkDetailPage({ api, serialNumber }: { api: MarkApi; serialNumb
 
   return (
     <main className="mark-detail-shell">
-      <a className="back-link" href="/">← Back to results</a>
+      <a className="back-link" href="/search" onClick={handleBack}>← Back to results</a>
 
       <header className="mark-heading">
         <div>
