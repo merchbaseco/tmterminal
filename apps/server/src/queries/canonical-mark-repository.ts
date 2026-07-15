@@ -22,7 +22,7 @@ function eventKey(event: CanonicalStatusEvent) {
   return createHash("sha256").update(JSON.stringify(event)).digest("hex");
 }
 
-async function replaceCanonicalMark(database: Database, materialization: ResolvedCanonicalMark) {
+export async function replaceCanonicalMark(database: Database, materialization: ResolvedCanonicalMark) {
   const { mark, versions } = materialization;
   await database`
     insert into mark (

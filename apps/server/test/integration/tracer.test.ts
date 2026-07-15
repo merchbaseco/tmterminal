@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeEach, expect, test } from "bun:test";
+import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -59,4 +60,41 @@ test("retains and materializes the PRD-60 tracer idempotently through production
       (select count(*)::int from source_record) as records
   `;
   expect(counts).toEqual({ artifacts: 1, parseRuns: 1, records: 1, versions: 1 });
+});
+
+test("does not replace canonical state after corpus publication owns it", async () => {
+  const artifactRoot = await mkdtemp(join(tmpdir(), "tmturtle-tracer-"));
+  temporaryDirectories.push(artifactRoot);
+  const artifactStore = createLocalArtifactStore(artifactRoot);
+  await materializeTracer({ artifactStore, database });
+
+  const repository = createCanonicalMarkRepository(database);
+  const materialization = await repository.read("60146682");
+  if (!materialization) throw new Error("Tracer mark was not materialized");
+  await repository.replace({
+    ...materialization,
+    mark: { ...materialization.mark, wordMark: "CORPUS-PUBLISHED" },
+  });
+
+  const publicationId = randomUUID();
+  await database`
+    insert into publication (
+      id, fingerprint, source_fingerprint, parser_version, authority_policy_version,
+      projection_version, normalization_version, source_profile_version, state,
+      artifact_count, corpus_version, published_at
+    ) values (
+      ${publicationId}, ${"a".repeat(64)}, ${"b".repeat(64)}, 'parser', 'authority',
+      'projection', 'normalization', 'profile', 'published', 1, 1, now()
+    )
+  `;
+  await database`
+    insert into corpus_state (id, corpus_version, publication_id)
+    values ('uspto', 1, ${publicationId})
+  `;
+
+  await materializeTracer({ artifactStore, database });
+
+  expect(await repository.read("60146682")).toMatchObject({
+    mark: { wordMark: "CORPUS-PUBLISHED" },
+  });
 });

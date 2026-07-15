@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import type postgres from "postgres";
 
 import type { StoredArtifact } from "../ingestion/artifact-store.ts";
+import type { ResolvedCanonicalMark } from "../ingestion/canonical-mark-types.ts";
+import { replaceCanonicalMark } from "./canonical-mark-repository.ts";
+import { lockCorpusPublication } from "./corpus-publication-lock.ts";
 
 const tracerProduct = "TRTYRAP";
 const tracerFilename = "prd-60-tracer-annual-2025-full-tx-60146682.xml";
@@ -43,5 +46,16 @@ export async function retainTracerArtifactVersion(database: postgres.Sql, artifa
     `;
     if (!version) throw new Error("Tracer artifact version upsert returned no row");
     return version.id;
+  });
+}
+
+export async function replaceTracerCanonicalMark(database: postgres.Sql, materialization: ResolvedCanonicalMark) {
+  await database.begin(async (transaction) => {
+    await lockCorpusPublication(transaction);
+    const [corpus] = await transaction<[{ publicationId: string | null }]>`
+      select publication_id as "publicationId" from corpus_state where id = 'uspto'
+    `;
+    if (corpus?.publicationId) return;
+    await replaceCanonicalMark(transaction, materialization);
   });
 }
