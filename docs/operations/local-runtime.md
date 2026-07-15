@@ -110,7 +110,7 @@ Healthy readiness returns only:
 {"status":"ready"}
 ```
 
-When PostgreSQL is unavailable it returns HTTP `503` and `{"status":"unavailable"}`. Readiness is anonymous by design and exposes no corpus data. The tRPC router contains no data procedures in the runtime spine.
+When PostgreSQL is unavailable it returns HTTP `503` and `{"status":"unavailable"}`. Readiness is anonymous by design and exposes no corpus data. Every account and mark procedure requires a verified Clerk session or Trademark Turtle API key.
 
 Use the same wrapper for follow-up Compose commands so they reconstruct the checkout's project name and ports:
 

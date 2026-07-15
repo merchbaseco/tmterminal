@@ -6,7 +6,7 @@ It continuously discovers and ingests the latest USPTO bulk trademark artifacts,
 
 ## Status
 
-Planning is complete. The Bun workspace and production-shaped local runtime spine are runnable; product data procedures, ingestion, authentication, and search remain unimplemented.
+The Bun workspace, production-shaped local runtime, authentication, retained-fixture canonical materialization, and exact mark detail tracer are runnable. Corpus publication and search remain unimplemented.
 
 Start with the [docs front door](docs/README.md). Architecture and scope live in [docs/plan.md](docs/plan.md), source authority in [docs/ingestion.md](docs/ingestion.md), the command contract in [docs/cli.md](docs/cli.md), and website behavior in [docs/website.md](docs/website.md).
 
