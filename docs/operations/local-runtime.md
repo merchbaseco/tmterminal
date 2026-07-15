@@ -43,7 +43,7 @@ bun run compose:up
 bun run compose:smoke
 ```
 
-The startup order is PostgreSQL health, one-shot Drizzle migration, API and worker database readiness, then the Caddy website shell. `dev-port` allocates four deterministic ports per checkout. The root scripts also derive a distinct Compose project name, so each worktree owns its containers, network, and volumes. The website uses the first port and the API uses the second:
+The startup order is PostgreSQL health, one-shot Drizzle migration, one-shot PRD-60 tracer materialization, API and worker database readiness, then the Caddy website shell. The tracer retains the committed real fixture in the artifact volume and uses the source-observation, canonicalization, and canonical repository modules; it is not a corpus publisher. `dev-port` allocates four deterministic ports per checkout. The root scripts derive a distinct Compose project name and development image revision from that port, so each worktree owns its containers, network, volumes, and image tags. The website uses the first port and the API uses the second:
 
 ```bash
 dev-port --group
@@ -76,7 +76,7 @@ USPTO_RETRY_MAX_MS=21600000
 
 Retained downloads live in the dedicated `artifact-data` volume under content-addressed keys. Normal `compose:down` preserves both database and artifact volumes.
 
-Authenticated website use also requires `CLERK_SECRET_KEY`, `CLERK_AUTHORIZED_PARTIES`, and `VITE_CLERK_PUBLISHABLE_KEY`. The Compose wrapper derives `CLERK_AUTHORIZED_PARTIES` from the worktree website port; direct deployments must set the public website origin explicitly. The API stays ready without Clerk credentials but rejects Clerk sessions; the website intentionally fails fast when its publishable key is absent.
+Authenticated website use also requires `CLERK_SECRET_KEY`, `CLERK_AUTHORIZED_PARTIES`, and `VITE_CLERK_PUBLISHABLE_KEY`. The Compose wrapper derives `CLERK_AUTHORIZED_PARTIES` from the worktree website port; direct deployments must set the public website origin explicitly. The production-shaped Compose contract refuses to render without all three values; the anonymous API readiness response remains data-free.
 
 Local browser automation uses the shared MerchBase development Clerk instance. Set `DEV_CLERK_SIGN_IN_USER_ID` and `VITE_DEV_CLERK_AUTO_SIGN_IN=true` to opt in. This opt-in is only for an API and Vite server running directly on the host; the production-shaped Compose stack does not forward it or include Vite's development client. With a host-reachable `DATABASE_URL`, start the API and website in separate terminals:
 
@@ -118,6 +118,8 @@ Use the same wrapper for follow-up Compose commands so they reconstruct the chec
 bun run compose -- ps
 bun run compose -- logs api
 ```
+
+Production deployment, public HTTPS verification, monitoring hooks, and rollback are defined in [Mac mini deployment](deployment.md).
 
 Stop containers while preserving the database volume:
 
