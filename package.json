@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "api-keys:create": "docker compose exec api bun run --cwd apps/server api-keys:create",
-    "build": "bun run --filter '*' build",
+    "build": "bun run --cwd packages/http-client build && bun run --cwd apps/server build && bun run --cwd apps/web build && bun run --cwd packages/cli build",
     "check": "bun run typecheck && bun run test",
     "compose": "./scripts/compose",
     "compose:down": "./scripts/compose down",
@@ -18,11 +18,11 @@
     "db:migrate": "bun run --cwd apps/server db:migrate",
     "docs:list": "docs-list",
     "fixtures:verify": "bun scripts/uspto-fixtures.ts",
-    "test": "bun test apps/server/test/unit packages/http-client/test packages/cli/test && bun test apps/web/test",
+    "test": "bun test apps/server/test/unit packages/http-client/test packages/cli/test && bun test apps/web/test && ./scripts/deployment-contract.test",
     "test:fixtures": "bun test scripts/uspto-fixtures.test.ts",
     "test:integration": "bun test apps/server/test/integration",
     "test:integration:compose": "./scripts/test-integration-compose",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "bun run --cwd packages/http-client build && tsc --noEmit"
   },
   "devDependencies": {
     "@types/bun": "1.3.14",

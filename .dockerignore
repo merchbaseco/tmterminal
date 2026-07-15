@@ -1,11 +1,14 @@
 .env
 .env.*
 !.env.example
+.DS_Store
+**/.DS_Store
 .git
 .codex
 coverage
 dist
 **/dist
-fixtures/uspto
+fixtures/uspto/**/*.doc
+fixtures/uspto/**/*.zip
 node_modules
 tmp

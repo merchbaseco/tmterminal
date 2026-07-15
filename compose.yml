@@ -1,6 +1,11 @@
 services:
   database:
     image: postgres:16.14-alpine
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-tmturtle}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
@@ -10,14 +15,18 @@ services:
       interval: 2s
       timeout: 3s
       retries: 15
+    restart: unless-stopped
     volumes:
       - database-data:/var/lib/postgresql/data
 
   migrate:
-    build:
-      context: .
-      target: runtime
+    image: tmturtle-core:${TMTURTLE_REVISION:-development}
     command: ["bun", "run", "db:migrate"]
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
     environment:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
     depends_on:
@@ -25,17 +34,44 @@ services:
         condition: service_healthy
     restart: "no"
 
+  tracer:
+    image: tmturtle-core:${TMTURTLE_REVISION:-development}
+    command: ["bun", "run", "--cwd", "apps/server", "tracer:materialize"]
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+    environment:
+      ARTIFACT_STORE_ROOT: /var/lib/tmturtle/artifacts
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+    volumes:
+      - artifact-data:/var/lib/tmturtle/artifacts
+
   api:
     build:
       context: .
       target: runtime
+      args:
+        TMTURTLE_REVISION: ${TMTURTLE_REVISION:-development}
+    image: tmturtle-core:${TMTURTLE_REVISION:-development}
     command: ["bun", "run", "--cwd", "apps/server", "start"]
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
     environment:
-      CLERK_AUTHORIZED_PARTIES: ${CLERK_AUTHORIZED_PARTIES:-}
-      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-}
+      CLERK_AUTHORIZED_PARTIES: ${CLERK_AUTHORIZED_PARTIES:?set CLERK_AUTHORIZED_PARTIES}
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:?set CLERK_SECRET_KEY}
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      NODE_ENV: production
     depends_on:
-      migrate:
+      tracer:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "bun", "-e", "const r=await fetch('http://127.0.0.1:3000/api/health');if(!r.ok)process.exit(1)"]
@@ -47,10 +83,13 @@ services:
     restart: unless-stopped
 
   worker:
-    build:
-      context: .
-      target: runtime
+    image: tmturtle-core:${TMTURTLE_REVISION:-development}
     command: ["bun", "run", "--cwd", "apps/server", "worker"]
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
     environment:
       ARTIFACT_STORE_ROOT: /var/lib/tmturtle/artifacts
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
@@ -62,13 +101,14 @@ services:
       USPTO_RETRY_MAX_MS: ${USPTO_RETRY_MAX_MS:-21600000}
       USPTO_SCHEDULER_POLL_MS: ${USPTO_SCHEDULER_POLL_MS:-10000}
     depends_on:
-      migrate:
+      tracer:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "bun", "-e", "if(Date.now()-Number(await Bun.file('/tmp/tmturtle-worker-ready').text())>30000)process.exit(1)"]
       interval: 2s
       timeout: 3s
       retries: 15
+      start_period: 15m
     restart: unless-stopped
     volumes:
       - artifact-data:/var/lib/tmturtle/artifacts
@@ -78,7 +118,14 @@ services:
       context: .
       target: web
       args:
-        VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:-}
+        TMTURTLE_REVISION: ${TMTURTLE_REVISION:-development}
+        VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:?set VITE_CLERK_PUBLISHABLE_KEY}
+    image: tmturtle-web:${TMTURTLE_REVISION:-development}
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
     depends_on:
       api:
         condition: service_healthy
@@ -110,7 +157,7 @@ services:
     profiles: ["test"]
     build:
       context: .
-      target: runtime
+      target: test
     command: ["bun", "run", "test:integration"]
     environment:
       TEST_DATABASE_URL: postgres://tmturtle_test:tmturtle_test@test-database:5432/tmturtle_test

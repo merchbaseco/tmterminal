@@ -48,6 +48,10 @@ let reportedStop = false;
 
 async function checkDatabase() {
   await database`select 1`;
+}
+
+async function markReady() {
+  await checkDatabase();
   await Bun.write(healthFile, String(Date.now()));
 }
 
@@ -81,11 +85,12 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 
 await Bun.write(healthFile, "0");
 await checkDatabase();
+await run();
+await markReady();
 heartbeatTimer = setInterval(() => {
-  void checkDatabase().catch(async (error) => {
+  void markReady().catch(async (error) => {
     console.error("Worker database readiness failed", error);
     await database.end({ timeout: 1 });
     process.exit(1);
   });
 }, 10_000);
-await run();

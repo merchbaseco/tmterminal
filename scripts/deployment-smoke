@@ -1,0 +1,48 @@
+#!/bin/sh
+set -eu
+
+: "${TMTURTLE_REVISION:?set TMTURTLE_REVISION to the deployed Git revision}"
+public_origin="https://tmturtle.merchbase.co"
+
+compose() {
+  docker compose --project-name tmturtle --env-file .env "$@"
+}
+
+probe() {
+  curl --connect-timeout 5 --max-time 15 "$@"
+}
+
+database_available_kb="$(compose exec -T database df -Pk /var/lib/postgresql/data | awk 'NR == 2 { print $4 }')"
+artifact_available_kb="$(compose exec -T worker df -Pk /var/lib/tmturtle/artifacts | awk 'NR == 2 { print $4 }')"
+test "$database_available_kb" -ge 20971520
+test "$artifact_available_kb" -ge 20971520
+
+api_address="$(compose port api 3000)"
+web_address="$(compose port web 8080)"
+test "$(probe --fail --silent "http://${api_address}/api/health")" = '{"status":"ready"}'
+test "$(probe --silent --output /dev/null --write-out '%{http_code}' --request POST "http://${api_address}/api/dev/clerk-sign-in-token")" = "404"
+probe --fail --silent --output /dev/null "http://${web_address}/"
+test "$(probe --fail --silent "${public_origin}/api/health")" = '{"status":"ready"}'
+probe --fail --silent --output /dev/null "${public_origin}/"
+
+for service in database api worker web; do
+  container_id="$(compose ps --quiet "$service")"
+  test -n "$container_id"
+  test "$(docker inspect --format '{{.State.Health.Status}}' "$container_id")" = "healthy"
+done
+
+for service in migrate tracer; do
+  container_id="$(compose ps --all --quiet "$service")"
+  test -n "$container_id"
+  test "$(docker inspect --format '{{.State.ExitCode}}' "$container_id")" = "0"
+done
+
+lane_status="$(compose exec -T database sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "select status from source_lane where id = '\''uspto-odp'\''"')"
+test "$lane_status" = "ready" -o "$lane_status" = "backoff"
+
+for service in api worker web; do
+  container_id="$(compose ps --quiet "$service")"
+  test "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$container_id")" = "$TMTURTLE_REVISION"
+done
+
+echo "Deployment smoke passed: disk, migration, tracer, services, worker lane, loopback, and public readiness"

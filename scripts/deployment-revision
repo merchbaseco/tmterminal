@@ -1,0 +1,21 @@
+#!/bin/sh
+set -eu
+
+: "${1:?pass the expected deployment revision}"
+
+if test -n "$(git status --porcelain=v1 --untracked-files=all)"; then
+  echo "Refusing deployment from a dirty checkout" >&2
+  exit 1
+fi
+
+revision="$(git rev-parse HEAD)"
+if test "$revision" != "$1"; then
+  echo "Refusing deployment when HEAD does not match the expected revision" >&2
+  exit 1
+fi
+if test "$revision" != "$(git rev-parse origin/main)"; then
+  echo "Refusing deployment when HEAD does not match origin/main" >&2
+  exit 1
+fi
+
+printf '%s\n' "$revision"

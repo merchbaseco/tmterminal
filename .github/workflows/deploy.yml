@@ -1,0 +1,27 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: tmturtle-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Deploy exact main revision
+        working-directory: /Users/zknicker/srv/tmturtle
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin main
+          export TMTURTLE_REVISION="$(./scripts/deployment-revision "$GITHUB_SHA")"
+          docker compose --project-name tmturtle --env-file .env build
+          docker compose --project-name tmturtle --env-file .env up --detach --remove-orphans --wait
+          ./scripts/deployment-smoke
