@@ -3,10 +3,12 @@ import type postgres from "postgres";
 
 import type { VerifyClerkToken } from "../auth/clerk-verifier.ts";
 import { CredentialSelectionError, selectCredential } from "../auth/select-credential.ts";
-import { resolveClerkAccount } from "../queries/account-repository.ts";
+import { accountIsOperator, resolveClerkAccount } from "../queries/account-repository.ts";
 import { authenticateApiKey } from "../queries/api-key-repository.ts";
 import { createAccountService } from "../services/account-service.ts";
 import { createMarksService } from "../services/marks-service.ts";
+import { createOperatorSyncService } from "../services/operator-sync-service.ts";
+import { createSyncService } from "../services/sync-service.ts";
 import type { AuthenticatedAccount } from "./contracts.ts";
 import type { AppContext } from "./router.ts";
 
@@ -17,11 +19,14 @@ type CreateContextOptions = {
   verifyClerkToken: VerifyClerkToken;
 };
 
-function context(database: postgres.Sql, auth: AuthenticatedAccount): AppContext {
+async function context(database: postgres.Sql, auth: AuthenticatedAccount): Promise<AppContext> {
   return {
     account: createAccountService(database, auth.accountId),
     auth,
     marks: createMarksService(database),
+    operator: auth.credential.type === "clerk" && await accountIsOperator(database, auth.accountId),
+    operatorSync: createOperatorSyncService(database),
+    sync: createSyncService(database),
   };
 }
 
@@ -51,7 +56,7 @@ export async function createAppContext({
     if (!key) {
       throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid credential" });
     }
-    return context(database, {
+    return await context(database, {
       accountId: key.accountId,
       credential: { type: "api-key", keyId: key.keyId, suffix: key.suffix },
     });
@@ -62,7 +67,7 @@ export async function createAppContext({
     throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid credential" });
   }
 
-  return context(database, {
+  return await context(database, {
     accountId: await resolveClerkAccount(database, clerkUserId),
     credential: { type: "clerk" },
   });
