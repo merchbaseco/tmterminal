@@ -32,6 +32,7 @@ type Artifact = {
         bytes: number;
         sha256: string;
         recordCount: number;
+        maxRecordBytes: number;
         actionRecordCounts: Record<string, number>;
         actionGroups: Array<{ actionKey: string; actionOccurrence: number; recordCount: number }>;
         transactionDateRange: { from: string; to: string };
@@ -246,6 +247,9 @@ const verifyArtifact = async (artifact: Artifact, fixtures: Fixture[]) => {
     let pending = Buffer.alloc(0);
     let xmlBytes = 0;
     let recordIndex = 0;
+    let recordBytes = 0;
+    let maxRecordBytes = 0;
+    let recordOpen = false;
     let actionRecordIndex = 0;
     let actionKey = '';
     let actionOccurrence = 0;
@@ -284,6 +288,8 @@ const verifyArtifact = async (artifact: Artifact, fixtures: Fixture[]) => {
 
         if (/^\s*<case-file>\s*$/.test(text)) {
             recordIndex++;
+            recordBytes = line.byteLength;
+            recordOpen = true;
             actionRecordIndex++;
             actionRecordCounts.set(actionKey, (actionRecordCounts.get(actionKey) ?? 0) + 1);
             const currentActionGroup = actionGroups.at(-1);
@@ -295,6 +301,10 @@ const verifyArtifact = async (artifact: Artifact, fixtures: Fixture[]) => {
             capture = capturedFixture ? [line] : null;
             serialNumber = '';
             return;
+        }
+
+        if (recordOpen) {
+            recordBytes += line.byteLength;
         }
 
         if (capture) {
@@ -311,6 +321,9 @@ const verifyArtifact = async (artifact: Artifact, fixtures: Fixture[]) => {
         if (!/^\s*<\/case-file>\s*$/.test(text)) {
             return;
         }
+
+        maxRecordBytes = Math.max(maxRecordBytes, recordBytes);
+        recordOpen = false;
 
         serialFrom ||= serialNumber;
         serialTo = serialNumber;
@@ -390,6 +403,7 @@ const verifyArtifact = async (artifact: Artifact, fixtures: Fixture[]) => {
         xmlBytes === artifact.xml.bytes &&
         xmlHash.digest('hex') === artifact.xml.sha256 &&
         recordIndex === artifact.xml.recordCount &&
+        maxRecordBytes === artifact.xml.maxRecordBytes &&
         JSON.stringify(actualActionCounts) === JSON.stringify(expectedActionCounts) &&
         JSON.stringify(actionGroups) === JSON.stringify(artifact.xml.actionGroups) &&
         transactionFrom === artifact.xml.transactionDateRange.from &&

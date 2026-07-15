@@ -122,6 +122,7 @@
         "bytes": 659557754,
         "sha256": "f752bbcb2faedabddfcb58257016b241955974897326e6998c41a1a1189cd016",
         "recordCount": 155000,
+        "maxRecordBytes": 7181,
         "actionRecordCounts": {
           "TX": 155000
         },
@@ -175,6 +176,7 @@
         "bytes": 1475389201,
         "sha256": "cd48df0a7cfe39f4a051b732d04ce7db3822d4e327864c4ad90c9ba033381d80",
         "recordCount": 155000,
+        "maxRecordBytes": 204627,
         "actionRecordCounts": {
           "TX": 155000
         },
@@ -223,6 +225,7 @@
         "bytes": 560520706,
         "sha256": "4256bd72fd6af6ee861b89243adf0e7271729859fe266871727dea7c6a648359",
         "recordCount": 155000,
+        "maxRecordBytes": 5254,
         "actionRecordCounts": {
           "TX": 155000
         },
@@ -265,6 +268,7 @@
         "bytes": 186479785,
         "sha256": "f79a43bf6fee73383a60b381f2138a7cd2a7f078c320a42cff2de2955aeee80e",
         "recordCount": 11012,
+        "maxRecordBytes": 327676,
         "actionRecordCounts": {
           "NA": 501,
           "TX": 10511
@@ -318,6 +322,7 @@
         "bytes": 531918968,
         "sha256": "31ce7c62693841eac59c3a2550c20e00e0db6ba3b1d2abcb3289eb67cfe00d14",
         "recordCount": 38179,
+        "maxRecordBytes": 187690,
         "actionRecordCounts": {
           "IB": 201,
           "NA": 1556,
@@ -450,6 +455,35 @@
       }
     },
     {
+      "id": "annual-2025-sparse-tx",
+      "artifactId": "TRTYRAP-apc18840407-20251231-05",
+      "actionKey": "TX",
+      "actionOccurrence": 1,
+      "recordIndex": 13192,
+      "actionRecordIndex": 13192,
+      "serialNumber": "70165419",
+      "path": "fixtures/uspto/records/annual-2025-sparse-tx-70165419.xml",
+      "bytes": 5416,
+      "sha256": "c32c91182b80d7525f331eac2b835ba3196c67e5a1ef770aed70af2743a9efbf",
+      "sequence": null,
+      "evidence": [
+        "annual 2025-generation TX",
+        "sparse observation with statements and classifications",
+        "missing mark and owner groups"
+      ],
+      "expectedPresence": {
+        "present": [
+          "case-file-statements",
+          "classifications"
+        ],
+        "absent": [
+          "mark-identification",
+          "case-file-owners"
+        ],
+        "empty": []
+      }
+    },
+    {
       "id": "annual-status-only-tx",
       "artifactId": "TRTYRAP-apc18840407-20241231-02",
       "actionKey": "TX",
@@ -509,6 +543,35 @@
           "case-file-owners"
         ],
         "absent": [],
+        "empty": []
+      }
+    },
+    {
+      "id": "daily-ib-sparse",
+      "artifactId": "TRTDXFAP-apc240925",
+      "actionKey": "IB",
+      "actionOccurrence": 1,
+      "recordIndex": 7,
+      "actionRecordIndex": 7,
+      "serialNumber": "85127660",
+      "path": "fixtures/uspto/records/daily-ib-sparse-85127660.xml",
+      "bytes": 30849,
+      "sha256": "2313195fdc85cadb14875e4277b9f6eaf5619a1bf035158b739af45700c0da3d",
+      "sequence": null,
+      "evidence": [
+        "daily IB action",
+        "sparse observation with statements, classifications, and owners",
+        "missing mark identification"
+      ],
+      "expectedPresence": {
+        "present": [
+          "case-file-statements",
+          "classifications",
+          "case-file-owners"
+        ],
+        "absent": [
+          "mark-identification"
+        ],
         "empty": []
       }
     },
