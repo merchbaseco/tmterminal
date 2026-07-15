@@ -5,11 +5,18 @@
   "files": ["dist"],
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
     }
   },
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist --target bun && tsc -p tsconfig.build.json"
+    "build": "tsdown src/index.ts --format esm --dts --clean"
+  },
+  "dependencies": {
+    "@trpc/client": "11.18.0",
+    "@trpc/server": "11.18.0"
+  },
+  "devDependencies": {
+    "tsdown": "0.22.8"
   }
 }

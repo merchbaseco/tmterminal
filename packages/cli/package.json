@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "type": "module",
   "files": ["dist"],
+  "bin": {
+    "tt": "./dist/tt.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -10,6 +13,9 @@
     }
   },
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist --target bun && tsc -p tsconfig.build.json"
+    "build": "bun build src/index.ts src/tt.ts --outdir dist --target bun && tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@tmturtle/http-client": "workspace:*"
   }
 }
