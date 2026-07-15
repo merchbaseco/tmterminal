@@ -1,5 +1,6 @@
 import {
   bigint,
+  boolean,
   customType,
   date,
   index,
@@ -36,6 +37,11 @@ export const artifactVersionState = pgEnum("artifact_version_state", [
 ]);
 export const parseRunState = pgEnum("parse_run_state", ["parsing", "staged", "quarantined"]);
 export const sourceClaimOperation = pgEnum("source_claim_operation", ["set", "clear", "replace", "assert"]);
+export const publicationState = pgEnum("publication_state", ["staged", "rejected", "published"]);
+export const publicationDiagnosticKind = pgEnum("publication_diagnostic_kind", [
+  "authority-conflict",
+  "unsupported-semantics",
+]);
 const bytea = customType<{ data: Buffer }>({ dataType: () => "bytea" });
 
 export const account = pgTable("account", {
@@ -384,4 +390,80 @@ export const markGroupContributor = pgTable(
       table.physicalRecordIndex,
     ],
   })],
+);
+
+export const publication = pgTable("publication", {
+  id: uuid("id").primaryKey(),
+  fingerprint: varchar("fingerprint", { length: 64 }).notNull().unique(),
+  sourceFingerprint: varchar("source_fingerprint", { length: 64 }).notNull(),
+  parentPublicationId: uuid("parent_publication_id"),
+  parserVersion: text("parser_version").notNull(),
+  authorityPolicyVersion: text("authority_policy_version").notNull(),
+  projectionVersion: text("projection_version").notNull(),
+  normalizationVersion: text("normalization_version").notNull(),
+  sourceProfileVersion: text("source_profile_version").notNull(),
+  state: publicationState("state").notNull().default("staged"),
+  artifactCount: integer("artifact_count").notNull(),
+  publishedThroughDate: date("published_through_date"),
+  completeThroughDate: date("complete_through_date"),
+  corpusVersion: bigint("corpus_version", { mode: "number" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  rejectedAt: timestamp("rejected_at", { withTimezone: true }),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+});
+
+export const publicationArtifact = pgTable(
+  "publication_artifact",
+  {
+    publicationId: uuid("publication_id")
+      .notNull()
+      .references(() => publication.id, { onDelete: "cascade" }),
+    artifactId: uuid("artifact_id").notNull().references(() => artifact.id),
+    discoveryId: uuid("discovery_id").notNull().references(() => artifactDiscovery.id),
+    artifactVersionId: uuid("artifact_version_id").notNull().references(() => artifactVersion.id),
+    artifactVersionSha256: varchar("artifact_version_sha256", { length: 64 }).notNull(),
+    parseRunId: uuid("parse_run_id").notNull().references(() => parseRun.id),
+    parseRunDigest: varchar("parse_run_digest", { length: 64 }).notNull(),
+    retainedVersionFingerprint: varchar("retained_version_fingerprint", { length: 64 }).notNull(),
+    selectedExplicitly: boolean("selected_explicitly").notNull().default(false),
+    sourceFromDate: date("source_from_date").notNull(),
+    sourceToDate: date("source_to_date").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.publicationId, table.artifactId] })],
+);
+
+export const publicationDiagnostic = pgTable(
+  "publication_diagnostic",
+  {
+    publicationId: uuid("publication_id")
+      .notNull()
+      .references(() => publication.id, { onDelete: "cascade" }),
+    diagnosticKey: varchar("diagnostic_key", { length: 64 }).notNull(),
+    kind: publicationDiagnosticKind("kind").notNull(),
+    serialNumber: text("serial_number").notNull(),
+    details: jsonb("details").$type<Record<string, unknown>>().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.publicationId, table.diagnosticKey] })],
+);
+
+export const corpusState = pgTable("corpus_state", {
+  id: text("id").primaryKey(),
+  publishedThroughDate: date("published_through_date"),
+  completeThroughDate: date("complete_through_date"),
+  lastSuccessfulMergeAt: timestamp("last_successful_merge_at", { withTimezone: true }),
+  corpusVersion: bigint("corpus_version", { mode: "number" }).notNull().default(0),
+  publicationId: uuid("publication_id").references(() => publication.id),
+});
+
+export const corpusEvent = pgTable(
+  "corpus_event",
+  {
+    id: uuid("id").primaryKey(),
+    publicationId: uuid("publication_id").notNull().references(() => publication.id),
+    kind: text("kind").notNull(),
+    corpusVersion: bigint("corpus_version", { mode: "number" }).notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("corpus_event_publication_kind_unique").on(table.publicationId, table.kind)],
 );

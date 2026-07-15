@@ -3,6 +3,7 @@ import type postgres from "postgres";
 
 import type { DiscoveredArtifact, DiscoveredProduct, SourceResponseState } from "../ingestion/source-catalog.ts";
 import type { StoredArtifact } from "../ingestion/artifact-store.ts";
+import { lockCorpusPublication } from "./corpus-publication-lock.ts";
 
 export const sourceLaneId = "uspto-odp";
 
@@ -141,6 +142,7 @@ export async function reconcileDiscoverySuccess(
   nextDiscoveryAt: Date,
 ) {
   return inReservedTransaction(database, async () => {
+    await lockCorpusPublication(database);
     await database`
       update dataset_product
       set
@@ -272,6 +274,7 @@ export async function retainArtifactVersion(
   now: Date,
 ) {
   return inReservedTransaction(database, async () => {
+    await lockCorpusPublication(database);
     const [version] = await database<[{ created: boolean; id: string }]>`
       with inserted as (
         insert into artifact_version (id, artifact_id, sha256, bytes, object_key, created_at)

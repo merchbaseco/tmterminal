@@ -6,8 +6,7 @@ import type postgres from "postgres";
 import type { ArtifactStore } from "../ingestion/artifact-store.ts";
 import { canonicalizeMark } from "../ingestion/canonical-marks.ts";
 import { createSourceObservationModule } from "../ingestion/source-observations.ts";
-import { createCanonicalMarkRepository } from "../queries/canonical-mark-repository.ts";
-import { retainTracerArtifactVersion } from "../queries/tracer-repository.ts";
+import { replaceTracerCanonicalMark, retainTracerArtifactVersion } from "../queries/tracer-repository.ts";
 
 const fixtureId = "annual-2025-full-tx";
 const expectedMark = {
@@ -84,6 +83,6 @@ export async function materializeTracer(options: {
   ) {
     throw new Error("Tracer canonical mark identity drifted");
   }
-  await createCanonicalMarkRepository(options.database).replace(materialization);
+  await replaceTracerCanonicalMark(options.database, materialization);
   return { ...expectedMark, artifactVersionSha256: stored.sha256 };
 }
