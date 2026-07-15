@@ -14,6 +14,7 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const artifactDownloadState = pgEnum("artifact_download_state", ["pending", "downloading", "verified"]);
 export const sourceLaneStatus = pgEnum("source_lane_status", ["ready", "backoff", "stopped"]);
@@ -277,4 +278,110 @@ export const sourceAlert = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [uniqueIndex("source_alert_attempt_unique").on(table.attemptId)],
+);
+
+export const mark = pgTable(
+  "mark",
+  {
+    serialNumber: text("serial_number").primaryKey(),
+    registrationNumber: text("registration_number"),
+    wordMark: text("word_mark"),
+    markDrawingCode: text("mark_drawing_code"),
+    filingDate: date("filing_date"),
+    registrationDate: date("registration_date"),
+    statusCode: text("status_code"),
+    statusDate: date("status_date"),
+    sourceTransactionDate: date("source_transaction_date"),
+    normalizationVersion: text("normalization_version").notNull(),
+    sourceProfileVersion: text("source_profile_version").notNull(),
+    projectionVersion: text("projection_version").notNull(),
+    authorityPolicyVersion: text("authority_policy_version").notNull(),
+  },
+  (table) => [
+    uniqueIndex("mark_registration_number_unique")
+      .on(table.registrationNumber)
+      .where(sql`${table.registrationNumber} is not null`),
+  ],
+);
+
+export const markClass = pgTable(
+  "mark_class",
+  {
+    serialNumber: text("serial_number")
+      .notNull()
+      .references(() => mark.serialNumber, { onDelete: "cascade" }),
+    ordinal: integer("ordinal").notNull(),
+    internationalCode: text("international_code"),
+    statusCode: text("status_code"),
+    statusDate: date("status_date"),
+  },
+  (table) => [primaryKey({ columns: [table.serialNumber, table.ordinal] })],
+);
+
+export const markOwner = pgTable(
+  "mark_owner",
+  {
+    serialNumber: text("serial_number")
+      .notNull()
+      .references(() => mark.serialNumber, { onDelete: "cascade" }),
+    ordinal: integer("ordinal").notNull(),
+    entryNumber: text("entry_number"),
+    partyName: text("party_name"),
+    partyType: text("party_type"),
+  },
+  (table) => [primaryKey({ columns: [table.serialNumber, table.ordinal] })],
+);
+
+export const markGoodsServices = pgTable(
+  "mark_goods_services",
+  {
+    serialNumber: text("serial_number")
+      .notNull()
+      .references(() => mark.serialNumber, { onDelete: "cascade" }),
+    ordinal: integer("ordinal").notNull(),
+    typeCode: text("type_code"),
+    text: text("text"),
+  },
+  (table) => [primaryKey({ columns: [table.serialNumber, table.ordinal] })],
+);
+
+export const markStatusEvent = pgTable(
+  "mark_status_event",
+  {
+    serialNumber: text("serial_number")
+      .notNull()
+      .references(() => mark.serialNumber, { onDelete: "cascade" }),
+    eventKey: varchar("event_key", { length: 64 }).notNull(),
+    code: text("code"),
+    type: text("type"),
+    description: text("description"),
+    eventDate: date("event_date"),
+    eventNumber: text("event_number"),
+  },
+  (table) => [primaryKey({ columns: [table.serialNumber, table.eventKey] })],
+);
+
+export const markGroupContributor = pgTable(
+  "mark_group_contributor",
+  {
+    serialNumber: text("serial_number")
+      .notNull()
+      .references(() => mark.serialNumber, { onDelete: "cascade" }),
+    group: text("group_name").notNull(),
+    claimPath: text("claim_path").notNull(),
+    product: text("product").notNull(),
+    artifactVersionSha256: varchar("artifact_version_sha256", { length: 64 }).notNull(),
+    physicalRecordIndex: integer("physical_record_index").notNull(),
+  },
+  (table) => [primaryKey({
+    name: "mark_group_contributor_pk",
+    columns: [
+      table.serialNumber,
+      table.group,
+      table.claimPath,
+      table.product,
+      table.artifactVersionSha256,
+      table.physicalRecordIndex,
+    ],
+  })],
 );

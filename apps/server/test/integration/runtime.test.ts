@@ -58,7 +58,7 @@ describe("runtime database spine", () => {
     `;
 
     expect(before).toEqual({ artifactTable: false, migrations: 2 });
-    expect(after).toEqual({ artifactTable: true, migrations: 4 });
+    expect(after).toEqual({ artifactTable: true, migrations: 5 });
   });
 
   test("applies the one-shot migration idempotently", async () => {
@@ -75,7 +75,7 @@ describe("runtime database spine", () => {
     `;
 
     expect(extension?.installed).toBe(true);
-    expect(migrationCount?.count).toBe(4);
+    expect(migrationCount?.count).toBe(5);
   });
 
   test("reports ready after migrations complete", async () => {

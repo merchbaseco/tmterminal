@@ -148,7 +148,7 @@ test("stages a lossless full annual TX observation through the parser module int
       expect.objectContaining({ path: "case-file/case-file-header/mark-identification", presence: "value", rawValue: "MACHINE-PISTOL", operation: "set" }),
       expect.objectContaining({ path: "case-file/case-file-statements", presence: "group", operation: "replace" }),
       expect.objectContaining({ path: "case-file/classifications", presence: "group", operation: "replace" }),
-      expect.objectContaining({ path: "case-file/case-file-owners", presence: "group", operation: null }),
+      expect.objectContaining({ path: "case-file/case-file-owners", presence: "group", operation: "replace" }),
       expect.objectContaining({ path: "case-file/case-file-owners/case-file-owner/name-change-explanation", presence: "empty", rawValue: "", operation: null }),
     ]),
   );
@@ -261,6 +261,35 @@ test("returns a staged parse result on redelivery without consuming the supplied
 
   expect(second).toEqual(first);
   expect(await remainingBytes(redelivery)).toEqual(marker);
+});
+
+test("changed claim semantics use a new parser version instead of reusing a v1 run", async () => {
+  const fixture = await retainAnnualFixture("annual-2025-full-tx-60146682.xml");
+  await database`
+    insert into parse_run (
+      id, artifact_version_id, state, parser_version, digest, record_count, reject_count, finished_at
+    ) values (
+      ${randomUUID()}, ${fixture.artifactVersionId}, 'staged', 'uspto-application-xml-v1',
+      ${"0".repeat(64)}, 0, 0, now()
+    )
+  `;
+
+  const result = await createSourceObservationModule(database).stageArtifact({
+    artifactVersionId: fixture.artifactVersionId,
+    xml: chunked(fixture.xml, 37),
+  });
+  const versions = await database<Array<{ parserVersion: string }>>`
+    select parser_version as "parserVersion"
+    from parse_run
+    where artifact_version_id = ${fixture.artifactVersionId}
+    order by parser_version
+  `;
+
+  expect(result).toMatchObject({ status: "staged", recordCount: 1 });
+  expect([...versions]).toEqual([
+    { parserVersion: "uspto-application-xml-v1" },
+    { parserVersion: "uspto-application-xml-v2" },
+  ]);
 });
 
 test("returns a quarantined parse result on redelivery without consuming the supplied stream", async () => {
