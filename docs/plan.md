@@ -170,16 +170,17 @@ The ingestion module exposes a small service interface while hiding USPTO produc
 - Serial number is canonical mark identity; nonzero registration number is a unique secondary identity.
 - Logical artifacts and immutable content versions are distinct.
 - Raw ZIPs and lossless source observations are retained for deterministic replay.
-- USPTO records are ordered partial observations. Canonical state comes from presence-aware claim folding, never generic row replacement.
+- USPTO records are partially ordered observations. Canonical state comes from presence-aware, group-specific claim folding, never generic row replacement.
 - `status_date` orders only status facts where the source profile requires it; it never establishes whole-record authority.
 - Annual metadata dates establish generation membership, not transaction coverage or cross-product precedence.
-- Annual and daily observations reconcile through a versioned, fixture-proven source-authority policy; unresolved overlap cannot publish.
+- Source authority contains only order edges proved at their documented scope. Official contracts may establish reusable profile rules; exact fixture sequences establish only their observed transitions unless further evidence proves generalization.
+- Metadata dates, release times, filenames, response position, and physical order remain provenance. Unordered annual and daily claims reconcile only when every admissible fold produces the same semantic value. Identical values retain every non-dominated contributing claim; different values produce a publication-ineligible authority conflict.
 - Source absence never deletes a mark or group.
 - Parsing, validation, canonical publication, corpus state, and durable event insertion commit atomically.
 - A dead or cancelled mark is a state transition, not a row deletion.
 - Unknown values remain raw/unknown instead of being guessed.
 
-Bootstrap publishes a complete annual generation first, then reconciles retained daily artifacts without selecting them by the annual metadata to-date. Current/live-first bootstrap and historical backfill are prohibited because a later annual publication could regress already-current state.
+The v1 bootstrap policy pins the officially enumerated generation from 1884-04-07 through 2025-12-31 and builds its baseline without ordering generation parts. Catalog order never selects a generation. Retained daily observations then reconcile group by group without a metadata cutoff. Current/live-first bootstrap and historical backfill are prohibited because a later annual publication could regress already-current state. A later annual generation requires an explicit authority-policy revision before it becomes eligible.
 
 ## Database map
 
@@ -191,7 +192,7 @@ Bootstrap publishes a complete annual generation first, then reconciles retained
 - `mark_goods_services`: raw goods/services statements and derived class linkage
 - `mark_status_event`: distinct source-reported status transitions with provenance
 
-Every canonical domain group references the source observation that established it. Canonical rows are rebuildable from immutable observations.
+Every canonical domain group retains its contributing source observations. Canonical rows are rebuildable from immutable observations.
 
 Required indexes:
 
@@ -441,7 +442,7 @@ Acceptance:
 - Quota-aware downloads, checksums, and retained raw artifacts
 - Streaming lossless parser, action profiles, claim folding, and atomic publication
 - Complete annual generation bootstrap from officially enumerated membership
-- Daily reconciliation through a fixture-proven source-authority policy; metadata coverage dates never select or order observations
+- Group-wise daily reconciliation through a fixture-proven source-authority policy and a publication-blocking authority-conflict diagnostic; metadata coverage dates never select or order observations
 - Freshness frontiers, retries, quarantine, durable corpus events, observability, backup, and recovery
 
 Acceptance: corpus-through date is accurate; replay is a no-op; a partial amendment changes only asserted groups; an out-of-order artifact cannot regress canonical state.
@@ -476,7 +477,7 @@ Acceptance: the deployed service rebuilds from retained artifacts, restores acco
 - Website searches fixed to International Class 025 in v1; API and CLI retain all-class access
 - Daily batch freshness, not realtime USPTO sync
 - Immutable source observations and presence-aware claim folding; no whole-record `status_date` merge
-- Annual generation membership distinct from transaction coverage; versioned annual/daily reconciliation
+- Partial source authority: annual generation membership is distinct from transaction coverage, and unordered annual/daily claims publish only when their group fold is confluent
 - Public complete frontier distinct from newest published source date
 - Private operator diagnostics and database-backed operator roles
 - No external realtime subscription in v1

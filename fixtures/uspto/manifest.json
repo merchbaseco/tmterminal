@@ -7,6 +7,12 @@
       "id": "xml-resources",
       "url": "https://www.uspto.gov/learning-and-resources/xml-resources",
       "retainedEvidencePath": "contracts/sha256/79836c1ed39e4f3f520a91fe5da677afea0a9ce1ae5092fa333a5c51c85ad6c0/xml-resources.html",
+      "v2ApplicationDocument": {
+        "url": "https://www.uspto.gov/sites/default/files/products/TMDailyApp-Documentation-508.pdf",
+        "retainedEvidencePath": "contracts/sha256/db1211c23c2b8e206acbd5f87b02804d7d63ea3269c98e725296573a7b10406a/TMDailyApp-Documentation-508.pdf",
+        "bytes": 702326,
+        "sha256": "db1211c23c2b8e206acbd5f87b02804d7d63ea3269c98e725296573a7b10406a"
+      },
       "currentApplicationDocument": "https://data.uspto.gov/ui/datasets/products/files/TRTDXFAP/Trademark-Applications-Documentation-v2.3-20250813.doc",
       "currentStatusTable": "https://data.uspto.gov/ui/datasets/products/files/TRTDXFAP/Table1TrademarkStatusCodes_20250813.doc",
       "documentResponses": {
@@ -48,6 +54,11 @@
       "path": "contracts/sha256/79836c1ed39e4f3f520a91fe5da677afea0a9ce1ae5092fa333a5c51c85ad6c0/xml-resources.html",
       "bytes": 123684,
       "sha256": "79836c1ed39e4f3f520a91fe5da677afea0a9ce1ae5092fa333a5c51c85ad6c0"
+    },
+    {
+      "path": "contracts/sha256/db1211c23c2b8e206acbd5f87b02804d7d63ea3269c98e725296573a7b10406a/TMDailyApp-Documentation-508.pdf",
+      "bytes": 702326,
+      "sha256": "db1211c23c2b8e206acbd5f87b02804d7d63ea3269c98e725296573a7b10406a"
     },
     {
       "path": "contracts/sha256/ad99dcd0fe0e4d1ed3c8ca698f31dc837226ab2b379351d79cc87cf3c897b9c4/odp-registration.html",
