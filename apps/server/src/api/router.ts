@@ -1,92 +1,13 @@
 import { initTRPC, TRPCError } from "@trpc/server";
-import type postgres from "postgres";
 import { z } from "zod";
 
-import type { VerifyClerkToken } from "../auth/clerk-verifier.ts";
-import { CredentialSelectionError, selectCredential } from "../auth/select-credential.ts";
-import { resolveClerkAccount } from "../queries/account-repository.ts";
-import {
-  type ApiKeyView,
-  authenticateApiKey,
-  createApiKey,
-  listApiKeys,
-  revokeApiKey,
-} from "../queries/api-key-repository.ts";
-
-function publicApiKey(key: ApiKeyView) {
-  return {
-    ...key,
-    createdAt: key.createdAt.toISOString(),
-    lastUsedAt: key.lastUsedAt?.toISOString() ?? null,
-  };
-}
-
-export type AuthenticatedAccount = {
-  accountId: string;
-  credential: { type: "api-key"; keyId: string; suffix: string } | { type: "clerk" };
-};
+import type { AccountService, AuthenticatedAccount, MarksService } from "./contracts.ts";
 
 export type AppContext = {
+  account: AccountService;
   auth: AuthenticatedAccount;
-  database: postgres.Sql;
+  marks: MarksService;
 };
-
-type CreateContextOptions = {
-  authorization?: string;
-  cookie?: string;
-  database: postgres.Sql;
-  verifyClerkToken: VerifyClerkToken;
-};
-
-export async function createAppContext({
-  authorization,
-  cookie,
-  database,
-  verifyClerkToken,
-}: CreateContextOptions): Promise<AppContext> {
-  let selected;
-
-  try {
-    selected = selectCredential({ authorization, cookie });
-  } catch (error) {
-    if (error instanceof CredentialSelectionError) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "Select exactly one credential" });
-    }
-    throw error;
-  }
-
-  if (!selected) {
-    throw new TRPCError({ code: "UNAUTHORIZED", message: "Authentication required" });
-  }
-
-  if (selected.type === "api-key") {
-    const key = await authenticateApiKey(database, selected.token);
-    if (!key) {
-      throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid credential" });
-    }
-
-    return {
-      auth: {
-        accountId: key.accountId,
-        credential: { type: "api-key", keyId: key.keyId, suffix: key.suffix },
-      },
-      database,
-    };
-  }
-
-  const clerkUserId = await verifyClerkToken(selected.token);
-  if (!clerkUserId) {
-    throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid credential" });
-  }
-
-  return {
-    auth: {
-      accountId: await resolveClerkAccount(database, clerkUserId),
-      credential: { type: "clerk" },
-    },
-    database,
-  };
-}
 
 const t = initTRPC.context<AppContext>().create({ isDev: false });
 const clerkProcedure = t.procedure.use(({ ctx, next }) => {
@@ -102,23 +23,38 @@ export const appRouter = t.router({
     "api-keys": t.router({
       create: clerkProcedure
         .input(z.object({ name: z.string().trim().min(1).max(80) }))
-        .mutation(async ({ ctx, input }) => {
-          const created = await createApiKey(ctx.database, ctx.auth.accountId, input.name);
-          return { ...created, key: publicApiKey(created.key) };
-        }),
-      list: clerkProcedure.query(async ({ ctx }) =>
-        (await listApiKeys(ctx.database, ctx.auth.accountId)).map(publicApiKey),
-      ),
+        .mutation(({ ctx, input }) => ctx.account.createApiKey(input.name)),
+      list: clerkProcedure.query(({ ctx }) => ctx.account.listApiKeys()),
       revoke: clerkProcedure
         .input(z.object({ id: z.uuid() }))
         .mutation(async ({ ctx, input }) => {
-          const key = await revokeApiKey(ctx.database, ctx.auth.accountId, input.id);
+          const key = await ctx.account.revokeApiKey(input.id);
           if (!key) {
             throw new TRPCError({ code: "NOT_FOUND", message: "API key not found" });
           }
-          return publicApiKey(key);
+          return key;
         }),
     }),
+  }),
+  marks: t.router({
+    get: t.procedure
+      .input(z.object({ serialNumber: z.string().regex(/^\d{8}$/) }))
+      .query(async ({ ctx, input }) => {
+        const mark = await ctx.marks.getBySerialNumber(input.serialNumber);
+        if (!mark) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Trademark not found" });
+        }
+        return mark;
+      }),
+    "get-by-registration": t.procedure
+      .input(z.object({ registrationNumber: z.string().regex(/^\d{7}$/) }))
+      .query(async ({ ctx, input }) => {
+        const mark = await ctx.marks.getByRegistrationNumber(input.registrationNumber);
+        if (!mark) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Trademark not found" });
+        }
+        return mark;
+      }),
   }),
 });
 

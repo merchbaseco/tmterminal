@@ -70,6 +70,14 @@ export function createCanonicalMarkRepository(database: postgres.Sql) {
       };
     },
 
+    async readByRegistrationNumber(registrationNumber: string): Promise<ResolvedCanonicalMark | null> {
+      const [identity] = await database<[{ serialNumber: string }]>`
+        select serial_number as "serialNumber"
+        from mark where registration_number = ${registrationNumber}
+      `;
+      return identity ? this.read(identity.serialNumber) : null;
+    },
+
     async replace(materialization: ResolvedCanonicalMark): Promise<void> {
       const { mark, versions } = materialization;
       await database.begin(async (transaction) => {
