@@ -3,11 +3,18 @@ import Fastify, { type FastifyRequest, type FastifyServerOptions } from "fastify
 
 import { createClerkVerifier, type VerifyClerkToken } from "../auth/clerk-verifier.ts";
 import { createDatabaseClient } from "../db/client.ts";
+import {
+  configuredDevClerkSignIn,
+  type DevClerkSignIn,
+  registerDevClerkSignIn,
+} from "./dev-clerk-sign-in.ts";
 import { appRouter, createAppContext } from "./router.ts";
 
 type BuildServerOptions = {
   databaseUrl: string;
+  devClerkSignIn?: DevClerkSignIn | null;
   logger?: FastifyServerOptions["logger"];
+  nodeEnv?: string;
   verifyClerkToken?: VerifyClerkToken;
 };
 
@@ -24,11 +31,21 @@ function configuredClerkVerifier() {
 
 export async function buildServer({
   databaseUrl,
+  devClerkSignIn,
   logger = true,
+  nodeEnv = process.env.NODE_ENV,
   verifyClerkToken = configuredClerkVerifier(),
 }: BuildServerOptions) {
   const database = createDatabaseClient(databaseUrl);
   const server = Fastify({ logger });
+  const resolvedDevClerkSignIn =
+    nodeEnv === "production"
+      ? null
+      : devClerkSignIn === undefined
+        ? configuredDevClerkSignIn()
+        : devClerkSignIn;
+
+  registerDevClerkSignIn(server, resolvedDevClerkSignIn);
 
   server.get("/api/health", async (_request, reply) => {
     try {

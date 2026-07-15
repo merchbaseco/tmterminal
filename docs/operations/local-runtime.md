@@ -78,6 +78,24 @@ Retained downloads live in the dedicated `artifact-data` volume under content-ad
 
 Authenticated website use also requires `CLERK_SECRET_KEY`, `CLERK_AUTHORIZED_PARTIES`, and `VITE_CLERK_PUBLISHABLE_KEY`. The Compose wrapper derives `CLERK_AUTHORIZED_PARTIES` from the worktree website port; direct deployments must set the public website origin explicitly. The API stays ready without Clerk credentials but rejects Clerk sessions; the website intentionally fails fast when its publishable key is absent.
 
+Local browser automation uses the shared MerchBase development Clerk instance. Set `DEV_CLERK_SIGN_IN_USER_ID` and `VITE_DEV_CLERK_AUTO_SIGN_IN=true` to opt in. This opt-in is only for an API and Vite server running directly on the host; the production-shaped Compose stack does not forward it or include Vite's development client. With a host-reachable `DATABASE_URL`, start the API and website in separate terminals:
+
+```bash
+set -a
+. ./.env
+set +a
+PORT="$(dev-port 1)" bun run --cwd apps/server start
+```
+
+```bash
+set -a
+. ./.env
+set +a
+TMTURTLE_API_PORT="$(dev-port 1)" bun run --cwd apps/web dev --host 127.0.0.1 --port "$(dev-port 0)"
+```
+
+In Vite development only, the website requests a 60-second Clerk sign-in ticket from the local API and then establishes a normal Clerk session. The endpoint requires both an exact `127.0.0.1` Host header and an actual `127.0.0.1` peer; it is absent in production and when the server opt-in is unset. It does not bypass Clerk verification or create a fallback application credential.
+
 Bootstrap or recover a host-managed caller directly against the service database:
 
 ```bash

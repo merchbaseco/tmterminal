@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import type { AppRouter } from "../../server/src/api/router.ts";
 import { ApiKeysPage, type AccountApi } from "./api-keys-page.tsx";
 import { Button } from "@/components/ui/button";
+import { DevAutoSignIn } from "./dev-auto-sign-in.tsx";
 
 function SignedInAccount() {
   const { getToken } = useAuth();
@@ -58,14 +59,17 @@ export function App() {
         <SignedInAccount />
       </Show>
       <Show when="signed-out">
-        <main className="signed-out-shell">
-          <p className="eyebrow">Private trademark tools</p>
-          <h1>TRADEMARK<br />TURTLE</h1>
-          <p>Sign in with your MerchBase account to manage API keys.</p>
-          <SignInButton mode="modal">
-            <Button size="lg">Sign in</Button>
-          </SignInButton>
-        </main>
+        <>
+          <DevAutoSignIn />
+          <main className="signed-out-shell">
+            <p className="eyebrow">Private trademark tools</p>
+            <h1>TRADEMARK<br />TURTLE</h1>
+            <p>Sign in with your MerchBase account to manage API keys.</p>
+            <SignInButton mode="modal">
+              <Button size="lg">Sign in</Button>
+            </SignInButton>
+          </main>
+        </>
       </Show>
     </>
   );
