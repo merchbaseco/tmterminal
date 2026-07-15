@@ -8,7 +8,9 @@ import { ApiKeysPage, type AccountApi } from "./api-keys-page.tsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DevAutoSignIn } from "./dev-auto-sign-in.tsx";
+import { FreshnessPopover, type FreshnessApi } from "./freshness-popover.tsx";
 import { MarkDetailPage, type MarkApi } from "./mark-detail-page.tsx";
+import { OperatorSyncPage, type OperatorSyncApi } from "./operator-sync-page.tsx";
 import { SearchPage, type SearchApi } from "./search-page.tsx";
 
 type BrowserLocation = {
@@ -72,10 +74,31 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
   const searchApi = useMemo<SearchApi>(() => ({
     search: (input) => client.marks.search.query(input),
   }), [client]);
-  const markRoute = location.pathname.match(/^\/marks\/(\d{8})$/);
+  const freshnessApi = useMemo<FreshnessApi>(() => ({
+    status: () => client.sync.status.query(),
+  }), [client]);
+  const operatorApi = useMemo<OperatorSyncApi>(() => ({
+    artifacts: (input) => client.ops.sync.artifacts.query(input),
+    artifactVersions: (input) => client.ops.sync["artifact-versions"].query(input),
+    publications: (input) => client.ops.sync.publications.query(input),
+    rejects: (input) => client.ops.sync.rejects.query(input),
+    status: () => client.ops.sync.status.query(),
+  }), [client]);
+  const [operator, setOperator] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void client.viewer.role.query().then((viewer) => {
+      if (active) setOperator(viewer.operator);
+    }).catch(() => {
+      if (active) setOperator(false);
+    });
+    return () => { active = false; };
+  }, [client]);
 
+  const markRoute = location.pathname.match(/^\/marks\/(\d{8})$/);
+  let page;
   if (markRoute?.[1]) {
-    return (
+    page = (
       <MarkDetailPage
         api={markApi}
         onBack={() => {
@@ -88,44 +111,49 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
         serialNumber={markRoute[1]}
       />
     );
+  } else if (location.pathname === "/ops/sync") {
+    page = <OperatorSyncPage api={operatorApi} />;
+  } else if (location.pathname === "/settings/api-keys") {
+    page = <ApiKeysPage api={accountApi} />;
+  } else {
+    const restoreScrollOffset = typeof location.state.searchScrollOffset === "number"
+      ? location.state.searchScrollOffset
+      : 0;
+    const replacementSourceSearch = typeof location.state.searchReplacementSource === "string"
+      ? location.state.searchReplacementSource
+      : undefined;
+    page = (
+      <SearchPage
+        api={searchApi}
+        onNavigate={(href, sourceSearch) => setBrowserLocation(href, {
+          state: sourceSearch ? { searchReplacementSource: sourceSearch } : {},
+        })}
+        onOpenMark={(serialNumber, scrollOffset) => {
+          setBrowserLocation(
+            `${location.pathname}${location.search}`,
+            {
+              replace: true,
+              state: { ...location.state, searchScrollOffset: scrollOffset },
+            },
+          );
+          setBrowserLocation(`/marks/${serialNumber}`, { state: { tmturtleSearchEntry: true } });
+        }}
+        onReplacementLoaded={() => {
+          const state = { ...location.state };
+          delete state.searchReplacementSource;
+          setBrowserLocation(`${location.pathname}${location.search}`, { replace: true, state });
+        }}
+        replacementSourceSearch={replacementSourceSearch}
+        restoreScrollOffset={restoreScrollOffset}
+        search={location.search}
+      />
+    );
   }
-  if (location.pathname === "/settings/api-keys") return <ApiKeysPage api={accountApi} />;
 
-  const restoreScrollOffset = typeof location.state.searchScrollOffset === "number"
-    ? location.state.searchScrollOffset
-    : 0;
-  const replacementSourceSearch = typeof location.state.searchReplacementSource === "string"
-    ? location.state.searchReplacementSource
-    : undefined;
-  return (
-    <SearchPage
-      api={searchApi}
-      onNavigate={(href, sourceSearch) => setBrowserLocation(href, {
-        state: sourceSearch ? { searchReplacementSource: sourceSearch } : {},
-      })}
-      onOpenMark={(serialNumber, scrollOffset) => {
-        setBrowserLocation(
-          `${location.pathname}${location.search}`,
-          {
-            replace: true,
-            state: { ...location.state, searchScrollOffset: scrollOffset },
-          },
-        );
-        setBrowserLocation(`/marks/${serialNumber}`, { state: { tmturtleSearchEntry: true } });
-      }}
-      onReplacementLoaded={() => {
-        const state = { ...location.state };
-        delete state.searchReplacementSource;
-        setBrowserLocation(`${location.pathname}${location.search}`, { replace: true, state });
-      }}
-      replacementSourceSearch={replacementSourceSearch}
-      restoreScrollOffset={restoreScrollOffset}
-      search={location.search}
-    />
-  );
+  return <><TopBar freshnessApi={freshnessApi} operator={operator} />{page}</>;
 }
 
-function TopBar() {
+function TopBar({ freshnessApi, operator = false }: { freshnessApi?: FreshnessApi; operator?: boolean }) {
   function navigate(event: ReactMouseEvent<HTMLAnchorElement>, href: string) {
     if (!plainPrimaryClick(event)) return;
     event.preventDefault();
@@ -139,6 +167,8 @@ function TopBar() {
         <Show when="signed-in">
           <a href="/search" onClick={(event) => navigate(event, "/search")}>Search</a>
           <a href="/settings/api-keys" onClick={(event) => navigate(event, "/settings/api-keys")}>API Keys</a>
+          {operator ? <a href="/ops/sync" onClick={(event) => navigate(event, "/ops/sync")}>Sync ops</a> : null}
+          {freshnessApi ? <FreshnessPopover api={freshnessApi} /> : null}
           <UserButton />
         </Show>
         <Show when="signed-out">
@@ -207,11 +237,11 @@ export function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TopBar />
       <Show when="signed-in">
         <SignedInApp location={location} />
       </Show>
       <Show when="signed-out">
+        <TopBar />
         <DevAutoSignIn />
         <SignedOutSearch search={location.search} />
       </Show>
