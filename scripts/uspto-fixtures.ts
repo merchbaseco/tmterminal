@@ -2,7 +2,12 @@ import { createHash } from 'node:crypto';
 import { mkdir, readdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { assertFixtureArtifactReferences, assertFixturePathInventory } from './uspto-fixture-manifest.ts';
+import {
+    assertAnnualFixturePairs,
+    assertArtifactMetadataReferences,
+    assertFixtureArtifactReferences,
+    assertFixturePathInventory,
+} from './uspto-fixture-manifest.ts';
 
 type CachedEvidence = {
     path: string;
@@ -12,7 +17,15 @@ type CachedEvidence = {
 
 type Artifact = {
     id: string;
+    product: string;
     cachePath: string;
+    upstreamDownloadUri: string | null;
+    officialMetadata?: {
+        sourceId: string;
+        responseArrayIndex: number;
+        generationFromDate: string;
+        generationToDate: string;
+    };
     zip: { filename: string; bytes: number; sha256: string };
     xml: {
         filename: string;
@@ -22,8 +35,33 @@ type Artifact = {
         actionRecordCounts: Record<string, number>;
         actionGroups: Array<{ actionKey: string; actionOccurrence: number; recordCount: number }>;
         transactionDateRange: { from: string; to: string };
+        serialNumberRange?: { from: string; to: string };
+        uniqueSerialNumberCount?: number;
+        serialNumberOrder?: 'ascending';
         root: { name: string; version: string; versionDate: string; creationDatetime: string };
     };
+};
+
+type OfficialProductMetadata = {
+    id: string;
+    product: string;
+    sourceUrl: string;
+    checkedAt: string;
+    httpStatus: number;
+    retainedResponsePath: string;
+    responseBytes: number;
+    responseSha256: string;
+    productFileTotalQuantity: number;
+    responseFileCount: number;
+    generationInventory: Array<{ from: string; to: string; fileCount: number }>;
+};
+
+type AnnualFixturePair = {
+    id: string;
+    generationFromDate: string;
+    generationToDate: string;
+    fullFixtureId: string;
+    statusOnlyFixtureId: string;
 };
 
 type Fixture = {
@@ -44,14 +82,17 @@ type Fixture = {
         absent: string[];
         empty: string[];
     };
+    expectedValues?: Record<string, string>;
 };
 
 type Manifest = {
     schemaVersion: number;
     cacheRootDefault: string;
     retainedEvidence: CachedEvidence[];
+    officialProductMetadata: OfficialProductMetadata[];
     artifacts: Artifact[];
     fixtures: Fixture[];
+    annualFixturePairs: AnnualFixturePair[];
 };
 
 const repositoryRoot = join(import.meta.dir, '..');
@@ -61,6 +102,8 @@ const writeFixtures = Bun.argv.includes('--write');
 const cacheRoot = join(homedir(), 'Library/Caches/tmturtle/uspto');
 
 assertFixtureArtifactReferences(manifest.artifacts, manifest.fixtures);
+assertArtifactMetadataReferences(manifest.officialProductMetadata, manifest.artifacts);
+assertAnnualFixturePairs(manifest.annualFixturePairs, manifest.artifacts, manifest.fixtures);
 
 const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 
@@ -80,6 +123,65 @@ const verifyCachedEvidence = async (evidence: CachedEvidence) => {
     }
     if (sha256(cached.bytes) !== evidence.sha256) {
         throw new Error(`Cached SHA-256 mismatch: ${cached.path}`);
+    }
+};
+
+const verifyOfficialProductMetadata = async (metadata: OfficialProductMetadata) => {
+    const cached = await readCachedBytes(metadata.retainedResponsePath);
+    if (cached.bytes.byteLength !== metadata.responseBytes || sha256(cached.bytes) !== metadata.responseSha256) {
+        throw new Error(`Official product metadata does not match manifest: ${cached.path}`);
+    }
+
+    const response = JSON.parse(new TextDecoder().decode(cached.bytes)) as {
+        bulkDataProductBag?: Array<{
+            productIdentifier?: string;
+            productFileTotalQuantity?: number;
+            productFileBag?: { count?: number; fileDataBag?: Array<Record<string, unknown>> };
+        }>;
+    };
+    const product = response.bulkDataProductBag?.find((item) => item.productIdentifier === metadata.product);
+    const files = product?.productFileBag?.fileDataBag;
+    if (
+        !product ||
+        !files ||
+        product.productFileTotalQuantity !== metadata.productFileTotalQuantity ||
+        product.productFileBag?.count !== metadata.responseFileCount ||
+        files.length !== metadata.responseFileCount
+    ) {
+        throw new Error(`Official product inventory drift: ${metadata.id}`);
+    }
+
+    const inventory = new Map<string, number>();
+    for (const file of files) {
+        const from = String(file.fileDataFromDate ?? '');
+        const to = String(file.fileDataToDate ?? '');
+        const key = `${from}\u0000${to}`;
+        inventory.set(key, (inventory.get(key) ?? 0) + 1);
+    }
+    const expectedInventory = new Map(
+        metadata.generationInventory.map((generation) => [
+            `${generation.from}\u0000${generation.to}`,
+            generation.fileCount,
+        ]),
+    );
+    if (JSON.stringify([...inventory].sort()) !== JSON.stringify([...expectedInventory].sort())) {
+        throw new Error(`Official product generation inventory drift: ${metadata.id}`);
+    }
+
+    for (const artifact of manifest.artifacts.filter((candidate) => candidate.officialMetadata?.sourceId === metadata.id)) {
+        const source = artifact.officialMetadata;
+        const file = source ? files[source.responseArrayIndex] : undefined;
+        if (
+            !source ||
+            file?.fileName !== artifact.zip.filename ||
+            file.fileSize !== artifact.zip.bytes ||
+            file.fileDownloadURI !== artifact.upstreamDownloadUri ||
+            file.fileDataFromDate !== source.generationFromDate ||
+            file.fileDataToDate !== source.generationToDate ||
+            file.fileTypeText !== 'Data'
+        ) {
+            throw new Error(`Artifact metadata membership drift: ${artifact.id}`);
+        }
     }
 };
 
@@ -110,6 +212,11 @@ const verifyPresence = (fixture: Fixture, excerpt: Buffer) => {
         const escaped = escapedTag(tag);
         if (!new RegExp(`<${escaped}(?:\\s[^>]*)?>\\s*</${escaped}>|<${escaped}(?:\\s[^>]*)?\\s*/>`).test(text)) {
             throw new Error(`Expected empty element <${tag}> is not empty: ${fixture.id}`);
+        }
+    }
+    for (const [tag, value] of Object.entries(fixture.expectedValues ?? {})) {
+        if (!text.includes(`<${tag}>${value}</${tag}>`)) {
+            throw new Error(`Expected <${tag}> value ${value} is missing: ${fixture.id}`);
         }
     }
 };
@@ -151,6 +258,11 @@ const verifyArtifact = async (artifact: Artifact, fixtures: Fixture[]) => {
     let creationDatetime = '';
     let transactionFrom = '';
     let transactionTo = '';
+    let serialFrom = '';
+    let serialTo = '';
+    let previousSerial = '';
+    let serialNumbersAscending = true;
+    const uniqueSerialNumbers = new Set<string>();
 
     const consumeLine = async (line: Buffer) => {
         const text = decoder.decode(line);
@@ -196,7 +308,17 @@ const verifyArtifact = async (artifact: Artifact, fixtures: Fixture[]) => {
             transactionTo = transactionDate > transactionTo ? transactionDate : transactionTo;
         }
 
-        if (!/^\s*<\/case-file>\s*$/.test(text) || !capturedFixture || !capture) {
+        if (!/^\s*<\/case-file>\s*$/.test(text)) {
+            return;
+        }
+
+        serialFrom ||= serialNumber;
+        serialTo = serialNumber;
+        serialNumbersAscending &&= previousSerial === '' || serialNumber > previousSerial;
+        previousSerial = serialNumber;
+        uniqueSerialNumbers.add(serialNumber);
+
+        if (!capturedFixture || !capture) {
             return;
         }
 
@@ -272,6 +394,11 @@ const verifyArtifact = async (artifact: Artifact, fixtures: Fixture[]) => {
         JSON.stringify(actionGroups) === JSON.stringify(artifact.xml.actionGroups) &&
         transactionFrom === artifact.xml.transactionDateRange.from &&
         transactionTo === artifact.xml.transactionDateRange.to &&
+        (artifact.xml.serialNumberRange === undefined ||
+            (serialFrom === artifact.xml.serialNumberRange.from && serialTo === artifact.xml.serialNumberRange.to)) &&
+        (artifact.xml.uniqueSerialNumberCount === undefined ||
+            uniqueSerialNumbers.size === artifact.xml.uniqueSerialNumberCount) &&
+        (artifact.xml.serialNumberOrder === undefined || serialNumbersAscending) &&
         rootName === artifact.xml.root.name &&
         version === artifact.xml.root.version &&
         versionDate === artifact.xml.root.versionDate &&
@@ -289,6 +416,10 @@ const verifyArtifact = async (artifact: Artifact, fixtures: Fixture[]) => {
 
 for (const evidence of manifest.retainedEvidence) {
     await verifyCachedEvidence(evidence);
+}
+
+for (const metadata of manifest.officialProductMetadata) {
+    await verifyOfficialProductMetadata(metadata);
 }
 
 for (const artifact of manifest.artifacts) {

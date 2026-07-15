@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "reviewedAt": "2026-07-14",
+  "reviewedAt": "2026-07-15",
   "cacheRootDefault": "~/Library/Caches/tmturtle/uspto",
   "officialContracts": [
     {
@@ -25,7 +25,7 @@
       "retainedEvidencePath": "contracts/sha256/ad99dcd0fe0e4d1ed3c8ca698f31dc837226ab2b379351d79cc87cf3c897b9c4/odp-registration.html"
     },
     {
-      "id": "TRTYRAP-product-metadata",
+      "id": "TRTYRAP-product-metadata-unauthorized-attempt",
       "url": "https://api.uspto.gov/api/v1/datasets/products/TRTYRAP",
       "checkedAt": "2026-07-14T18:46:50Z",
       "httpStatus": 403,
@@ -34,7 +34,7 @@
       "retainedResponsePath": "contracts/sha256/12a22880bc2e59f8278b4a5e547567f0aa14d020ea456598267fa00208cfebc5/odp-forbidden.json"
     },
     {
-      "id": "TRTDXFAP-product-metadata",
+      "id": "TRTDXFAP-product-metadata-unauthorized-attempt",
       "url": "https://api.uspto.gov/api/v1/datasets/products/TRTDXFAP",
       "checkedAt": "2026-07-14T18:46:50Z",
       "httpStatus": 403,
@@ -70,7 +70,139 @@
       "sha256": "b96a82ac9ce8acb0a753bcb6a6dc4a1486bb3174f53e949df3d019fbad3a297a"
     }
   ],
+  "officialProductMetadata": [
+    {
+      "id": "TRTYRAP-product-metadata-2026-07-15",
+      "product": "TRTYRAP",
+      "sourceUrl": "https://api.uspto.gov/api/v1/datasets/products/TRTYRAP",
+      "checkedAt": "2026-07-15T03:54:38Z",
+      "httpStatus": 200,
+      "retainedResponsePath": "contracts/sha256/48e2760d6c87175969373199aa914d06e3208d6db2345a8f1647edec329ccdd5/TRTYRAP-product-metadata.json",
+      "responseBytes": 62248,
+      "responseSha256": "48e2760d6c87175969373199aa914d06e3208d6db2345a8f1647edec329ccdd5",
+      "productFileTotalQuantity": 177,
+      "responseFileCount": 177,
+      "generationInventory": [
+        {
+          "from": "1884-04-07",
+          "to": "2024-12-31",
+          "fileCount": 86
+        },
+        {
+          "from": "1884-04-07",
+          "to": "2025-12-31",
+          "fileCount": 91
+        }
+      ]
+    }
+  ],
   "artifacts": [
+    {
+      "id": "TRTYRAP-apc18840407-20251231-01",
+      "product": "TRTYRAP",
+      "cachePath": "sha256/9b65bdcb80c2bdd6efa6869432771c30613bed6dc8efd3d4589e2fd8b334b062/apc18840407-20251231-01.zip",
+      "retainedFrom": "official ODP download",
+      "upstreamDownloadUri": "https://api.uspto.gov/api/v1/datasets/products/files/TRTYRAP/apc18840407-20251231-01.zip",
+      "coverage": {
+        "officialMetadata": "TRTYRAP-product-metadata-2026-07-15"
+      },
+      "officialMetadata": {
+        "sourceId": "TRTYRAP-product-metadata-2026-07-15",
+        "responseArrayIndex": 90,
+        "generationFromDate": "1884-04-07",
+        "generationToDate": "2025-12-31"
+      },
+      "zip": {
+        "filename": "apc18840407-20251231-01.zip",
+        "bytes": 5969448,
+        "sha256": "9b65bdcb80c2bdd6efa6869432771c30613bed6dc8efd3d4589e2fd8b334b062"
+      },
+      "xml": {
+        "filename": "apc18840407-20251231-01.xml",
+        "bytes": 659557754,
+        "sha256": "f752bbcb2faedabddfcb58257016b241955974897326e6998c41a1a1189cd016",
+        "recordCount": 155000,
+        "actionRecordCounts": {
+          "TX": 155000
+        },
+        "actionGroups": [
+          {
+            "actionKey": "TX",
+            "actionOccurrence": 1,
+            "recordCount": 155000
+          }
+        ],
+        "transactionDateRange": {
+          "from": "20160316",
+          "to": "20221207"
+        },
+        "serialNumberRange": {
+          "from": "60000001",
+          "to": "60172052"
+        },
+        "uniqueSerialNumberCount": 155000,
+        "serialNumberOrder": "ascending",
+        "root": {
+          "name": "trademark-applications-daily",
+          "version": "2.0",
+          "versionDate": "20041108",
+          "creationDatetime": "202604031349"
+        }
+      }
+    },
+    {
+      "id": "TRTYRAP-apc18840407-20251231-05",
+      "product": "TRTYRAP",
+      "cachePath": "sha256/da2276100f83557b4a21a2031c6f961b36373f83b13492d870a3b9b7e5ec6e8a/apc18840407-20251231-05.zip",
+      "retainedFrom": "official ODP download",
+      "upstreamDownloadUri": "https://api.uspto.gov/api/v1/datasets/products/files/TRTYRAP/apc18840407-20251231-05.zip",
+      "coverage": {
+        "officialMetadata": "TRTYRAP-product-metadata-2026-07-15"
+      },
+      "officialMetadata": {
+        "sourceId": "TRTYRAP-product-metadata-2026-07-15",
+        "responseArrayIndex": 86,
+        "generationFromDate": "1884-04-07",
+        "generationToDate": "2025-12-31"
+      },
+      "zip": {
+        "filename": "apc18840407-20251231-05.zip",
+        "bytes": 63345591,
+        "sha256": "da2276100f83557b4a21a2031c6f961b36373f83b13492d870a3b9b7e5ec6e8a"
+      },
+      "xml": {
+        "filename": "apc18840407-20251231-05.xml",
+        "bytes": 1475389201,
+        "sha256": "cd48df0a7cfe39f4a051b732d04ce7db3822d4e327864c4ad90c9ba033381d80",
+        "recordCount": 155000,
+        "actionRecordCounts": {
+          "TX": 155000
+        },
+        "actionGroups": [
+          {
+            "actionKey": "TX",
+            "actionOccurrence": 1,
+            "recordCount": 155000
+          }
+        ],
+        "transactionDateRange": {
+          "from": "20160316",
+          "to": "20260402"
+        },
+        "serialNumberRange": {
+          "from": "60926995",
+          "to": "72182570"
+        },
+        "uniqueSerialNumberCount": 155000,
+        "serialNumberOrder": "ascending",
+        "root": {
+          "name": "trademark-applications-daily",
+          "version": "2.0",
+          "versionDate": "20041108",
+          "creationDatetime": "202604031351"
+        }
+      }
+    },
     {
       "id": "TRTYRAP-apc18840407-20241231-02",
       "product": "TRTYRAP",
@@ -223,6 +355,101 @@
   ],
   "fixtures": [
     {
+      "id": "annual-2025-status-only-tx",
+      "artifactId": "TRTYRAP-apc18840407-20251231-01",
+      "actionKey": "TX",
+      "actionOccurrence": 1,
+      "recordIndex": 1,
+      "actionRecordIndex": 1,
+      "serialNumber": "60000001",
+      "path": "fixtures/uspto/records/annual-2025-status-only-tx-60000001.xml",
+      "bytes": 4254,
+      "sha256": "6519e5e20a2f898c5b9210fa840e6ce026a1e764f498c31da5a50dd76d02f2ee",
+      "sequence": null,
+      "evidence": [
+        "annual 2025-generation TX",
+        "status-only observation shape",
+        "missing mark, owner, classification, and goods groups"
+      ],
+      "expectedPresence": {
+        "present": [
+          "serial-number",
+          "registration-number",
+          "transaction-date",
+          "case-file-header"
+        ],
+        "absent": [
+          "mark-identification",
+          "case-file-statements",
+          "classifications",
+          "case-file-owners"
+        ],
+        "empty": []
+      }
+    },
+    {
+      "id": "annual-2025-full-tx",
+      "artifactId": "TRTYRAP-apc18840407-20251231-01",
+      "actionKey": "TX",
+      "actionOccurrence": 1,
+      "recordIndex": 136470,
+      "actionRecordIndex": 136470,
+      "serialNumber": "60146682",
+      "path": "fixtures/uspto/records/annual-2025-full-tx-60146682.xml",
+      "bytes": 7181,
+      "sha256": "4bea4c8e9493c6945b1734a6f5eb3075256519fd5e463e704545d8867356d636",
+      "sequence": null,
+      "evidence": [
+        "annual 2025-generation TX",
+        "full application observation shape"
+      ],
+      "expectedPresence": {
+        "present": [
+          "mark-identification",
+          "case-file-statements",
+          "classifications",
+          "case-file-owners"
+        ],
+        "absent": [],
+        "empty": []
+      }
+    },
+    {
+      "id": "annual-2025-post-metadata-to-date-tx",
+      "artifactId": "TRTYRAP-apc18840407-20251231-05",
+      "actionKey": "TX",
+      "actionOccurrence": 1,
+      "recordIndex": 12294,
+      "actionRecordIndex": 12294,
+      "serialNumber": "67341029",
+      "path": "fixtures/uspto/records/annual-2025-post-metadata-to-date-tx-67341029.xml",
+      "bytes": 3070,
+      "sha256": "294f7074d7eba5b1709c83fb126c7b6c5ba67e0ef20f173f6a64f1655da2e15c",
+      "sequence": null,
+      "evidence": [
+        "annual 2025-generation membership",
+        "transaction date after official generation to-date",
+        "status-only observation shape"
+      ],
+      "expectedPresence": {
+        "present": [
+          "serial-number",
+          "transaction-date",
+          "case-file-header"
+        ],
+        "absent": [
+          "mark-identification",
+          "case-file-statements",
+          "classifications",
+          "case-file-owners"
+        ],
+        "empty": []
+      },
+      "expectedValues": {
+        "transaction-date": "20260128"
+      }
+    },
+    {
       "id": "annual-status-only-tx",
       "artifactId": "TRTYRAP-apc18840407-20241231-02",
       "actionKey": "TX",
@@ -233,7 +460,7 @@
       "path": "fixtures/uspto/records/annual-status-only-tx-60172053.xml",
       "bytes": 3618,
       "sha256": "a96e34c8f5f58a4ac83f13bc0f4e0ce82042c1a845524e30db9b1c46f2110f38",
-      "sequence": "annual-full-to-status-only",
+      "sequence": null,
       "evidence": [
         "status-only annual TX",
         "present empty correspondent",
@@ -523,12 +750,19 @@
       }
     }
   ],
+  "annualFixturePairs": [
+    {
+      "id": "TRTYRAP-2025-full-and-status-only",
+      "generationFromDate": "1884-04-07",
+      "generationToDate": "2025-12-31",
+      "fullFixtureId": "annual-2025-full-tx",
+      "statusOnlyFixtureId": "annual-2025-status-only-tx"
+    }
+  ],
   "blockingGaps": [
-    "ODP product metadata returns HTTP 403 under the retained API key after the June 18, 2026 sign-in requirement; no unattended login path is assumed.",
     "The current application-documentation and status-table links resolve to the ODP HTML application shell, so their DOC bytes and checksums are not retained.",
-    "Only annual suffix -02 is retained. Official annual part presence, ordering, overlap, complete generation enumeration, and the full annual application part remain unproved.",
+    "Cross-product annual-versus-daily claim precedence is unproved; retained annual bytes show that the metadata to-date cannot be the boundary.",
     "The retained daily artifacts contain IB, NA, and TX action keys but no numeric Official Gazette action key.",
-    "Registration and cancellation are evidenced by real records and event histories, but retained artifacts do not establish multi-observation registration or cancellation sequences.",
-    "The annual full-to-status-only sequence is incomplete until the matching full annual part is retained."
+    "Registration and cancellation are evidenced by real records and event histories, but retained artifacts do not establish multi-observation registration or cancellation sequences."
   ]
 }
