@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE trademark-applications-daily [
+<!-- DOCUMENT TYPE DEFINITION FOR THE TRADEMARK DAILY XML FILE
+ Reference this DTD as PUBLIC "-//USPTO//DTD TRADEMARK-APPLICATIONS-DAILY V2.0 2005-04-01//EN"
+
+Contact:
+U.S. Patent and Trademark Office
+Electronic Information Products Division
+P.O. Box 1450
+Alexandria, VA 22313
+ipd@uspto.gov
+
+****  START REVISION HISTORY  ****
+2003-03-05 - MD
+1)  Renamed element classes to classifications; and element class to classification. Change requested by Java users since
+    "class" is reserved word.
+2)  Changed the "0 or 1 times" reoccurrence of element "assignment-name-change" in case-file-owner, to "0 or more times" reoccurrence.
+3)  Renamed element assignment-name-change to name-change-explanation. Change requested by program manager.
+
+2003-08-26 - SS
+1)  Added group element for international-registrations and associated individual elements
+
+2003-10-06 - SS
+1) Added additional elements for data related to international-registrations
+2) Renamed data-processed-in to data-available-code.
+3) Added application-information to trademark-applications-daily.
+4) Moved data-available-code and file-segments to application-information.
+
+2003-11-06 - SS
+1) Added additional element standard-characters-claimed-in to case-file-header group element
+
+2004-08-31 - SS
+1) Added additional element abandonment-date to case-file-header group element
+2) Added group element madrid-international-records and associated elements to capture outgoing transactions from the USPTO to the International Bureau under Madrid Protocol Implementation Act
+
+2004-09-09 - SS
+1) Reorder of the tags in the case-file-header group
+2) Added international-renewal-date to madrid-international-filing-record
+
+2004-09-16 - SS
+1) Moved attorney-name to the case-file-header group
+2) Moved domestic-representative-name to the case-file-header group
+3) Created new group correspondent with elements address-1 through address-5
+4) Added correspondent to case file group
+5) Correspondent information previously shown in case-file-owner group now appears in the correspondent group
+6) Began use of 2 position country code for elements country and nationality.
+7) Changed name element in case-file-owners to party-name
+
+2004-09-24 - SS
+1) Modified nationality to include country or state
+2004-11-01 - SS
+1) Modified nationality to also include other element
+2004-11-08 - SS
+1) Added other element to foreign-application group
+2) Added other element to case-file-owner group
+3) Added current-location element to case-file-header group
+2005-04-01 - SS
+1) Added creation-datetime element to trademark-applications-daily group
+****  END REVISION HISTORY  ****  -->
+<!ELEMENT trademark-applications-daily (version, creation-datetime, application-information)>
+<!ELEMENT version (version-no, version-date)>
+<!ELEMENT version-no (#PCDATA)>
+<!ELEMENT version-date (#PCDATA)>
+<!ELEMENT creation-datetime (#PCDATA)>
+<!ELEMENT application-information (data-available-code | file-segments*)>
+<!ELEMENT data-available-code (#PCDATA)>
+<!ELEMENT file-segments (file-segment*, action-keys*)>
+<!ELEMENT file-segment (#PCDATA)>
+<!ELEMENT action-keys (action-key*, case-file*)>
+<!ELEMENT action-key (#PCDATA)>
+<!ELEMENT case-file (serial-number, registration-number?, transaction-date?, case-file-header?, case-file-statements?, case-file-event-statements?, prior-registration-applications?, foreign-applications?, classifications?, correspondent?, case-file-owners?, design-searches?, international-registration?, madrid-international-filing-requests?)>
+<!ELEMENT serial-number (#PCDATA)>
+<!ELEMENT registration-number (#PCDATA)>
+<!ELEMENT transaction-date (#PCDATA)>
+<!ELEMENT case-file-header (filing-date?, registration-date?, status-code?, status-date?, mark-identification?, mark-drawing-code?, published-for-opposition-date?, amend-to-register-date?, abandonment-date?, cancellation-code?, cancellation-date?, republished-12c-date?, domestic-representative-name?, attorney-docket-number?, attorney-name?, principal-register-amended-in?, supplemental-register-amended-in?, trademark-in?, collective-trademark-in?, service-mark-in?, collective-service-mark-in?, collective-membership-mark-in?, certification-mark-in?, cancellation-pending-in?, published-concurrent-in?, concurrent-use-in?, concurrent-use-proceeding-in?, interference-pending-in?, opposition-pending-in?, section-12c-in?, section-2f-in?, section-2f-in-part-in?, renewal-filed-in?, section-8-filed-in?, section-8-partial-accept-in?, section-8-accepted-in?, section-15-acknowledged-in?, section-15-filed-in?,  supplemental-register-in?, foreign-priority-in?, change-registration-in?, intent-to-use-in?, intent-to-use-current-in?, filed-as-use-application-in?, amended-to-use-application-in?, use-application-currently-in?, amended-to-itu-application-in?, filing-basis-filed-as-44d-in?, amended-to-44d-application-in?, filing-basis-current-44d-in?, filing-basis-filed-as-44e-in?, filing-basis-current-44e-in?, amended-to-44e-application-in?, without-basis-currently-in?, filing-current-no-basis-in?, color-drawing-filed-in?, color-drawing-current-in?, drawing-3d-filed-in?, drawing-3d-current-in?, standard-characters-claimed-in?, filing-basis-filed-as-66a-in?, filing-basis-current-66a-in?, renewal-date?, law-office-assigned-location-code?, current-location?, location-date?, employee-name?)>
+<!ELEMENT filing-date (#PCDATA)>
+<!ELEMENT registration-date (#PCDATA)>
+<!ELEMENT status-code (#PCDATA)>
+<!ELEMENT status-date (#PCDATA)>
+<!ELEMENT mark-identification (#PCDATA)>
+<!ELEMENT mark-drawing-code (#PCDATA)>
+<!ELEMENT published-for-opposition-date (#PCDATA)>
+<!ELEMENT amend-to-register-date (#PCDATA)>
+<!ELEMENT abandonment-date (#PCDATA)>
+<!ELEMENT cancellation-code (#PCDATA)>
+<!ELEMENT cancellation-date (#PCDATA)>
+<!ELEMENT republished-12c-date (#PCDATA)>
+<!ELEMENT domestic-representative-name (#PCDATA)>
+<!ELEMENT attorney-docket-number (#PCDATA)>
+<!ELEMENT attorney-name (#PCDATA)>
+<!ELEMENT principal-register-amended-in (#PCDATA)>
+<!ELEMENT supplemental-register-amended-in (#PCDATA)>
+<!ELEMENT trademark-in (#PCDATA)>
+<!ELEMENT collective-trademark-in (#PCDATA)>
+<!ELEMENT service-mark-in (#PCDATA)>
+<!ELEMENT collective-service-mark-in (#PCDATA)>
+<!ELEMENT collective-membership-mark-in (#PCDATA)>
+<!ELEMENT certification-mark-in (#PCDATA)>
+<!ELEMENT cancellation-pending-in (#PCDATA)>
+<!ELEMENT published-concurrent-in (#PCDATA)>
+<!ELEMENT concurrent-use-in (#PCDATA)>
+<!ELEMENT concurrent-use-proceeding-in (#PCDATA)>
+<!ELEMENT interference-pending-in (#PCDATA)>
+<!ELEMENT opposition-pending-in (#PCDATA)>
+<!ELEMENT section-12c-in (#PCDATA)>
+<!ELEMENT section-2f-in (#PCDATA)>
+<!ELEMENT section-2f-in-part-in (#PCDATA)>
+<!ELEMENT renewal-filed-in (#PCDATA)>
+<!ELEMENT section-8-filed-in (#PCDATA)>
+<!ELEMENT section-8-partial-accept-in (#PCDATA)>
+<!ELEMENT section-8-accepted-in (#PCDATA)>
+<!ELEMENT section-15-acknowledged-in (#PCDATA)>
+<!ELEMENT section-15-filed-in (#PCDATA)>
+<!ELEMENT supplemental-register-in (#PCDATA)>
+<!ELEMENT foreign-priority-in (#PCDATA)>
+<!ELEMENT change-registration-in (#PCDATA)>
+<!ELEMENT intent-to-use-in (#PCDATA)>
+<!ELEMENT intent-to-use-current-in (#PCDATA)>
+<!ELEMENT filed-as-use-application-in (#PCDATA)>
+<!ELEMENT amended-to-use-application-in (#PCDATA)>
+<!ELEMENT use-application-currently-in (#PCDATA)>
+<!ELEMENT amended-to-itu-application-in (#PCDATA)>
+<!ELEMENT filing-basis-filed-as-44d-in (#PCDATA)>
+<!ELEMENT amended-to-44d-application-in (#PCDATA)>
+<!ELEMENT filing-basis-current-44d-in (#PCDATA)>
+<!ELEMENT filing-basis-filed-as-44e-in (#PCDATA)>
+<!ELEMENT amended-to-44e-application-in (#PCDATA)>
+<!ELEMENT filing-basis-current-44e-in (#PCDATA)>
+<!ELEMENT without-basis-currently-in (#PCDATA)>
+<!ELEMENT filing-current-no-basis-in (#PCDATA)>
+<!ELEMENT color-drawing-filed-in (#PCDATA)>
+<!ELEMENT color-drawing-current-in (#PCDATA)>
+<!ELEMENT drawing-3d-filed-in (#PCDATA)>
+<!ELEMENT drawing-3d-current-in (#PCDATA)>
+<!-- Standard characters claim made by applicant-->
+<!ELEMENT standard-characters-claimed-in (#PCDATA)>
+<!-- Request for extension of protection used as filing basis for US application-->
+<!ELEMENT filing-basis-filed-as-66a-in (#PCDATA)>
+<!-- Request for extension of protection used as current basis for US application-->
+<!ELEMENT filing-basis-current-66a-in (#PCDATA)>
+<!ELEMENT renewal-date (#PCDATA)>
+<!ELEMENT law-office-assigned-location-code (#PCDATA)>
+<!ELEMENT current-location (#PCDATA)>
+<!ELEMENT location-date (#PCDATA)>
+<!ELEMENT employee-name (#PCDATA)>
+<!ELEMENT case-file-statements (case-file-statement*)>
+<!ELEMENT case-file-statement (type-code?, text*)>
+<!ELEMENT type-code (#PCDATA)>
+<!ELEMENT text (#PCDATA)>
+<!ELEMENT case-file-event-statements (case-file-event-statement*)>
+<!ELEMENT case-file-event-statement (code?, type?, description-text?, date?, number?)>
+<!ELEMENT code (#PCDATA)>
+<!ELEMENT type (#PCDATA)>
+<!ELEMENT description-text (#PCDATA)>
+<!ELEMENT date (#PCDATA)>
+<!ELEMENT number (#PCDATA)>
+<!ELEMENT prior-registration-applications (other-related-in*, prior-registration-application*)>
+<!ELEMENT other-related-in (#PCDATA)>
+<!ELEMENT prior-registration-application (relationship-type?, number?)>
+<!ELEMENT relationship-type (#PCDATA)>
+<!ELEMENT foreign-applications (foreign-application*)>
+<!ELEMENT foreign-application (filing-date?, registration-date?, registration-expiration-date?, registration-renewal-date?, registration-renewal-expiration-date?, entry-number?, application-number?, country?, other?, registration-number?, renewal-number?, foreign-priority-claim-in?)>
+<!ELEMENT registration-expiration-date (#PCDATA)>
+<!ELEMENT registration-renewal-date (#PCDATA)>
+<!ELEMENT registration-renewal-expiration-date (#PCDATA)>
+<!ELEMENT entry-number (#PCDATA)>
+<!ELEMENT application-number (#PCDATA)>
+<!ELEMENT country (#PCDATA)>
+<!ELEMENT renewal-number (#PCDATA)>
+<!ELEMENT foreign-priority-claim-in (#PCDATA)>
+<!ELEMENT classifications (classification*)>
+<!ELEMENT classification (international-code-total-no?, us-code-total-no?, international-code*, us-code*, status-code?, status-date?, first-use-anywhere-date?, first-use-in-commerce-date?, primary-code?)>
+<!ELEMENT international-code-total-no (#PCDATA)>
+<!ELEMENT us-code-total-no (#PCDATA)>
+<!ELEMENT international-code (#PCDATA)>
+<!ELEMENT us-code (#PCDATA)>
+<!ELEMENT first-use-anywhere-date (#PCDATA)>
+<!ELEMENT first-use-in-commerce-date (#PCDATA)>
+<!ELEMENT primary-code (#PCDATA)>
+<!ELEMENT correspondent (address-1?, address-2?, address-3?, address-4?, address-5?)>
+<!ELEMENT address-1 (#PCDATA)>
+<!ELEMENT address-2 (#PCDATA)>
+<!ELEMENT address-3 (#PCDATA)>
+<!ELEMENT address-4 (#PCDATA)>
+<!ELEMENT address-5 (#PCDATA)>
+<!ELEMENT case-file-owners (case-file-owner*)>
+<!ELEMENT case-file-owner (entry-number?, party-type?, nationality?, legal-entity-type-code?, entity-statement?, party-name?, address-1?, address-2?, city?, state?, country?, other?, postcode?, dba-aka-text?, composed-of-statement?,  name-change-explanation*)>
+<!ELEMENT party-type (#PCDATA)>
+<!ELEMENT nationality (state | country | other)>
+<!ELEMENT legal-entity-type-code (#PCDATA)>
+<!ELEMENT entity-statement (#PCDATA)>
+<!ELEMENT party-name (#PCDATA)>
+<!ELEMENT city (#PCDATA)>
+<!ELEMENT state (#PCDATA)>
+<!ELEMENT other (#PCDATA)>
+<!ELEMENT postcode (#PCDATA)>
+<!ELEMENT dba-aka-text (#PCDATA)>
+<!ELEMENT composed-of-statement (#PCDATA)>
+<!ELEMENT name-change-explanation (#PCDATA)>
+<!ELEMENT design-searches (design-search*)>
+<!ELEMENT design-search (code?)>
+<!-- Indicates a Request for Extension of Protection in the United States has been received from the International Bureau -->
+<!ELEMENT international-registration (international-registration-number, international-registration-date, international-publication-date, international-renewal-date, auto-protection-date, international-death-date?, international-status-code, international-status-date, priority-claimed-in, priority-claimed-date?, first-refusal-in)>
+<!-- International registration number assigned by the International Bureau-->
+<!ELEMENT international-registration-number (#PCDATA)>
+<!-- Date International registered by the International Bureau-->
+<!ELEMENT international-registration-date (#PCDATA)>
+<!-- Date International registration published by the International Bureau-->
+<!ELEMENT international-publication-date (#PCDATA)>
+<!-- Date the International Bureau must renew the International Registration-->
+<!ELEMENT international-renewal-date (#PCDATA)>
+<!-- Date the US application will automatically be assigned a US registration number except when the 
+     US has issued a First Refusal Notification to the International Bureau -->
+<!ELEMENT auto-protection-date (#PCDATA)>
+<!-- Date the International Registration has expired-->
+<!ELEMENT international-death-date (#PCDATA)>
+<!-- Code that defines the last known status of the International Registration-->
+<!ELEMENT international-status-code (#PCDATA)>
+<!-- Date of which the International Registration status code became effective-->
+<!ELEMENT international-status-date (#PCDATA)>
+<!-- Indicates International Registration has claimed priority-->
+<!ELEMENT priority-claimed-in (#PCDATA)>
+<!-- Date Priority claimed in the International Registration-->
+<!ELEMENT priority-claimed-date (#PCDATA)>
+<!-- True/False value, when True indicates the US has issued a Notice of First Refusal to the International Bureau-->
+<!ELEMENT first-refusal-in (#PCDATA)>
+<!-- Indicates the USPTO has processed a International filing requesting extension of protection in another country using a national application as the filing basis -->
+<!-- Indicates one or more International filings have transpired for a given domestic application-->
+<!ELEMENT madrid-international-filing-requests (madrid-international-filing-record+)>
+<!ELEMENT madrid-international-filing-record (entry-number, reference-number, original-filing-date-uspto, international-registration-number?, international-registration-date?, international-status-code?, international-status-date?, irregularity-reply-by-date?, international-renewal-date?, madrid-history-events?)>
+<!-- unique tracking identification number assigned by USPTO-->
+<!ELEMENT reference-number (#PCDATA)>
+<!-- Date domestic application was orginally filed in the USPTO-->
+<!ELEMENT original-filing-date-uspto (#PCDATA)>
+<!-- Date of which the International filing requires a reply-->
+<!ELEMENT irregularity-reply-by-date (#PCDATA)>
+<!-- Defines the transactions applied against the international filing/registration related to the International filing-->
+<!ELEMENT madrid-history-events (madrid-history-event+)>
+<!ELEMENT madrid-history-event (code, date, description-text, entry-number)>
+]>

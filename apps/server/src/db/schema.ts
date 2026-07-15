@@ -1,5 +1,6 @@
 import {
   bigint,
+  customType,
   date,
   index,
   integer,
@@ -25,6 +26,16 @@ export const sourceAttemptOutcome = pgEnum("source_attempt_outcome", [
   "permanent_failure",
 ]);
 export const sourceAlertKind = pgEnum("source_alert_kind", ["credential", "permanent"]);
+export const artifactVersionState = pgEnum("artifact_version_state", [
+  "verified",
+  "parsing",
+  "staged",
+  "quarantined",
+  "published",
+]);
+export const parseRunState = pgEnum("parse_run_state", ["parsing", "staged", "quarantined"]);
+export const sourceClaimOperation = pgEnum("source_claim_operation", ["set", "clear", "replace", "assert"]);
+const bytea = customType<{ data: Buffer }>({ dataType: () => "bytea" });
 
 export const account = pgTable("account", {
   id: uuid("id").primaryKey(),
@@ -117,10 +128,98 @@ export const artifactVersion = pgTable(
     sha256: varchar("sha256", { length: 64 }).notNull(),
     bytes: bigint("bytes", { mode: "number" }).notNull(),
     objectKey: text("object_key").notNull(),
+    state: artifactVersionState("state").notNull().default("verified"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [uniqueIndex("artifact_version_artifact_sha256_unique").on(table.artifactId, table.sha256)],
 );
+
+export type SourceValue = {
+  name: string;
+  presence: "empty" | "group" | "value";
+  rawValue?: string;
+  children?: SourceValue[];
+};
+
+export const parseRun = pgTable(
+  "parse_run",
+  {
+    id: uuid("id").primaryKey(),
+    artifactVersionId: uuid("artifact_version_id")
+      .notNull()
+      .references(() => artifactVersion.id),
+    state: parseRunState("state").notNull().default("parsing"),
+    parserVersion: text("parser_version").notNull(),
+    digest: varchar("digest", { length: 64 }),
+    recordCount: integer("record_count").notNull().default(0),
+    rejectCount: integer("reject_count").notNull().default(0),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (table) => [uniqueIndex("parse_run_artifact_parser_unique").on(table.artifactVersionId, table.parserVersion)],
+);
+
+export const sourceRecord = pgTable(
+  "source_record",
+  {
+    id: uuid("id").primaryKey(),
+    parseRunId: uuid("parse_run_id")
+      .notNull()
+      .references(() => parseRun.id),
+    physicalRecordIndex: integer("physical_record_index").notNull(),
+    actionKey: text("action_key").notNull(),
+    actionOccurrence: integer("action_occurrence").notNull(),
+    actionRecordIndex: integer("action_record_index").notNull(),
+    serialNumber: text("serial_number").notNull(),
+    sourceTransactionDate: date("source_transaction_date"),
+    sourceTransactionDateRaw: text("source_transaction_date_raw"),
+    schemaVersion: text("schema_version").notNull(),
+    schemaVersionDate: text("schema_version_date").notNull(),
+    profile: text("profile").notNull(),
+    digest: varchar("digest", { length: 64 }).notNull(),
+    values: jsonb("values").$type<SourceValue[]>().notNull(),
+  },
+  (table) => [
+    uniqueIndex("source_record_run_position_unique").on(table.parseRunId, table.physicalRecordIndex),
+    uniqueIndex("source_record_action_position_unique").on(
+      table.parseRunId,
+      table.actionKey,
+      table.actionOccurrence,
+      table.actionRecordIndex,
+    ),
+    index("source_record_serial_idx").on(table.serialNumber),
+  ],
+);
+
+export const sourceClaim = pgTable(
+  "source_claim",
+  {
+    id: uuid("id").primaryKey(),
+    sourceRecordId: uuid("source_record_id")
+      .notNull()
+      .references(() => sourceRecord.id),
+    claimOrder: integer("claim_order").notNull(),
+    path: text("path").notNull(),
+    occurrence: integer("occurrence").notNull(),
+    presence: text("presence").notNull(),
+    operation: sourceClaimOperation("operation"),
+    rawValue: text("raw_value"),
+  },
+  (table) => [uniqueIndex("source_claim_record_order_unique").on(table.sourceRecordId, table.claimOrder)],
+);
+
+export const parseReject = pgTable("parse_reject", {
+  id: uuid("id").primaryKey(),
+  parseRunId: uuid("parse_run_id")
+    .notNull()
+    .references(() => parseRun.id),
+  physicalRecordIndex: integer("physical_record_index"),
+  reason: text("reason").notNull(),
+  rawXml: bytea("raw_xml").notNull(),
+  bytes: integer("bytes").notNull(),
+  digest: varchar("digest", { length: 64 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const artifactDiscovery = pgTable(
   "artifact_discovery",

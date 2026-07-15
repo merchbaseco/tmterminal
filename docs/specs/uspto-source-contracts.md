@@ -35,15 +35,18 @@ The 2025 `TRTYRAP` parts were downloaded from the `fileDownloadURI` values in th
 
 The XML root is `trademark-applications-daily`, version `2.0`, version date `20041108`. Artifact creation timestamps, transaction-date ranges, action-group occurrences and counts, full XML hashes, and ZIP hashes are verification inputs rather than prose claims.
 
+The largest `case-file` in the retained inventory is 327,676 bytes. The v1 observation reader uses a deliberate 524,288-byte record cap and quarantines larger records instead of buffering them without bound.
+
 Generation dates prove membership only. They do not describe the maximum XML transaction date or establish annual-versus-daily precedence: `apc18840407-20251231-05.xml` contains a verified `20260128` observation and has a verified maximum transaction date of `20260402`. The retained `-01` and `-05` parts contain 155,000 unique serials each in ascending physical XML order, with disjoint observed ranges `60000001`–`60172052` and `60926995`–`72182570`. API response order and filename suffixes remain provenance, not processing semantics.
 
 ## Committed evidence
 
-Committed files are exact `<case-file>` byte ranges, including original indentation and line endings. The manifest supplies the enclosing root/version, action-key occurrence, global record index, action-local record index, serial number, and expected presence semantics.
+Committed files include exact `<case-file>` byte ranges and the current official XML declaration plus internal DTD prolog, preserving original indentation and line endings. The manifest supplies each record's enclosing root/version, action-key occurrence, global record index, action-local record index, serial number, and expected presence semantics.
 
 Evidence currently pinned:
 
 - Full and status-only annual `TX` shapes from the same official 2025 generation and the same retained part; they are different serials, not a claimed transition sequence
+- Sparse annual `TX` and daily `IB` shapes with independently absent mark, statement, classification, or owner groups
 - An annual `TX` observation whose transaction date is after the official generation to-date
 - Annual status-only `TX`, including missing mark/owner/classification/goods groups and a present-empty correspondent
 - Daily `IB`, `NA`, and `TX`
