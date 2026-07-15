@@ -6,11 +6,11 @@ import type { AppRouter } from "../../server/src/api/router.ts";
 import { ApiKeysPage, type AccountApi } from "./api-keys-page.tsx";
 import { Button } from "@/components/ui/button";
 import { DevAutoSignIn } from "./dev-auto-sign-in.tsx";
+import { MarkDetailPage, type MarkApi } from "./mark-detail-page.tsx";
 
-function SignedInAccount() {
+function SignedInApp() {
   const { getToken } = useAuth();
-  const api = useMemo<AccountApi>(() => {
-    const client = createTRPCClient<AppRouter>({
+  const client = useMemo(() => createTRPCClient<AppRouter>({
       links: [
         httpLink({
           headers: async () => {
@@ -20,16 +20,22 @@ function SignedInAccount() {
           url: "/api/trpc",
         }),
       ],
-    });
+    }), [getToken]);
+  const accountApi = useMemo<AccountApi>(() => ({
+    create: (name) => client.account["api-keys"].create.mutate({ name }),
+    list: () => client.account["api-keys"].list.query(),
+    revoke: (id) => client.account["api-keys"].revoke.mutate({ id }),
+  }), [client]);
+  const markApi = useMemo<MarkApi>(() => ({
+    get: (serialNumber) => client.marks.get.query({ serialNumber }),
+  }), [client]);
+  const markRoute = window.location.pathname.match(/^\/marks\/(\d{8})$/);
 
-    return {
-      create: (name) => client.account["api-keys"].create.mutate({ name }),
-      list: () => client.account["api-keys"].list.query(),
-      revoke: (id) => client.account["api-keys"].revoke.mutate({ id }),
-    };
-  }, [getToken]);
+  if (markRoute?.[1]) {
+    return <MarkDetailPage api={markApi} serialNumber={markRoute[1]} />;
+  }
 
-  return <ApiKeysPage api={api} />;
+  return <ApiKeysPage api={accountApi} />;
 }
 
 function TopBar() {
@@ -56,7 +62,7 @@ export function App() {
     <>
       <TopBar />
       <Show when="signed-in">
-        <SignedInAccount />
+        <SignedInApp />
       </Show>
       <Show when="signed-out">
         <>

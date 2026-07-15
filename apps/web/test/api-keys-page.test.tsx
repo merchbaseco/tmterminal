@@ -1,6 +1,6 @@
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 
-GlobalRegistrator.register();
+if (!GlobalRegistrator.isRegistered) GlobalRegistrator.register();
 Element.prototype.getAnimations ??= () => [];
 
 const { cleanup, fireEvent, render, screen, waitFor } = await import("@testing-library/react");

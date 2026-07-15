@@ -8,7 +8,8 @@ import {
   type DevClerkSignIn,
   registerDevClerkSignIn,
 } from "./dev-clerk-sign-in.ts";
-import { appRouter, createAppContext } from "./router.ts";
+import { createAppContext } from "./context.ts";
+import { appRouter } from "./router.ts";
 
 type BuildServerOptions = {
   databaseUrl: string;
