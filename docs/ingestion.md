@@ -62,6 +62,8 @@ Annual files sharing one official metadata coverage range form one generation. T
 
 The v1 authority policy pins the complete generation from 1884-04-07 through 2025-12-31 enumerated by retained metadata response SHA-256 `48e2760d6c87175969373199aa914d06e3208d6db2345a8f1647edec329ccdd5`. The source catalog does not choose by discovery or response order, co-fold older generations, or admit a newer generation without an explicit policy revision. Reissued versions of one logical artifact reconcile before their observations become eligible; superseded bytes never compete in canonical folding.
 
+The publisher carries that metadata response's exact 91 logical-artifact identities as an unordered v1 policy set. One retained, staged version is selected automatically when it is the logical artifact's sole version; supplying that sole SHA-256 has the same automatic identity. Multiple retained versions make staging ineligible until the caller explicitly selects one SHA-256 for that candidate. The candidate snapshots required selection evidence, verified discovery identity and coverage dates, selected version SHA-256, and parse-run digest. Publication revalidates those exact facts under the corpus lock.
+
 Artifact versions move through explicit states:
 
 ```text
@@ -154,20 +156,26 @@ The following quarantine an artifact version:
 - Unknown record-shape profile that could mutate canonical state
 - Observation-count, digest, or canonical invariant failure
 
-v1 publishes with zero unresolved record rejects. The parser stages the full artifact, validates it, and publishes canonical changes in one database transaction. A valid `data-available-code=N` artifact publishes successfully with zero records.
+v1 publishes with zero unresolved record rejects. The parser stages and validates each full artifact atomically; the corpus publisher then publishes the complete eligible source set in one database transaction. A valid `data-available-code=N` artifact publishes successfully with zero records.
+
+One durable publication candidate contains every selected member of the pinned annual generation plus every retained daily parse run, including daily observations before the annual metadata to-date. It applies no metadata cutoff or pre-cutoff gap-fill rule. Candidate identity includes the exact eligibility snapshot, canonical semantic versions, and current parent publication. Publication rejects a candidate when that parent is no longer current or when the complete current eligible artifact set differs from the snapshot, so an older or incomplete candidate cannot regress canonical state or frontiers. Staging the exact source and semantic identity already current in the corpus returns that published candidate instead of creating a redundant child. `authority-conflict` and `unsupported-semantics` diagnostics are stored on a rejected candidate; rejection and replay return only the candidate identity and diagnostic count, and change no canonical row, corpus version, or frontier.
 
 Publication transaction:
 
 1. Acquire the corpus publication advisory lock.
-2. Revalidate the staged artifact version and parse-run digest.
-3. Fold affected serials from eligible observations.
-4. Replace canonical groups and provenance.
+2. Revalidate the parent publication, canonical semantic versions, staged discovery, coverage, artifact version, parse-run digest, and reissue-selection evidence.
+3. Stream observations in serial-number order. A bounded first pass persists any unresolved diagnostics; only a clean candidate receives a second, fixed-size set-oriented canonical write pass.
+4. Replace only claim paths and complete groups established by eligible positive claims; source absence preserves existing marks and unmentioned facts.
 5. Append distinct source-reported status events.
 6. Update corpus state and `corpusVersion` only for query-visible changes.
 7. Insert durable corpus events and call `pg_notify(eventId)`.
 8. Commit.
 
 PostgreSQL notification is wake-up only. Durable event rows are the recovery source.
+
+Successful publication marks the selected artifact versions published in the same transaction. A staged candidate survives process restart and can be published again; a published or rejected candidate replays its durable result. Database invariant failures roll back the complete transaction.
+
+Changed discovery reconciliation, artifact-version retention, successful parse terminalization, candidate staging, and corpus publication acquire the same transaction-scoped corpus lock. A latest pending or downloading discovery blocks staging and publication until it is retained and verified. A parse run can become eligible before a candidate snapshots the complete source set or after publication commits, never between publication revalidation and commit. Changed discovery and reissue transitions obey the same exclusion; unchanged discovery remains a persisted no-op.
 
 ## Freshness
 
@@ -180,6 +188,8 @@ Corpus state keeps separate facts:
 
 Public `corpusThroughDate` means `completeThroughDate`. A later artifact may publish beyond a gap, but the complete frontier remains behind and the service reports degraded state. A changed artifact version at or before the frontier makes completeness provisional until reconciled.
 
+The pinned annual generation establishes the initial complete frontier at 2025-12-31. Retained daily coverage advances it only across contiguous calendar coverage; `publishedThroughDate` may move beyond a gap. `corpusVersion` advances only when canonical values or query-visible provenance change.
+
 ## Module interfaces
 
 The ingestion implementation is hidden behind deep modules:
@@ -187,7 +197,7 @@ The ingestion implementation is hidden behind deep modules:
 - **Source catalog module:** reconciles USPTO product metadata into logical artifacts and versions.
 - **Artifact pipeline module:** downloads, verifies, parses, and stages one immutable version.
 - **Canonicalizer module:** folds a partially ordered eligible observation set for one serial into resolved canonical groups or versioned `authority-conflict` / `unsupported-semantics` output.
-- **Corpus publisher module:** validates a parse run and atomically publishes its affected serials.
+- **Corpus publisher module:** stages one complete eligible source set, revalidates it under the publication lock, and atomically publishes all affected serials or durable unresolved diagnostics.
 - **Reconciliation runtime:** reads database state and enqueues eligible work; jobs do not recursively chain one another.
 
 The USPTO client is a true-external adapter. Production uses the HTTP adapter; tests use fixtures through an in-memory adapter. PostgreSQL behavior is tested through the module interface using a real test database.
