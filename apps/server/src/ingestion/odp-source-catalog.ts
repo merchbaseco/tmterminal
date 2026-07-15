@@ -10,7 +10,15 @@ import {
 
 type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 const odpOrigin = "https://api.uspto.gov";
+const odpDataOrigin = "https://data.uspto.gov";
 const odpDownloadUrl = z.url().refine((value) => new URL(value).origin === odpOrigin);
+const odpDataDownloadUrl = z.url().refine((value) => new URL(value).origin === odpDataOrigin);
+const odpTimestamp = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
+  .transform((value) => `${value.slice(0, 10)}T${value.slice(11)}Z`)
+  .pipe(z.iso.datetime({ offset: true }));
+const odpReleaseDate = odpTimestamp.transform((value) => value.slice(0, 10)).pipe(z.iso.date());
 
 const fileSchema = z.object({
   fileName: z.string(),
@@ -19,8 +27,8 @@ const fileSchema = z.object({
   fileDataToDate: z.iso.date(),
   fileTypeText: z.string(),
   fileDownloadURI: z.url(),
-  fileReleaseDate: z.iso.date(),
-  fileLastModifiedDateTime: z.iso.datetime({ offset: true }),
+  fileReleaseDate: odpReleaseDate,
+  fileLastModifiedDateTime: odpTimestamp,
 });
 
 const productResponseSchema = z.object({
@@ -29,7 +37,7 @@ const productResponseSchema = z.object({
       productIdentifier: z.string(),
       productTitleText: z.string(),
       productFrequencyText: z.string(),
-      lastModifiedDateTime: z.iso.datetime({ offset: true }),
+      lastModifiedDateTime: odpTimestamp,
       productFileBag: z.object({
         fileDataBag: z.array(fileSchema),
       }),
@@ -88,11 +96,11 @@ function transportBody(body: ReadableStream<Uint8Array>) {
   });
 }
 
-async function request(fetcher: Fetch, input: string, apiKey: string, accept: string, timeoutMs: number) {
+async function send(fetcher: Fetch, input: string, headers: Record<string, string>, timeoutMs: number) {
   let response: Response;
   try {
     response = await fetcher(input, {
-      headers: { accept, "x-api-key": apiKey },
+      headers,
       redirect: "manual",
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -102,10 +110,13 @@ async function request(fetcher: Fetch, input: string, apiKey: string, accept: st
     throw error;
   }
 
-  if (!response.ok) {
-    throw new SourceHttpError(`USPTO ODP request failed with HTTP ${response.status}`, responseState(response));
-  }
   return response;
+}
+
+async function request(fetcher: Fetch, input: string, apiKey: string, accept: string, timeoutMs: number) {
+  const response = await send(fetcher, input, { accept, "x-api-key": apiKey }, timeoutMs);
+  if (response.ok) return response;
+  throw new SourceHttpError(`USPTO ODP request failed with HTTP ${response.status}`, responseState(response));
 }
 
 export function createOdpSourceCatalog(options: { apiKey: string; fetch?: Fetch; timeoutMs?: number }): SourceCatalog {
@@ -165,7 +176,30 @@ export function createOdpSourceCatalog(options: { apiKey: string; fetch?: Fetch;
       if (!odpDownloadUrl.safeParse(downloadUrl).success) {
         throw new SourceContractError("USPTO ODP returned an unauthorized download URL");
       }
-      const response = await request(fetcher, downloadUrl, options.apiKey, "application/octet-stream", timeoutMs);
+      const redirect = await send(
+        fetcher,
+        downloadUrl,
+        { accept: "application/octet-stream", "x-api-key": options.apiKey },
+        timeoutMs,
+      );
+      if (redirect.status !== 302) {
+        throw new SourceHttpError(`USPTO ODP download redirect failed with HTTP ${redirect.status}`, responseState(redirect));
+      }
+      const location = redirect.headers.get("location");
+      if (!location) throw new SourceContractError("USPTO ODP data download redirect is missing a location");
+      let redirectedUrl: string;
+      try {
+        redirectedUrl = new URL(location, downloadUrl).toString();
+      } catch {
+        throw new SourceContractError("USPTO ODP returned an invalid data download redirect");
+      }
+      if (!odpDataDownloadUrl.safeParse(redirectedUrl).success) {
+        throw new SourceContractError("USPTO ODP returned an unauthorized data download redirect");
+      }
+      const response = await send(fetcher, redirectedUrl, { accept: "application/octet-stream" }, timeoutMs);
+      if (!response.ok) {
+        throw new SourceHttpError(`USPTO ODP data download failed with HTTP ${response.status}`, responseState(response));
+      }
       if (!response.body) {
         throw new SourceTransportError("USPTO ODP download response had no body");
       }

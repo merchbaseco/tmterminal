@@ -350,6 +350,7 @@ Mac mini Docker Compose topology:
 
 - PostgreSQL 16 with a dedicated named volume
 - One-shot migration command that completes before API and worker start
+- One-shot PRD-60 tracer materialization through the retained source-observation and canonical repository path
 - `tmturtle-core`: Fastify/tRPC API and anonymous readiness endpoint; no jobs or schedules
 - `tmturtle-worker`: same image, pg-boss reconciliation/scheduling entrypoint
 - Caddy: serves the built website at `tmturtle.merchbase.co` and proxies `/api`
@@ -367,7 +368,7 @@ bun run compose:up
 bun run compose:smoke
 ```
 
-Compose waits for PostgreSQL, applies Drizzle migrations once, and starts the API and worker only after migration success. The anonymous `/api/health` endpoint reports process/database readiness with no corpus fields. Caddy serves the website shell and proxies `/api`; the API process never owns worker schedules. See [Local runtime operations](operations/local-runtime.md) for startup, verification, and cleanup.
+Compose waits for PostgreSQL, applies Drizzle migrations once, materializes the retained PRD-60 tracer once, and starts the API and worker only after both one-shot steps succeed. The anonymous `/api/health` endpoint reports process/database readiness with no corpus fields. Caddy serves the website shell and proxies `/api`; the API process never owns worker schedules. See [Local runtime operations](operations/local-runtime.md) for local startup and [Mac mini deployment](operations/deployment.md) for production verification and rollback.
 
 Deployment follows the house pattern:
 

@@ -1,0 +1,63 @@
+#!/bin/sh
+set -eu
+
+root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+temporary_directory="$(mktemp -d)"
+trap 'rm -rf "$temporary_directory"' EXIT
+
+repository="$temporary_directory/repository"
+git init --quiet "$repository"
+git -C "$repository" config user.email test@example.com
+git -C "$repository" config user.name Test
+printf 'tracked\n' > "$repository/tracked"
+git -C "$repository" add tracked
+git -C "$repository" commit --quiet --message initial
+git -C "$repository" branch --move main
+git -C "$repository" update-ref refs/remotes/origin/main "$(git -C "$repository" rev-parse HEAD)"
+
+expected_revision="$(git -C "$repository" rev-parse HEAD)"
+revision="$(cd "$repository" && "$root/scripts/deployment-revision" "$expected_revision")"
+test "$revision" = "$(git -C "$repository" rev-parse HEAD)"
+if (cd "$repository" && "$root/scripts/deployment-revision" 0000000000000000000000000000000000000000) >/dev/null 2>&1; then
+  echo "deployment revision accepted HEAD different from the expected revision" >&2
+  exit 1
+fi
+
+touch "$repository/untracked"
+if (cd "$repository" && "$root/scripts/deployment-revision" "$expected_revision") >/dev/null 2>&1; then
+  echo "deployment revision accepted an untracked file" >&2
+  exit 1
+fi
+rm "$repository/untracked"
+
+printf 'dirty\n' >> "$repository/tracked"
+if (cd "$repository" && "$root/scripts/deployment-revision" "$expected_revision") >/dev/null 2>&1; then
+  echo "deployment revision accepted a dirty tracked file" >&2
+  exit 1
+fi
+git -C "$repository" add tracked
+git -C "$repository" commit --quiet --message next
+if (cd "$repository" && "$root/scripts/deployment-revision" "$(git -C "$repository" rev-parse HEAD)") >/dev/null 2>&1; then
+  echo "deployment revision accepted HEAD different from origin/main" >&2
+  exit 1
+fi
+
+fake_bin="$temporary_directory/bin"
+mkdir "$fake_bin"
+printf '%s\n' '#!/bin/sh' 'printf '\''%s|%s\n'\'' "$COMPOSE_PROJECT_NAME" "$TMTURTLE_REVISION"' > "$fake_bin/docker"
+chmod +x "$fake_bin/docker"
+
+compose_revision() (
+  explicit_revision="${3:-}"
+  unset CLERK_AUTHORIZED_PARTIES COMPOSE_PROJECT_NAME TMTURTLE_REVISION
+  if test -n "$explicit_revision"; then
+    export TMTURTLE_REVISION="$explicit_revision"
+  fi
+  PATH="$fake_bin:$PATH" TMTURTLE_WEB_PORT="$1" TMTURTLE_API_PORT="$2" "$root/scripts/compose" config
+)
+
+test "$(compose_revision 4100 4101)" = "tmturtle-4100|development-tmturtle-4100"
+test "$(compose_revision 4200 4201)" = "tmturtle-4200|development-tmturtle-4200"
+test "$(compose_revision 4100 4101 production-sha)" = "tmturtle-4100|production-sha"
+
+echo "Deployment shell contracts passed"

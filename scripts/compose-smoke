@@ -20,4 +20,8 @@ migrate_id="$(./scripts/compose ps --all --quiet migrate)"
 test -n "$migrate_id"
 test "$(docker inspect --format '{{.State.ExitCode}}' "$migrate_id")" = "0"
 
-echo "Compose smoke passed: migration, API readiness, worker, and web shell"
+tracer_id="$(./scripts/compose ps --all --quiet tracer)"
+test -n "$tracer_id"
+test "$(docker inspect --format '{{.State.ExitCode}}' "$tracer_id")" = "0"
+
+echo "Compose smoke passed: migration, tracer, API readiness, worker, and web shell"
