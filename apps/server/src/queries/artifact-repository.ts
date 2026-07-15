@@ -3,6 +3,7 @@ import type postgres from "postgres";
 
 import type { DiscoveredArtifact, DiscoveredProduct, SourceResponseState } from "../ingestion/source-catalog.ts";
 import type { StoredArtifact } from "../ingestion/artifact-store.ts";
+import { sourceObservationParserVersion } from "../ingestion/source-observations.ts";
 import { lockCorpusPublication } from "./corpus-publication-lock.ts";
 
 export const sourceLaneId = "uspto-odp";
@@ -313,4 +314,23 @@ export async function retainArtifactVersion(
     `;
     return version.created;
   });
+}
+
+export async function findArtifactVersionForParsing(database: postgres.Sql) {
+  const [artifact] = await database<Array<{ artifactVersionId: string; objectKey: string }>>`
+    select v.id as "artifactVersionId", v.object_key as "objectKey"
+    from artifact_version v
+    where v.state = 'verified'
+      and exists (
+      select 1 from artifact_discovery d
+      where d.artifact_version_id = v.id and d.download_state = 'verified'
+    )
+      and not exists (
+        select 1 from parse_run p
+        where p.artifact_version_id = v.id and p.parser_version = ${sourceObservationParserVersion}
+      )
+    order by v.created_at, v.id
+    limit 1
+  `;
+  return artifact ?? null;
 }

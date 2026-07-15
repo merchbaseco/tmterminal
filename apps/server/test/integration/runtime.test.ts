@@ -58,7 +58,7 @@ describe("runtime database spine", () => {
     `;
 
     expect(before).toEqual({ artifactTable: false, migrations: 2 });
-    expect(after).toEqual({ artifactTable: true, migrations: 10 });
+    expect(after).toEqual({ artifactTable: true, migrations: 11 });
   });
 
   test("upgrades populated pre-search data and preserves immutable generated search columns", async () => {
@@ -123,7 +123,7 @@ describe("runtime database spine", () => {
     ]);
     expect(normalizeFunctions.length).toBeGreaterThan(0);
     expect(normalizeFunctions.every(({ volatility }) => volatility === "i")).toBe(true);
-    expect(migrationCount?.count).toBe(10);
+    expect(migrationCount?.count).toBe(11);
   }, 30_000);
 
   test("applies the one-shot migration idempotently", async () => {
@@ -140,7 +140,7 @@ describe("runtime database spine", () => {
     `;
 
     expect(extension?.installed).toBe(true);
-    expect(migrationCount?.count).toBe(10);
+    expect(migrationCount?.count).toBe(11);
   });
 
   test("reports ready after migrations complete", async () => {

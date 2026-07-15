@@ -5,11 +5,11 @@ import {
 } from "@trpc/client";
 import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
 
-import type { AppRouter } from "../../../apps/server/src/api/router.ts";
+import type { AuthenticatedClientRouter } from "../../../apps/server/src/api/router.ts";
 
-export type TmturtleClient = CreateTRPCClient<AppRouter>;
-export type TmturtleRouterInputs = inferRouterInputs<AppRouter>;
-export type TmturtleRouterOutputs = inferRouterOutputs<AppRouter>;
+export type TmturtleClient = CreateTRPCClient<AuthenticatedClientRouter>;
+export type TmturtleRouterInputs = inferRouterInputs<AuthenticatedClientRouter>;
+export type TmturtleRouterOutputs = inferRouterOutputs<AuthenticatedClientRouter>;
 
 type TmturtleClientOptions = {
   apiKey: string;
@@ -20,7 +20,7 @@ export function createTmturtleClient({
   apiKey,
   baseUrl,
 }: TmturtleClientOptions): TmturtleClient {
-  return createTRPCClient<AppRouter>({
+  return createTRPCClient<AuthenticatedClientRouter>({
     links: [
       httpLink({
         headers: { authorization: `Bearer ${apiKey}` },

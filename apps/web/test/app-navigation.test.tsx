@@ -132,6 +132,7 @@ mock.module("@trpc/client", () => ({
         },
       },
     },
+    viewer: { role: { query: async () => ({ operator: false }) } },
   }),
   httpLink: () => ({}),
 }));

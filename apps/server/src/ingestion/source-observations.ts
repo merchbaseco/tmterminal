@@ -547,7 +547,12 @@ export function createSourceObservationModule(database: postgres.Sql) {
             if (concurrentResult) return concurrentResult;
             throw new Error("Parse run already in progress");
           }
-          await transaction`update artifact_version set state = 'parsing' where id = ${input.artifactVersionId}`;
+          const [claimed] = await transaction<Array<{ id: string }>>`
+            update artifact_version set state = 'parsing'
+            where id = ${input.artifactVersionId} and state in ('verified', 'staged', 'published')
+            returning id
+          `;
+          if (!claimed) throw new Error("Artifact version must be verified, staged, or published to parse");
 
           const recordRows: Array<{
             id: string;
@@ -796,7 +801,13 @@ export function createSourceObservationModule(database: postgres.Sql) {
               ${rawXml.byteLength}, ${createHash("sha256").update(rawXml).digest("hex")}
             )
           `;
-          await transaction`update artifact_version set state = 'quarantined' where id = ${input.artifactVersionId}`;
+          await transaction`
+            update artifact_version set
+              state = 'quarantined',
+              quarantined_at = now(),
+              quarantine_reason = ${error.reason}
+            where id = ${input.artifactVersionId}
+          `;
           return { digest: runDigest, parseRunId, recordCount: 0, rejectCount: 1, status: "quarantined" };
         });
       }

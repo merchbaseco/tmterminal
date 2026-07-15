@@ -39,3 +39,12 @@ export async function resolveHostAccount(database: postgres.Sql, name: string) {
 
   return account.id;
 }
+
+export async function accountIsOperator(database: postgres.Sql, accountId: string) {
+  const [assignment] = await database<[{ assigned: boolean }]>`
+    select true as assigned
+    from role_assignment
+    where account_id = ${accountId} and role = 'operator'
+  `;
+  return assignment?.assigned === true;
+}
