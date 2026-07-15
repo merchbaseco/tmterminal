@@ -94,16 +94,22 @@ test("classifies an interrupted discovery body as a transport failure", async ()
 });
 
 test("classifies an interrupted download body as a transport failure", async () => {
+  let request = 0;
   const catalog = createOdpSourceCatalog({
     apiKey: "test-key",
-    fetch: async () =>
-      new Response(
+    fetch: async () => {
+      request += 1;
+      if (request === 1) {
+        return new Response(null, { headers: { location: "https://data.uspto.gov/apc240925.zip" }, status: 302 });
+      }
+      return new Response(
         new ReadableStream({
           start(controller) {
             controller.error(new TypeError("terminated"));
           },
         }),
-      ),
+      );
+    },
   });
 
   const download = await catalog.download("https://api.uspto.gov/files/apc240925.zip");
@@ -121,16 +127,38 @@ test("rejects off-origin download URLs before they can receive the credential", 
   expect(catalog.discover("TRTDXFAP")).rejects.toBeInstanceOf(SourceContractError);
 });
 
-test("does not automatically follow download redirects with the credential", async () => {
-  let redirect: RequestRedirect | undefined;
+test("follows the USPTO data redirect without forwarding the credential", async () => {
+  const requests: Array<{ apiKey: string | null; redirect: RequestRedirect | undefined; url: string }> = [];
   const catalog = createOdpSourceCatalog({
     apiKey: "must-not-be-forwarded",
-    fetch: async (_url, init) => {
-      redirect = init?.redirect;
+    fetch: async (url, init) => {
+      const headers = new Headers(init?.headers);
+      requests.push({ apiKey: headers.get("x-api-key"), redirect: init?.redirect, url });
+      if (requests.length === 1) {
+        return new Response(null, { headers: { location: "https://data.uspto.gov/apc240925.zip" }, status: 302 });
+      }
+      return new Response("zip", { headers: { "content-length": "3" } });
+    },
+  });
+
+  await catalog.download("https://api.uspto.gov/files/apc240925.zip");
+
+  expect(requests).toEqual([
+    { apiKey: "must-not-be-forwarded", redirect: "manual", url: "https://api.uspto.gov/files/apc240925.zip" },
+    { apiKey: null, redirect: "manual", url: "https://data.uspto.gov/apc240925.zip" },
+  ]);
+});
+
+test("rejects redirects outside the USPTO data origin without forwarding the credential", async () => {
+  let requests = 0;
+  const catalog = createOdpSourceCatalog({
+    apiKey: "must-not-be-forwarded",
+    fetch: async () => {
+      requests += 1;
       return new Response(null, { headers: { location: "https://example.com/stolen.zip" }, status: 302 });
     },
   });
 
-  expect(catalog.download("https://api.uspto.gov/files/apc240925.zip")).rejects.toBeInstanceOf(SourceHttpError);
-  expect(redirect).toBe("manual");
+  expect(catalog.download("https://api.uspto.gov/files/apc240925.zip")).rejects.toBeInstanceOf(SourceContractError);
+  expect(requests).toBe(1);
 });
