@@ -38,6 +38,26 @@ const tracer = {
   statusEvents: [],
 } satisfies TmturtleRouterOutputs["marks"]["get"];
 
+const searchPage = {
+  items: [{
+    goodsServicesExcerpt: "shirts",
+    internationalClasses: ["025"],
+    match: "partial",
+    owner: "TURTLE GOODS LLC",
+    registrationNumber: "7000001",
+    serialNumber: "70000001",
+    sourceTransactionDate: "2026-07-10",
+    status: "dead",
+    statusDate: "2026-07-09",
+    type: "design",
+    wordMark: "TURTLE CLUB",
+  }],
+  limit: 25,
+  meta: { corpusThroughDate: "2026-07-10", corpusVersion: "7" },
+  offset: 25,
+  total: 26,
+} satisfies TmturtleRouterOutputs["marks"]["search"];
+
 function dependencies(overrides: Partial<CliDependencies> = {}): CliDependencies {
   return {
     config: {},
@@ -106,7 +126,10 @@ test("auth status prefers the environment credential and validates it through ac
               }),
             },
           },
-          marks: { get: { query: async () => { throw new Error("Unexpected marks.get"); } } },
+          marks: {
+            get: { query: async () => { throw new Error("Unexpected marks.get"); } },
+            search: { query: async () => { throw new Error("Unexpected marks.search"); } },
+          },
         };
       }),
     }),
@@ -144,7 +167,10 @@ test("auth status reads the Keychain entry bound to the configured origin", asyn
             }),
           },
         },
-        marks: { get: { query: async () => { throw new Error("Unexpected marks.get"); } } },
+        marks: {
+          get: { query: async () => { throw new Error("Unexpected marks.get"); } },
+          search: { query: async () => { throw new Error("Unexpected marks.search"); } },
+        },
       })),
     }),
   );
@@ -186,7 +212,10 @@ test("an invalid selected environment credential never falls back to Keychain", 
       },
       createClient: (() => ({
         account: { me: { query: async () => { throw unauthorized; } } },
-        marks: { get: { query: async () => { throw new Error("Unexpected marks.get"); } } },
+        marks: {
+          get: { query: async () => { throw new Error("Unexpected marks.get"); } },
+          search: { query: async () => { throw new Error("Unexpected marks.search"); } },
+        },
       })),
     }),
   );
@@ -225,7 +254,10 @@ test("marks get writes one success envelope for an exact serial identity", async
       env: { TMTURTLE_API_KEY: token },
       createClient: (() => ({
         account: { me: { query: async () => { throw new Error("Unexpected account.me"); } } },
-        marks: { get: { query: async (input) => { inputs.push(input); return tracer; } } },
+        marks: {
+          get: { query: async (input) => { inputs.push(input); return tracer; } },
+          search: { query: async () => { throw new Error("Unexpected marks.search"); } },
+        },
       })),
     }),
   );
@@ -259,7 +291,10 @@ test("marks get preserves the stable API not-found envelope on stderr", async ()
       env: { TMTURTLE_API_KEY: token },
       createClient: (() => ({
         account: { me: { query: async () => { throw new Error("Unexpected account.me"); } } },
-        marks: { get: { query: async () => { throw notFound; } } },
+        marks: {
+          get: { query: async () => { throw notFound; } },
+          search: { query: async () => { throw new Error("Unexpected marks.search"); } },
+        },
       })),
     }),
   );
@@ -268,5 +303,112 @@ test("marks get preserves the stable API not-found envelope on stderr", async ()
     exitCode: 1,
     stdout: "",
     stderr: '{"ok":false,"error":{"code":"NOT_FOUND","message":"Trademark not found","details":{}}}\n',
+  });
+});
+
+test("marks search maps the approved Multi flags and preserves the server page envelope", async () => {
+  const inputs: unknown[] = [];
+  const result = await runCli(
+    [
+      "marks",
+      "search",
+      "Turtle %",
+      "--mode",
+      "multi",
+      "--match",
+      "partial",
+      "--status",
+      "dead",
+      "--class",
+      "025",
+      "--class",
+      "018",
+      "--type",
+      "design",
+      "--registered",
+      "yes",
+      "--sort",
+      "newest-activity",
+      "--limit",
+      "25",
+      "--offset",
+      "25",
+      "--corpus-version",
+      "7",
+    ],
+    dependencies({
+      env: { TMTURTLE_API_KEY: token },
+      createClient: (() => ({
+        account: { me: { query: async () => { throw new Error("Unexpected account.me"); } } },
+        marks: {
+          get: { query: async () => { throw new Error("Unexpected marks.get"); } },
+          search: { query: async (input: unknown) => { inputs.push(input); return searchPage; } },
+        },
+      })),
+    }),
+  );
+
+  expect(inputs).toEqual([{
+    classes: ["025", "018"],
+    expectedCorpusVersion: "7",
+    limit: 25,
+    match: "partial",
+    mode: "multi",
+    offset: 25,
+    query: "Turtle %",
+    registered: "yes",
+    sort: "newest-activity",
+    status: "dead",
+    type: "design",
+  }]);
+  expect(result).toEqual({
+    exitCode: 0,
+    stderr: "",
+    stdout: `${JSON.stringify({ ok: true, data: searchPage })}\n`,
+  });
+});
+
+test("marks search rejects unapproved modes and unsafe continuations before HTTP", async () => {
+  const split = await runCli(
+    ["marks", "search", "turtle", "--mode", "split"],
+    dependencies({ env: { TMTURTLE_API_KEY: token } }),
+  );
+  const missingVersion = await runCli(
+    ["marks", "search", "turtle", "--offset", "25"],
+    dependencies({ env: { TMTURTLE_API_KEY: token } }),
+  );
+
+  expect(JSON.parse(split.stderr)).toMatchObject({
+    error: { code: "BAD_REQUEST", message: "Only Multi search is available" },
+    ok: false,
+  });
+  expect(JSON.parse(missingVersion.stderr)).toMatchObject({
+    error: { code: "BAD_REQUEST", message: "--corpus-version is required when --offset is greater than 0" },
+    ok: false,
+  });
+});
+
+test("marks search preserves a typed corpus conflict envelope", async () => {
+  const conflict = Object.assign(new Error("Trademark corpus changed during pagination"), {
+    data: { code: "CONFLICT" },
+  });
+  const result = await runCli(
+    ["marks", "search", "turtle"],
+    dependencies({
+      env: { TMTURTLE_API_KEY: token },
+      createClient: (() => ({
+        account: { me: { query: async () => { throw new Error("Unexpected account.me"); } } },
+        marks: {
+          get: { query: async () => { throw new Error("Unexpected marks.get"); } },
+          search: { query: async () => { throw conflict; } },
+        },
+      })),
+    }),
+  );
+
+  expect(result).toEqual({
+    exitCode: 1,
+    stdout: "",
+    stderr: '{"ok":false,"error":{"code":"CONFLICT","message":"Trademark corpus changed during pagination","details":{}}}\n',
   });
 });
