@@ -43,7 +43,7 @@ bun run compose:up
 bun run compose:smoke
 ```
 
-The startup order is PostgreSQL health, one-shot Drizzle migration, one-shot PRD-60 tracer materialization, API and worker database readiness, then the Caddy website shell. The tracer retains the committed real fixture in the artifact volume and uses the source-observation, canonicalization, and canonical repository modules; it is not a corpus publisher. `dev-port` allocates four deterministic ports per checkout. The root scripts derive a distinct Compose project name and development image revision from that port, so each worktree owns its containers, network, volumes, and image tags. The website uses the first port and the API uses the second:
+The startup order is PostgreSQL health, one-shot Drizzle migration, one-shot PRD-60 tracer materialization, API and worker database readiness, then the Caddy website shell. The tracer retains the committed real fixture in the artifact volume and uses the source-observation, canonicalization, and canonical repository modules; it is not a corpus publisher. Its canonical write shares the corpus publication lock and is skipped after a durable corpus publication owns canonical state. `dev-port` allocates four deterministic ports per checkout. The root scripts derive a distinct Compose project name and development image revision from that port, so each worktree owns its containers, network, volumes, and image tags. The website uses the first port and the API uses the second:
 
 ```bash
 dev-port --group

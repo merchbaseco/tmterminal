@@ -17,11 +17,11 @@ Startup is ordered:
 
 1. PostgreSQL becomes healthy.
 2. The one-shot Drizzle migration exits successfully.
-3. The one-shot PRD-60 tracer retains the committed real fixture in the artifact volume, stages it through source observations, canonicalizes it, and replaces the canonical mark through the repository interface.
+3. The one-shot PRD-60 tracer retains the committed real fixture in the artifact volume, stages it through source observations, canonicalizes it, and replaces the canonical mark through the repository interface only while no durable corpus publication owns canonical state.
 4. The API and credential-scoped worker become healthy.
 5. Caddy serves the built website and proxies `/api/*` to the API.
 
-The tracer step is deliberately fixture-specific. It is not a seed format or corpus publisher. Complete-generation eligibility and atomic corpus publication remain outside PRD-61.
+The tracer step is deliberately fixture-specific. It is not a seed format or corpus publisher. Its canonical write shares the corpus publication lock and becomes a no-op after publication ownership begins. Complete-generation eligibility and atomic corpus publication remain outside PRD-61.
 
 The ignored deployment `.env` is copied from the mastered `/Users/zknicker/Programming/tmturtle/.env` without echoing values and is mode `0600`. Required secret-bearing names are `DATABASE_URL`, `POSTGRES_PASSWORD`, `CLERK_SECRET_KEY`, and `USPTO_API_KEY`; `VITE_CLERK_PUBLISHABLE_KEY` supplies the approved shared MerchBase Clerk frontend configuration. Production sets `CLERK_AUTHORIZED_PARTIES` to exactly `https://tmturtle.merchbase.co`.
 
