@@ -16,6 +16,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import { markSearchStatusSql } from "../search/status-policy.ts";
 
 export const artifactDownloadState = pgEnum("artifact_download_state", ["pending", "downloading", "verified"]);
 export const sourceLaneStatus = pgEnum("source_lane_status", ["ready", "backoff", "stopped"]);
@@ -292,10 +293,13 @@ export const mark = pgTable(
     serialNumber: text("serial_number").primaryKey(),
     registrationNumber: text("registration_number"),
     wordMark: text("word_mark"),
+    wordMarkNormalized: text("word_mark_normalized")
+      .generatedAlwaysAs(sql`lower(normalize(btrim(word_mark), NFKC) collate "und-x-icu") collate "default"`),
     markDrawingCode: text("mark_drawing_code"),
     filingDate: date("filing_date"),
     registrationDate: date("registration_date"),
     statusCode: text("status_code"),
+    searchStatus: text("search_status").generatedAlwaysAs(markSearchStatusSql),
     statusDate: date("status_date"),
     sourceTransactionDate: date("source_transaction_date"),
     normalizationVersion: text("normalization_version").notNull(),
@@ -307,6 +311,15 @@ export const mark = pgTable(
     uniqueIndex("mark_registration_number_unique")
       .on(table.registrationNumber)
       .where(sql`${table.registrationNumber} is not null`),
+    index("mark_word_mark_normalized_exact_idx").on(table.wordMarkNormalized),
+    index("mark_word_mark_normalized_trgm_idx")
+      .using("gin", sql`${table.wordMarkNormalized} gin_trgm_ops`),
+    index("mark_live_word_mark_normalized_exact_idx")
+      .on(table.wordMarkNormalized)
+      .where(sql`${table.searchStatus} = 'live'`),
+    index("mark_live_word_mark_normalized_trgm_idx")
+      .using("gin", sql`${table.wordMarkNormalized} gin_trgm_ops`)
+      .where(sql`${table.searchStatus} = 'live'`),
   ],
 );
 

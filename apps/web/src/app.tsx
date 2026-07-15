@@ -1,26 +1,66 @@
-import { Show, SignInButton, UserButton, useAuth } from "@clerk/react";
+import { Show, SignInButton, UserButton, useAuth, useClerk } from "@clerk/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createTRPCClient, httpLink } from "@trpc/client";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
 
 import type { AppRouter } from "../../server/src/api/router.ts";
 import { ApiKeysPage, type AccountApi } from "./api-keys-page.tsx";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { DevAutoSignIn } from "./dev-auto-sign-in.tsx";
 import { MarkDetailPage, type MarkApi } from "./mark-detail-page.tsx";
+import { SearchPage, type SearchApi } from "./search-page.tsx";
 
-function SignedInApp() {
+type BrowserLocation = {
+  pathname: string;
+  search: string;
+  state: Record<string, unknown>;
+};
+
+function browserLocation(): BrowserLocation {
+  const state = window.history.state;
+  return {
+    pathname: window.location.pathname,
+    search: window.location.search,
+    state: state && typeof state === "object" ? state as Record<string, unknown> : {},
+  };
+}
+
+function useBrowserLocation() {
+  const [location, setLocation] = useState(browserLocation);
+  useEffect(() => {
+    const update = () => setLocation(browserLocation());
+    window.addEventListener("popstate", update);
+    return () => window.removeEventListener("popstate", update);
+  }, []);
+  return location;
+}
+
+function setBrowserLocation(
+  href: string,
+  { replace = false, state = {} }: { replace?: boolean; state?: Record<string, unknown> } = {},
+) {
+  window.history[replace ? "replaceState" : "pushState"](state, "", href);
+  window.dispatchEvent(new PopStateEvent("popstate", { state }));
+}
+
+function plainPrimaryClick(event: ReactMouseEvent) {
+  return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
+}
+
+function SignedInApp({ location }: { location: BrowserLocation }) {
   const { getToken } = useAuth();
   const client = useMemo(() => createTRPCClient<AppRouter>({
-      links: [
-        httpLink({
-          headers: async () => {
-            const token = await getToken();
-            return token ? { authorization: `Bearer ${token}` } : {};
-          },
-          url: "/api/trpc",
-        }),
-      ],
-    }), [getToken]);
+    links: [
+      httpLink({
+        headers: async () => {
+          const token = await getToken();
+          return token ? { authorization: `Bearer ${token}` } : {};
+        },
+        url: "/api/trpc",
+      }),
+    ],
+  }), [getToken]);
   const accountApi = useMemo<AccountApi>(() => ({
     create: (name) => client.account["api-keys"].create.mutate({ name }),
     list: () => client.account["api-keys"].list.query(),
@@ -29,22 +69,76 @@ function SignedInApp() {
   const markApi = useMemo<MarkApi>(() => ({
     get: (serialNumber) => client.marks.get.query({ serialNumber }),
   }), [client]);
-  const markRoute = window.location.pathname.match(/^\/marks\/(\d{8})$/);
+  const searchApi = useMemo<SearchApi>(() => ({
+    search: (input) => client.marks.search.query(input),
+  }), [client]);
+  const markRoute = location.pathname.match(/^\/marks\/(\d{8})$/);
 
   if (markRoute?.[1]) {
-    return <MarkDetailPage api={markApi} serialNumber={markRoute[1]} />;
+    return (
+      <MarkDetailPage
+        api={markApi}
+        onBack={() => {
+          if (location.state.tmturtleSearchEntry === true) {
+            window.history.back();
+          } else {
+            setBrowserLocation("/search");
+          }
+        }}
+        serialNumber={markRoute[1]}
+      />
+    );
   }
+  if (location.pathname === "/settings/api-keys") return <ApiKeysPage api={accountApi} />;
 
-  return <ApiKeysPage api={accountApi} />;
+  const restoreScrollOffset = typeof location.state.searchScrollOffset === "number"
+    ? location.state.searchScrollOffset
+    : 0;
+  const replacementSourceSearch = typeof location.state.searchReplacementSource === "string"
+    ? location.state.searchReplacementSource
+    : undefined;
+  return (
+    <SearchPage
+      api={searchApi}
+      onNavigate={(href, sourceSearch) => setBrowserLocation(href, {
+        state: sourceSearch ? { searchReplacementSource: sourceSearch } : {},
+      })}
+      onOpenMark={(serialNumber, scrollOffset) => {
+        setBrowserLocation(
+          `${location.pathname}${location.search}`,
+          {
+            replace: true,
+            state: { ...location.state, searchScrollOffset: scrollOffset },
+          },
+        );
+        setBrowserLocation(`/marks/${serialNumber}`, { state: { tmturtleSearchEntry: true } });
+      }}
+      onReplacementLoaded={() => {
+        const state = { ...location.state };
+        delete state.searchReplacementSource;
+        setBrowserLocation(`${location.pathname}${location.search}`, { replace: true, state });
+      }}
+      replacementSourceSearch={replacementSourceSearch}
+      restoreScrollOffset={restoreScrollOffset}
+      search={location.search}
+    />
+  );
 }
 
 function TopBar() {
+  function navigate(event: ReactMouseEvent<HTMLAnchorElement>, href: string) {
+    if (!plainPrimaryClick(event)) return;
+    event.preventDefault();
+    setBrowserLocation(href);
+  }
+
   return (
     <header className="top-bar">
-      <a className="wordmark" href="/settings/api-keys">Trademark Turtle</a>
-      <nav aria-label="Account">
+      <a className="wordmark" href="/search" onClick={(event) => navigate(event, "/search")}>Trademark Turtle</a>
+      <nav aria-label="Primary">
         <Show when="signed-in">
-          <span>API Keys</span>
+          <a href="/search" onClick={(event) => navigate(event, "/search")}>Search</a>
+          <a href="/settings/api-keys" onClick={(event) => navigate(event, "/settings/api-keys")}>API Keys</a>
           <UserButton />
         </Show>
         <Show when="signed-out">
@@ -57,26 +151,70 @@ function TopBar() {
   );
 }
 
-export function App() {
+function SignedOutSearch({ search }: { search: string }) {
+  const { openSignIn } = useClerk();
+  const locationQuery = new URLSearchParams(search).get("q") ?? "";
+  const [query, setQuery] = useState(locationQuery);
+  useEffect(() => setQuery(locationQuery), [locationQuery]);
+
   return (
-    <>
+    <main className="signed-out-shell">
+      <p className="eyebrow">Private trademark search / Class 025</p>
+      <h1>TRADEMARK<br />TURTLE</h1>
+      <p>Compose one literal query. Sign in with your MerchBase account to run it.</p>
+      <form
+        className="search-form signed-out-search"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const normalizedQuery = query.trim();
+          if (!normalizedQuery || normalizedQuery.length > 200) return;
+          const parameters = new URLSearchParams({
+            exact: "true",
+            mode: "multi",
+            partial: "true",
+            q: normalizedQuery,
+            registered: "all",
+            sort: "relevance",
+            status: "all",
+            type: "all",
+          });
+          setBrowserLocation(`/search?${parameters.toString()}`, { replace: true });
+          openSignIn();
+        }}
+      >
+        <label className="sr-only" htmlFor="signed-out-search">Search trademarks</label>
+        <Input
+          id="signed-out-search"
+          maxLength={200}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="One literal mark query"
+          required
+          size="lg"
+          type="search"
+          value={query}
+        />
+        <Button size="xl" type="submit">Search</Button>
+      </form>
+    </main>
+  );
+}
+
+export function App() {
+  const location = useBrowserLocation();
+  const [queryClient] = useState(() => new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  }));
+
+  return (
+    <QueryClientProvider client={queryClient}>
       <TopBar />
       <Show when="signed-in">
-        <SignedInApp />
+        <SignedInApp location={location} />
       </Show>
       <Show when="signed-out">
-        <>
-          <DevAutoSignIn />
-          <main className="signed-out-shell">
-            <p className="eyebrow">Private trademark tools</p>
-            <h1>TRADEMARK<br />TURTLE</h1>
-            <p>Sign in with your MerchBase account to manage API keys.</p>
-            <SignInButton mode="modal">
-              <Button size="lg">Sign in</Button>
-            </SignInButton>
-          </main>
-        </>
+        <DevAutoSignIn />
+        <SignedOutSearch search={location.search} />
       </Show>
-    </>
+    </QueryClientProvider>
   );
 }

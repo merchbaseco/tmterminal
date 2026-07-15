@@ -7,10 +7,18 @@ import {
     annualGenerationV1MetadataSha256,
 } from '../apps/server/src/ingestion/annual-generation-v1.ts';
 import {
+    ACTIVE_CLASS_STATUS_CODE,
+    APPLICATION_DOCUMENTATION_SOURCE,
+    STATUS_POLICY_ENTRIES,
+    STATUS_POLICY_SOURCE,
+} from '../apps/server/src/search/status-policy.ts';
+import {
     assertAnnualFixturePairs,
     assertArtifactMetadataReferences,
     assertFixtureArtifactReferences,
     assertFixturePathInventory,
+    assertTrademarkSourceContract,
+    type TrademarkSourceContract,
 } from './uspto-fixture-manifest.ts';
 
 type CachedEvidence = {
@@ -93,6 +101,7 @@ type Fixture = {
 type Manifest = {
     schemaVersion: number;
     cacheRootDefault: string;
+    officialContracts: TrademarkSourceContract[];
     retainedEvidence: CachedEvidence[];
     officialProductMetadata: OfficialProductMetadata[];
     artifacts: Artifact[];
@@ -105,6 +114,25 @@ const manifestPath = join(repositoryRoot, 'fixtures/uspto/manifest.json');
 const manifest = (await Bun.file(manifestPath).json()) as Manifest;
 const writeFixtures = Bun.argv.includes('--write');
 const cacheRoot = join(homedir(), 'Library/Caches/tmturtle/uspto');
+
+assertTrademarkSourceContract(manifest.officialContracts, {
+    currentApplicationDocument: {
+        url: APPLICATION_DOCUMENTATION_SOURCE.url,
+        bytes: APPLICATION_DOCUMENTATION_SOURCE.bytes,
+        sha256: APPLICATION_DOCUMENTATION_SOURCE.sha256,
+        activeClassStatusCode: ACTIVE_CLASS_STATUS_CODE,
+        retainedInRepository: false,
+    },
+    currentStatusTable: {
+        url: STATUS_POLICY_SOURCE.url,
+        bytes: STATUS_POLICY_SOURCE.bytes,
+        sha256: STATUS_POLICY_SOURCE.sha256,
+        entryCount: STATUS_POLICY_ENTRIES.length,
+        dispositionSha256: createHash('sha256').update(JSON.stringify(STATUS_POLICY_ENTRIES)).digest('hex'),
+        tableUpdated: STATUS_POLICY_SOURCE.tableUpdated,
+        retainedInRepository: false,
+    },
+});
 
 assertFixtureArtifactReferences(manifest.artifacts, manifest.fixtures);
 assertArtifactMetadataReferences(manifest.officialProductMetadata, manifest.artifacts);

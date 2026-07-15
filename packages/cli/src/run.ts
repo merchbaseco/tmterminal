@@ -17,6 +17,9 @@ export type CliClient = {
     get: {
       query(input: TmturtleRouterInputs["marks"]["get"]): Promise<TmturtleRouterOutputs["marks"]["get"]>;
     };
+    search: {
+      query(input: TmturtleRouterInputs["marks"]["search"]): Promise<TmturtleRouterOutputs["marks"]["search"]>;
+    };
   };
 };
 
@@ -100,6 +103,111 @@ function remoteFailure(error: unknown) {
   return typeof code === "string" ? failureResult(code, error.message) : null;
 }
 
+function parseMultiSearch(args: string[]): TmturtleRouterInputs["marks"]["search"] {
+  const query = args[2];
+  if (!query || query.startsWith("--") || query.trim().length === 0 || query.trim().length > 200) {
+    throw new BadRequestError("Usage: tt marks search <query> [options]");
+  }
+
+  const classes: string[] = [];
+  const seen = new Set<string>();
+  let expectedCorpusVersion: string | undefined;
+  let match: "both" | "exact" | "partial" = "both";
+  let offset = 0;
+  let registered: "all" | "yes" | "no" = "all";
+  let sort: "relevance" | "newest-activity" | "oldest-activity" = "relevance";
+  let status: "all" | "live" | "dead" = "all";
+  let type: "all" | "design" | "typeset" | "text" | "other" = "all";
+
+  for (let index = 3; index < args.length; index += 2) {
+    const flag = args[index]!;
+    const value = args[index + 1];
+    if (!flag.startsWith("--") || value === undefined || value.startsWith("--")) {
+      throw new BadRequestError(`Missing value for ${flag}`);
+    }
+    if (flag !== "--class" && seen.has(flag)) throw new BadRequestError(`Duplicate option ${flag}`);
+    seen.add(flag);
+
+    switch (flag) {
+      case "--mode":
+        if (value !== "multi") throw new BadRequestError("Only Multi search is available");
+        break;
+      case "--match":
+        if (value !== "both" && value !== "exact" && value !== "partial") {
+          throw new BadRequestError("--match must be both, exact, or partial");
+        }
+        match = value;
+        break;
+      case "--status":
+        if (value !== "live" && value !== "dead") {
+          throw new BadRequestError("--status must be live or dead");
+        }
+        status = value;
+        break;
+      case "--class":
+        if (!/^(?:\d{3}|[AB])$/.test(value)) {
+          throw new BadRequestError("--class must be a three-digit International Class, A, or B");
+        }
+        classes.push(value);
+        if (classes.length > 45) throw new BadRequestError("At most 45 --class options are allowed");
+        break;
+      case "--type":
+        if (value !== "design" && value !== "typeset" && value !== "text" && value !== "other") {
+          throw new BadRequestError("--type must be design, typeset, text, or other");
+        }
+        type = value;
+        break;
+      case "--registered":
+        if (value !== "yes" && value !== "no") {
+          throw new BadRequestError("--registered must be yes or no");
+        }
+        registered = value;
+        break;
+      case "--sort":
+        if (value !== "relevance" && value !== "newest-activity" && value !== "oldest-activity") {
+          throw new BadRequestError("--sort must be relevance, newest-activity, or oldest-activity");
+        }
+        sort = value;
+        break;
+      case "--limit":
+        if (value !== "25") throw new BadRequestError("--limit must be 25");
+        break;
+      case "--offset": {
+        const parsed = Number(value);
+        if (!/^\d+$/.test(value) || !Number.isSafeInteger(parsed)) {
+          throw new BadRequestError("--offset must be a nonnegative integer");
+        }
+        offset = parsed;
+        break;
+      }
+      case "--corpus-version":
+        if (!/^\d+$/.test(value)) throw new BadRequestError("--corpus-version must contain only digits");
+        expectedCorpusVersion = value;
+        break;
+      default:
+        throw new BadRequestError(`Unknown search option ${flag}`);
+    }
+  }
+
+  if (offset > 0 && !expectedCorpusVersion) {
+    throw new BadRequestError("--corpus-version is required when --offset is greater than 0");
+  }
+
+  return {
+    classes,
+    ...(expectedCorpusVersion ? { expectedCorpusVersion } : {}),
+    limit: 25,
+    match,
+    mode: "multi",
+    offset,
+    query,
+    registered,
+    sort,
+    status,
+    type,
+  };
+}
+
 export async function runCli(args: string[], dependencies: CliDependencies): Promise<CliResult> {
   try {
     if (args[0] === "auth" && args[1] === "set") {
@@ -146,6 +254,16 @@ export async function runCli(args: string[], dependencies: CliDependencies): Pro
         .createClient({ apiKey: selected.token, baseUrl: origin })
         .marks.get.query({ serialNumber });
       return success(mark);
+    }
+
+    if (args[0] === "marks" && args[1] === "search") {
+      const input = parseMultiSearch(args);
+      const origin = configuredOrigin(dependencies);
+      const selected = await credential(dependencies, origin);
+      const page = await dependencies
+        .createClient({ apiKey: selected.token, baseUrl: origin })
+        .marks.search.query(input);
+      return success(page);
     }
 
     throw new BadRequestError("Unknown command");

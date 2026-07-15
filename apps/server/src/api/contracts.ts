@@ -34,7 +34,45 @@ export type MarkDetail = Omit<ResolvedCanonicalMark, "contributors" | "kind" | "
   };
 };
 
+export type MultiSearchInput = {
+  classes: string[];
+  expectedCorpusVersion?: string;
+  limit: 25;
+  match: "exact" | "partial" | "both";
+  mode: "multi";
+  offset: number;
+  query: string;
+  registered: "all" | "yes" | "no";
+  sort: "relevance" | "newest-activity" | "oldest-activity";
+  status: "all" | "live" | "dead";
+  type: "all" | "design" | "typeset" | "text" | "other";
+};
+
+export type MultiSearchPage = {
+  items: Array<{
+    goodsServicesExcerpt: string | null;
+    internationalClasses: string[];
+    match: "exact" | "partial";
+    owner: string | null;
+    registrationNumber: string | null;
+    serialNumber: string;
+    sourceTransactionDate: string | null;
+    status: "live" | "dead" | "unknown";
+    statusDate: string | null;
+    type: "design" | "typeset" | "text" | "other";
+    wordMark: string;
+  }>;
+  limit: 25;
+  meta: {
+    corpusThroughDate: string;
+    corpusVersion: string;
+  };
+  offset: number;
+  total: number;
+};
+
 export type MarksService = {
   getByRegistrationNumber(registrationNumber: string): Promise<MarkDetail | null>;
   getBySerialNumber(serialNumber: string): Promise<MarkDetail | null>;
+  search(input: MultiSearchInput): Promise<MultiSearchPage>;
 };

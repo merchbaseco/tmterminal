@@ -13,9 +13,23 @@
         "bytes": 702326,
         "sha256": "db1211c23c2b8e206acbd5f87b02804d7d63ea3269c98e725296573a7b10406a"
       },
-      "currentApplicationDocument": "https://data.uspto.gov/ui/datasets/products/files/TRTDXFAP/Trademark-Applications-Documentation-v2.3-20250813.doc",
-      "currentStatusTable": "https://data.uspto.gov/ui/datasets/products/files/TRTDXFAP/Table1TrademarkStatusCodes_20250813.doc",
-      "documentResponses": {
+      "currentApplicationDocument": {
+        "url": "https://api.uspto.gov/api/v1/datasets/products/files/TRTDXFAP/Trademark-Applications-Documentation-v2.3-20250813.doc",
+        "bytes": 2329088,
+        "sha256": "96a1bcec082cad186ef3b41bb8bcb8fe970289ff0784de31c7e93e2a3780648b",
+        "activeClassStatusCode": "6",
+        "retainedInRepository": false
+      },
+      "currentStatusTable": {
+        "url": "https://api.uspto.gov/api/v1/datasets/products/files/TRTDXFAP/Table1TrademarkStatusCodes_20250813.doc",
+        "bytes": 154624,
+        "sha256": "8d251bbd5af8e18eaf269524945bfd7b9714a2ac1600669486660fc75e5d6bf6",
+        "entryCount": 169,
+        "dispositionSha256": "7ae6d6d4aa733ba7d334921316eb3ac2e1012d37ddd71ab8410e6270228ee176",
+        "tableUpdated": "2023-06-20",
+        "retainedInRepository": false
+      },
+      "historicalUiDocumentResponses": {
         "checkedAt": "2026-07-14T18:51:54Z",
         "httpStatus": 200,
         "content": "ODP HTML application shell, not DOC bytes",
@@ -834,7 +848,7 @@
     }
   ],
   "blockingGaps": [
-    "The current application-documentation and status-table links resolve to the ODP HTML application shell, so their DOC bytes and checksums are not retained.",
+    "Current application/status DOC bytes are not retained; only the pinned search-policy/class-status facts, complete disposition digest, and document identities are executable evidence.",
     "Cross-product annual-versus-daily claim precedence is unproved; retained annual bytes show that the metadata to-date cannot be the boundary.",
     "The retained daily artifacts contain IB, NA, and TX action keys but no numeric Official Gazette action key.",
     "Registration and cancellation are evidenced by real records and event histories, but retained artifacts do not establish multi-observation registration or cancellation sequences."

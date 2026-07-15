@@ -60,7 +60,7 @@ Modes:
 
 Multi is the default mode. Wildcard validation happens before the request.
 
-The website is fixed to International Class 025 in v1 and does not show a class filter. Live results require an active Class 025 classification, not merely a mark that remains live in another class. The stored corpus and programmatic interfaces remain all-class.
+The website is fixed to International Class 025 in v1 and does not show a class filter. Live results require a live mark with an active Class 025 row. Dead and unknown results require Class 025 membership without requiring that class to remain active. All is the union of those categories, so a live mark with only an inactive Class 025 row is excluded. The stored corpus and programmatic interfaces remain all-class.
 
 Visible filters mirror TMhunt:
 
@@ -138,6 +138,7 @@ The corpus-through date is the contiguous complete frontier. It opens a COSS pop
 - Loading more: one inline spinner row
 - Empty: `No matching marks` and Clear filters
 - Validation: inline beneath the search field
+- Corpus conflict: explicit alert and Run search again action; never reset or mix pages silently
 - Service unavailable: full-width alert; never present stale results as current
 
 Desktop composition is primary. Mobile keeps the same information architecture: fluid masthead, stacked search action, compact filter drawer, wrapped result metadata, and unchanged top-level routes.

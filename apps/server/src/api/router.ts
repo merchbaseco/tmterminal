@@ -1,7 +1,16 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 
-import type { AccountService, AuthenticatedAccount, MarksService } from "./contracts.ts";
+import {
+  type AccountService,
+  type AuthenticatedAccount,
+  type MarksService,
+} from "./contracts.ts";
+import { multiSearchInputSchema } from "./multi-search-input.ts";
+import {
+  CorpusUnavailableError,
+  CorpusVersionConflictError,
+} from "../queries/multi-search.ts";
 
 export type AppContext = {
   account: AccountService;
@@ -37,6 +46,21 @@ export const appRouter = t.router({
     }),
   }),
   marks: t.router({
+    search: t.procedure
+      .input(multiSearchInputSchema)
+      .query(async ({ ctx, input }) => {
+        try {
+          return await ctx.marks.search(input);
+        } catch (error) {
+          if (error instanceof CorpusVersionConflictError) {
+            throw new TRPCError({ code: "CONFLICT", message: error.message });
+          }
+          if (error instanceof CorpusUnavailableError) {
+            throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: error.message });
+          }
+          throw error;
+        }
+      }),
     get: t.procedure
       .input(z.object({ serialNumber: z.string().regex(/^\d{8}$/) }))
       .query(async ({ ctx, input }) => {

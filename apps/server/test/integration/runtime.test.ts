@@ -58,8 +58,73 @@ describe("runtime database spine", () => {
     `;
 
     expect(before).toEqual({ artifactTable: false, migrations: 2 });
-    expect(after).toEqual({ artifactTable: true, migrations: 9 });
+    expect(after).toEqual({ artifactTable: true, migrations: 10 });
   });
+
+  test("upgrades populated pre-search data and preserves immutable generated search columns", async () => {
+    const source = fileURLToPath(new URL("../../drizzle", import.meta.url));
+    const staged = await mkdtemp(join(tmpdir(), "tmturtle-migrations-"));
+    temporaryDirectories.push(staged);
+    await mkdir(join(staged, "meta"));
+    const journal = await Bun.file(join(source, "meta", "_journal.json")).json();
+    journal.entries = journal.entries.slice(0, 9);
+    await Promise.all(journal.entries.map((entry: { tag: string }) =>
+      copyFile(join(source, `${entry.tag}.sql`), join(staged, `${entry.tag}.sql`))
+    ));
+    await Bun.write(join(staged, "meta", "_journal.json"), JSON.stringify(journal));
+
+    await migrateDatabase(databaseUrl, staged);
+    await database`
+      insert into mark (
+        serial_number,
+        word_mark,
+        status_code,
+        normalization_version,
+        source_profile_version,
+        projection_version,
+        authority_policy_version
+      ) values ('99999999', ${"  Cafe\u0301  "}, '000', 'n', 's', 'p', 'a')
+    `;
+    await migrateDatabase(databaseUrl);
+    await migrateDatabase(databaseUrl);
+
+    const [row] = await database<Array<{ normalized: string; status: string }>>`
+      select word_mark_normalized as normalized, search_status as status
+      from mark where serial_number = '99999999'
+    `;
+    const columns = await database<Array<{ expression: string; name: string }>>`
+      select column_name as name, generation_expression as expression
+      from information_schema.columns
+      where table_schema = 'public' and table_name = 'mark'
+        and column_name in ('word_mark_normalized', 'search_status')
+      order by column_name
+    `;
+    const indexes = await database<Array<{ name: string }>>`
+      select indexname as name from pg_indexes
+      where schemaname = 'public' and tablename = 'mark'
+        and indexname like 'mark%word_mark_normalized%'
+      order by indexname
+    `;
+    const normalizeFunctions = await database<Array<{ volatility: string }>>`
+      select provolatile as volatility from pg_proc where proname = 'normalize'
+    `;
+    const [migrationCount] = await database<[{ count: number }]>`
+      select count(*)::int as count from drizzle.__drizzle_migrations
+    `;
+
+    expect(row).toEqual({ normalized: "café", status: "unknown" });
+    expect(columns).toHaveLength(2);
+    expect(columns.find(({ name }) => name === "word_mark_normalized")?.expression).toContain("NFKC");
+    expect(indexes.map(({ name }) => name)).toEqual([
+      "mark_live_word_mark_normalized_exact_idx",
+      "mark_live_word_mark_normalized_trgm_idx",
+      "mark_word_mark_normalized_exact_idx",
+      "mark_word_mark_normalized_trgm_idx",
+    ]);
+    expect(normalizeFunctions.length).toBeGreaterThan(0);
+    expect(normalizeFunctions.every(({ volatility }) => volatility === "i")).toBe(true);
+    expect(migrationCount?.count).toBe(10);
+  }, 30_000);
 
   test("applies the one-shot migration idempotently", async () => {
     await migrateDatabase(databaseUrl);
@@ -75,7 +140,7 @@ describe("runtime database spine", () => {
     `;
 
     expect(extension?.installed).toBe(true);
-    expect(migrationCount?.count).toBe(9);
+    expect(migrationCount?.count).toBe(10);
   });
 
   test("reports ready after migrations complete", async () => {

@@ -13,12 +13,14 @@ Reviewed against official USPTO metadata and retained source bytes on 2026-07-15
 
 - Product metadata: `GET https://api.uspto.gov/api/v1/datasets/products/TRTYRAP` and `GET https://api.uspto.gov/api/v1/datasets/products/TRTDXFAP`, with `accept: application/json` and `x-api-key`.
 - [USPTO XML resources](https://www.uspto.gov/learning-and-resources/xml-resources) names **Trademark Applications Documentation v2.3-20250813** and **Table 1 Trademark Status Codes 20250813** as the current trademark-application contracts.
+- The current [application documentation](https://api.uspto.gov/api/v1/datasets/products/files/TRTDXFAP/Trademark-Applications-Documentation-v2.3-20250813.doc) is 2,329,088 bytes with SHA-256 `96a1bcec082cad186ef3b41bb8bcb8fe970289ff0784de31c7e93e2a3780648b`. It defines raw class status `6` as Active; other raw class codes remain uninterpreted.
+- The current [status table](https://api.uspto.gov/api/v1/datasets/products/files/TRTDXFAP/Table1TrademarkStatusCodes_20250813.doc) is 154,624 bytes with SHA-256 `8d251bbd5af8e18eaf269524945bfd7b9714a2ac1600669486660fc75e5d6bf6`. Its 169 entries, updated 2023-06-20, contain 124 Live, 41 Dead, and four Indifferent codes (`000`, `622`, `715`, `970`). Search policy `uspto-trademark-status-20250813` maps Indifferent, null, and unlisted future codes to `unknown`.
 - The retained, directly retrievable official [Trademark Applications XML v2.0 documentation](https://www.uspto.gov/sites/default/files/products/TMDailyApp-Documentation-508.pdf) is 702,326 bytes with SHA-256 `db1211c23c2b8e206acbd5f87b02804d7d63ea3269c98e725296573a7b10406a`. It defines transaction date as the daily process date, action-key/identity order as file sequence, and a present `case-file-owners` group as containing all owner records. These statements prove source framing and v2.0 owner-group completeness, not annual-versus-daily authority.
 - [USPTO ODP registration notice](https://www.uspto.gov/subscription-center/2026/register-access-usptos-open-data-portal) requires a signed-in USPTO.gov account to search and download ODP datasets beginning June 18, 2026.
 
 Authenticated `TRTYRAP` metadata returns 177 Data files: 91 members for the 1884-04-07 through 2025-12-31 generation and 86 for the generation ending 2024-12-31. The complete JSON response is retained by SHA-256. Historical 403 evidence remains retained, but it is not the current access state.
 
-The current DOC links still return the ODP HTML application shell instead of document bytes. Those responses and the official HTML references are retained by SHA-256. No browser-session or unattended-login mechanism is inferred.
+Authenticated manual retrieval on 2026-07-15 verified the current DOC checksums and contract facts without committing the full DOC files. The fixture verifier pins those identities and the complete disposition-map digest to the versioned policy artifact. Historical UI-link HTML responses remain retained as access-path evidence; they are not the current document identity.
 
 ## Retained artifacts
 
@@ -61,9 +63,9 @@ The daily before/after fixtures prove only their named same-product transitions.
 
 ## Blocking gaps
 
-The PRD-71 full-annual evidence gate is closed. The broader canonical-ingestion fixture gate remains closed:
+The PRD-71 full-annual evidence gate is closed. The broader canonical-ingestion fixture gate remains blocked:
 
-- Current application-documentation and status-table DOC bytes are not retained.
+- Current application/status DOC bytes are not retained; only the pinned search-policy/class-status facts, complete disposition digest, and document identities are executable evidence.
 - Retained daily artifacts contain no numeric Official Gazette action key.
 - Registration and cancellation have real single-observation evidence, not retained multi-observation sequences.
 - Cross-product annual-versus-daily claim precedence is not established by retained evidence. Annual metadata to-date cannot serve as the boundary; order-sensitive overlaps remain authority conflicts and block mixed-product publication.
