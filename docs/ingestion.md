@@ -95,6 +95,8 @@ Scalar claims distinguish:
 - **Set:** replace the scalar with the supplied value.
 - **Clear:** clear only when a versioned source profile proves that the present empty or zero value means clear.
 
+`uspto-normalization-v1` decodes the XML entities already validated by the lossless parser and trims boundary whitespace before semantic comparison and canonical persistence. The original lexical value remains only in the immutable source observation.
+
 Collection claims distinguish:
 
 - **Unmentioned:** preserve the prior group.
@@ -134,7 +136,7 @@ Trademark Turtle preserves raw USPTO values and derives query values through ver
 
 Goods/services retain raw type code and source text. Display cleanup is versioned and fixture-tested because brackets, double parentheses, and asterisks carry source meaning.
 
-Date-only USPTO values use PostgreSQL `date`, not JavaScript local-time timestamps. Partial or zero-filled dates preserve raw value and precision rather than rolling into invented dates.
+Date-only USPTO values use PostgreSQL `date`, not JavaScript local-time timestamps. The all-zero unknown projects to null. Other partial or zero-filled dates remain lossless in the source observation and return `unsupported-semantics` instead of rolling into invented canonical dates.
 
 ## Parsing and publication
 

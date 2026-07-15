@@ -187,9 +187,9 @@ The v1 bootstrap policy pins the officially enumerated generation from 1884-04-0
 ### Corpus
 
 - `mark`: canonical current identity and presentation keyed by serial number
-- `mark_class`: raw and derived International Class state per mark
+- `mark_class`: projected International Class state per mark
 - `mark_owner`: current normalized owner group
-- `mark_goods_services`: raw goods/services statements and derived class linkage
+- `mark_goods_services`: source-reported goods/services text and type per mark
 - `mark_status_event`: distinct source-reported status transitions with provenance
 
 Every canonical domain group retains its contributing source observations. Canonical rows are rebuildable from immutable observations.

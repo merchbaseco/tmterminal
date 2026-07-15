@@ -3,7 +3,7 @@ import type postgres from "postgres";
 
 import type { SourceValue } from "../db/schema.ts";
 
-const parserVersion = "uspto-application-xml-v1";
+const parserVersion = "uspto-application-xml-v2";
 const recordStart = Buffer.from("<case-file>");
 const recordEnd = Buffer.from("</case-file>");
 const recordBatchSize = 100;
@@ -25,9 +25,11 @@ export type SourceObservation = {
   actionKey: string;
   actionOccurrence: number;
   actionRecordIndex: number;
+  artifactVersionSha256: string;
   claims: SourceClaim[];
   digest: string;
   physicalRecordIndex: number;
+  product: string;
   profile: string;
   schemaVersion: string;
   schemaVersionDate: string;
@@ -121,6 +123,27 @@ function validXmlCodePoint(codePoint: number) {
   );
 }
 
+export function decodeXmlText(text: string) {
+  let decoded = "";
+  let offset = 0;
+  while (true) {
+    const entityOffset = text.indexOf("&", offset);
+    if (entityOffset < 0) return decoded + text.slice(offset);
+    decoded += text.slice(offset, entityOffset);
+    const reference = text.slice(entityOffset).match(/^&(amp|apos|gt|lt|quot|#\d+|#x[\da-fA-F]+);/);
+    if (!reference) throw new Error("invalid XML entity");
+    const value = reference[1]!;
+    if (value.startsWith("#")) {
+      const codePoint = value.startsWith("#x") ? Number.parseInt(value.slice(2), 16) : Number.parseInt(value.slice(1), 10);
+      if (!validXmlCodePoint(codePoint)) throw new Error("invalid XML entity");
+      decoded += String.fromCodePoint(codePoint);
+    } else {
+      decoded += { amp: "&", apos: "'", gt: ">", lt: "<", quot: '"' }[value as "amp" | "apos" | "gt" | "lt" | "quot"];
+    }
+    offset = entityOffset + reference[0].length;
+  }
+}
+
 function validateXmlCharacters(text: string, raw: Buffer) {
   for (const character of text) {
     if (!validXmlCodePoint(character.codePointAt(0)!)) throw new ParseFailure("invalid XML character", raw);
@@ -128,15 +151,10 @@ function validateXmlCharacters(text: string, raw: Buffer) {
 }
 
 function validateXmlEntities(text: string, raw: Buffer) {
-  for (let offset = text.indexOf("&"); offset >= 0; offset = text.indexOf("&", offset + 1)) {
-    const reference = text.slice(offset).match(/^&(amp|apos|gt|lt|quot|#\d+|#x[\da-fA-F]+);/);
-    if (!reference) throw new ParseFailure("invalid XML entity", raw);
-    const value = reference[1]!;
-    if (value.startsWith("#")) {
-      const codePoint = value.startsWith("#x") ? Number.parseInt(value.slice(2), 16) : Number.parseInt(value.slice(1), 10);
-      if (!validXmlCodePoint(codePoint)) throw new ParseFailure("invalid XML entity", raw);
-    }
-    offset += reference[0].length - 1;
+  try {
+    decodeXmlText(text);
+  } catch {
+    throw new ParseFailure("invalid XML entity", raw);
   }
 }
 
@@ -247,11 +265,17 @@ function claimsFrom(root: XmlNode, profile: string) {
     let operation: ClaimOperation = null;
     const collection = path === "case-file/case-file-statements" || path === "case-file/classifications";
     if (collection && !profile.includes("-partial-")) operation = "replace";
+    if (
+      path === "case-file/case-file-owners" &&
+      presence === "group" &&
+      node.children.some((child) => child.name === "case-file-owner")
+    ) operation = "replace";
     if (path === "case-file/case-file-event-statements") operation = "assert";
     if (presence === "value" && scalarClaimPaths.has(path)) operation = "set";
     const recordsPresence =
       operation !== null ||
       collection ||
+      scalarClaimPaths.has(path) ||
       path === "case-file/correspondent" ||
       path === "case-file/case-file-owners" ||
       path.endsWith("/name-change-explanation");
@@ -781,7 +805,8 @@ export function createSourceObservationModule(database: postgres.Sql) {
         Array<SourceObservation>
       >`
         select action_key as "actionKey", action_occurrence as "actionOccurrence",
-          action_record_index as "actionRecordIndex", digest, physical_record_index as "physicalRecordIndex",
+          action_record_index as "actionRecordIndex", r.digest, physical_record_index as "physicalRecordIndex",
+          a.product_id as product, v.sha256 as "artifactVersionSha256",
           profile, schema_version as "schemaVersion", schema_version_date as "schemaVersionDate",
           serial_number as "serialNumber", source_transaction_date::text as "sourceTransactionDate",
           source_transaction_date_raw as "sourceTransactionDateRaw", values,
@@ -794,9 +819,12 @@ export function createSourceObservationModule(database: postgres.Sql) {
             ) filter (where c.id is not null), '[]'::jsonb
           ) as claims
         from source_record r
+        join parse_run p on p.id = r.parse_run_id
+        join artifact_version v on v.id = p.artifact_version_id
+        join artifact a on a.id = v.artifact_id
         left join source_claim c on c.source_record_id = r.id
         where r.parse_run_id = ${parseRunId}
-        group by r.id
+        group by r.id, a.product_id, v.sha256
         order by physical_record_index
       `;
       for await (const batch of query.cursor(100)) {
