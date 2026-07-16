@@ -1,8 +1,9 @@
 import type postgres from "postgres";
 
+import { annualGenerationV1Artifacts } from "../ingestion/annual-generation-v1.ts";
 import { sourceObservationParserVersion } from "../ingestion/source-observations.ts";
 
-export type SyncFacts = {
+export interface SyncFacts {
   activeAttemptKind: "discovery" | "download" | null;
   activeAttemptStartedAt: Date | null;
   completeThroughDate: string | null;
@@ -12,23 +13,25 @@ export type SyncFacts = {
   failedSince: Date | null;
   hasParseTarget: boolean;
   hasPublicationTarget: boolean;
-  lastSuccessfulMergeAt: Date | null;
   laneNextEligibleAt: Date | null;
   laneStatus: "backoff" | "ready" | "stopped" | null;
   laneUpdatedAt: Date | null;
+  lastSuccessfulMergeAt: Date | null;
   pendingCount: number;
   publishedThroughDate: string | null;
   quarantineCount: number;
   reconcileActiveSince: Date | null;
   reconcileFailedSince: Date | null;
   reconcileFailureMessage: string | null;
-  rejectCount: number;
-  rejectedSince: Date | null;
   reissueSelectionRequiredCount: number;
   reissueSelectionRequiredSince: Date | null;
-};
+  rejectCount: number;
+  rejectedSince: Date | null;
+}
 
-export async function readSyncFacts(database: postgres.Sql | postgres.TransactionSql): Promise<SyncFacts> {
+export async function readSyncFacts(
+  database: postgres.Sql | postgres.TransactionSql
+): Promise<SyncFacts> {
   const [facts] = await database<[SyncFacts]>`
     with latest_verified as (
       select distinct on (a.id)
@@ -63,11 +66,18 @@ export async function readSyncFacts(database: postgres.Sql | postgres.Transactio
         count(*)::int as retained_count,
         (array_agg(version.created_at order by version.created_at, version.id))[2] as ambiguity_since
       from artifact_version version
+      join artifact on artifact.id = version.artifact_id
+      where artifact.product_id = 'TRTYRAP'
+        and artifact.filename in ${database([...annualGenerationV1Artifacts])}
       group by version.artifact_id
       having count(*) > 1 and exists (
         select 1
         from artifact_version eligible
         join parse_run run on run.artifact_version_id = eligible.id
+        join artifact_discovery discovery on discovery.artifact_version_id = eligible.id
+          and discovery.download_state = 'verified'
+          and discovery.source_from_date = '1884-04-07'
+          and discovery.source_to_date = '2025-12-31'
         where eligible.artifact_id = version.artifact_id
           and run.parser_version = ${sourceObservationParserVersion}
           and run.state = 'staged'
@@ -195,6 +205,8 @@ export async function readSyncFacts(database: postgres.Sql | postgres.Transactio
       limit 1
     ) reconcile_failure on true
   `;
-  if (!facts) throw new Error("Sync status query returned no row");
+  if (!facts) {
+    throw new Error("Sync status query returned no row");
+  }
   return { ...facts, corpusVersion: Number(facts.corpusVersion) };
 }

@@ -1,23 +1,25 @@
-import { useInfiniteQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
+import { type InfiniteData, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
-
-import type { AppRouter } from "../../server/src/api/router.ts";
+import { type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import type { AppRouter } from "../../server/src/api/router.ts";
 
 type RouterInputs = inferRouterInputs<AppRouter>;
 type RouterOutputs = inferRouterOutputs<AppRouter>;
 type SearchInput = RouterInputs["marks"]["search"];
 type SearchPageResult = RouterOutputs["marks"]["search"];
-type SearchPageParam = { expectedCorpusVersion?: string; offset: number };
+interface SearchPageParam {
+  expectedCorpusVersion?: string;
+  offset: number;
+}
 
-export type SearchApi = {
-  search(input: SearchInput): Promise<SearchPageResult>;
-};
+export interface SearchApi {
+  search: (input: SearchInput) => Promise<SearchPageResult>;
+}
 
-type SearchState = {
+interface SearchState {
   exact: boolean;
   partial: boolean;
   query: string;
@@ -25,7 +27,7 @@ type SearchState = {
   sort: "relevance" | "newest-activity" | "oldest-activity";
   status: "all" | "live" | "dead";
   type: "all" | "design" | "typeset" | "text";
-};
+}
 
 function readSearchState(search: string): SearchState {
   const parameters = new URLSearchParams(search);
@@ -61,18 +63,21 @@ function searchHref(state: SearchState) {
 }
 
 function errorCode(error: Error | null) {
-  if (!error || !("data" in error) || !error.data || typeof error.data !== "object") return null;
+  if (!(error && "data" in error && error.data) || typeof error.data !== "object") {
+    return null;
+  }
   return "code" in error.data && typeof error.data.code === "string" ? error.data.code : null;
 }
 
 function matchFor(state: SearchState): "exact" | "partial" | "both" {
-  if (state.exact && state.partial) return "both";
+  if (state.exact && state.partial) {
+    return "both";
+  }
   return state.exact ? "exact" : "partial";
 }
 
 function requestFor(state: SearchState) {
   return {
-    classes: ["025"],
     limit: 25 as const,
     match: matchFor(state),
     mode: "multi" as const,
@@ -84,6 +89,17 @@ function requestFor(state: SearchState) {
   };
 }
 
+function searchErrorMessage(conflict: boolean, replacementFailure: boolean) {
+  if (conflict) {
+    return "The trademark corpus changed. Run the search again before continuing.";
+  }
+  if (replacementFailure) {
+    return "New search could not be loaded. Previous results are still shown.";
+  }
+  return "Search could not be loaded.";
+}
+
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Search query, restoration, and navigation state deliberately share one owner.
 export function SearchPage({
   api,
   onNavigate,
@@ -94,9 +110,9 @@ export function SearchPage({
   search,
 }: {
   api: SearchApi;
-  onNavigate(href: string, replacementSourceSearch?: string): void;
-  onOpenMark(serialNumber: string, scrollOffset: number): void;
-  onReplacementLoaded(): void;
+  onNavigate: (href: string, replacementSourceSearch?: string) => void;
+  onOpenMark: (serialNumber: string, scrollOffset: number) => void;
+  onReplacementLoaded: () => void;
   replacementSourceSearch?: string;
   restoreScrollOffset: number;
   search: string;
@@ -113,19 +129,24 @@ export function SearchPage({
   const request = useMemo(() => requestFor(state), [state]);
   const queryKey = useMemo(() => ["marks.search", request] as const, [request]);
   const sourceState = useMemo(() => {
-    if (!state.query || !replacementSourceSearch || replacementSourceSearch === search) return null;
+    if (!(state.query && replacementSourceSearch) || replacementSourceSearch === search) {
+      return null;
+    }
     const source = readSearchState(replacementSourceSearch);
     return source.query ? source : null;
   }, [replacementSourceSearch, search, state.query]);
-  const sourceQueryKey = useMemo(() => (
-    sourceState ? ["marks.search", requestFor(sourceState)] as const : null
-  ), [sourceState]);
+  const sourceQueryKey = useMemo(
+    () => (sourceState ? (["marks.search", requestFor(sourceState)] as const) : null),
+    [sourceState]
+  );
   const sourceQueryState = sourceQueryKey ? queryClient.getQueryState(sourceQueryKey) : undefined;
   const sourceError = sourceQueryState?.error instanceof Error ? sourceQueryState.error : null;
-  const sourceData = sourceQueryKey && (!sourceError || errorCode(sourceError) === "CONFLICT")
-    ? queryClient.getQueryData<InfiniteData<SearchPageResult, SearchPageParam>>(sourceQueryKey)
-    : undefined;
-  const destinationData = queryClient.getQueryData<InfiniteData<SearchPageResult, SearchPageParam>>(queryKey);
+  const sourceData =
+    sourceQueryKey && (!sourceError || errorCode(sourceError) === "CONFLICT")
+      ? queryClient.getQueryData<InfiniteData<SearchPageResult, SearchPageParam>>(sourceQueryKey)
+      : undefined;
+  const destinationData =
+    queryClient.getQueryData<InfiniteData<SearchPageResult, SearchPageParam>>(queryKey);
   const restorationKey = `${search}\n${restoreScrollOffset}`;
   const query = useInfiniteQuery<
     SearchPageResult,
@@ -135,24 +156,25 @@ export function SearchPage({
     SearchPageParam
   >({
     enabled: state.query.length > 0,
-    gcTime: Infinity,
+    gcTime: Number.POSITIVE_INFINITY,
     getNextPageParam: (lastPage, pages) => {
       const offset = pages.reduce((sum, page) => sum + page.items.length, 0);
       return offset < lastPage.total
-        ? { expectedCorpusVersion: pages[0]!.meta.corpusVersion, offset }
+        ? { expectedCorpusVersion: pages[0]?.meta.corpusVersion, offset }
         : undefined;
     },
     initialPageParam: { expectedCorpusVersion: undefined as string | undefined, offset: 0 },
     placeholderData: () => sourceData,
-    queryFn: ({ pageParam }) => api.search({
-      ...request,
-      ...(pageParam.expectedCorpusVersion
-        ? { expectedCorpusVersion: pageParam.expectedCorpusVersion }
-        : {}),
-      offset: pageParam.offset,
-    }),
+    queryFn: ({ pageParam }) =>
+      api.search({
+        ...request,
+        ...(pageParam.expectedCorpusVersion
+          ? { expectedCorpusVersion: pageParam.expectedCorpusVersion }
+          : {}),
+        offset: pageParam.offset,
+      }),
     queryKey,
-    staleTime: Infinity,
+    staleTime: Number.POSITIVE_INFINITY,
   });
   const conflict = errorCode(query.error) === "CONFLICT";
   const replacementFailure = Boolean(query.error && sourceData && !destinationData && !conflict);
@@ -169,48 +191,58 @@ export function SearchPage({
   });
 
   useLayoutEffect(() => {
-    if (restoredEntry.current === restorationKey || !data || !viewportRef.current) return;
+    if (restoredEntry.current === restorationKey || !data || !viewportRef.current) {
+      return;
+    }
     restoredEntry.current = restorationKey;
-    if (restoreScrollOffset > 0) virtualizer.scrollToOffset(restoreScrollOffset);
+    if (restoreScrollOffset > 0) {
+      virtualizer.scrollToOffset(restoreScrollOffset);
+    }
     viewportRef.current.scrollTop = restoreScrollOffset;
   }, [data, restorationKey, restoreScrollOffset, virtualizer]);
 
   useEffect(() => {
-    if (
-      replacementSourceSearch &&
-      query.data?.pages[0]?.offset === 0 &&
-      !query.isPlaceholderData
-    ) onReplacementLoaded();
+    if (replacementSourceSearch && query.data?.pages[0]?.offset === 0 && !query.isPlaceholderData) {
+      onReplacementLoaded();
+    }
   }, [onReplacementLoaded, query.data, query.isPlaceholderData, replacementSourceSearch]);
 
   useEffect(() => {
     const target = loadMoreRef.current;
     const root = viewportRef.current;
-    if (!target || !root || !query.hasNextPage || query.error) return;
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting) && !query.isFetchingNextPage) {
-        void query.fetchNextPage();
-      }
-    }, { root, rootMargin: "500px 0px" });
+    if (!(target && root && query.hasNextPage) || query.error) {
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting) && !query.isFetchingNextPage) {
+          query.fetchNextPage();
+        }
+      },
+      { root, rootMargin: "500px 0px" }
+    );
     observer.observe(target);
     return () => observer.disconnect();
   }, [query.error, query.fetchNextPage, query.hasNextPage, query.isFetchingNextPage]);
 
   function updateState(patch: Partial<SearchState>) {
-    const sourceSearch = sourceData && !destinationData
-      ? replacementSourceSearch
-      : destinationData && (!query.error || conflict)
-        ? search
-        : undefined;
+    let sourceSearch: string | undefined;
+    if (sourceData && !destinationData) {
+      sourceSearch = replacementSourceSearch;
+    } else if (destinationData && (!query.error || conflict)) {
+      sourceSearch = search;
+    }
     onNavigate(searchHref({ ...state, ...patch }), sourceSearch);
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const queryValue = draftQuery.trim();
-    if (!queryValue) return;
+    if (!queryValue) {
+      return;
+    }
     if (queryValue === state.query) {
-      void queryClient.resetQueries({ exact: true, queryKey });
+      queryClient.resetQueries({ exact: true, queryKey });
     } else {
       updateState({ query: queryValue });
     }
@@ -222,14 +254,22 @@ export function SearchPage({
     <main className="search-shell">
       <header className="search-heading">
         <p className="eyebrow">United States trademarks / Class 025</p>
-        <h1>TRADEMARK<br />TURTLE</h1>
+        <h1>
+          TRADEMARK
+          <br />
+          TURTLE
+        </h1>
       </header>
 
+      {/* biome-ignore lint/performance/noJsxPropsBind: The local submit handler reads this page's draft query. */}
       <form className="search-form" onSubmit={submit}>
-        <label className="sr-only" htmlFor="trademark-search">Search trademarks</label>
+        <label className="sr-only" htmlFor="trademark-search">
+          Search trademarks
+        </label>
         <Input
           id="trademark-search"
           maxLength={200}
+          // biome-ignore lint/performance/noJsxPropsBind: This local input directly owns the draft query.
           onChange={(event) => setDraftQuery(event.target.value)}
           placeholder="One literal mark query"
           required
@@ -237,7 +277,9 @@ export function SearchPage({
           type="search"
           value={draftQuery}
         />
-        <Button size="xl" type="submit">Search</Button>
+        <Button size="xl" type="submit">
+          Search
+        </Button>
       </form>
 
       <section aria-label="Search options" className="search-options">
@@ -247,6 +289,7 @@ export function SearchPage({
             <input
               checked={state.exact}
               disabled={state.exact && !state.partial}
+              // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
               onChange={(event) => updateState({ exact: event.target.checked })}
               type="checkbox"
             />
@@ -256,6 +299,7 @@ export function SearchPage({
             <input
               checked={state.partial}
               disabled={state.partial && !state.exact}
+              // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
               onChange={(event) => updateState({ partial: event.target.checked })}
               type="checkbox"
             />
@@ -264,7 +308,13 @@ export function SearchPage({
         </fieldset>
         <label>
           Status
-          <select onChange={(event) => updateState({ status: event.target.value as SearchState["status"] })} value={state.status}>
+          <select
+            // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
+            onChange={(event) =>
+              updateState({ status: event.target.value as SearchState["status"] })
+            }
+            value={state.status}
+          >
             <option value="all">All</option>
             <option value="live">Live</option>
             <option value="dead">Dead</option>
@@ -272,7 +322,11 @@ export function SearchPage({
         </label>
         <label>
           Type
-          <select onChange={(event) => updateState({ type: event.target.value as SearchState["type"] })} value={state.type}>
+          <select
+            // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
+            onChange={(event) => updateState({ type: event.target.value as SearchState["type"] })}
+            value={state.type}
+          >
             <option value="all">All</option>
             <option value="design">Design</option>
             <option value="typeset">Typeset</option>
@@ -282,7 +336,10 @@ export function SearchPage({
         <label>
           Registered
           <select
-            onChange={(event) => updateState({ registered: event.target.value as SearchState["registered"] })}
+            // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
+            onChange={(event) =>
+              updateState({ registered: event.target.value as SearchState["registered"] })
+            }
             value={state.registered}
           >
             <option value="all">All</option>
@@ -292,7 +349,11 @@ export function SearchPage({
         </label>
         <label>
           Sort
-          <select onChange={(event) => updateState({ sort: event.target.value as SearchState["sort"] })} value={state.sort}>
+          <select
+            // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
+            onChange={(event) => updateState({ sort: event.target.value as SearchState["sort"] })}
+            value={state.sort}
+          >
             <option value="relevance">Relevance</option>
             <option value="newest-activity">Newest activity</option>
             <option value="oldest-activity">Oldest activity</option>
@@ -300,20 +361,21 @@ export function SearchPage({
         </label>
       </section>
 
-      {!state.query ? <p className="search-prompt">Enter one mark query to search Class 025 records.</p> : null}
-      {query.isPending && state.query ? <p className="search-message">Searching Class 025…</p> : null}
+      {state.query ? null : (
+        <p className="search-prompt">Enter one mark query to search Class 025 records.</p>
+      )}
+      {query.isPending && state.query ? (
+        <p className="search-message">Searching Class 025…</p>
+      ) : null}
       {query.error ? (
         <div className="search-error">
           <p className="error-message" role="alert">
-            {conflict
-              ? "The trademark corpus changed. Run the search again before continuing."
-              : replacementFailure
-                ? "New search could not be loaded. Previous results are still shown."
-                : "Search could not be loaded."}
+            {searchErrorMessage(conflict, replacementFailure)}
           </p>
           {conflict ? (
             <Button
-              onClick={() => void queryClient.resetQueries({ exact: true, queryKey })}
+              // biome-ignore lint/performance/noJsxPropsBind: Retry resets this page's exact query key.
+              onClick={() => queryClient.resetQueries({ exact: true, queryKey })}
               variant="outline"
             >
               Run search again
@@ -321,15 +383,17 @@ export function SearchPage({
           ) : null}
         </div>
       ) : null}
-      {data && !query.error && total === 0
-        ? <p className="search-message">No Class 025 marks match this search.</p>
-        : null}
+      {data && !query.error && total === 0 ? (
+        <p className="search-message">No Class 025 marks match this search.</p>
+      ) : null}
 
       {data && total > 0 && (!query.error || conflict || replacementFailure) ? (
         <section aria-label="Search results" className="search-results">
           <div className="results-rule">
-            <p>{total} {total === 1 ? "result" : "results"}</p>
-            <p>Corpus through {data.pages[0]!.meta.corpusThroughDate}</p>
+            <p>
+              {total} {total === 1 ? "result" : "results"}
+            </p>
+            <p>Corpus through {data.pages[0]?.meta.corpusThroughDate}</p>
           </div>
           <div
             className="search-results-viewport"
@@ -339,7 +403,10 @@ export function SearchPage({
           >
             <div className="search-results-size" style={{ height: virtualizer.getTotalSize() }}>
               {virtualizer.getVirtualItems().map((virtualRow) => {
-                const item = items[virtualRow.index]!;
+                const item = items[virtualRow.index];
+                if (!item) {
+                  return null;
+                }
                 return (
                   <article
                     className="search-result-row"
@@ -351,6 +418,7 @@ export function SearchPage({
                   >
                     <a
                       href={`/marks/${item.serialNumber}`}
+                      // biome-ignore lint/performance/noJsxPropsBind: Each result link closes over its serial number and scroll position.
                       onClick={(event) => {
                         if (
                           event.button !== 0 ||
@@ -358,7 +426,9 @@ export function SearchPage({
                           event.ctrlKey ||
                           event.shiftKey ||
                           event.altKey
-                        ) return;
+                        ) {
+                          return;
+                        }
                         event.preventDefault();
                         onOpenMark(item.serialNumber, viewportRef.current?.scrollTop ?? 0);
                       }}
@@ -372,10 +442,14 @@ export function SearchPage({
                       <span>{item.type}</span>
                     </div>
                     <p>{item.owner ?? "Owner unavailable"}</p>
-                    <p className="result-goods">{item.goodsServicesExcerpt ?? "Goods/services unavailable"}</p>
+                    <p className="result-goods">
+                      {item.goodsServicesExcerpt ?? "Goods/services unavailable"}
+                    </p>
                     <p className="result-identities tabular-nums">
                       Serial {item.serialNumber}
-                      {item.registrationNumber ? ` · Registration ${item.registrationNumber}` : " · Not registered"}
+                      {item.registrationNumber
+                        ? ` · Registration ${item.registrationNumber}`
+                        : " · Not registered"}
                       {item.statusDate ? ` · Status ${item.statusDate}` : ""}
                     </p>
                   </article>
@@ -385,15 +459,20 @@ export function SearchPage({
                 aria-hidden="true"
                 className="load-more-sentinel"
                 ref={loadMoreRef}
-                style={{ transform: `translateY(${Math.max(virtualizer.getTotalSize() - 1, 0)}px)` }}
+                style={{
+                  transform: `translateY(${Math.max(virtualizer.getTotalSize() - 1, 0)}px)`,
+                }}
               />
             </div>
           </div>
-          {query.isFetchingNextPage ? <p className="search-message">Loading more results…</p> : null}
+          {query.isFetchingNextPage ? (
+            <p className="search-message">Loading more results…</p>
+          ) : null}
         </section>
       ) : null}
       <footer className="legal-disclaimer">
-        Trademark data is informational, not legal advice. Verify critical decisions with the USPTO or qualified counsel.
+        Trademark data is informational, not legal advice. Verify critical decisions with the USPTO
+        or qualified counsel.
       </footer>
     </main>
   );

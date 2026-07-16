@@ -16,18 +16,22 @@ afterEach(() => {
 test("calls the typed marks router with the configured API key", async () => {
   const authorizations: string[] = [];
   server = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
     fetch(request) {
       authorizations.push(request.headers.get("authorization") ?? "");
       return Response.json({
         result: {
           data: {
-            mark: { serialNumber: "60146682", registrationNumber: "0146682", wordMark: "MACHINE-PISTOL" },
+            mark: {
+              registrationNumber: "0146682",
+              serialNumber: "60146682",
+              wordMark: "MACHINE-PISTOL",
+            },
           },
         },
       });
     },
+    hostname: "127.0.0.1",
+    port: 0,
   });
   const input: TmturtleRouterInputs["marks"]["get"] = { serialNumber: "60146682" };
   const client = createTmturtleClient({
@@ -48,8 +52,6 @@ test("calls the typed marks router with the configured API key", async () => {
 test("derives the Multi search request and page types from the server router", async () => {
   const requests: URL[] = [];
   server = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
     fetch(request) {
       requests.push(new URL(request.url));
       return Response.json({
@@ -64,9 +66,10 @@ test("derives the Multi search request and page types from the server router", a
         },
       });
     },
+    hostname: "127.0.0.1",
+    port: 0,
   });
   const input: TmturtleRouterInputs["marks"]["search"] = {
-    classes: ["025"],
     match: "both",
     mode: "multi",
     query: "turtle",

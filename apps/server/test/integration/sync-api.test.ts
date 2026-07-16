@@ -4,14 +4,17 @@ import postgres from "postgres";
 
 import { buildServer } from "../../src/api/server.ts";
 import { migrateDatabase, migrateSchedulerDatabase } from "../../src/db/migrate.ts";
-import { createIngestionScheduler } from "../../src/ingestion/ingestion-scheduler.ts";
 import { retainedVersionFingerprint } from "../../src/ingestion/artifact-version-selection.ts";
+import { createIngestionScheduler } from "../../src/ingestion/ingestion-scheduler.ts";
+import { sourceObservationParserVersion } from "../../src/ingestion/source-observations.ts";
 import { createOperatorSyncService } from "../../src/services/operator-sync-service.ts";
 import { createSyncService } from "../../src/services/sync-service.ts";
 import { resetTestDatabase } from "./test-database.ts";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
-if (!databaseUrl) throw new Error("TEST_DATABASE_URL is required for PostgreSQL integration tests");
+if (!databaseUrl) {
+  throw new Error("TEST_DATABASE_URL is required for PostgreSQL integration tests");
+}
 
 const database = postgres(databaseUrl, { max: 2, prepare: false });
 
@@ -27,20 +30,23 @@ afterAll(async () => {
 
 async function waitForReconcileState(state: "active" | "failed") {
   for (let attempt = 0; attempt < 100; attempt += 1) {
+    // biome-ignore lint/performance/noAwaitInLoops: Scheduler-state polling is intentionally sequential.
     const [job] = await database<Array<{ count: number }>>`
       select count(*)::int as count from pgboss.job
       where name = 'ingestion-reconcile' and state = ${state}
     `;
-    if ((job?.count ?? 0) > 0) return;
+    if ((job?.count ?? 0) > 0) {
+      return;
+    }
     await Bun.sleep(25);
   }
   throw new Error(`reconciliation did not become ${state}`);
 }
 
 test("sync.status reports the complete frontier and persisted degraded state", async () => {
-  const [{ completeThroughDate, publishedThroughDate }] = await database<[
-    { completeThroughDate: string; publishedThroughDate: string },
-  ]>`
+  const [{ completeThroughDate, publishedThroughDate }] = await database<
+    [{ completeThroughDate: string; publishedThroughDate: string }]
+  >`
     select
       (current_date - 2)::text as "completeThroughDate",
       current_date::text as "publishedThroughDate"
@@ -121,14 +127,14 @@ test("sync.status reports the complete frontier and persisted degraded state", a
   const server = await buildServer({
     databaseUrl,
     logger: false,
-    verifyClerkToken: async (token) => token === "user-session" ? "user_sync_status" : null,
+    verifyClerkToken: async (token) => (token === "user-session" ? "user_sync_status" : null),
   });
 
   try {
     const response = await server.inject({
+      headers: { authorization: "Bearer user-session" },
       method: "GET",
       url: "/api/trpc/sync.status",
-      headers: { authorization: "Bearer user-session" },
     });
 
     expect(response.statusCode).toBe(200);
@@ -143,8 +149,8 @@ test("sync.status reports the complete frontier and persisted degraded state", a
       pendingCount: 0,
       publishedThroughDate,
       quarantineCount: 1,
-      rejectCount: 1,
       reissueSelectionRequiredCount: 0,
+      rejectCount: 1,
       stale: false,
       staleSince: null,
     });
@@ -180,14 +186,14 @@ test("resolved source alerts remain auditable without degrading current status",
   const server = await buildServer({
     databaseUrl,
     logger: false,
-    verifyClerkToken: async (token) => token === "user-session" ? "user_resolved_alert" : null,
+    verifyClerkToken: async (token) => (token === "user-session" ? "user_resolved_alert" : null),
   });
 
   try {
     const response = await server.inject({
+      headers: { authorization: "Bearer user-session" },
       method: "GET",
       url: "/api/trpc/sync.status",
-      headers: { authorization: "Bearer user-session" },
     });
     expect(response.json().result.data).toMatchObject({
       degraded: false,
@@ -224,13 +230,13 @@ test("outstanding source alerts supply degradedSince", async () => {
   const server = await buildServer({
     databaseUrl,
     logger: false,
-    verifyClerkToken: async (token) => token === "user-session" ? "user_alert_since" : null,
+    verifyClerkToken: async (token) => (token === "user-session" ? "user_alert_since" : null),
   });
   try {
     const response = await server.inject({
+      headers: { authorization: "Bearer user-session" },
       method: "GET",
       url: "/api/trpc/sync.status",
-      headers: { authorization: "Bearer user-session" },
     });
     expect(response.json().result.data).toMatchObject({
       degraded: true,
@@ -246,6 +252,7 @@ test("pendingCount counts distinct logical artifacts with outstanding work", asy
   await database`insert into dataset_product (id) values ('TRTDXFAP')`;
   for (const state of ["pending-and-verified", "two-verified", "published"] as const) {
     const artifactId = randomUUID();
+    // biome-ignore lint/performance/noAwaitInLoops: Fixture rows are inserted sequentially to preserve foreign-key order.
     await database`
       insert into artifact (id, product_id, filename)
       values (${artifactId}, 'TRTDXFAP', ${`${state}.zip`})
@@ -253,6 +260,7 @@ test("pendingCount counts distinct logical artifacts with outstanding work", asy
     const versionCount = state === "two-verified" ? 2 : 1;
     for (let index = 0; index < versionCount; index += 1) {
       const versionId = randomUUID();
+      // biome-ignore lint/performance/noAwaitInLoops: Fixture versions are inserted sequentially under their artifact.
       await database`
         insert into artifact_version (id, artifact_id, sha256, bytes, object_key, state)
         values (
@@ -277,13 +285,13 @@ test("pendingCount counts distinct logical artifacts with outstanding work", asy
   const server = await buildServer({
     databaseUrl,
     logger: false,
-    verifyClerkToken: async (token) => token === "user-session" ? "user_pending_count" : null,
+    verifyClerkToken: async (token) => (token === "user-session" ? "user_pending_count" : null),
   });
   try {
     const response = await server.inject({
+      headers: { authorization: "Bearer user-session" },
       method: "GET",
       url: "/api/trpc/sync.status",
-      headers: { authorization: "Bearer user-session" },
     });
     expect(response.json().result.data.pendingCount).toBe(2);
   } finally {
@@ -295,18 +303,22 @@ test("private sync procedures require a Clerk session with the database operator
   const server = await buildServer({
     databaseUrl,
     logger: false,
-    verifyClerkToken: async (token) => {
-      if (token === "operator-session") return "user_operator";
-      if (token === "customer-session") return "user_customer";
-      return null;
+    verifyClerkToken: (token) => {
+      if (token === "operator-session") {
+        return Promise.resolve("user_operator");
+      }
+      if (token === "customer-session") {
+        return Promise.resolve("user_customer");
+      }
+      return Promise.resolve(null);
     },
   });
 
   try {
     const account = await server.inject({
+      headers: { authorization: "Bearer operator-session" },
       method: "GET",
       url: "/api/trpc/account.me",
-      headers: { authorization: "Bearer operator-session" },
     });
     const accountId = account.json().result.data.accountId as string;
     await database`
@@ -315,28 +327,28 @@ test("private sync procedures require a Clerk session with the database operator
     `;
 
     const operator = await server.inject({
+      headers: { authorization: "Bearer operator-session" },
       method: "GET",
       url: "/api/trpc/ops.sync.status",
-      headers: { authorization: "Bearer operator-session" },
     });
     const customer = await server.inject({
+      headers: { authorization: "Bearer customer-session" },
       method: "GET",
       url: "/api/trpc/ops.sync.status",
-      headers: { authorization: "Bearer customer-session" },
     });
     const createdKey = await server.inject({
-      method: "POST",
-      url: "/api/trpc/account.api-keys.create",
       headers: {
         authorization: "Bearer operator-session",
         "content-type": "application/json",
       },
+      method: "POST",
       payload: { name: "operator account key" },
+      url: "/api/trpc/account.api-keys.create",
     });
     const apiKey = await server.inject({
+      headers: { authorization: `Bearer ${createdKey.json().result.data.token}` },
       method: "GET",
       url: "/api/trpc/ops.sync.status",
-      headers: { authorization: `Bearer ${createdKey.json().result.data.token}` },
     });
 
     expect(operator.statusCode).toBe(200);
@@ -357,6 +369,203 @@ test("private sync procedures require a Clerk session with the database operator
     expect(apiKey.json().error.data.code).toBe("FORBIDDEN");
   } finally {
     await server.close();
+  }
+});
+
+test("operator status distinguishes annual publication progress from retained daily evidence", async () => {
+  await database`insert into dataset_product (id) values ('TRTDXFAP'), ('TRTYRAP')`;
+  for (const artifact of [
+    {
+      filename: "apc18840407-20251231-01.zip",
+      fromDate: "1884-04-07",
+      product: "TRTYRAP",
+      toDate: "2025-12-31",
+    },
+    {
+      filename: "apc260715.zip",
+      fromDate: "2026-07-15",
+      product: "TRTDXFAP",
+      toDate: "2026-07-15",
+    },
+  ] as const) {
+    const artifactId = randomUUID();
+    const versionId = randomUUID();
+    // biome-ignore lint/performance/noAwaitInLoops: Fixture artifacts are inserted sequentially with dependent rows.
+    await database`
+      insert into artifact (id, product_id, filename)
+      values (${artifactId}, ${artifact.product}, ${artifact.filename})
+    `;
+    await database`
+      insert into artifact_version (id, artifact_id, sha256, bytes, object_key, state)
+      values (${versionId}, ${artifactId}, ${randomUUID().replaceAll("-", "").padEnd(64, "0")}, 1,
+        ${`fixture/${artifact.filename}`}, 'staged')
+    `;
+    await database`
+      insert into artifact_discovery (
+        id, artifact_id, artifact_version_id, fingerprint, observed_at, download_state, download_url,
+        expected_bytes, source_from_date, source_to_date, release_date, source_last_modified_at
+      ) values (
+        ${randomUUID()}, ${artifactId}, ${versionId}, ${randomUUID().replaceAll("-", "").padEnd(64, "0")},
+        now(), 'verified', 'https://example.test/source.zip', 1, ${artifact.fromDate}, ${artifact.toDate},
+        current_date, now()
+      )
+    `;
+    await database`
+      insert into parse_run (
+        id, artifact_version_id, state, parser_version, digest, record_count, reject_count,
+        started_at, finished_at
+      ) values (
+        ${randomUUID()}, ${versionId}, 'staged', ${sourceObservationParserVersion},
+        ${randomUUID().replaceAll("-", "").padEnd(64, "0")}, 0, 0, now(), now()
+      )
+    `;
+  }
+
+  await database`
+    insert into corpus_state (
+      id, published_through_date, complete_through_date, last_successful_merge_at, corpus_version
+    ) values ('uspto', '2025-12-31', '2025-12-31', now(), 1)
+  `;
+
+  const status = await createOperatorSyncService(database).status();
+
+  expect(status.datasets.find((dataset) => dataset.product === "TRTYRAP")).toMatchObject({
+    publicationParsedArtifactCount: 1,
+    publicationPolicy: "annual-baseline",
+    publicationTargetArtifactCount: 91,
+  });
+  expect(status.datasets.find((dataset) => dataset.product === "TRTDXFAP")).toMatchObject({
+    completeThroughDate: null,
+    publicationParsedArtifactCount: 0,
+    publicationPolicy: "retained-only",
+    publicationTargetArtifactCount: 0,
+  });
+});
+
+test("daily reissues remain observable without requiring an ineligible operator selection", async () => {
+  const artifactId = randomUUID();
+  await database`insert into dataset_product (id) values ('TRTDXFAP'), ('TRTYRAP')`;
+  await database`
+    insert into artifact (id, product_id, filename)
+    values (${artifactId}, 'TRTDXFAP', 'apc260715.zip')
+  `;
+  for (const [sha256, observedAt] of [
+    ["a".repeat(64), "2026-07-15T10:00:00Z"],
+    ["b".repeat(64), "2026-07-15T11:00:00Z"],
+  ] as const) {
+    const artifactVersionId = randomUUID();
+    // biome-ignore lint/performance/noAwaitInLoops: Retained daily reissues are staged sequentially with dependent rows.
+    await database`
+      insert into artifact_version (id, artifact_id, sha256, bytes, object_key, state, created_at)
+      values (${artifactVersionId}, ${artifactId}, ${sha256}, 1, ${`fixture/${sha256}`}, 'staged', ${observedAt})
+    `;
+    await database`
+      insert into artifact_discovery (
+        id, artifact_id, artifact_version_id, fingerprint, observed_at, download_state, download_url,
+        expected_bytes, source_from_date, source_to_date, release_date, source_last_modified_at
+      ) values (
+        ${randomUUID()}, ${artifactId}, ${artifactVersionId}, ${sha256}, ${observedAt}, 'verified',
+        'https://example.test/apc260715.zip', 1, '2026-07-15', '2026-07-15', '2026-07-15', ${observedAt}
+      )
+    `;
+    await database`
+      insert into parse_run (
+        id, artifact_version_id, state, parser_version, digest, record_count, reject_count,
+        started_at, finished_at
+      ) values (
+        ${randomUUID()}, ${artifactVersionId}, 'staged', ${sourceObservationParserVersion}, ${sha256}, 0, 0,
+        ${observedAt}, ${observedAt}
+      )
+    `;
+  }
+
+  expect(await createSyncService(database).status()).toMatchObject({
+    activeState: "idle",
+    reissueSelectionRequiredCount: 0,
+  });
+  const operator = createOperatorSyncService(database);
+  expect(
+    (await operator.status()).datasets.find((dataset) => dataset.product === "TRTDXFAP")
+  ).toMatchObject({
+    currentStage: "idle",
+    reason: null,
+  });
+  expect(await operator.artifacts({ limit: 10, offset: 0, product: "TRTDXFAP" })).toMatchObject({
+    items: [{ retainedVersionCount: 2, selectionRequired: false }],
+    total: 1,
+  });
+  expect(
+    await operator.artifactVersions({ limit: 10, offset: 0, product: "TRTDXFAP" })
+  ).toMatchObject({
+    total: 2,
+  });
+});
+
+test("operator parsing state follows the annual bootstrap priority", async () => {
+  await database`insert into dataset_product (id) values ('TRTDXFAP'), ('TRTYRAP')`;
+  for (const artifact of [
+    {
+      createdAt: "2026-07-15T01:00:00Z",
+      filename: "apc18840407-20251231-01.zip",
+      fromDate: "1884-04-07",
+      product: "TRTYRAP",
+      toDate: "2025-12-31",
+    },
+    {
+      createdAt: "2026-07-15T00:00:00Z",
+      filename: "apc260715.zip",
+      fromDate: "2026-07-15",
+      product: "TRTDXFAP",
+      toDate: "2026-07-15",
+    },
+  ] as const) {
+    const artifactId = randomUUID();
+    const versionId = randomUUID();
+    // biome-ignore lint/performance/noAwaitInLoops: Fixture artifacts are inserted sequentially with dependent rows.
+    await database`
+      insert into artifact (id, product_id, filename)
+      values (${artifactId}, ${artifact.product}, ${artifact.filename})
+    `;
+    await database`
+      insert into artifact_version (id, artifact_id, sha256, bytes, object_key, state, created_at)
+      values (${versionId}, ${artifactId}, ${randomUUID().replaceAll("-", "").padEnd(64, "0")}, 1,
+        ${`fixture/${artifact.filename}`}, 'verified', ${artifact.createdAt})
+    `;
+    await database`
+      insert into artifact_discovery (
+        id, artifact_id, artifact_version_id, fingerprint, observed_at, download_state, download_url,
+        expected_bytes, source_from_date, source_to_date, release_date, source_last_modified_at
+      ) values (
+        ${randomUUID()}, ${artifactId}, ${versionId}, ${randomUUID().replaceAll("-", "").padEnd(64, "0")},
+        now(), 'verified', 'https://example.test/source.zip', 1, ${artifact.fromDate}, ${artifact.toDate},
+        current_date, now()
+      )
+    `;
+  }
+
+  let release!: () => void;
+  const blocked = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const scheduler = createIngestionScheduler({
+    databaseUrl,
+    pollMs: 60_000,
+    reconcile: () => blocked,
+  });
+  await scheduler.start();
+  await waitForReconcileState("active");
+  try {
+    const status = await createOperatorSyncService(database).status();
+    expect(status.datasets.find((dataset) => dataset.product === "TRTYRAP")?.currentStage).toBe(
+      "parsing"
+    );
+    expect(status.datasets.find((dataset) => dataset.product === "TRTDXFAP")?.currentStage).toBe(
+      "pending"
+    );
+  } finally {
+    release();
+    await scheduler.waitForFirstReconciliation();
+    await scheduler.stop();
   }
 });
 
@@ -391,40 +600,45 @@ test("a failed parse target degrades only its dataset", async () => {
   const scheduler = createIngestionScheduler({
     databaseUrl,
     pollMs: 60_000,
-    reconcile: async () => { throw new Error("retained bytes missing at https://secret.example/token"); },
+    reconcile: () =>
+      Promise.reject(new Error("retained bytes missing at https://secret.example/token")),
   });
   await scheduler.start();
   await scheduler.waitForFirstReconciliation();
   for (let attempt = 0; attempt < 100; attempt += 1) {
+    // biome-ignore lint/performance/noAwaitInLoops: Failed-job polling is intentionally sequential.
     const [failed] = await database<Array<{ count: number }>>`
       select count(*)::int as count from pgboss.job
       where name = 'ingestion-reconcile' and state = 'failed'
     `;
-    if (failed?.count === 1) break;
+    if (failed?.count === 1) {
+      break;
+    }
     await Bun.sleep(25);
   }
 
   const server = await buildServer({
     databaseUrl,
     logger: false,
-    verifyClerkToken: async (token) => token === "operator-session" ? "user_dataset_failure_operator" : null,
+    verifyClerkToken: async (token) =>
+      token === "operator-session" ? "user_dataset_failure_operator" : null,
   });
   try {
     const account = await server.inject({
+      headers: { authorization: "Bearer operator-session" },
       method: "GET",
       url: "/api/trpc/account.me",
-      headers: { authorization: "Bearer operator-session" },
     });
     await database`
       insert into role_assignment (account_id, role)
       values (${account.json().result.data.accountId}, 'operator')
     `;
     const response = await server.inject({
+      headers: { authorization: "Bearer operator-session" },
       method: "GET",
       url: "/api/trpc/ops.sync.status",
-      headers: { authorization: "Bearer operator-session" },
     });
-    const datasets = response.json().result.data.datasets as Array<Record<string, unknown>>;
+    const datasets = response.json().result.data.datasets as Record<string, unknown>[];
     expect(datasets.find((dataset) => dataset.product === "TRTDXFAP")).toMatchObject({
       currentStage: "failed",
       failedCount: 1,
@@ -475,6 +689,7 @@ test("a stopped lane keeps its reason while an older staged candidate is activel
     { createdAt: "2026-07-15T09:00:00Z", id: parentId, parentId: null, state: "published" },
     { createdAt: "2020-01-01T00:00:00Z", id: candidateId, parentId, state: "staged" },
   ] as const) {
+    // biome-ignore lint/performance/noAwaitInLoops: Publication fixtures are inserted in parent-before-child order.
     await database`
       insert into publication (
         id, fingerprint, source_fingerprint, parent_publication_id, parser_version,
@@ -504,12 +719,21 @@ test("a stopped lane keeps its reason while an older staged candidate is activel
   `;
 
   let release!: () => void;
-  const blocked = new Promise<void>((resolve) => { release = resolve; });
-  const scheduler = createIngestionScheduler({ databaseUrl, pollMs: 60_000, reconcile: () => blocked });
+  const blocked = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const scheduler = createIngestionScheduler({
+    databaseUrl,
+    pollMs: 60_000,
+    reconcile: () => blocked,
+  });
   await scheduler.start();
   await waitForReconcileState("active");
   try {
-    expect(await createSyncService(database).status()).toMatchObject({ activeState: "publishing", degraded: true });
+    expect(await createSyncService(database).status()).toMatchObject({
+      activeState: "publishing",
+      degraded: true,
+    });
     const operator = await createOperatorSyncService(database).status();
     expect(operator.datasets.find((dataset) => dataset.product === "TRTDXFAP")).toMatchObject({
       currentStage: "publishing",
@@ -552,7 +776,7 @@ test("an active parse wins after a failed delivery while preserving the stopped 
   const failed = createIngestionScheduler({
     databaseUrl,
     pollMs: 60_000,
-    reconcile: async () => { throw new Error("previous parse delivery failed"); },
+    reconcile: () => Promise.reject(new Error("previous parse delivery failed")),
   });
   await failed.start();
   expect(await failed.waitForFirstReconciliation()).toEqual({ ok: false });
@@ -560,8 +784,14 @@ test("an active parse wins after a failed delivery while preserving the stopped 
   await failed.stop();
 
   let release!: () => void;
-  const blocked = new Promise<void>((resolve) => { release = resolve; });
-  const recovering = createIngestionScheduler({ databaseUrl, pollMs: 60_000, reconcile: () => blocked });
+  const blocked = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const recovering = createIngestionScheduler({
+    databaseUrl,
+    pollMs: 60_000,
+    reconcile: () => blocked,
+  });
   await recovering.start();
   await waitForReconcileState("active");
   try {
@@ -588,14 +818,15 @@ test("operator artifact reads filter and count in PostgreSQL before bounded pagi
   const server = await buildServer({
     databaseUrl,
     logger: false,
-    verifyClerkToken: async (token) => token === "operator-session" ? "user_artifact_operator" : null,
+    verifyClerkToken: async (token) =>
+      token === "operator-session" ? "user_artifact_operator" : null,
   });
 
   try {
     const account = await server.inject({
+      headers: { authorization: "Bearer operator-session" },
       method: "GET",
       url: "/api/trpc/account.me",
-      headers: { authorization: "Bearer operator-session" },
     });
     await database`
       insert into role_assignment (account_id, role)
@@ -616,13 +847,25 @@ test("operator artifact reads filter and count in PostgreSQL before bounded pagi
     for (const artifact of [
       { filename: "apc260713.zip", observedAt: "2026-07-14T12:00:00Z", product: "TRTDXFAP" },
       { filename: "apc260714.zip", observedAt: "2026-07-15T12:00:00Z", product: "TRTDXFAP" },
-      { filename: "apc18840407-20251231-01.zip", observedAt: "2026-07-15T13:00:00Z", product: "TRTYRAP" },
+      {
+        filename: "apc18840407-20251231-01.zip",
+        observedAt: "2026-07-15T13:00:00Z",
+        product: "TRTYRAP",
+      },
     ]) {
       const artifactId = randomUUID();
+      // biome-ignore lint/performance/noAwaitInLoops: Operator fixtures are inserted sequentially with dependent discoveries.
       await database`
         insert into artifact (id, product_id, filename, created_at, updated_at)
         values (${artifactId}, ${artifact.product}, ${artifact.filename}, ${artifact.observedAt}, ${artifact.observedAt})
       `;
+      let coverageFromDate = "2026-07-14";
+      if (artifact.product === "TRTYRAP") {
+        coverageFromDate = "1884-04-07";
+      } else if (artifact.filename === "apc260713.zip") {
+        coverageFromDate = "2026-07-13";
+      }
+      const coverageToDate = artifact.product === "TRTYRAP" ? "2025-12-31" : coverageFromDate;
       await database`
         insert into artifact_discovery (
           id, artifact_id, fingerprint, observed_at, download_state, download_url,
@@ -630,8 +873,7 @@ test("operator artifact reads filter and count in PostgreSQL before bounded pagi
         ) values (
           ${randomUUID()}, ${artifactId}, ${randomUUID().replaceAll("-", "").padEnd(64, "0")},
           ${artifact.observedAt}, 'pending', ${`https://api.uspto.gov/${artifact.filename}`}, 100,
-          ${artifact.product === "TRTYRAP" ? "1884-04-07" : artifact.filename === "apc260713.zip" ? "2026-07-13" : "2026-07-14"},
-          ${artifact.product === "TRTYRAP" ? "2025-12-31" : artifact.filename === "apc260713.zip" ? "2026-07-13" : "2026-07-14"},
+          ${coverageFromDate}, ${coverageToDate},
           '2026-07-15', ${artifact.observedAt}
         )
       `;
@@ -639,34 +881,36 @@ test("operator artifact reads filter and count in PostgreSQL before bounded pagi
 
     const input = encodeURIComponent(JSON.stringify({ limit: 1, offset: 1, product: "TRTDXFAP" }));
     const response = await server.inject({
+      headers: { authorization: "Bearer operator-session" },
       method: "GET",
       url: `/api/trpc/ops.sync.artifacts?input=${input}`,
-      headers: { authorization: "Bearer operator-session" },
     });
 
     expect(response.statusCode).toBe(200);
     expect(response.json().result.data).toEqual({
-      items: [{
-        artifactId: expect.any(String),
-        artifactVersionId: null,
-        bytes: null,
-        filename: "apc260713.zip",
-        lastErrorAt: null,
-        lastErrorCode: null,
-        observedAt: "2026-07-14T12:00:00.000Z",
-        parseRunId: null,
-        product: "TRTDXFAP",
-        quarantineReason: null,
-        retainedVersionCount: 0,
-        selectedArtifactVersionId: null,
-        selectedSha256: null,
-        selectionRequired: false,
-        sha256: null,
-        sourceFromDate: "2026-07-13",
-        sourceToDate: "2026-07-13",
-        stage: "pending",
-        stageSince: "2026-07-14T12:00:00.000Z",
-      }],
+      items: [
+        {
+          artifactId: expect.any(String),
+          artifactVersionId: null,
+          bytes: null,
+          filename: "apc260713.zip",
+          lastErrorAt: null,
+          lastErrorCode: null,
+          observedAt: "2026-07-14T12:00:00.000Z",
+          parseRunId: null,
+          product: "TRTDXFAP",
+          quarantineReason: null,
+          retainedVersionCount: 0,
+          selectedArtifactVersionId: null,
+          selectedSha256: null,
+          selectionRequired: false,
+          sha256: null,
+          sourceFromDate: "2026-07-13",
+          sourceToDate: "2026-07-13",
+          stage: "pending",
+          stageSince: "2026-07-14T12:00:00.000Z",
+        },
+      ],
       limit: 1,
       offset: 1,
       total: 2,
@@ -680,13 +924,14 @@ test("operator artifact-version reads expose every retained reissue option throu
   const server = await buildServer({
     databaseUrl,
     logger: false,
-    verifyClerkToken: async (token) => token === "operator-session" ? "user_version_operator" : null,
+    verifyClerkToken: async (token) =>
+      token === "operator-session" ? "user_version_operator" : null,
   });
   try {
     const account = await server.inject({
+      headers: { authorization: "Bearer operator-session" },
       method: "GET",
       url: "/api/trpc/account.me",
-      headers: { authorization: "Bearer operator-session" },
     });
     await database`
       insert into role_assignment (account_id, role)
@@ -706,6 +951,7 @@ test("operator artifact-version reads expose every retained reissue option throu
       [selectedId, selectedSha, "2026-07-15T10:00:00Z"],
       [alternateId, alternateSha, "2026-07-15T11:00:00Z"],
     ] as const) {
+      // biome-ignore lint/performance/noAwaitInLoops: Retained versions are inserted sequentially with dependent discoveries.
       await database`
         insert into artifact_version (id, artifact_id, sha256, bytes, object_key, state, created_at)
         values (${versionId}, ${artifactId}, ${sha}, 100, ${`fixture/${sha}`}, 'staged', ${observedAt})
@@ -738,30 +984,32 @@ test("operator artifact-version reads expose every retained reissue option throu
 
     const input = encodeURIComponent(JSON.stringify({ limit: 1, offset: 1, product: "TRTDXFAP" }));
     const response = await server.inject({
+      headers: { authorization: "Bearer operator-session" },
       method: "GET",
       url: `/api/trpc/ops.sync.artifact-versions?input=${input}`,
-      headers: { authorization: "Bearer operator-session" },
     });
 
     expect(response.statusCode).toBe(200);
     expect(response.json().result.data).toEqual({
-      items: [{
-        artifactId,
-        artifactVersionId: selectedId,
-        bytes: 100,
-        createdAt: "2026-07-15T10:00:00.000Z",
-        filename: "apc260715.zip",
-        observedAt: "2026-07-15T10:00:00.000Z",
-        parseState: "staged",
-        parserVersion: "uspto-application-xml-v2",
-        product: "TRTDXFAP",
-        quarantineReason: null,
-        selected: true,
-        sha256: selectedSha,
-        sourceFromDate: "2026-07-15",
-        sourceToDate: "2026-07-15",
-        state: "staged",
-      }],
+      items: [
+        {
+          artifactId,
+          artifactVersionId: selectedId,
+          bytes: 100,
+          createdAt: "2026-07-15T10:00:00.000Z",
+          filename: "apc260715.zip",
+          observedAt: "2026-07-15T10:00:00.000Z",
+          parserVersion: "uspto-application-xml-v2",
+          parseState: "staged",
+          product: "TRTDXFAP",
+          quarantineReason: null,
+          selected: true,
+          sha256: selectedSha,
+          sourceFromDate: "2026-07-15",
+          sourceToDate: "2026-07-15",
+          state: "staged",
+        },
+      ],
       limit: 1,
       offset: 1,
       total: 2,
@@ -775,14 +1023,15 @@ test("operator publication reads stay bounded and newest-first", async () => {
   const server = await buildServer({
     databaseUrl,
     logger: false,
-    verifyClerkToken: async (token) => token === "operator-session" ? "user_publication_operator" : null,
+    verifyClerkToken: async (token) =>
+      token === "operator-session" ? "user_publication_operator" : null,
   });
 
   try {
     const account = await server.inject({
+      headers: { authorization: "Bearer operator-session" },
       method: "GET",
       url: "/api/trpc/account.me",
-      headers: { authorization: "Bearer operator-session" },
     });
     await database`
       insert into role_assignment (account_id, role)
@@ -822,26 +1071,28 @@ test("operator publication reads stay bounded and newest-first", async () => {
 
     const input = encodeURIComponent(JSON.stringify({ limit: 1, offset: 0 }));
     const response = await server.inject({
+      headers: { authorization: "Bearer operator-session" },
       method: "GET",
       url: `/api/trpc/ops.sync.publications?input=${input}`,
-      headers: { authorization: "Bearer operator-session" },
     });
 
     expect(response.statusCode).toBe(200);
     expect(response.json().result.data).toEqual({
-      items: [{
-        artifactCount: 92,
-        completeThroughDate: null,
-        corpusVersion: null,
-        createdAt: "2026-07-15T12:00:00.000Z",
-        diagnosticCount: 1,
-        id: rejectedId,
-        parentPublicationId: publishedId,
-        publishedAt: null,
-        publishedThroughDate: null,
-        rejectedAt: "2026-07-15T12:10:00.000Z",
-        state: "rejected",
-      }],
+      items: [
+        {
+          artifactCount: 92,
+          completeThroughDate: null,
+          corpusVersion: null,
+          createdAt: "2026-07-15T12:00:00.000Z",
+          diagnosticCount: 1,
+          id: rejectedId,
+          parentPublicationId: publishedId,
+          publishedAt: null,
+          publishedThroughDate: null,
+          rejectedAt: "2026-07-15T12:10:00.000Z",
+          state: "rejected",
+        },
+      ],
       limit: 1,
       offset: 0,
       total: 2,
@@ -855,14 +1106,15 @@ test("operator rejection reads identify parser and publication failures without 
   const server = await buildServer({
     databaseUrl,
     logger: false,
-    verifyClerkToken: async (token) => token === "operator-session" ? "user_rejection_operator" : null,
+    verifyClerkToken: async (token) =>
+      token === "operator-session" ? "user_rejection_operator" : null,
   });
 
   try {
     const account = await server.inject({
+      headers: { authorization: "Bearer operator-session" },
       method: "GET",
       url: "/api/trpc/account.me",
-      headers: { authorization: "Bearer operator-session" },
     });
     await database`
       insert into role_assignment (account_id, role)
@@ -919,11 +1171,13 @@ test("operator rejection reads identify parser and publication failures without 
           competingValues: ["ONE", "TWO"],
           group: "mark-presentation",
           kind: "authority-conflict",
-          observations: [{
-            artifactVersionSha256: "a".repeat(64),
-            physicalRecordIndex: 42,
-            product: "TRTDXFAP",
-          }],
+          observations: [
+            {
+              artifactVersionSha256: "a".repeat(64),
+              physicalRecordIndex: 42,
+              product: "TRTDXFAP",
+            },
+          ],
           policyVersion: "authority-v1",
           serialNumber: "60146682",
         })}
@@ -932,9 +1186,9 @@ test("operator rejection reads identify parser and publication failures without 
 
     const input = encodeURIComponent(JSON.stringify({ limit: 10, offset: 0 }));
     const response = await server.inject({
+      headers: { authorization: "Bearer operator-session" },
       method: "GET",
       url: `/api/trpc/ops.sync.rejects?input=${input}`,
-      headers: { authorization: "Bearer operator-session" },
     });
 
     expect(response.statusCode).toBe(200);

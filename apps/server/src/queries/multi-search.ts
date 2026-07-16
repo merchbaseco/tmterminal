@@ -1,17 +1,16 @@
 import type postgres from "postgres";
 
 import type { MultiSearchInput, MultiSearchPage } from "../api/contracts.ts";
-import { ACTIVE_CLASS_STATUS_CODE } from "../search/status-policy.ts";
 
-type CorpusState = {
+interface CorpusState {
   completeThroughDate: string | null;
   corpusVersion: string;
-};
+}
 
 export class CorpusUnavailableError extends Error {}
 export class CorpusVersionConflictError extends Error {}
 
-type QueryValue = number | string | string[];
+type QueryValue = number | string;
 
 export function buildMultiSearchQueries(input: MultiSearchInput) {
   const normalizedQuery = `query_value as (
@@ -22,12 +21,14 @@ export function buildMultiSearchQueries(input: MultiSearchInput) {
       '_', chr(92) || '_'
     ) as pattern from query_value
   )`;
-  const containsPredicate = "m.word_mark_normalized like '%' || normalized.pattern || '%' escape E'\\\\'";
-  const matchPredicate = input.match === "exact"
-    ? "m.word_mark_normalized = normalized.value"
-    : input.match === "partial"
-      ? `${containsPredicate} and m.word_mark_normalized <> normalized.value`
-      : containsPredicate;
+  const containsPredicate =
+    "m.word_mark_normalized like '%' || normalized.pattern || '%' escape E'\\\\'";
+  let matchPredicate = containsPredicate;
+  if (input.match === "exact") {
+    matchPredicate = "m.word_mark_normalized = normalized.value";
+  } else if (input.match === "partial") {
+    matchPredicate = `${containsPredicate} and m.word_mark_normalized <> normalized.value`;
+  }
   const values: QueryValue[] = [input.query];
   const parameter = (value: QueryValue) => {
     values.push(value);
@@ -40,39 +41,30 @@ export function buildMultiSearchQueries(input: MultiSearchInput) {
     else 'other'
   end`;
   const conditions = [matchPredicate];
-  if (input.status === "live") conditions.push("m.search_status = 'live'");
-  if (input.status === "dead") conditions.push("m.search_status = 'dead'");
-  if (input.classes.length > 0) {
-    const classesParameter = parameter(input.classes);
-    const classMembership = `exists (
-      select 1 from mark_class classification
-      where classification.serial_number = m.serial_number
-        and classification.international_code = any(${classesParameter}::text[])
-    )`;
-    const activeClassMembership = `exists (
-      select 1 from mark_class classification
-      where classification.serial_number = m.serial_number
-        and classification.international_code = any(${classesParameter}::text[])
-        and classification.status_code = '${ACTIVE_CLASS_STATUS_CODE}'
-    )`;
-    conditions.push(input.status === "live"
-      ? activeClassMembership
-      : input.status === "all"
-        ? `((m.search_status = 'live' and ${activeClassMembership})
-          or (m.search_status <> 'live' and ${classMembership}))`
-        : classMembership);
+  if (input.status === "live") {
+    conditions.push("m.search_status = 'live'");
   }
-  if (input.type !== "all") conditions.push(`${markType} = ${parameter(input.type)}`);
-  if (input.registered === "yes") conditions.push("m.registration_number is not null");
-  if (input.registered === "no") conditions.push("m.registration_number is null");
+  if (input.status === "dead") {
+    conditions.push("m.search_status = 'dead'");
+  }
+  if (input.type !== "all") {
+    conditions.push(`${markType} = ${parameter(input.type)}`);
+  }
+  if (input.registered === "yes") {
+    conditions.push("m.registration_number is not null");
+  }
+  if (input.registered === "no") {
+    conditions.push("m.registration_number is null");
+  }
   const predicate = conditions.join(" and ");
-  const orderBy = input.sort === "newest-activity"
-    ? "m.source_transaction_date desc nulls last, m.serial_number"
-    : input.sort === "oldest-activity"
-      ? "m.source_transaction_date asc nulls last, m.serial_number"
-      : `case when m.word_mark_normalized = normalized.value then 0 else 1 end,
+  let orderBy = `case when m.word_mark_normalized = normalized.value then 0 else 1 end,
         similarity(m.word_mark_normalized, normalized.value) desc,
         m.serial_number`;
+  if (input.sort === "newest-activity") {
+    orderBy = "m.source_transaction_date desc nulls last, m.serial_number";
+  } else if (input.sort === "oldest-activity") {
+    orderBy = "m.source_transaction_date asc nulls last, m.serial_number";
+  }
   const itemValues: QueryValue[] = [...values, input.limit, input.offset];
   const limitParameter = `$${values.length + 1}`;
   const offsetParameter = `$${values.length + 2}`;
@@ -114,16 +106,18 @@ export function buildMultiSearchQueries(input: MultiSearchInput) {
   };
 }
 
-export async function searchMulti(
+export function searchMulti(
   database: postgres.Sql,
-  input: MultiSearchInput,
+  input: MultiSearchInput
 ): Promise<MultiSearchPage> {
   return database.begin("isolation level repeatable read read only", async (transaction) => {
     const [state] = await transaction<CorpusState[]>`
       select complete_through_date::text as "completeThroughDate", corpus_version::text as "corpusVersion"
       from corpus_state where id = 'uspto'
     `;
-    if (!state?.completeThroughDate) throw new CorpusUnavailableError("Trademark corpus is unavailable");
+    if (!state?.completeThroughDate) {
+      throw new CorpusUnavailableError("Trademark corpus is unavailable");
+    }
     if (input.expectedCorpusVersion && input.expectedCorpusVersion !== state.corpusVersion) {
       throw new CorpusVersionConflictError("Trademark corpus changed during pagination");
     }
@@ -131,11 +125,14 @@ export async function searchMulti(
     const queries = buildMultiSearchQueries(input);
     const [count] = await transaction.unsafe<Array<{ total: number }>>(
       queries.count.text,
-      queries.count.values,
+      queries.count.values
     );
+    if (!count) {
+      throw new Error("Multi search count query returned no row");
+    }
     const items = await transaction.unsafe<MultiSearchPage["items"]>(
       queries.items.text,
-      queries.items.values,
+      queries.items.values
     );
 
     return {
@@ -146,7 +143,7 @@ export async function searchMulti(
         corpusVersion: state.corpusVersion,
       },
       offset: input.offset,
-      total: count!.total,
+      total: count.total,
     };
   });
 }

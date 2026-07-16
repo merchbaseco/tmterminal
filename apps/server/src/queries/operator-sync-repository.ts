@@ -1,10 +1,11 @@
 import type postgres from "postgres";
 
+import { annualGenerationV1Artifacts } from "../ingestion/annual-generation-v1.ts";
 import { sourceObservationParserVersion } from "../ingestion/source-observations.ts";
 
 type Database = postgres.Sql | postgres.TransactionSql;
 
-export type OperatorDatasetFacts = {
+export interface OperatorDatasetFacts {
   activeAttemptKind: "discovery" | "download" | null;
   activeAttemptStartedAt: Date | null;
   activeParse: boolean;
@@ -15,6 +16,8 @@ export type OperatorDatasetFacts = {
   coverageFromDate: string | null;
   coverageThroughDate: string | null;
   failedCount: number;
+  laneStatus: "backoff" | "ready" | "stopped" | null;
+  laneUpdatedAt: Date | null;
   latestPublicationAt: Date | null;
   latestSuccessfulActivityAt: Date | null;
   product: "TRTDXFAP" | "TRTYRAP";
@@ -23,18 +26,16 @@ export type OperatorDatasetFacts = {
   publicationRejectedSince: Date | null;
   quarantineCount: number;
   quarantineSince: Date | null;
-  rejectCount: number;
-  rejectedSince: Date | null;
-  reissueRequiredCount: number;
-  reissueRequiredSince: Date | null;
   reconcileFailedSince: Date | null;
   reconcileFailureMessage: string | null;
-  laneStatus: "backoff" | "ready" | "stopped" | null;
-  laneUpdatedAt: Date | null;
+  reissueRequiredCount: number;
+  reissueRequiredSince: Date | null;
+  rejectCount: number;
+  rejectedSince: Date | null;
   stopReason: string | null;
-};
+}
 
-export async function readOperatorDatasetFacts(database: Database) {
+export function readOperatorDatasetFacts(database: Database) {
   return database<OperatorDatasetFacts[]>`
     with products(product) as (values ('TRTYRAP'::text), ('TRTDXFAP'::text)),
     active_reconcile as (
@@ -86,7 +87,6 @@ export async function readOperatorDatasetFacts(database: Database) {
           join artifact on artifact.id = source.artifact_id
           where state.id = 'uspto' and artifact.product_id = 'TRTYRAP'
         ) then '2025-12-31'
-        when products.product = 'TRTDXFAP' then (select complete_through_date::text from corpus_state where id = 'uspto')
         else null
       end as "completeThroughDate",
       (
@@ -159,11 +159,28 @@ export async function readOperatorDatasetFacts(database: Database) {
       from artifact_version version
       join artifact on artifact.id = version.artifact_id
       where version.state = 'verified'
+        and exists (
+          select 1 from artifact_discovery discovery
+          where discovery.artifact_version_id = version.id and discovery.download_state = 'verified'
+        )
         and not exists (
           select 1 from parse_run run
           where run.artifact_version_id = version.id and run.parser_version = ${sourceObservationParserVersion}
         )
-      order by version.created_at, version.id
+      order by
+        case when
+          artifact.product_id = 'TRTYRAP'
+          and artifact.filename in ${database([...annualGenerationV1Artifacts])}
+          and exists (
+            select 1 from artifact_discovery annual
+            where annual.artifact_version_id = version.id
+              and annual.download_state = 'verified'
+              and annual.source_from_date = '1884-04-07'
+              and annual.source_to_date = '2025-12-31'
+          )
+        then 0 else 1 end,
+        version.created_at,
+        version.id
       limit 1
     ) parse_target on true
     left join lateral (
@@ -254,10 +271,16 @@ export async function readOperatorDatasetFacts(database: Database) {
           (array_agg(version.created_at order by version.created_at, version.id))[2] as ambiguity_since
         from artifact join artifact_version version on version.artifact_id = artifact.id
         where artifact.product_id = products.product
+          and artifact.product_id = 'TRTYRAP'
+          and artifact.filename in ${database([...annualGenerationV1Artifacts])}
         group by artifact.id
         having count(version.id) > 1 and exists (
           select 1 from artifact_version eligible
           join parse_run run on run.artifact_version_id = eligible.id
+          join artifact_discovery discovery on discovery.artifact_version_id = eligible.id
+            and discovery.download_state = 'verified'
+            and discovery.source_from_date = '1884-04-07'
+            and discovery.source_to_date = '2025-12-31'
           where eligible.artifact_id = artifact.id
             and run.parser_version = ${sourceObservationParserVersion} and run.state = 'staged'
         )
@@ -275,7 +298,7 @@ export async function readOperatorDatasetFacts(database: Database) {
   `;
 }
 
-export type OperatorArtifactRow = {
+export interface OperatorArtifactRow {
   artifactId: string;
   artifactVersionId: string | null;
   bytes: string | null;
@@ -293,13 +316,20 @@ export type OperatorArtifactRow = {
   sha256: string | null;
   sourceFromDate: string;
   sourceToDate: string;
-  stage: "downloading" | "parsing" | "pending" | "published" | "quarantined" | "staged" | "verified";
+  stage:
+    | "downloading"
+    | "parsing"
+    | "pending"
+    | "published"
+    | "quarantined"
+    | "staged"
+    | "verified";
   stageSince: Date;
-};
+}
 
 export async function readOperatorArtifacts(
   database: Database,
-  input: { limit: number; offset: number; product?: "TRTDXFAP" | "TRTYRAP" },
+  input: { limit: number; offset: number; product?: "TRTDXFAP" | "TRTYRAP" }
 ) {
   const product = input.product ?? null;
   const [count] = await database<[{ total: number }]>`
@@ -323,7 +353,13 @@ export async function readOperatorArtifacts(
       retained.count as "retainedVersionCount",
       selection.id as "selectedArtifactVersionId",
       selection.sha256 as "selectedSha256",
-      retained.count > 1 and selection.id is null as "selectionRequired",
+      a.product_id = 'TRTYRAP'
+        and a.filename in ${database([...annualGenerationV1Artifacts])}
+        and discovery.download_state = 'verified'
+        and discovery.source_from_date = '1884-04-07'
+        and discovery.source_to_date = '2025-12-31'
+        and retained.count > 1
+        and selection.id is null as "selectionRequired",
       v.sha256,
       discovery.source_from_date::text as "sourceFromDate",
       discovery.source_to_date::text as "sourceToDate",
@@ -396,15 +432,15 @@ export async function readOperatorArtifacts(
   return { items, total: count?.total ?? 0 };
 }
 
-export type OperatorArtifactVersionRow = {
+export interface OperatorArtifactVersionRow {
   artifactId: string;
   artifactVersionId: string;
   bytes: string;
   createdAt: Date;
   filename: string;
   observedAt: Date | null;
-  parseState: "parsing" | "quarantined" | "staged" | null;
   parserVersion: string | null;
+  parseState: "parsing" | "quarantined" | "staged" | null;
   product: "TRTDXFAP" | "TRTYRAP";
   quarantineReason: string | null;
   selected: boolean;
@@ -412,11 +448,11 @@ export type OperatorArtifactVersionRow = {
   sourceFromDate: string | null;
   sourceToDate: string | null;
   state: "parsing" | "published" | "quarantined" | "staged" | "verified";
-};
+}
 
 export async function readOperatorArtifactVersions(
   database: Database,
-  input: { limit: number; offset: number; product?: "TRTDXFAP" | "TRTYRAP" },
+  input: { limit: number; offset: number; product?: "TRTDXFAP" | "TRTYRAP" }
 ) {
   const product = input.product ?? null;
   const [count] = await database<[{ total: number }]>`
@@ -473,7 +509,7 @@ export async function readOperatorArtifactVersions(
   return { items, total: count?.total ?? 0 };
 }
 
-export type OperatorPublicationRow = {
+export interface OperatorPublicationRow {
   artifactCount: number;
   completeThroughDate: string | null;
   corpusVersion: string | null;
@@ -485,13 +521,15 @@ export type OperatorPublicationRow = {
   publishedThroughDate: string | null;
   rejectedAt: Date | null;
   state: "published" | "rejected" | "staged";
-};
+}
 
 export async function readOperatorPublications(
   database: Database,
-  input: { limit: number; offset: number },
+  input: { limit: number; offset: number }
 ) {
-  const [count] = await database<[{ total: number }]>`select count(*)::int as total from publication`;
+  const [count] = await database<
+    [{ total: number }]
+  >`select count(*)::int as total from publication`;
   const items = await database<OperatorPublicationRow[]>`
     select
       p.artifact_count as "artifactCount",
@@ -513,7 +551,7 @@ export async function readOperatorPublications(
   return { items, total: count?.total ?? 0 };
 }
 
-export type OperatorRejectionRow = {
+export interface OperatorRejectionRow {
   artifactVersionSha256: string | null;
   bytes: number | null;
   claimPath: string | null;
@@ -530,7 +568,7 @@ export type OperatorRejectionRow = {
   publicationId: string | null;
   reason: string;
   serialNumber: string | null;
-};
+}
 
 function rejectionRows(database: Database) {
   return database`
@@ -612,7 +650,7 @@ function rejectionRows(database: Database) {
 
 export async function readOperatorRejections(
   database: Database,
-  input: { limit: number; offset: number; product?: "TRTDXFAP" | "TRTYRAP" },
+  input: { limit: number; offset: number; product?: "TRTDXFAP" | "TRTYRAP" }
 ) {
   const product = input.product ?? null;
   const [count] = await database<[{ total: number }]>`
