@@ -1,16 +1,20 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import postgres from "postgres";
-
-import { buildServer } from "../../src/api/server.ts";
 import { multiSearchInputSchema } from "../../src/api/multi-search-input.ts";
+import { buildServer } from "../../src/api/server.ts";
 import { migrateDatabase } from "../../src/db/migrate.ts";
-import { canonicalVersions, type ResolvedCanonicalMark } from "../../src/ingestion/canonical-mark-types.ts";
+import {
+  canonicalVersions,
+  type ResolvedCanonicalMark,
+} from "../../src/ingestion/canonical-mark-types.ts";
 import { createCanonicalMarkRepository } from "../../src/queries/canonical-mark-repository.ts";
 import { buildMultiSearchQueries } from "../../src/queries/multi-search.ts";
 import { resetTestDatabase } from "./test-database.ts";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
-if (!databaseUrl) throw new Error("TEST_DATABASE_URL is required for PostgreSQL integration tests");
+if (!databaseUrl) {
+  throw new Error("TEST_DATABASE_URL is required for PostgreSQL integration tests");
+}
 
 const database = postgres(databaseUrl, { max: 2, prepare: false });
 let server: Awaited<ReturnType<typeof buildServer>>;
@@ -18,7 +22,7 @@ let server: Awaited<ReturnType<typeof buildServer>>;
 function mark(
   serialNumber: string,
   wordMark: string,
-  options: Partial<ResolvedCanonicalMark["mark"]> = {},
+  options: Partial<ResolvedCanonicalMark["mark"]> = {}
 ): ResolvedCanonicalMark {
   return {
     classes: [{ internationalCode: "025", statusCode: "6", statusDate: "2026-07-10" }],
@@ -51,8 +55,12 @@ beforeAll(async () => {
   await repository.replace(mark("10000002", "Cafe\u0301"));
   await repository.replace(mark("10000003", "THE CAF\u00c9 SOCIETY CLUB", { statusCode: "626" }));
   await repository.replace(mark("10000004", "TURTLE", { sourceTransactionDate: "2026-07-09" }));
-  await repository.replace(mark("10000005", "TURTLE CLUB", { sourceTransactionDate: "2026-07-11" }));
-  await repository.replace(mark("10000006", "TURTLE SOCIETY", { sourceTransactionDate: "2026-07-11" }));
+  await repository.replace(
+    mark("10000005", "TURTLE CLUB", { sourceTransactionDate: "2026-07-11" })
+  );
+  await repository.replace(
+    mark("10000006", "TURTLE SOCIETY", { sourceTransactionDate: "2026-07-11" })
+  );
   await repository.replace(mark("10000007", "50% SYMBOL"));
   await repository.replace(mark("10000008", "50X SYMBOL"));
   await repository.replace(mark("10000009", "A_B SYMBOL"));
@@ -60,15 +68,16 @@ beforeAll(async () => {
   await repository.replace(mark("10000011", "PATH\\MARK SYMBOL"));
   await repository.replace(mark("10000012", "PATHXMARK SYMBOL"));
   await repository.replace(mark("10000013", "ᴬ"));
-  await repository.replace(mark("30000001", "POLICY ACTIVE 25", {
-    markDrawingCode: "4",
-    registrationNumber: "3000001",
-    statusCode: "616",
-  }));
-  await repository.replace({
-    ...mark("30000002", "POLICY OTHER CLASS", { markDrawingCode: "2", statusCode: "616" }),
-    classes: [{ internationalCode: "018", statusCode: "6", statusDate: "2026-07-10" }],
-  });
+  await repository.replace(
+    mark("30000001", "POLICY ACTIVE 25", {
+      markDrawingCode: "4",
+      registrationNumber: "3000001",
+      statusCode: "616",
+    })
+  );
+  await repository.replace(
+    mark("30000002", "POLICY DESIGN", { markDrawingCode: "2", statusCode: "616" })
+  );
   await repository.replace({
     ...mark("30000003", "POLICY INACTIVE 25", { statusCode: "616" }),
     classes: [{ internationalCode: "025", statusCode: "8", statusDate: "2026-07-10" }],
@@ -91,36 +100,38 @@ beforeAll(async () => {
   await repository.replace(mark("30000010", "POLICY NULL STATUS", { statusCode: null }));
   await repository.replace(mark("30000011", "POLICY FUTURE STATUS", { statusCode: "999" }));
   await database`
-    insert into mark ${database(Array.from({ length: 27 }, (_, index) => ({
-      authority_policy_version: canonicalVersions.authorityPolicy,
-      mark_drawing_code: "4",
-      normalization_version: canonicalVersions.normalization,
-      projection_version: canonicalVersions.projection,
-      registration_number: String(2_000_001 + index),
-      serial_number: String(20_000_001 + index),
-      source_profile_version: canonicalVersions.sourceProfile,
-      source_transaction_date: "2026-07-10",
-      status_code: "616",
-      word_mark: `PAGINATION ${String(index + 1).padStart(2, "0")}`,
-    })))}
+    insert into mark ${database(
+      Array.from({ length: 27 }, (_, index) => ({
+        authority_policy_version: canonicalVersions.authorityPolicy,
+        mark_drawing_code: "4",
+        normalization_version: canonicalVersions.normalization,
+        projection_version: canonicalVersions.projection,
+        registration_number: String(2_000_001 + index),
+        serial_number: String(20_000_001 + index),
+        source_profile_version: canonicalVersions.sourceProfile,
+        source_transaction_date: "2026-07-10",
+        status_code: "616",
+        word_mark: `PAGINATION ${String(index + 1).padStart(2, "0")}`,
+      }))
+    )}
   `;
   await database`
     insert into mark_class (serial_number, ordinal, international_code, status_code, status_date)
     select serial_number, 0, '025', '6', '2026-07-10'
     from mark where word_mark like 'PAGINATION %'
   `;
-  await repository.replace(mark("20000028", "PAGINATION WRONG STATUS", {
-    registrationNumber: "2000028",
-    statusCode: "626",
-  }));
-  await repository.replace({
-    ...mark("20000029", "PAGINATION WRONG CLASS", { registrationNumber: "2000029" }),
-    classes: [{ internationalCode: "018", statusCode: "6", statusDate: "2026-07-10" }],
-  });
-  await repository.replace(mark("20000030", "PAGINATION WRONG TYPE", {
-    markDrawingCode: "2",
-    registrationNumber: "2000030",
-  }));
+  await repository.replace(
+    mark("20000028", "PAGINATION WRONG STATUS", {
+      registrationNumber: "2000028",
+      statusCode: "626",
+    })
+  );
+  await repository.replace(
+    mark("20000030", "PAGINATION WRONG TYPE", {
+      markDrawingCode: "2",
+      registrationNumber: "2000030",
+    })
+  );
   await repository.replace(mark("20000031", "PAGINATION UNREGISTERED"));
   await database`
     insert into corpus_state (id, complete_through_date, published_through_date, corpus_version)
@@ -138,23 +149,23 @@ afterAll(async () => {
   await database.end({ timeout: 1 });
 });
 
-async function search(input: Record<string, unknown>, authorization = "Bearer clerk-session") {
+function search(input: Record<string, unknown>, authorization = "Bearer clerk-session") {
   return server.inject({
+    headers: { authorization },
     method: "GET",
     url: `/api/trpc/marks.search?input=${encodeURIComponent(JSON.stringify(input))}`,
-    headers: { authorization },
   });
 }
 
 test("Multi returns the same page through Clerk and API-key credentials", async () => {
   const created = await server.inject({
-    method: "POST",
-    url: "/api/trpc/account.api-keys.create",
     headers: { authorization: "Bearer clerk-session", "content-type": "application/json" },
+    method: "POST",
     payload: { name: "PRD-65 parity" },
+    url: "/api/trpc/account.api-keys.create",
   });
   const token = created.json().result.data.token as string;
-  const input = { classes: ["025"], mode: "multi", query: "turtle", status: "live" };
+  const input = { mode: "multi", query: "turtle", status: "live" };
   const clerk = await search(input);
   const apiKey = await search(input, `Bearer ${token}`);
   const anonymous = await search(input, "");
@@ -166,9 +177,9 @@ test("Multi returns the same page through Clerk and API-key credentials", async 
 });
 
 test("Multi normalizes one literal Unicode query and keeps exact and partial independent", async () => {
-  const exact = await search({ query: "  CAFE\u0301  ", mode: "multi", match: "exact" });
-  const partial = await search({ query: "  CAFE\u0301  ", mode: "multi", match: "partial" });
-  const both = await search({ query: "  CAFE\u0301  ", mode: "multi", match: "both" });
+  const exact = await search({ match: "exact", mode: "multi", query: "  CAFE\u0301  " });
+  const partial = await search({ match: "partial", mode: "multi", query: "  CAFE\u0301  " });
+  const both = await search({ match: "both", mode: "multi", query: "  CAFE\u0301  " });
 
   expect(exact.statusCode).toBe(200);
   expect(exact.json().result.data).toMatchObject({
@@ -178,18 +189,25 @@ test("Multi normalizes one literal Unicode query and keeps exact and partial ind
     offset: 0,
     total: 1,
   });
-  expect(partial.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber))
-    .toEqual(["10000001", "10000003"]);
-  expect(both.json().result.data.items.map((item: { match: string; serialNumber: string }) => [item.serialNumber, item.match]))
-    .toEqual([
-      ["10000002", "exact"],
-      ["10000001", "partial"],
-      ["10000003", "partial"],
-    ]);
+  expect(
+    partial.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber)
+  ).toEqual(["10000001", "10000003"]);
+  expect(
+    both
+      .json()
+      .result.data.items.map((item: { match: string; serialNumber: string }) => [
+        item.serialNumber,
+        item.match,
+      ])
+  ).toEqual([
+    ["10000002", "exact"],
+    ["10000001", "partial"],
+    ["10000003", "partial"],
+  ]);
 });
 
 test("Multi lowercases compatibility characters after NFKC", async () => {
-  const exact = await search({ query: "a", mode: "multi", match: "exact" });
+  const exact = await search({ match: "exact", mode: "multi", query: "a" });
 
   expect(exact.statusCode).toBe(200);
   expect(exact.json().result.data).toMatchObject({
@@ -203,28 +221,38 @@ test("Multi partial treats percent, underscore, and the escape character literal
   const underscore = await search({ match: "partial", mode: "multi", query: "A_B" });
   const backslash = await search({ match: "partial", mode: "multi", query: "PATH\\MARK" });
 
-  expect(percent.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber))
-    .toEqual(["10000007"]);
-  expect(underscore.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber))
-    .toEqual(["10000009"]);
-  expect(backslash.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber))
-    .toEqual(["10000011"]);
+  expect(
+    percent.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber)
+  ).toEqual(["10000007"]);
+  expect(
+    underscore.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber)
+  ).toEqual(["10000009"]);
+  expect(
+    backslash.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber)
+  ).toEqual(["10000011"]);
 });
 
 test("activity sorts use source transaction date and serial-number tie-breakers", async () => {
-  const newest = await search({ query: "turtle", mode: "multi", sort: "newest-activity" });
-  const oldest = await search({ query: "turtle", mode: "multi", sort: "oldest-activity" });
+  const newest = await search({ mode: "multi", query: "turtle", sort: "newest-activity" });
+  const oldest = await search({ mode: "multi", query: "turtle", sort: "oldest-activity" });
 
-  expect(newest.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber))
-    .toEqual(["10000005", "10000006", "10000004"]);
-  expect(oldest.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber))
-    .toEqual(["10000004", "10000005", "10000006"]);
+  expect(
+    newest.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber)
+  ).toEqual(["10000005", "10000006", "10000004"]);
+  expect(
+    oldest.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber)
+  ).toEqual(["10000004", "10000005", "10000006"]);
 });
 
 test("continuations are fixed at 25 items and reject a changed corpus version", async () => {
-  const filters = { classes: ["025"], registered: "yes", status: "live", type: "text" };
-  const first = await search({ ...filters, query: "pagination", mode: "multi" });
-  const missingVersion = await search({ ...filters, query: "pagination", mode: "multi", offset: 25 });
+  const filters = { registered: "yes", status: "live", type: "text" };
+  const first = await search({ ...filters, mode: "multi", query: "pagination" });
+  const missingVersion = await search({
+    ...filters,
+    mode: "multi",
+    offset: 25,
+    query: "pagination",
+  });
   const second = await search({
     ...filters,
     expectedCorpusVersion: "7",
@@ -255,12 +283,26 @@ test("continuations are fixed at 25 items and reject a changed corpus version", 
   });
 });
 
-test("status and Class 025 filters use the versioned disposition and per-class state", async () => {
-  const live = await search({ classes: ["025"], mode: "multi", query: "policy", sort: "oldest-activity", status: "live" });
-  const dead = await search({ classes: ["025"], mode: "multi", query: "policy", sort: "oldest-activity", status: "dead" });
-  const all = await search({ classes: ["025"], mode: "multi", query: "policy", sort: "oldest-activity", status: "all" });
+test("status and type filters apply within the Class 025 corpus", async () => {
+  const live = await search({
+    mode: "multi",
+    query: "policy",
+    sort: "oldest-activity",
+    status: "live",
+  });
+  const dead = await search({
+    mode: "multi",
+    query: "policy",
+    sort: "oldest-activity",
+    status: "dead",
+  });
+  const all = await search({
+    mode: "multi",
+    query: "policy",
+    sort: "oldest-activity",
+    status: "all",
+  });
   const combined = await search({
-    classes: ["018"],
     mode: "multi",
     query: "policy",
     registered: "no",
@@ -269,29 +311,54 @@ test("status and Class 025 filters use the versioned disposition and per-class s
     type: "design",
   });
 
-  expect(live.json().result.data.items.map((item: { serialNumber: string; status: string }) => [item.serialNumber, item.status]))
-    .toEqual([
-      ["30000001", "live"],
-      ["30000006", "live"],
-    ]);
-  expect(live.json().result.data.total).toBe(2);
-  expect(dead.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber))
-    .toEqual(["30000004"]);
-  expect(all.json().result.data.items.map((item: { serialNumber: string; status: string }) => [item.serialNumber, item.status]))
-    .toEqual([
-      ["30000001", "live"],
-      ["30000004", "dead"],
-      ["30000005", "unknown"],
-      ["30000006", "live"],
-      ["30000007", "unknown"],
-      ["30000008", "unknown"],
-      ["30000009", "unknown"],
-      ["30000010", "unknown"],
-      ["30000011", "unknown"],
-    ]);
-  expect(all.json().result.data.total).toBe(9);
-  expect(combined.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber))
-    .toEqual(["30000002"]);
+  expect(
+    live
+      .json()
+      .result.data.items.map((item: { serialNumber: string; status: string }) => [
+        item.serialNumber,
+        item.status,
+      ])
+  ).toEqual([
+    ["30000001", "live"],
+    ["30000002", "live"],
+    ["30000003", "live"],
+    ["30000006", "live"],
+  ]);
+  expect(live.json().result.data.total).toBe(4);
+  expect(
+    dead.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber)
+  ).toEqual(["30000004"]);
+  expect(
+    all
+      .json()
+      .result.data.items.map((item: { serialNumber: string; status: string }) => [
+        item.serialNumber,
+        item.status,
+      ])
+  ).toEqual([
+    ["30000001", "live"],
+    ["30000002", "live"],
+    ["30000003", "live"],
+    ["30000004", "dead"],
+    ["30000005", "unknown"],
+    ["30000006", "live"],
+    ["30000007", "unknown"],
+    ["30000008", "unknown"],
+    ["30000009", "unknown"],
+    ["30000010", "unknown"],
+    ["30000011", "unknown"],
+  ]);
+  expect(all.json().result.data.total).toBe(11);
+  expect(
+    combined.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber)
+  ).toEqual(["30000002"]);
+});
+
+test("rejects the retired class-filter input", async () => {
+  const response = await search({ classes: ["025"], mode: "multi", query: "turtle" });
+
+  expect(response.statusCode).toBe(400);
+  expect(response.json().error.data.code).toBe("BAD_REQUEST");
 });
 
 test("representative-scale exact and partial plans use general and live indexes", async () => {
@@ -323,13 +390,21 @@ test("representative-scale exact and partial plans use general and live indexes"
     const query = buildMultiSearchQueries(multiSearchInputSchema.parse(input));
     const plan = await database.unsafe(
       `explain (format json) ${query.items.text}`,
-      query.items.values,
+      query.items.values
     );
     return JSON.stringify(plan);
   }
 
-  const generalExact = await indexPlan({ match: "exact", mode: "multi", query: "plan needle 042421" });
-  const generalPartial = await indexPlan({ match: "partial", mode: "multi", query: "needle 042421" });
+  const generalExact = await indexPlan({
+    match: "exact",
+    mode: "multi",
+    query: "plan needle 042421",
+  });
+  const generalPartial = await indexPlan({
+    match: "partial",
+    mode: "multi",
+    query: "needle 042421",
+  });
   const liveExact = await indexPlan({
     match: "exact",
     mode: "multi",

@@ -15,8 +15,7 @@ FROM workspace AS test
 FROM workspace AS runtime
 ARG TMTURTLE_REVISION=development
 LABEL org.opencontainers.image.revision=$TMTURTLE_REVISION
-RUN find fixtures/uspto/records -type f ! -name annual-2025-full-tx-60146682.xml -delete \
-  && rm -rf fixtures/uspto/prologs
+RUN rm -rf fixtures
 
 FROM workspace AS web-build
 ARG VITE_CLERK_PUBLISHABLE_KEY

@@ -1,8 +1,12 @@
 import { randomUUID } from "node:crypto";
 import type postgres from "postgres";
-
-import type { DiscoveredArtifact, DiscoveredProduct, SourceResponseState } from "../ingestion/source-catalog.ts";
+import { annualGenerationV1Artifacts } from "../ingestion/annual-generation-v1.ts";
 import type { StoredArtifact } from "../ingestion/artifact-store.ts";
+import type {
+  DiscoveredArtifact,
+  DiscoveredProduct,
+  SourceResponseState,
+} from "../ingestion/source-catalog.ts";
 import { sourceObservationParserVersion } from "../ingestion/source-observations.ts";
 import { lockCorpusPublication } from "./corpus-publication-lock.ts";
 
@@ -26,10 +30,9 @@ export async function ensureArtifactScheduler(database: postgres.Sql, productIds
     values (${sourceLaneId})
     on conflict (id) do nothing
   `;
-  for (const productId of productIds) {
+  if (productIds.length > 0) {
     await database`
-      insert into dataset_product (id)
-      values (${productId})
+      insert into dataset_product ${database(productIds.map((id) => ({ id })))}
       on conflict (id) do nothing
     `;
   }
@@ -55,7 +58,13 @@ export async function reserveArtifactScheduler(database: postgres.Sql) {
 
 export async function readSourceLane(database: postgres.Sql) {
   const [lane] = await database<
-    [{ nextEligibleAt: Date | null; status: "ready" | "backoff" | "stopped"; transientFailureCount: number }]
+    [
+      {
+        nextEligibleAt: Date | null;
+        status: "ready" | "backoff" | "stopped";
+        transientFailureCount: number;
+      },
+    ]
   >`
     select
       next_eligible_at as "nextEligibleAt",
@@ -64,7 +73,9 @@ export async function readSourceLane(database: postgres.Sql) {
     from source_lane
     where id = ${sourceLaneId}
   `;
-  if (!lane) throw new Error("USPTO source lane is missing");
+  if (!lane) {
+    throw new Error("USPTO source lane is missing");
+  }
   return lane;
 }
 
@@ -101,7 +112,15 @@ export async function startSourceAttempt(database: postgres.Sql, productId: stri
 
 export async function findPendingDiscovery(database: postgres.Sql) {
   const [discovery] = await database<
-    [{ artifactId: string; discoveryId: string; downloadUrl: string; expectedBytes: string; filename: string }]
+    [
+      {
+        artifactId: string;
+        discoveryId: string;
+        downloadUrl: string;
+        expectedBytes: string;
+        filename: string;
+      },
+    ]
   >`
     select
       d.id as "discoveryId",
@@ -134,13 +153,13 @@ export async function startDownloadAttempt(database: postgres.Sql, discoveryId: 
 
 type FingerprintedArtifact = DiscoveredArtifact & { fingerprint: string };
 
-export async function reconcileDiscoverySuccess(
+export function reconcileDiscoverySuccess(
   database: postgres.Sql,
   discovery: DiscoveredProduct,
   artifacts: FingerprintedArtifact[],
   attemptId: string,
   observedAt: Date,
-  nextDiscoveryAt: Date,
+  nextDiscoveryAt: Date
 ) {
   return inReservedTransaction(database, async () => {
     await lockCorpusPublication(database);
@@ -157,6 +176,7 @@ export async function reconcileDiscoverySuccess(
 
     let changed = false;
     for (const artifact of artifacts) {
+      // biome-ignore lint/performance/noAwaitInLoops: Provider artifacts are retained in observed order within one transaction.
       const [logicalArtifact] = await database<[{ id: string }]>`
         with inserted as (
           insert into artifact (id, product_id, filename, created_at, updated_at)
@@ -170,7 +190,9 @@ export async function reconcileDiscoverySuccess(
         where product_id = ${discovery.product.identifier} and filename = ${artifact.filename}
         limit 1
       `;
-      if (!logicalArtifact) throw new Error("Artifact upsert returned no row");
+      if (!logicalArtifact) {
+        throw new Error("Artifact upsert returned no row");
+      }
 
       const [observation] = await database<[{ id: string }]>`
         insert into artifact_discovery (
@@ -184,7 +206,9 @@ export async function reconcileDiscoverySuccess(
         on conflict (artifact_id, fingerprint) do nothing
         returning id
       `;
-      if (!observation) continue;
+      if (!observation) {
+        continue;
+      }
 
       changed = true;
       await database`update artifact set updated_at = ${observedAt} where id = ${logicalArtifact.id}`;
@@ -223,7 +247,7 @@ export async function finishSourceAttemptFailure(
     outcome: "credential_failure" | "permanent_failure" | "transient_failure";
     responseState: SourceResponseState;
     transientFailureCount: number;
-  },
+  }
 ) {
   await inReservedTransaction(database, async () => {
     await database`
@@ -255,7 +279,10 @@ export async function finishSourceAttemptFailure(
       where id = ${sourceLaneId}
     `;
     if (input.alertKind) {
-      const message = input.alertKind === "credential" ? "USPTO credential rejected" : "USPTO request permanently rejected";
+      const message =
+        input.alertKind === "credential"
+          ? "USPTO credential rejected"
+          : "USPTO request permanently rejected";
       await database`
         insert into source_alert (id, lane_id, attempt_id, kind, message, created_at)
         values (${randomUUID()}, ${sourceLaneId}, ${input.attemptId}, ${input.alertKind}, ${message}, ${input.finishedAt})
@@ -265,14 +292,14 @@ export async function finishSourceAttemptFailure(
   });
 }
 
-export async function retainArtifactVersion(
+export function retainArtifactVersion(
   database: postgres.Sql,
   artifactId: string,
   discoveryId: string,
   attemptId: string,
   stored: StoredArtifact,
   responseState: SourceResponseState,
-  now: Date,
+  now: Date
 ) {
   return inReservedTransaction(database, async () => {
     await lockCorpusPublication(database);
@@ -290,7 +317,9 @@ export async function retainArtifactVersion(
         and not exists (select 1 from inserted)
       limit 1
     `;
-    if (!version) throw new Error("Artifact version insert returned no row");
+    if (!version) {
+      throw new Error("Artifact version insert returned no row");
+    }
     await database`
       update artifact_discovery
       set download_state = 'verified', artifact_version_id = ${version.id}
@@ -320,6 +349,7 @@ export async function findArtifactVersionForParsing(database: postgres.Sql) {
   const [artifact] = await database<Array<{ artifactVersionId: string; objectKey: string }>>`
     select v.id as "artifactVersionId", v.object_key as "objectKey"
     from artifact_version v
+    join artifact a on a.id = v.artifact_id
     where v.state = 'verified'
       and exists (
       select 1 from artifact_discovery d
@@ -329,7 +359,20 @@ export async function findArtifactVersionForParsing(database: postgres.Sql) {
         select 1 from parse_run p
         where p.artifact_version_id = v.id and p.parser_version = ${sourceObservationParserVersion}
       )
-    order by v.created_at, v.id
+    order by
+      case when
+        a.product_id = 'TRTYRAP'
+        and a.filename in ${database([...annualGenerationV1Artifacts])}
+        and exists (
+          select 1 from artifact_discovery annual
+          where annual.artifact_version_id = v.id
+            and annual.download_state = 'verified'
+            and annual.source_from_date = '1884-04-07'
+            and annual.source_to_date = '2025-12-31'
+        )
+      then 0 else 1 end,
+      v.created_at,
+      v.id
     limit 1
   `;
   return artifact ?? null;

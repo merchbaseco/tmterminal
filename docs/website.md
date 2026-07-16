@@ -60,7 +60,7 @@ Modes:
 
 Multi is the default mode. Wildcard validation happens before the request.
 
-The website is fixed to International Class 025 in v1 and does not show a class filter. Live results require a live mark with an active Class 025 row. Dead and unknown results require Class 025 membership without requiring that class to remain active. All is the union of those categories, so a live mark with only an inactive Class 025 row is excluded. The stored corpus and programmatic interfaces remain all-class.
+The stored corpus and every programmatic interface are fixed to International Class 025 in v1, so the website does not show or send a class filter. Status filters use the canonical whole-mark disposition within that corpus. International Classes remain visible source facts on result and detail views.
 
 Visible filters mirror TMhunt:
 

@@ -2,28 +2,35 @@ import { PgBoss } from "pg-boss";
 import type postgres from "postgres";
 
 import { lockCorpusPublication } from "../queries/corpus-publication-lock.ts";
-import { retainedVersionFingerprint } from "./artifact-version-selection.ts";
 import type { ArtifactStore } from "./artifact-store.ts";
+import { retainedVersionFingerprint } from "./artifact-version-selection.ts";
 import { createCorpusPublisher } from "./corpus-publisher.ts";
 import { reconcileQueue, reconcileQueueOptions } from "./ingestion-scheduler.ts";
-import { sourceObservationParserVersion, createSourceObservationModule } from "./source-observations.ts";
 import { isPublicationPolicyArtifact } from "./publication-policy.ts";
+import {
+  createSourceObservationModule,
+  sourceObservationParserVersion,
+} from "./source-observations.ts";
 
-export async function selectArtifactVersion(
+const retiredTracerFilename = "prd-60-tracer-annual-2025-full-tx-60146682.xml";
+
+export function selectArtifactVersion(
   database: postgres.Sql,
   artifactVersionId: string,
-  reason: string,
+  reason: string
 ) {
   return database.begin(async (transaction) => {
     await lockCorpusPublication(transaction);
-    const [version] = await transaction<Array<{
-      artifactId: string;
-      filename: string;
-      product: string;
-      sha256s: string[];
-      sourceFromDate: string;
-      sourceToDate: string;
-    }>>`
+    const [version] = await transaction<
+      Array<{
+        artifactId: string;
+        filename: string;
+        product: string;
+        sha256s: string[];
+        sourceFromDate: string;
+        sourceToDate: string;
+      }>
+    >`
       select selected.artifact_id as "artifactId", artifact.filename, artifact.product_id as product,
         retained.sha256s, discovery.source_from_date::text as "sourceFromDate",
         discovery.source_to_date::text as "sourceToDate"
@@ -46,7 +53,11 @@ export async function selectArtifactVersion(
         and run.parser_version = ${sourceObservationParserVersion} and run.state = 'staged'
       where selected.id = ${artifactVersionId} and selected.state in ('staged', 'published')
     `;
-    if (!version) throw new Error("Selected version is not one of multiple retained, currently parsed versions");
+    if (!version) {
+      throw new Error(
+        "Selected version is not one of multiple retained, currently parsed versions"
+      );
+    }
     if (!isPublicationPolicyArtifact(version)) {
       throw new Error("Selected version is outside the current publication policy");
     }
@@ -68,10 +79,7 @@ export async function selectArtifactVersion(
   });
 }
 
-export async function recoverSourceLane(
-  database: postgres.Sql,
-  input: { reason: string },
-) {
+export async function recoverSourceLane(database: postgres.Sql, input: { reason: string }) {
   const reserved = await database.reserve();
   try {
     await reserved`select pg_advisory_lock(hashtext('uspto-odp'))`;
@@ -79,7 +87,9 @@ export async function recoverSourceLane(
     const [lane] = await reserved<Array<{ status: string }>>`
       select status from source_lane where id = 'uspto-odp' for update
     `;
-    if (lane?.status !== "stopped") throw new Error("Source lane is not stopped");
+    if (lane?.status !== "stopped") {
+      throw new Error("Source lane is not stopped");
+    }
     const alerts = await reserved<Array<{ id: string }>>`
       select id from source_alert
       where lane_id = 'uspto-odp' and resolved_at is null
@@ -115,7 +125,9 @@ export async function recoverCorpusFrontier(database: postgres.Sql) {
   if (candidate.status === "ineligible") {
     throw new Error(`Corpus frontier recovery is ineligible: ${candidate.reason}`);
   }
-  if (candidate.status === "rejected") throw new Error("Corpus frontier recovery selected a rejected publication");
+  if (candidate.status === "rejected") {
+    throw new Error("Corpus frontier recovery selected a rejected publication");
+  }
   return publisher.publish(candidate.candidateId);
 }
 
@@ -132,8 +144,12 @@ export async function replayArtifactVersion(options: {
     ) as parsed
     from artifact_version version where version.id = ${options.artifactVersionId}
   `;
-  if (!version) throw new Error("Artifact version not found");
-  if (version.parsed) throw new Error("Artifact version already has a run for the current parser");
+  if (!version) {
+    throw new Error("Artifact version not found");
+  }
+  if (version.parsed) {
+    throw new Error("Artifact version already has a run for the current parser");
+  }
   return createSourceObservationModule(options.database).stageArtifact({
     artifactVersionId: options.artifactVersionId,
     xml: options.extractXml(await options.artifactStore.get(version.objectKey)),
@@ -145,16 +161,22 @@ export async function requestFullRebuild(options: {
   databaseUrl: string;
   offlineConfirmed: boolean;
 }) {
-  if (!options.offlineConfirmed) throw new Error("Full rebuild requires the stopped-worker offline invocation");
+  if (!options.offlineConfirmed) {
+    throw new Error("Full rebuild requires the stopped-worker offline invocation");
+  }
   const state = await options.database.begin(async (transaction) => {
     await lockCorpusPublication(transaction);
-    const [current] = await transaction<Array<{
-      activeJobs: number;
-      canonical: number;
-      corpusStates: number;
-      publications: number;
-      retained: number;
-    }>>`
+    const [current] = await transaction<
+      [
+        {
+          activeJobs: number;
+          canonical: number;
+          corpusStates: number;
+          publications: number;
+          retained: number;
+        },
+      ]
+    >`
       select
         (select count(*)::int from pgboss.job where name = ${reconcileQueue} and state in ('created', 'retry', 'active')) as "activeJobs",
         (select count(*)::int from mark) as canonical,
@@ -162,14 +184,63 @@ export async function requestFullRebuild(options: {
         (select count(*)::int from publication) as publications,
         (select count(*)::int from artifact_version) as retained
     `;
-    if (!current || current.canonical > 0 || current.corpusStates > 0 || current.publications > 0) {
-      throw new Error("Full rebuild requires an empty canonical and publication target");
+    if (current.corpusStates > 0 || current.publications > 0) {
+      throw new Error("Full rebuild requires no durable corpus or publication");
     }
-    if (current.retained === 0) throw new Error("Full rebuild target has no retained artifact catalog");
-    if (current.activeJobs > 0) throw new Error("Full rebuild target already has outstanding reconciliation delivery");
+    if (current.retained === 0) {
+      throw new Error("Full rebuild target has no retained artifact catalog");
+    }
+    if (current.activeJobs > 0) {
+      throw new Error("Full rebuild target already has outstanding reconciliation delivery");
+    }
+    await transaction`delete from mark`;
+    await transaction`
+      delete from source_claim claim
+      using source_record record, parse_run run, artifact_version version
+      where claim.source_record_id = record.id
+        and record.parse_run_id = run.id
+        and run.artifact_version_id = version.id
+        and run.parser_version <> ${sourceObservationParserVersion}
+        and run.state <> 'quarantined'
+        and version.state <> 'quarantined'
+    `;
+    await transaction`
+      delete from source_record record
+      using parse_run run, artifact_version version
+      where record.parse_run_id = run.id
+        and run.artifact_version_id = version.id
+        and run.parser_version <> ${sourceObservationParserVersion}
+        and run.state <> 'quarantined'
+        and version.state <> 'quarantined'
+    `;
+    const removedRuns = await transaction<Array<{ id: string }>>`
+      delete from parse_run run
+      using artifact_version version
+      where run.artifact_version_id = version.id
+        and run.parser_version <> ${sourceObservationParserVersion}
+        and run.state <> 'quarantined'
+        and version.state <> 'quarantined'
+      returning run.id
+    `;
+    const retiredTracerVersions = await transaction<Array<{ id: string }>>`
+      delete from artifact_version version
+      using artifact
+      where version.artifact_id = artifact.id
+        and artifact.product_id = 'TRTYRAP'
+        and artifact.filename = ${retiredTracerFilename}
+      returning version.id
+    `;
+    await transaction`
+      delete from artifact
+      where product_id = 'TRTYRAP' and filename = ${retiredTracerFilename}
+    `;
     const normalized = await transaction<Array<{ id: string }>>`
       update artifact_version version set state = 'verified'
       where version.state in ('staged', 'published')
+        and exists (
+          select 1 from artifact_discovery discovery
+          where discovery.artifact_version_id = version.id and discovery.download_state = 'verified'
+        )
         and not exists (
           select 1 from parse_run run
           where run.artifact_version_id = version.id
@@ -177,19 +248,34 @@ export async function requestFullRebuild(options: {
         )
       returning version.id
     `;
-    return { ...current, normalizedArtifactVersions: normalized.length };
+    return {
+      normalizedArtifactVersions: normalized.length,
+      removedCanonicalMarks: current.canonical,
+      removedObsoleteParseRuns: removedRuns.length,
+      retainedArtifactVersions: current.retained - retiredTracerVersions.length,
+      retiredTracerArtifactVersions: retiredTracerVersions.length,
+    };
   });
 
-  const boss = new PgBoss({ connectionString: options.databaseUrl, migrate: false, supervise: false });
+  const boss = new PgBoss({
+    connectionString: options.databaseUrl,
+    migrate: false,
+    supervise: false,
+  });
   await boss.start();
   try {
     await boss.createQueue(reconcileQueue, reconcileQueueOptions);
     const jobId = await boss.send(reconcileQueue, { reason: "full-rebuild" });
-    if (!jobId) throw new Error("Full rebuild reconciliation wake was not accepted");
+    if (!jobId) {
+      throw new Error("Full rebuild reconciliation wake was not accepted");
+    }
     return {
       jobId,
       normalizedArtifactVersions: state.normalizedArtifactVersions,
-      retainedArtifactVersions: state.retained,
+      removedCanonicalMarks: state.removedCanonicalMarks,
+      removedObsoleteParseRuns: state.removedObsoleteParseRuns,
+      retainedArtifactVersions: state.retainedArtifactVersions,
+      retiredTracerArtifactVersions: state.retiredTracerArtifactVersions,
     };
   } finally {
     await boss.stop({ close: true, graceful: true, timeout: 30_000 });

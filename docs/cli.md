@@ -7,7 +7,7 @@ read_when:
 
 # Trademark Turtle CLI
 
-`tt` is the JSON-first automation client for Trademark Turtle. Every network command maps to one API-key-authorized procedure.
+`tt` is the JSON-first automation client for Trademark Turtle. Every network command maps to one API-key-authorized procedure. The CLI searches the Class 025 corpus; v1 has no class selector or all-class programmatic lane.
 
 ## Contract
 
@@ -46,11 +46,11 @@ Keychain entries are bound to normalized origin. An invalid selected credential 
 ## Commands
 
 ```text
-tt marks search <query> [--mode multi|split|wildcard] [--match both|exact|partial] [--status live|dead] [--class <code>] [--type design|typeset|text|other] [--registered yes|no] [--sort relevance|newest-activity|oldest-activity] [--limit 25] [--offset 0] [--corpus-version <version>]
+tt marks search <query> [--mode multi|split|wildcard] [--match both|exact|partial] [--status live|dead] [--type design|typeset|text|other] [--registered yes|no] [--sort relevance|newest-activity|oldest-activity] [--limit 25] [--offset 0] [--corpus-version <version>]
 tt marks get <serial-number>
 tt marks get-by-registration <registration-number>
-tt marks match --text <text> [--class <code>] [--type design|typeset|text|other]
-tt marks match --stdin [--class <code>] [--type design|typeset|text|other]
+tt marks match --text <text> [--type design|typeset|text|other]
+tt marks match --stdin [--type design|typeset|text|other]
 tt marks latest [--limit 25] [--offset 0] [--corpus-version <version>]
 
 tt reports run --event filed --window previous-week [filters and page options]

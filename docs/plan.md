@@ -31,7 +31,7 @@ This plan was researched against:
 
 ### v1 jobs
 
-- Search word marks with explicit match modes and filters
+- Search Class 025 word marks with explicit match modes and filters
 - Resolve a trademark by exact serial number
 - Resolve a trademark by exact registration number
 - Match listing text against live marks
@@ -169,7 +169,7 @@ The ingestion module exposes a small service interface while hiding USPTO produc
 
 - Serial number is canonical mark identity; nonzero registration number is a unique secondary identity.
 - Logical artifacts and immutable content versions are distinct.
-- Raw ZIPs and lossless source observations are retained for deterministic replay.
+- Raw ZIPs are retained as byte replay authority. Lossless source observations are persisted only for records selected into the Class 025 corpus.
 - USPTO records are partially ordered observations. Canonical state comes from presence-aware, group-specific claim folding, never generic row replacement.
 - `status_date` orders only status facts where the source profile requires it; it never establishes whole-record authority.
 - Annual metadata dates establish generation membership, not transaction coverage or cross-product precedence.
@@ -180,7 +180,9 @@ The ingestion module exposes a small service interface while hiding USPTO produc
 - A dead or cancelled mark is a state transition, not a row deletion.
 - Unknown values remain raw/unknown instead of being guessed.
 
-The v1 bootstrap policy pins the officially enumerated generation from 1884-04-07 through 2025-12-31 and builds its baseline without ordering generation parts. Catalog order never selects a generation. Retained daily observations then reconcile group by group without a metadata cutoff. Current/live-first bootstrap and historical backfill are prohibited because a later annual publication could regress already-current state. A later annual generation requires an explicit authority-policy revision before it becomes eligible.
+The stored and programmatic corpus is Class 025 only. Parser identity `uspto-application-xml-v3` validates, hashes, and physically counts every source record before persisting a full observation only when the record has an explicit `primary-code` of `025` and a non-empty `mark-identification`. A valid artifact with zero selected observations remains a parsed annual-policy member. Raw retained ZIPs preserve every unselected record for later replay.
+
+The first-publication bootstrap pins exactly the 91 officially enumerated members of the generation from 1884-04-07 through 2025-12-31 and publishes them as an unordered set. Its `completeThroughDate` and `publishedThroughDate` are both 2025-12-31. Daily artifacts remain retained, parsed, quarantined, and operator-visible, but they are outside this first publication policy. This reversible bootstrap does not declare daily data superseded or establish annual-versus-daily precedence. Mixed publication and any later annual generation require an explicit policy revision.
 
 ## Database map
 
@@ -240,7 +242,7 @@ One public tRPC router defines customer capabilities. The website, HTTP client, 
   - Multi exact and partial are literal normalized equality/contains semantics
   - Split searches exact matches for all adjacent Unicode word-token combinations; punctuation separates tokens
   - Wildcard uses `*` for zero or more characters across the whole normalized mark; other SQL wildcard characters remain literal
-  - Filters: live/dead, International Class, mark type, registration state
+  - Filters: live/dead, mark type, registration state
   - Sorts: relevance, newest activity, oldest activity
   - Source transaction date defines activity; status date remains a separate field
   - Server-side filter, deterministic sort, count, limit, and offset; every order ends with serial number
@@ -252,7 +254,7 @@ One public tRPC router defines customer capabilities. The website, HTTP client, 
   - Exact registration number only
 - `marks.match-text`
   - Server-owned live word-mark candidate generation and Unicode-aware span detection
-  - Explicit class/type filters, all overlapping matches, stable UTF-16 offsets, and no silent truncation
+  - Explicit type filters within the Class 025 corpus, all overlapping matches, stable UTF-16 offsets, and no silent truncation
 - `marks.latest`
   - Recent source transaction activity with stable pagination
 
@@ -262,7 +264,7 @@ One public tRPC router defines customer capabilities. The website, HTTP client, 
   - Discriminated queryless result view generated from typed constraints
   - Filed and registered use dedicated milestone dates for previous Monday through Sunday
   - Published for opposition means the current versioned USPTO status semantic, not every historical publication and not a legal-open-window guarantee
-  - Filters: live/dead, International Class, mark type, registration state
+  - Filters: live/dead, mark type, registration state within the Class 025 corpus
   - Server-side sort, count, limit, and offset
   - Same corpus envelope as `marks.search`; date-window reports return resolved `from` and `to`
 
@@ -328,7 +330,6 @@ const result = await client.marks.search.query({
   query: 'good vibes',
   mode: 'split',
   status: 'live',
-  classes: ['025'],
   limit: 25,
   offset: 0,
 });
@@ -352,7 +353,7 @@ Mac mini Docker Compose topology:
 
 - PostgreSQL 16 with a dedicated named volume
 - One-shot migration command that completes before API and worker start
-- One-shot PRD-60 tracer materialization through the retained source-observation and canonical repository path
+- One-shot database migration before API and worker startup
 - `tmturtle-core`: Fastify/tRPC API and anonymous readiness endpoint; no jobs or schedules
 - `tmturtle-worker`: same image, pg-boss reconciliation/scheduling entrypoint
 - Caddy: serves the built website at `tmturtle.merchbase.co` and proxies `/api`
@@ -370,7 +371,7 @@ bun run compose:up
 bun run compose:smoke
 ```
 
-Compose waits for PostgreSQL, applies Drizzle migrations once, reconciles the retained PRD-60 tracer once, and starts the API and worker only after both one-shot steps succeed. The tracer cannot replace canonical state after a durable corpus publication owns it. The anonymous `/api/health` endpoint reports process/database readiness with no corpus fields. Caddy serves the website shell and proxies `/api`; the API process never owns worker schedules. See [Local runtime operations](operations/local-runtime.md) for local startup and [Mac mini deployment](operations/deployment.md) for production verification and rollback.
+Compose waits for PostgreSQL, applies Drizzle migrations once, and starts the API and worker after migration succeeds. The anonymous `/api/health` endpoint reports process/database readiness with no corpus fields. Caddy serves the website shell and proxies `/api`; the API process never owns worker schedules. See [Local runtime operations](operations/local-runtime.md) for local startup and [Mac mini deployment](operations/deployment.md) for production verification and rollback.
 
 Deployment follows the house pattern:
 
@@ -423,7 +424,7 @@ Operations:
 
 Acceptance: Compose starts cleanly; a Clerk-authenticated website user creates a key, and that key authenticates `account.me`.
 
-### Phase 1: tracer bullet
+### Phase 1: source-observation proof
 
 - Pin current USPTO application/status contracts and source manifests
 - Retain one real immutable artifact version
@@ -432,20 +433,20 @@ Acceptance: Compose starts cleanly; a Clerk-authenticated website user creates a
 - Implement exact `marks.get`
 - Generate the HTTP client
 - Implement `tt auth set` and `tt marks get`
-- Render the same known serial through the authenticated website detail route
-- Deploy to the Mac mini
+- Prove the same known serial through the server, client, CLI, and website test seams
+- Keep repository fixtures outside the runtime image
 
 Acceptance:
 
-> The deployed authenticated website and `tt marks get <known-serial>` return the same expected real USPTO mark.
+> The exact retained record resolves consistently through every test seam without becoming startup or corpus data.
 
 ### Phase 2: durable corpus ingestion
 
 - Logical artifact/version/discovery/parse/publication state model
 - Quota-aware downloads, checksums, and retained raw artifacts
 - Streaming lossless parser, action profiles, claim folding, and atomic publication
-- Complete annual generation bootstrap from officially enumerated membership
-- Group-wise daily reconciliation through a fixture-proven source-authority policy and a publication-blocking authority-conflict diagnostic; metadata coverage dates never select or order observations
+- Exact 91-member annual first publication from officially enumerated membership
+- Retained and observable daily ingestion outside the first-publication policy; later mixed publication requires its own fixture-proven authority policy
 - Freshness frontiers, retries, quarantine, durable corpus events, observability, backup, and recovery
 
 Acceptance: corpus-through date is accurate; replay is a no-op; a partial amendment changes only asserted groups; an out-of-order artifact cannot regress canonical state.
@@ -453,7 +454,7 @@ Acceptance: corpus-through date is accurate; replay is a no-op; a partial amendm
 ### Phase 3: search and text matching
 
 - Discriminated Multi, Split, and Wildcard modes
-- Class/status/type/registration filters
+- Status/type/registration filters within the Class 025 corpus
 - Server-side sort/count/offset pagination with corpus-version conflict protection
 - Website search, generic reports, inline infinite scroll, and mark detail
 - Trigram and exact indexes
@@ -476,11 +477,12 @@ Acceptance: the deployed service rebuilds from retained artifacts, restores acco
 - Thin authenticated website included in v1
 - Shared MerchBase Clerk session for browser access; API keys for client and CLI access
 - Website self-service API keys with host-side bootstrap and recovery
-- Full all-class, live-and-dead end state
-- Website searches fixed to International Class 025 in v1; API and CLI retain all-class access
+- Stored, website, API, HTTP-client, and CLI corpus fixed to International Class 025 in v1
+- Live, dead, and unknown mark states within that corpus
 - Daily batch freshness, not realtime USPTO sync
 - Immutable source observations and presence-aware claim folding; no whole-record `status_date` merge
 - Partial source authority: annual generation membership is distinct from transaction coverage, and unordered annual/daily claims publish only when their group fold is confluent
+- First publication is the exact 91-member annual generation through 2025-12-31; daily evidence remains retained and observable, not superseded
 - Public complete frontier distinct from newest published source date
 - Private operator diagnostics and database-backed operator roles
 - No external realtime subscription in v1

@@ -1,20 +1,23 @@
 import { createHash, randomUUID } from "node:crypto";
 import type postgres from "postgres";
-
-import type { CanonicalDiagnostic } from "../ingestion/canonical-mark-types.ts";
 import { retainedVersionFingerprint } from "../ingestion/artifact-version-selection.ts";
-import { sourceObservationParserVersion, type SourceObservation } from "../ingestion/source-observations.ts";
+import type { CanonicalDiagnostic } from "../ingestion/canonical-mark-types.ts";
+import {
+  type SourceObservation,
+  sourceObservationParserVersion,
+} from "../ingestion/source-observations.ts";
+
 type Database = postgres.Sql | postgres.TransactionSql;
 
-export type PublicationSemanticVersions = {
+export interface PublicationSemanticVersions {
   authorityPolicy: string;
   normalization: string;
   parser: string;
   projection: string;
   sourceProfile: string;
-};
+}
 
-export type EligibleParseRun = {
+export interface EligibleParseRun {
   artifactId: string;
   artifactVersionId: string;
   artifactVersionSha256: string;
@@ -27,9 +30,9 @@ export type EligibleParseRun = {
   retainedVersionSha256s: string[];
   sourceFromDate: string;
   sourceToDate: string;
-};
+}
 
-export async function readEligibleParseRuns(database: Database) {
+export function readEligibleParseRuns(database: Database) {
   return database<EligibleParseRun[]>`
     select
       a.id as "artifactId",
@@ -67,13 +70,15 @@ export async function readEligibleParseRuns(database: Database) {
 }
 
 export async function readArtifactVersionSelections(database: Database) {
-  const rows = await database<Array<{
-    artifactVersionSha256: string;
-    filename: string;
-    product: string;
-    retainedVersionFingerprint: string;
-    retainedVersionSha256s: string[];
-  }>>`
+  const rows = await database<
+    Array<{
+      artifactVersionSha256: string;
+      filename: string;
+      product: string;
+      retainedVersionFingerprint: string;
+      retainedVersionSha256s: string[];
+    }>
+  >`
     select
       selected.sha256 as "artifactVersionSha256",
       artifact.filename,
@@ -94,22 +99,20 @@ export async function readArtifactVersionSelections(database: Database) {
     order by artifact.product_id, artifact.filename
   `;
   return rows
-    .filter((row) => retainedVersionFingerprint(row.retainedVersionSha256s) === row.retainedVersionFingerprint)
-    .map(({ retainedVersionFingerprint: _fingerprint, retainedVersionSha256s: _sha256s, ...selection }) => selection);
+    .filter(
+      (row) =>
+        retainedVersionFingerprint(row.retainedVersionSha256s) === row.retainedVersionFingerprint
+    )
+    .map(
+      ({
+        retainedVersionFingerprint: _fingerprint,
+        retainedVersionSha256s: _sha256s,
+        ...selection
+      }) => selection
+    );
 }
 
-export async function readCurrentPublicationArtifactIds(database: Database) {
-  const rows = await database<Array<{ artifactId: string }>>`
-    select artifact.artifact_id as "artifactId"
-    from corpus_state state
-    join publication_artifact artifact on artifact.publication_id = state.publication_id
-    where state.id = 'uspto'
-    order by artifact.artifact_id
-  `;
-  return rows.map((row) => row.artifactId);
-}
-
-export async function readUnresolvedLatestDiscoveries(database: Database) {
+export function readUnresolvedLatestDiscoveries(database: Database) {
   return database<Array<{ artifactId: string; filename: string; product: string }>>`
     select latest."artifactId", latest.filename, latest.product
     from (
@@ -128,19 +131,23 @@ export async function stagePublicationCandidate(
   database: Database,
   sourceFingerprint: string,
   versions: PublicationSemanticVersions,
-  parseRuns: Array<EligibleParseRun & { retainedVersionFingerprint: string; selectedExplicitly: boolean }>,
+  parseRuns: Array<
+    EligibleParseRun & { retainedVersionFingerprint: string; selectedExplicitly: boolean }
+  >
 ) {
-  const [current] = await database<Array<{
-    artifactCount: number;
-    authorityPolicyVersion: string;
-    normalizationVersion: string;
-    parserVersion: string;
-    projectionVersion: string;
-    publicationId: string;
-    sourceFingerprint: string;
-    sourceProfileVersion: string;
-    state: "published" | "rejected" | "staged";
-  }>>`
+  const [current] = await database<
+    Array<{
+      artifactCount: number;
+      authorityPolicyVersion: string;
+      normalizationVersion: string;
+      parserVersion: string;
+      projectionVersion: string;
+      publicationId: string;
+      sourceFingerprint: string;
+      sourceProfileVersion: string;
+      state: "published" | "rejected" | "staged";
+    }>
+  >`
     select p.artifact_count as "artifactCount", p.authority_policy_version as "authorityPolicyVersion",
       p.normalization_version as "normalizationVersion", p.parser_version as "parserVersion",
       p.projection_version as "projectionVersion", p.id as "publicationId",
@@ -157,7 +164,9 @@ export async function stagePublicationCandidate(
     current.normalizationVersion === versions.normalization &&
     current.sourceProfileVersion === versions.sourceProfile
   ) {
-    if (current.state !== "published") throw new Error("Current corpus publication is not published");
+    if (current.state !== "published") {
+      throw new Error("Current corpus publication is not published");
+    }
     return {
       artifactCount: current.artifactCount,
       candidateId: current.publicationId,
@@ -165,10 +174,9 @@ export async function stagePublicationCandidate(
     };
   }
   const parentPublicationId = current?.publicationId ?? null;
-  const fingerprint = createHash("sha256").update(JSON.stringify([
-    sourceFingerprint,
-    parentPublicationId,
-  ])).digest("hex");
+  const fingerprint = createHash("sha256")
+    .update(JSON.stringify([sourceFingerprint, parentPublicationId]))
+    .digest("hex");
   const candidateId = randomUUID();
   const [inserted] = await database<Array<{ id: string }>>`
     insert into publication (
@@ -185,31 +193,37 @@ export async function stagePublicationCandidate(
   `;
   if (inserted) {
     await database`
-      insert into publication_artifact ${database(parseRuns.map((run) => ({
-        publication_id: candidateId,
-        artifact_id: run.artifactId,
-        discovery_id: run.discoveryId,
-        artifact_version_id: run.artifactVersionId,
-        artifact_version_sha256: run.artifactVersionSha256,
-        parse_run_id: run.parseRunId,
-        parse_run_digest: run.parseRunDigest,
-        retained_version_fingerprint: run.retainedVersionFingerprint,
-        selected_explicitly: run.selectedExplicitly,
-        source_from_date: run.sourceFromDate,
-        source_to_date: run.sourceToDate,
-      })))}
+      insert into publication_artifact ${database(
+        parseRuns.map((run) => ({
+          artifact_id: run.artifactId,
+          artifact_version_id: run.artifactVersionId,
+          artifact_version_sha256: run.artifactVersionSha256,
+          discovery_id: run.discoveryId,
+          parse_run_digest: run.parseRunDigest,
+          parse_run_id: run.parseRunId,
+          publication_id: candidateId,
+          retained_version_fingerprint: run.retainedVersionFingerprint,
+          selected_explicitly: run.selectedExplicitly,
+          source_from_date: run.sourceFromDate,
+          source_to_date: run.sourceToDate,
+        }))
+      )}
     `;
     return { artifactCount: parseRuns.length, candidateId, state: "staged" as const };
   }
-  const [existing] = await database<Array<{
-    artifactCount: number;
-    candidateId: string;
-    state: "published" | "rejected" | "staged";
-  }>>`
+  const [existing] = await database<
+    Array<{
+      artifactCount: number;
+      candidateId: string;
+      state: "published" | "rejected" | "staged";
+    }>
+  >`
     select id as "candidateId", artifact_count as "artifactCount", state
     from publication where fingerprint = ${fingerprint}
   `;
-  if (!existing) throw new Error("Publication candidate disappeared");
+  if (!existing) {
+    throw new Error("Publication candidate disappeared");
+  }
   return existing;
 }
 
@@ -234,18 +248,20 @@ export type PublicationArtifactSnapshot = EligibleParseRun & {
 };
 
 export async function readPublicationCandidate(database: Database, candidateId: string) {
-  const [publication] = await database<Array<{
-    artifactCount: number;
-    authorityPolicyVersion: string;
-    fingerprint: string;
-    normalizationVersion: string;
-    parentPublicationId: string | null;
-    parserVersion: string;
-    projectionVersion: string;
-    sourceFingerprint: string;
-    sourceProfileVersion: string;
-    state: "published" | "rejected" | "staged";
-  }>>`
+  const [publication] = await database<
+    Array<{
+      artifactCount: number;
+      authorityPolicyVersion: string;
+      fingerprint: string;
+      normalizationVersion: string;
+      parentPublicationId: string | null;
+      parserVersion: string;
+      projectionVersion: string;
+      sourceFingerprint: string;
+      sourceProfileVersion: string;
+      state: "published" | "rejected" | "staged";
+    }>
+  >`
     select artifact_count as "artifactCount", authority_policy_version as "authorityPolicyVersion",
       fingerprint, normalization_version as "normalizationVersion",
       parent_publication_id as "parentPublicationId", parser_version as "parserVersion",
@@ -254,7 +270,9 @@ export async function readPublicationCandidate(database: Database, candidateId: 
     from publication where id = ${candidateId}
     for update
   `;
-  if (!publication) throw new Error("Publication candidate not found");
+  if (!publication) {
+    throw new Error("Publication candidate not found");
+  }
   const artifacts = await database<PublicationArtifactSnapshot[]>`
     select
       a.id as "artifactId",
@@ -312,7 +330,9 @@ export async function* readPublicationObservations(database: Database, candidate
   type PublicationObservation = SourceObservation & { sourceRecordId: string };
   let after: PublicationObservation | undefined;
   const batchSize = 500;
+  // biome-ignore lint/suspicious/noUnnecessaryConditions: Pagination ends only when a short database page is observed.
   while (true) {
+    // biome-ignore lint/performance/noAwaitInLoops: Publication observations must be read and yielded in stable keyset order.
     const rows = await database<PublicationObservation[]>`
       select r.action_key as "actionKey", r.action_occurrence as "actionOccurrence",
         r.action_record_index as "actionRecordIndex", r.digest,
@@ -336,27 +356,41 @@ export async function* readPublicationObservations(database: Database, candidate
       join artifact a on a.id = v.artifact_id
       left join source_claim claim on claim.source_record_id = r.id
       where publication_source.publication_id = ${candidateId}
-        ${after ? database`and (r.serial_number, a.product_id, v.sha256, r.physical_record_index, r.id) > (${
-          after.serialNumber
-        }, ${after.product}, ${after.artifactVersionSha256}, ${after.physicalRecordIndex}, ${after.sourceRecordId})` : database``}
+        ${
+          after
+            ? database`and (r.serial_number, a.product_id, v.sha256, r.physical_record_index, r.id) > (${
+                after.serialNumber
+              }, ${after.product}, ${after.artifactVersionSha256}, ${after.physicalRecordIndex}, ${after.sourceRecordId})`
+            : database``
+        }
       group by r.id, a.product_id, v.sha256
       order by r.serial_number, a.product_id, v.sha256, r.physical_record_index, r.id
       limit ${batchSize}
     `;
-    for (const { sourceRecordId: _sourceRecordId, ...observation } of rows) yield observation;
-    if (rows.length < batchSize) return;
-    after = rows.at(-1)!;
+    for (const { sourceRecordId: _sourceRecordId, ...observation } of rows) {
+      yield observation;
+    }
+    if (rows.length < batchSize) {
+      return;
+    }
+    const last = rows.at(-1);
+    if (!last) {
+      throw new Error("Full publication observation page was empty");
+    }
+    after = last;
   }
 }
 
 export async function readPublishedPublication(database: Database, candidateId: string) {
-  const [result] = await database<Array<{
-    changed: boolean;
-    completeThroughDate: string;
-    corpusVersion: number;
-    eventId: string;
-    publishedThroughDate: string;
-  }>>`
+  const [result] = await database<
+    Array<{
+      changed: boolean;
+      completeThroughDate: string;
+      corpusVersion: number;
+      eventId: string;
+      publishedThroughDate: string;
+    }>
+  >`
     select (e.payload->>'changed')::boolean as changed,
       p.complete_through_date::text as "completeThroughDate", p.corpus_version as "corpusVersion",
       e.id as "eventId", p.published_through_date::text as "publishedThroughDate"
@@ -375,7 +409,7 @@ export async function finishPublication(
     completeThroughDate: string;
     corpusVersion: number;
     publishedThroughDate: string;
-  },
+  }
 ) {
   const eventId = randomUUID();
   await database`
@@ -435,9 +469,11 @@ export async function readCorpusPublicationId(database: Database) {
 export async function appendPublicationDiagnostics(
   database: Database,
   candidateId: string,
-  diagnostics: CanonicalDiagnostic[],
+  diagnostics: CanonicalDiagnostic[]
 ) {
-  if (diagnostics.length === 0) return;
+  if (diagnostics.length === 0) {
+    return;
+  }
   const rows = diagnostics.map((diagnostic) => ({
     details: diagnostic,
     diagnosticKey: createHash("sha256").update(JSON.stringify(diagnostic)).digest("hex"),
@@ -463,5 +499,9 @@ export async function readRejectedPublication(database: Database, candidateId: s
     select count(*)::int as "diagnosticCount" from publication_diagnostic
     where publication_id = ${candidateId}
   `;
-  return { candidateId, diagnosticCount: result?.diagnosticCount ?? 0, status: "rejected" as const };
+  return {
+    candidateId,
+    diagnosticCount: result?.diagnosticCount ?? 0,
+    status: "rejected" as const,
+  };
 }

@@ -4,12 +4,11 @@
   "type": "module",
   "scripts": {
     "api-keys:create": "bun run src/api-keys-create.ts",
-    "build": "bun build src/server.ts src/worker.ts src/db/migrate.ts src/tracer-materialize.ts --outdir dist --target bun",
+    "build": "bun build src/server.ts src/worker.ts src/db/migrate.ts --outdir dist --target bun",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun run src/db/migrate.ts",
     "start": "bun run src/server.ts",
     "sync:ops": "bun run src/sync-ops.ts",
-    "tracer:materialize": "bun run src/tracer-materialize.ts",
     "worker": "bun run src/worker.ts"
   },
   "dependencies": {

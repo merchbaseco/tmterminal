@@ -12,7 +12,9 @@ import { createCanonicalMarkRepository } from "../../src/queries/canonical-mark-
 import { resetTestDatabase } from "./test-database.ts";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
-if (!databaseUrl) throw new Error("TEST_DATABASE_URL is required for PostgreSQL integration tests");
+if (!databaseUrl) {
+  throw new Error("TEST_DATABASE_URL is required for PostgreSQL integration tests");
+}
 
 const database = postgres(databaseUrl, { max: 2, prepare: false });
 let server: Awaited<ReturnType<typeof buildServer>>;
@@ -30,11 +32,26 @@ beforeAll(async () => {
   await resetTestDatabase(database);
   await migrateDatabase(databaseUrl);
 
-  const record = await readFile(join(import.meta.dir, "../../../../fixtures/uspto/records/annual-2025-full-tx-60146682.xml"));
+  const retained = await readFile(
+    join(import.meta.dir, "../../../../fixtures/uspto/records/annual-2025-full-tx-60146682.xml")
+  );
+  const record = Buffer.from(
+    retained
+      .toString("utf8")
+      .replace("<primary-code>009</primary-code>", "<primary-code>025</primary-code>")
+      .replace(
+        "<international-code>009</international-code>",
+        "<international-code>025</international-code>"
+      )
+  );
   const xml = Buffer.concat([
-    Buffer.from("<trademark-applications-daily><version><version-no>2.0</version-no><version-date>20041108</version-date></version><creation-datetime>202604031349</creation-datetime><application-information><file-segments><file-segment>TRMK</file-segment><action-keys><action-key>TX</action-key>\n"),
+    Buffer.from(
+      "<trademark-applications-daily><version><version-no>2.0</version-no><version-date>20041108</version-date></version><creation-datetime>202604031349</creation-datetime><application-information><file-segments><file-segment>TRMK</file-segment><action-keys><action-key>TX</action-key>\n"
+    ),
     record,
-    Buffer.from("</action-keys></file-segments></application-information></trademark-applications-daily>"),
+    Buffer.from(
+      "</action-keys></file-segments></application-information></trademark-applications-daily>"
+    ),
   ]);
   const artifactId = randomUUID();
   const artifactVersionId = randomUUID();
@@ -47,8 +64,12 @@ beforeAll(async () => {
   `;
   const observations = createSourceObservationModule(database);
   const parse = await observations.stageArtifact({ artifactVersionId, xml: stream(xml) });
-  const materialization = canonicalizeMark(await Array.fromAsync(observations.readRecords(parse.parseRunId)));
-  if (materialization.kind !== "resolved") throw new Error("Expected the PRD-60 fixture to resolve");
+  const materialization = canonicalizeMark(
+    await Array.fromAsync(observations.readRecords(parse.parseRunId))
+  );
+  if (materialization.kind !== "resolved") {
+    throw new Error("Expected the PRD-60 fixture to resolve");
+  }
   await createCanonicalMarkRepository(database).replace(materialization);
 
   server = await buildServer({
@@ -65,13 +86,17 @@ afterAll(async () => {
 
 test("returns the retained canonical mark by exact serial number to a Clerk session", async () => {
   const response = await server.inject({
+    headers: { authorization: "Bearer clerk-session" },
     method: "GET",
     url: "/api/trpc/marks.get?input=%7B%22serialNumber%22%3A%2260146682%22%7D",
-    headers: { authorization: "Bearer clerk-session" },
   });
 
   expect(response.statusCode).toBe(200);
   expect(response.json().result.data).toMatchObject({
+    classes: [{ internationalCode: "025", statusCode: "6", statusDate: "2010-04-08" }],
+    goodsServices: [{ text: "pistols", typeCode: "GS0091" }],
+    legalDisclaimer:
+      "Trademark data is informational, not legal advice. Verify critical decisions with the USPTO or qualified counsel.",
     mark: {
       filingDate: "1920-09-25",
       markDrawingCode: "3",
@@ -83,8 +108,6 @@ test("returns the retained canonical mark by exact serial number to a Clerk sess
       statusDate: "2005-10-11",
       wordMark: "MACHINE-PISTOL",
     },
-    classes: [{ internationalCode: "009", statusCode: "6", statusDate: "2010-04-08" }],
-    goodsServices: [{ text: "pistols", typeCode: "GS0091" }],
     owners: [{ entryNumber: "1", partyName: "AUTO ORDNANCE CORPORATION", partyType: "10" }],
     provenance: {
       contributors: expect.arrayContaining([
@@ -101,20 +124,19 @@ test("returns the retained canonical mark by exact serial number to a Clerk sess
         sourceProfile: "uspto-application-xml-v2.0-v1",
       },
     },
-    legalDisclaimer: "Trademark data is informational, not legal advice. Verify critical decisions with the USPTO or qualified counsel.",
   });
 });
 
 test("preserves the leading zero in exact registration-number identity", async () => {
   const exact = await server.inject({
+    headers: { authorization: "Bearer clerk-session" },
     method: "GET",
     url: "/api/trpc/marks.get-by-registration?input=%7B%22registrationNumber%22%3A%220146682%22%7D",
-    headers: { authorization: "Bearer clerk-session" },
   });
   const missingZero = await server.inject({
+    headers: { authorization: "Bearer clerk-session" },
     method: "GET",
     url: "/api/trpc/marks.get-by-registration?input=%7B%22registrationNumber%22%3A%22146682%22%7D",
-    headers: { authorization: "Bearer clerk-session" },
   });
 
   expect(exact.statusCode).toBe(200);
@@ -129,21 +151,21 @@ test("preserves the leading zero in exact registration-number identity", async (
 
 test("returns the same known mark through Clerk and API-key credentials", async () => {
   const created = await server.inject({
-    method: "POST",
-    url: "/api/trpc/account.api-keys.create",
     headers: { authorization: "Bearer clerk-session", "content-type": "application/json" },
+    method: "POST",
     payload: { name: "PRD-60 parity" },
+    url: "/api/trpc/account.api-keys.create",
   });
   const token = created.json().result.data.token as string;
   const clerk = await server.inject({
+    headers: { authorization: "Bearer clerk-session" },
     method: "GET",
     url: "/api/trpc/marks.get?input=%7B%22serialNumber%22%3A%2260146682%22%7D",
-    headers: { authorization: "Bearer clerk-session" },
   });
   const apiKey = await server.inject({
+    headers: { authorization: `Bearer ${token}` },
     method: "GET",
     url: "/api/trpc/marks.get?input=%7B%22serialNumber%22%3A%2260146682%22%7D",
-    headers: { authorization: `Bearer ${token}` },
   });
 
   expect(apiKey.statusCode).toBe(200);
@@ -152,18 +174,24 @@ test("returns the same known mark through Clerk and API-key credentials", async 
 
 test("returns one stable not-found error for exact identities", async () => {
   const bySerial = await server.inject({
+    headers: { authorization: "Bearer clerk-session" },
     method: "GET",
     url: "/api/trpc/marks.get?input=%7B%22serialNumber%22%3A%2299999999%22%7D",
-    headers: { authorization: "Bearer clerk-session" },
   });
   const byRegistration = await server.inject({
+    headers: { authorization: "Bearer clerk-session" },
     method: "GET",
     url: "/api/trpc/marks.get-by-registration?input=%7B%22registrationNumber%22%3A%229999999%22%7D",
-    headers: { authorization: "Bearer clerk-session" },
   });
 
   expect(bySerial.statusCode).toBe(404);
   expect(byRegistration.statusCode).toBe(404);
-  expect(bySerial.json().error).toMatchObject({ data: { code: "NOT_FOUND" }, message: "Trademark not found" });
-  expect(byRegistration.json().error).toMatchObject({ data: { code: "NOT_FOUND" }, message: "Trademark not found" });
+  expect(bySerial.json().error).toMatchObject({
+    data: { code: "NOT_FOUND" },
+    message: "Trademark not found",
+  });
+  expect(byRegistration.json().error).toMatchObject({
+    data: { code: "NOT_FOUND" },
+    message: "Trademark not found",
+  });
 });

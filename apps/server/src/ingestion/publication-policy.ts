@@ -8,7 +8,7 @@ export function isPublicationPolicyArtifact(artifact: {
   sourceFromDate: string;
   sourceToDate: string;
 }) {
-  return artifact.product === "TRTDXFAP" || (
+  return (
     artifact.product === "TRTYRAP" &&
     artifact.sourceFromDate === "1884-04-07" &&
     artifact.sourceToDate === "2025-12-31" &&
@@ -17,9 +17,7 @@ export function isPublicationPolicyArtifact(artifact: {
 }
 
 export function isPublicationPolicyDiscovery(discovery: { filename: string; product: string }) {
-  return discovery.product === "TRTDXFAP" || (
-    discovery.product === "TRTYRAP" && annualGenerationArtifacts.has(discovery.filename)
-  );
+  return discovery.product === "TRTYRAP" && annualGenerationArtifacts.has(discovery.filename);
 }
 
 export function annualGenerationArtifactCount() {

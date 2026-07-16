@@ -1,13 +1,15 @@
 import { expect, test } from "bun:test";
 import type { TmturtleRouterOutputs } from "@tmturtle/http-client";
 
-import { runCli, type CliDependencies } from "../src/run.ts";
+import { type CliDependencies, runCli } from "../src/run.ts";
 
-const token = "ttk_11111111-1111-4111-8111-111111111111_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-const tracer = {
-  classes: [{ internationalCode: "009", statusCode: "6", statusDate: "2010-04-08" }],
+const token =
+  "ttk_11111111-1111-4111-8111-111111111111_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+const markFixture = {
+  classes: [{ internationalCode: "025", statusCode: "6", statusDate: "2010-04-08" }],
   goodsServices: [{ text: "pistols", typeCode: "GS0091" }],
-  legalDisclaimer: "Trademark data is informational, not legal advice. Verify critical decisions with the USPTO or qualified counsel.",
+  legalDisclaimer:
+    "Trademark data is informational, not legal advice. Verify critical decisions with the USPTO or qualified counsel.",
   mark: {
     filingDate: "1920-09-25",
     markDrawingCode: "3",
@@ -21,13 +23,15 @@ const tracer = {
   },
   owners: [{ entryNumber: "1", partyName: "AUTO ORDNANCE CORPORATION", partyType: "10" }],
   provenance: {
-    contributors: [{
-      artifactVersionSha256: "a".repeat(64),
-      claimPath: "case-file/case-file-header/mark-identification",
-      group: "mark-presentation",
-      physicalRecordIndex: 1,
-      product: "TRTYRAP",
-    }],
+    contributors: [
+      {
+        artifactVersionSha256: "a".repeat(64),
+        claimPath: "case-file/case-file-header/mark-identification",
+        group: "mark-presentation",
+        physicalRecordIndex: 1,
+        product: "TRTYRAP",
+      },
+    ],
     versions: {
       authorityPolicy: "uspto-authority-v1",
       normalization: "uspto-normalization-v1",
@@ -39,34 +43,42 @@ const tracer = {
 } satisfies TmturtleRouterOutputs["marks"]["get"];
 
 const searchPage = {
-  items: [{
-    goodsServicesExcerpt: "shirts",
-    internationalClasses: ["025"],
-    match: "partial",
-    owner: "TURTLE GOODS LLC",
-    registrationNumber: "7000001",
-    serialNumber: "70000001",
-    sourceTransactionDate: "2026-07-10",
-    status: "dead",
-    statusDate: "2026-07-09",
-    type: "design",
-    wordMark: "TURTLE CLUB",
-  }],
+  items: [
+    {
+      goodsServicesExcerpt: "shirts",
+      internationalClasses: ["025"],
+      match: "partial",
+      owner: "TURTLE GOODS LLC",
+      registrationNumber: "7000001",
+      serialNumber: "70000001",
+      sourceTransactionDate: "2026-07-10",
+      status: "dead",
+      statusDate: "2026-07-09",
+      type: "design",
+      wordMark: "TURTLE CLUB",
+    },
+  ],
   limit: 25,
   meta: { corpusThroughDate: "2026-07-10", corpusVersion: "7" },
   offset: 25,
   total: 26,
 } satisfies TmturtleRouterOutputs["marks"]["search"];
 
+const noop = () => Promise.resolve();
+const noValue = () => Promise.resolve(null);
+const unexpected = (name: string) => () => Promise.reject(new Error(`Unexpected ${name}`));
+
 function dependencies(overrides: Partial<CliDependencies> = {}): CliDependencies {
   return {
     config: {},
-    createClient: () => { throw new Error("Unexpected HTTP client"); },
+    createClient: () => {
+      throw new Error("Unexpected HTTP client");
+    },
     env: {},
     keychain: {
-      clear: async () => {},
-      get: async () => null,
-      set: async () => {},
+      clear: noop,
+      get: noValue,
+      set: noop,
     },
     stdin: "",
     ...overrides,
@@ -78,13 +90,16 @@ test("auth set stores a stdin token against the normalized origin without echoin
   const result = await runCli(
     ["auth", "set", "--stdin", "--base-url", "https://EXAMPLE.com:443/"],
     dependencies({
-      stdin: `${token}\n`,
       keychain: {
-        clear: async () => {},
-        get: async () => null,
-        set: async (origin, value) => { stored.push({ origin, token: value }); },
+        clear: noop,
+        get: noValue,
+        set: (origin, value) => {
+          stored.push({ origin, token: value });
+          return Promise.resolve();
+        },
       },
-    }),
+      stdin: `${token}\n`,
+    })
   );
 
   expect(stored).toEqual([{ origin: "https://example.com", token }]);
@@ -96,6 +111,33 @@ test("auth set stores a stdin token against the normalized origin without echoin
   expect(result.stdout).not.toContain(token);
 });
 
+test("auth set rejects an explicitly empty base URL", async () => {
+  const stored: Array<{ origin: string; token: string }> = [];
+  const result = await runCli(
+    ["auth", "set", "--stdin", "--base-url", ""],
+    dependencies({
+      config: { baseUrl: "https://configured.example" },
+      keychain: {
+        clear: noop,
+        get: noValue,
+        set: (origin, value) => {
+          stored.push({ origin, token: value });
+          return Promise.resolve();
+        },
+      },
+      stdin: token,
+    })
+  );
+
+  expect(stored).toEqual([]);
+  expect(result).toEqual({
+    exitCode: 1,
+    stderr:
+      '{"ok":false,"error":{"code":"BAD_REQUEST","message":"Base URL must be an HTTP origin","details":{}}}\n',
+    stdout: "",
+  });
+});
+
 test("auth status prefers the environment credential and validates it through account.me", async () => {
   const clients: Array<{ apiKey: string; baseUrl: string }> = [];
   let keychainReads = 0;
@@ -103,36 +145,41 @@ test("auth status prefers the environment credential and validates it through ac
     ["auth", "status"],
     dependencies({
       config: { baseUrl: "https://config.example" },
+      createClient: (options: { apiKey: string; baseUrl: string }) => {
+        clients.push(options);
+        return {
+          account: {
+            me: {
+              query: () =>
+                Promise.resolve({
+                  accountId: "account-1",
+                  credential: { keyId: "key-1", suffix: "AAAAAA", type: "api-key" },
+                }),
+            },
+          },
+          marks: {
+            get: {
+              query: unexpected("marks.get"),
+            },
+            search: {
+              query: unexpected("marks.search"),
+            },
+          },
+        };
+      },
       env: {
         TMTURTLE_API_KEY: token,
         TMTURTLE_BASE_URL: "https://ENV.example/",
       },
       keychain: {
-        clear: async () => {},
-        get: async () => {
+        clear: noop,
+        get: () => {
           keychainReads += 1;
-          return "ttk_keychain";
+          return Promise.resolve("ttk_keychain");
         },
-        set: async () => {},
+        set: noop,
       },
-      createClient: ((options: { apiKey: string; baseUrl: string }) => {
-        clients.push(options);
-        return {
-          account: {
-            me: {
-              query: async () => ({
-                accountId: "account-1",
-                credential: { type: "api-key", keyId: "key-1", suffix: "AAAAAA" },
-              }),
-            },
-          },
-          marks: {
-            get: { query: async () => { throw new Error("Unexpected marks.get"); } },
-            search: { query: async () => { throw new Error("Unexpected marks.search"); } },
-          },
-        };
-      }),
-    }),
+    })
   );
 
   expect(keychainReads).toBe(0);
@@ -140,7 +187,8 @@ test("auth status prefers the environment credential and validates it through ac
   expect(result).toEqual({
     exitCode: 0,
     stderr: "",
-    stdout: '{"ok":true,"data":{"origin":"https://env.example","credentialSource":"environment","keySuffix":"AAAAAA","accountId":"account-1"}}\n',
+    stdout:
+      '{"ok":true,"data":{"origin":"https://env.example","credentialSource":"environment","keySuffix":"AAAAAA","accountId":"account-1"}}\n',
   });
 });
 
@@ -150,29 +198,34 @@ test("auth status reads the Keychain entry bound to the configured origin", asyn
     ["auth", "status"],
     dependencies({
       config: { baseUrl: "https://config.example/" },
-      keychain: {
-        clear: async () => {},
-        get: async (origin) => {
-          origins.push(origin);
-          return token;
-        },
-        set: async () => {},
-      },
-      createClient: (() => ({
+      createClient: () => ({
         account: {
           me: {
-            query: async () => ({
-              accountId: "account-2",
-              credential: { type: "api-key", keyId: "key-2", suffix: "AAAAAA" },
-            }),
+            query: () =>
+              Promise.resolve({
+                accountId: "account-2",
+                credential: { keyId: "key-2", suffix: "AAAAAA", type: "api-key" },
+              }),
           },
         },
         marks: {
-          get: { query: async () => { throw new Error("Unexpected marks.get"); } },
-          search: { query: async () => { throw new Error("Unexpected marks.search"); } },
+          get: {
+            query: unexpected("marks.get"),
+          },
+          search: {
+            query: unexpected("marks.search"),
+          },
         },
-      })),
-    }),
+      }),
+      keychain: {
+        clear: noop,
+        get: (origin) => {
+          origins.push(origin);
+          return Promise.resolve(token);
+        },
+        set: noop,
+      },
+    })
   );
 
   expect(origins).toEqual(["https://config.example"]);
@@ -185,46 +238,58 @@ test("auth status reads the Keychain entry bound to the configured origin", asyn
 test("an invalid selected base URL is a local validation failure", async () => {
   const result = await runCli(
     ["auth", "status"],
-    dependencies({ env: { TMTURTLE_BASE_URL: "not-an-origin" } }),
+    dependencies({ env: { TMTURTLE_BASE_URL: "not-an-origin" } })
   );
 
   expect(result).toEqual({
     exitCode: 1,
+    stderr:
+      '{"ok":false,"error":{"code":"BAD_REQUEST","message":"Base URL must be an HTTP origin","details":{}}}\n',
     stdout: "",
-    stderr: '{"ok":false,"error":{"code":"BAD_REQUEST","message":"Base URL must be an HTTP origin","details":{}}}\n',
   });
 });
 
 test("an invalid selected environment credential never falls back to Keychain", async () => {
   let keychainReads = 0;
-  const unauthorized = Object.assign(new Error("Invalid credential"), { data: { code: "UNAUTHORIZED" } });
+  const unauthorized = Object.assign(new Error("Invalid credential"), {
+    data: { code: "UNAUTHORIZED" },
+  });
   const result = await runCli(
     ["auth", "status"],
     dependencies({
+      createClient: () => ({
+        account: {
+          me: {
+            query: () => Promise.reject(unauthorized),
+          },
+        },
+        marks: {
+          get: {
+            query: unexpected("marks.get"),
+          },
+          search: {
+            query: unexpected("marks.search"),
+          },
+        },
+      }),
       env: { TMTURTLE_API_KEY: "invalid-selected-value" },
       keychain: {
-        clear: async () => {},
-        get: async () => {
+        clear: noop,
+        get: () => {
           keychainReads += 1;
-          return token;
+          return Promise.resolve(token);
         },
-        set: async () => {},
+        set: noop,
       },
-      createClient: (() => ({
-        account: { me: { query: async () => { throw unauthorized; } } },
-        marks: {
-          get: { query: async () => { throw new Error("Unexpected marks.get"); } },
-          search: { query: async () => { throw new Error("Unexpected marks.search"); } },
-        },
-      })),
-    }),
+    })
   );
 
   expect(keychainReads).toBe(0);
   expect(result).toEqual({
     exitCode: 1,
+    stderr:
+      '{"ok":false,"error":{"code":"UNAUTHORIZED","message":"Invalid credential","details":{}}}\n',
     stdout: "",
-    stderr: '{"ok":false,"error":{"code":"UNAUTHORIZED","message":"Invalid credential","details":{}}}\n',
   });
 });
 
@@ -235,11 +300,14 @@ test("auth clear deletes only the entry for the selected normalized origin", asy
     dependencies({
       config: { baseUrl: "https://CONFIG.example:443/" },
       keychain: {
-        clear: async (origin) => { cleared.push(origin); },
-        get: async () => null,
-        set: async () => {},
+        clear: (origin) => {
+          cleared.push(origin);
+          return Promise.resolve();
+        },
+        get: noValue,
+        set: noop,
       },
-    }),
+    })
   );
 
   expect(cleared).toEqual(["https://config.example"]);
@@ -251,21 +319,32 @@ test("marks get writes one success envelope for an exact serial identity", async
   const result = await runCli(
     ["marks", "get", "60146682"],
     dependencies({
-      env: { TMTURTLE_API_KEY: token },
-      createClient: (() => ({
-        account: { me: { query: async () => { throw new Error("Unexpected account.me"); } } },
-        marks: {
-          get: { query: async (input) => { inputs.push(input); return tracer; } },
-          search: { query: async () => { throw new Error("Unexpected marks.search"); } },
+      createClient: () => ({
+        account: {
+          me: {
+            query: unexpected("account.me"),
+          },
         },
-      })),
-    }),
+        marks: {
+          get: {
+            query: (input) => {
+              inputs.push(input);
+              return Promise.resolve(markFixture);
+            },
+          },
+          search: {
+            query: unexpected("marks.search"),
+          },
+        },
+      }),
+      env: { TMTURTLE_API_KEY: token },
+    })
   );
 
   expect(inputs).toEqual([{ serialNumber: "60146682" }]);
   expect(result.exitCode).toBe(0);
   expect(result.stderr).toBe("");
-  expect(JSON.parse(result.stdout)).toEqual({ ok: true, data: tracer });
+  expect(JSON.parse(result.stdout)).toEqual({ data: markFixture, ok: true });
 });
 
 test("marks get rejects a non-exact serial before creating an HTTP client", async () => {
@@ -273,13 +352,14 @@ test("marks get rejects a non-exact serial before creating an HTTP client", asyn
     ["marks", "get", "6014668"],
     dependencies({
       env: { TMTURTLE_API_KEY: token },
-    }),
+    })
   );
 
   expect(result).toEqual({
     exitCode: 1,
+    stderr:
+      '{"ok":false,"error":{"code":"BAD_REQUEST","message":"Serial number must be exactly 8 digits","details":{}}}\n',
     stdout: "",
-    stderr: '{"ok":false,"error":{"code":"BAD_REQUEST","message":"Serial number must be exactly 8 digits","details":{}}}\n',
   });
 });
 
@@ -288,21 +368,30 @@ test("marks get preserves the stable API not-found envelope on stderr", async ()
   const result = await runCli(
     ["marks", "get", "99999999"],
     dependencies({
-      env: { TMTURTLE_API_KEY: token },
-      createClient: (() => ({
-        account: { me: { query: async () => { throw new Error("Unexpected account.me"); } } },
-        marks: {
-          get: { query: async () => { throw notFound; } },
-          search: { query: async () => { throw new Error("Unexpected marks.search"); } },
+      createClient: () => ({
+        account: {
+          me: {
+            query: unexpected("account.me"),
+          },
         },
-      })),
-    }),
+        marks: {
+          get: {
+            query: () => Promise.reject(notFound),
+          },
+          search: {
+            query: unexpected("marks.search"),
+          },
+        },
+      }),
+      env: { TMTURTLE_API_KEY: token },
+    })
   );
 
   expect(result).toEqual({
     exitCode: 1,
+    stderr:
+      '{"ok":false,"error":{"code":"NOT_FOUND","message":"Trademark not found","details":{}}}\n',
     stdout: "",
-    stderr: '{"ok":false,"error":{"code":"NOT_FOUND","message":"Trademark not found","details":{}}}\n',
   });
 });
 
@@ -319,10 +408,6 @@ test("marks search maps the approved Multi flags and preserves the server page e
       "partial",
       "--status",
       "dead",
-      "--class",
-      "025",
-      "--class",
-      "018",
       "--type",
       "design",
       "--registered",
@@ -337,33 +422,46 @@ test("marks search maps the approved Multi flags and preserves the server page e
       "7",
     ],
     dependencies({
-      env: { TMTURTLE_API_KEY: token },
-      createClient: (() => ({
-        account: { me: { query: async () => { throw new Error("Unexpected account.me"); } } },
-        marks: {
-          get: { query: async () => { throw new Error("Unexpected marks.get"); } },
-          search: { query: async (input: unknown) => { inputs.push(input); return searchPage; } },
+      createClient: () => ({
+        account: {
+          me: {
+            query: unexpected("account.me"),
+          },
         },
-      })),
-    }),
+        marks: {
+          get: {
+            query: unexpected("marks.get"),
+          },
+          search: {
+            query: (input: unknown) => {
+              inputs.push(input);
+              return Promise.resolve(searchPage);
+            },
+          },
+        },
+      }),
+      env: { TMTURTLE_API_KEY: token },
+    })
   );
 
-  expect(inputs).toEqual([{
-    classes: ["025", "018"],
-    expectedCorpusVersion: "7",
-    limit: 25,
-    match: "partial",
-    mode: "multi",
-    offset: 25,
-    query: "Turtle %",
-    registered: "yes",
-    sort: "newest-activity",
-    status: "dead",
-    type: "design",
-  }]);
+  expect(inputs).toEqual([
+    {
+      expectedCorpusVersion: "7",
+      limit: 25,
+      match: "partial",
+      mode: "multi",
+      offset: 25,
+      query: "Turtle %",
+      registered: "yes",
+      sort: "newest-activity",
+      status: "dead",
+      type: "design",
+    },
+  ]);
   expect(result).toEqual({
     exitCode: 0,
     stderr: "",
+    // biome-ignore assist/source/useSortedKeys: This assertion protects the CLI envelope field order.
     stdout: `${JSON.stringify({ ok: true, data: searchPage })}\n`,
   });
 });
@@ -371,11 +469,15 @@ test("marks search maps the approved Multi flags and preserves the server page e
 test("marks search rejects unapproved modes and unsafe continuations before HTTP", async () => {
   const split = await runCli(
     ["marks", "search", "turtle", "--mode", "split"],
-    dependencies({ env: { TMTURTLE_API_KEY: token } }),
+    dependencies({ env: { TMTURTLE_API_KEY: token } })
   );
   const missingVersion = await runCli(
     ["marks", "search", "turtle", "--offset", "25"],
-    dependencies({ env: { TMTURTLE_API_KEY: token } }),
+    dependencies({ env: { TMTURTLE_API_KEY: token } })
+  );
+  const retiredClassFilter = await runCli(
+    ["marks", "search", "turtle", "--class", "025"],
+    dependencies({ env: { TMTURTLE_API_KEY: token } })
   );
 
   expect(JSON.parse(split.stderr)).toMatchObject({
@@ -383,7 +485,14 @@ test("marks search rejects unapproved modes and unsafe continuations before HTTP
     ok: false,
   });
   expect(JSON.parse(missingVersion.stderr)).toMatchObject({
-    error: { code: "BAD_REQUEST", message: "--corpus-version is required when --offset is greater than 0" },
+    error: {
+      code: "BAD_REQUEST",
+      message: "--corpus-version is required when --offset is greater than 0",
+    },
+    ok: false,
+  });
+  expect(JSON.parse(retiredClassFilter.stderr)).toMatchObject({
+    error: { code: "BAD_REQUEST", message: "Unknown search option --class" },
     ok: false,
   });
 });
@@ -395,20 +504,29 @@ test("marks search preserves a typed corpus conflict envelope", async () => {
   const result = await runCli(
     ["marks", "search", "turtle"],
     dependencies({
-      env: { TMTURTLE_API_KEY: token },
-      createClient: (() => ({
-        account: { me: { query: async () => { throw new Error("Unexpected account.me"); } } },
-        marks: {
-          get: { query: async () => { throw new Error("Unexpected marks.get"); } },
-          search: { query: async () => { throw conflict; } },
+      createClient: () => ({
+        account: {
+          me: {
+            query: unexpected("account.me"),
+          },
         },
-      })),
-    }),
+        marks: {
+          get: {
+            query: unexpected("marks.get"),
+          },
+          search: {
+            query: () => Promise.reject(conflict),
+          },
+        },
+      }),
+      env: { TMTURTLE_API_KEY: token },
+    })
   );
 
   expect(result).toEqual({
     exitCode: 1,
+    stderr:
+      '{"ok":false,"error":{"code":"CONFLICT","message":"Trademark corpus changed during pagination","details":{}}}\n',
     stdout: "",
-    stderr: '{"ok":false,"error":{"code":"CONFLICT","message":"Trademark corpus changed during pagination","details":{}}}\n',
   });
 });

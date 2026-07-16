@@ -1,30 +1,27 @@
-import type {
-  Contributor,
-  ResolvedCanonicalMark,
-} from "../ingestion/canonical-mark-types.ts";
+import type { Contributor, ResolvedCanonicalMark } from "../ingestion/canonical-mark-types.ts";
 
 export const legalDisclaimer =
   "Trademark data is informational, not legal advice. Verify critical decisions with the USPTO or qualified counsel.";
 
-export type AuthenticatedAccount = {
+export interface AuthenticatedAccount {
   accountId: string;
   credential: { type: "api-key"; keyId: string; suffix: string } | { type: "clerk" };
-};
+}
 
-export type PublicApiKey = {
+export interface PublicApiKey {
   createdAt: string;
   id: string;
   lastUsedAt: string | null;
   name: string;
   status: "active" | "revoked";
   suffix: string;
-};
+}
 
-export type AccountService = {
-  createApiKey(name: string): Promise<{ key: PublicApiKey; token: string }>;
-  listApiKeys(): Promise<PublicApiKey[]>;
-  revokeApiKey(id: string): Promise<PublicApiKey | null>;
-};
+export interface AccountService {
+  createApiKey: (name: string) => Promise<{ key: PublicApiKey; token: string }>;
+  listApiKeys: () => Promise<PublicApiKey[]>;
+  revokeApiKey: (id: string) => Promise<PublicApiKey | null>;
+}
 
 export type MarkDetail = Omit<ResolvedCanonicalMark, "contributors" | "kind" | "versions"> & {
   legalDisclaimer: typeof legalDisclaimer;
@@ -34,8 +31,7 @@ export type MarkDetail = Omit<ResolvedCanonicalMark, "contributors" | "kind" | "
   };
 };
 
-export type MultiSearchInput = {
-  classes: string[];
+export interface MultiSearchInput {
   expectedCorpusVersion?: string;
   limit: 25;
   match: "exact" | "partial" | "both";
@@ -46,9 +42,9 @@ export type MultiSearchInput = {
   sort: "relevance" | "newest-activity" | "oldest-activity";
   status: "all" | "live" | "dead";
   type: "all" | "design" | "typeset" | "text" | "other";
-};
+}
 
-export type MultiSearchPage = {
+export interface MultiSearchPage {
   items: Array<{
     goodsServicesExcerpt: string | null;
     internationalClasses: string[];
@@ -69,16 +65,25 @@ export type MultiSearchPage = {
   };
   offset: number;
   total: number;
-};
+}
 
-export type MarksService = {
-  getByRegistrationNumber(registrationNumber: string): Promise<MarkDetail | null>;
-  getBySerialNumber(serialNumber: string): Promise<MarkDetail | null>;
-  search(input: MultiSearchInput): Promise<MultiSearchPage>;
-};
+export interface MarksService {
+  getByRegistrationNumber: (registrationNumber: string) => Promise<MarkDetail | null>;
+  getBySerialNumber: (serialNumber: string) => Promise<MarkDetail | null>;
+  search: (input: MultiSearchInput) => Promise<MultiSearchPage>;
+}
 
-export type SyncStatus = {
-  activeState: "backoff" | "discovering" | "downloading" | "failed" | "idle" | "operator-action-required" | "parsing" | "publishing" | "stopped";
+export interface SyncStatus {
+  activeState:
+    | "backoff"
+    | "discovering"
+    | "downloading"
+    | "failed"
+    | "idle"
+    | "operator-action-required"
+    | "parsing"
+    | "publishing"
+    | "stopped";
   completeThroughDate: string | null;
   corpusVersion: number;
   degraded: boolean;
@@ -88,24 +93,24 @@ export type SyncStatus = {
   pendingCount: number;
   publishedThroughDate: string | null;
   quarantineCount: number;
-  rejectCount: number;
   reissueSelectionRequiredCount: number;
+  rejectCount: number;
   stale: boolean;
   staleSince: string | null;
-};
+}
 
-export type SyncService = {
-  status(): Promise<SyncStatus>;
-};
+export interface SyncService {
+  status: () => Promise<SyncStatus>;
+}
 
-export type BoundedPage<T> = {
+export interface BoundedPage<T> {
   items: T[];
   limit: number;
   offset: number;
   total: number;
-};
+}
 
-export type OperatorArtifact = {
+export interface OperatorArtifact {
   artifactId: string;
   artifactVersionId: string | null;
   bytes: number | null;
@@ -123,25 +128,32 @@ export type OperatorArtifact = {
   sha256: string | null;
   sourceFromDate: string;
   sourceToDate: string;
-  stage: "downloading" | "parsing" | "pending" | "published" | "quarantined" | "staged" | "verified";
+  stage:
+    | "downloading"
+    | "parsing"
+    | "pending"
+    | "published"
+    | "quarantined"
+    | "staged"
+    | "verified";
   stageSince: string;
-};
+}
 
-export type OperatorPageInput = {
+export interface OperatorPageInput {
   limit: number;
   offset: number;
   product?: "TRTDXFAP" | "TRTYRAP";
-};
+}
 
-export type OperatorArtifactVersion = {
+export interface OperatorArtifactVersion {
   artifactId: string;
   artifactVersionId: string;
   bytes: number;
   createdAt: string;
   filename: string;
   observedAt: string | null;
-  parseState: "parsing" | "quarantined" | "staged" | null;
   parserVersion: string | null;
+  parseState: "parsing" | "quarantined" | "staged" | null;
   product: "TRTDXFAP" | "TRTYRAP";
   quarantineReason: string | null;
   selected: boolean;
@@ -149,9 +161,9 @@ export type OperatorArtifactVersion = {
   sourceFromDate: string | null;
   sourceToDate: string | null;
   state: "parsing" | "published" | "quarantined" | "staged" | "verified";
-};
+}
 
-export type OperatorPublication = {
+export interface OperatorPublication {
   artifactCount: number;
   completeThroughDate: string | null;
   corpusVersion: number | null;
@@ -163,9 +175,9 @@ export type OperatorPublication = {
   publishedThroughDate: string | null;
   rejectedAt: string | null;
   state: "published" | "rejected" | "staged";
-};
+}
 
-export type OperatorRejection = {
+export interface OperatorRejection {
   artifactVersionSha256: string | null;
   bytes: number | null;
   claimPath: string | null;
@@ -182,9 +194,9 @@ export type OperatorRejection = {
   publicationId: string | null;
   reason: string;
   serialNumber: string | null;
-};
+}
 
-export type OperatorDatasetStatus = {
+export interface OperatorDatasetStatus {
   backlogCount: number;
   completeThroughDate: string | null;
   coverageFromDate: string | null;
@@ -196,21 +208,26 @@ export type OperatorDatasetStatus = {
   product: "TRTDXFAP" | "TRTYRAP";
   providerBackoffUntil: string | null;
   providerStopReason: string | null;
+  publicationParsedArtifactCount: number;
+  publicationPolicy: "annual-baseline" | "retained-only";
+  publicationTargetArtifactCount: number;
   quarantineCount: number;
   reason: string | null;
   rejectCount: number;
   stageSince: string | null;
-};
+}
 
-export type OperatorSyncStatus = {
+export interface OperatorSyncStatus {
   datasets: OperatorDatasetStatus[];
   summary: SyncStatus;
-};
+}
 
-export type OperatorSyncService = {
-  artifacts(input: OperatorPageInput): Promise<BoundedPage<OperatorArtifact>>;
-  artifactVersions(input: OperatorPageInput): Promise<BoundedPage<OperatorArtifactVersion>>;
-  publications(input: Omit<OperatorPageInput, "product">): Promise<BoundedPage<OperatorPublication>>;
-  rejects(input: OperatorPageInput): Promise<BoundedPage<OperatorRejection>>;
-  status(): Promise<OperatorSyncStatus>;
-};
+export interface OperatorSyncService {
+  artifacts: (input: OperatorPageInput) => Promise<BoundedPage<OperatorArtifact>>;
+  artifactVersions: (input: OperatorPageInput) => Promise<BoundedPage<OperatorArtifactVersion>>;
+  publications: (
+    input: Omit<OperatorPageInput, "product">
+  ) => Promise<BoundedPage<OperatorPublication>>;
+  rejects: (input: OperatorPageInput) => Promise<BoundedPage<OperatorRejection>>;
+  status: () => Promise<OperatorSyncStatus>;
+}

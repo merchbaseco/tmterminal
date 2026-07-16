@@ -6,9 +6,15 @@ import postgres from "postgres";
 
 import { migrateDatabase } from "../../src/db/migrate.ts";
 import { createCorpusPublisher } from "../../src/ingestion/corpus-publisher.ts";
-import { recoverCorpusFrontier, selectArtifactVersion } from "../../src/ingestion/sync-operations.ts";
 import { createSourceObservationModule } from "../../src/ingestion/source-observations.ts";
-import { reconcileDiscoverySuccess, retainArtifactVersion } from "../../src/queries/artifact-repository.ts";
+import {
+  recoverCorpusFrontier,
+  selectArtifactVersion,
+} from "../../src/ingestion/sync-operations.ts";
+import {
+  reconcileDiscoverySuccess,
+  retainArtifactVersion,
+} from "../../src/queries/artifact-repository.ts";
 import {
   createCanonicalMarkRepository,
   publishCanonicalMarks,
@@ -16,10 +22,21 @@ import {
 import { resetTestDatabase } from "./test-database.ts";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
-if (!databaseUrl) throw new Error("TEST_DATABASE_URL is required for PostgreSQL integration tests");
+if (!databaseUrl) {
+  throw new Error("TEST_DATABASE_URL is required for PostgreSQL integration tests");
+}
 
 const database = postgres(databaseUrl, { max: 4, prepare: false });
 const fixtureRoot = join(import.meta.dir, "../../../../fixtures/uspto/records");
+const annualPartPattern = /-(\d{2})\.zip$/;
+const ownerGroupPattern = /<case-file-owners>[\s\S]*<\/case-file-owners>/;
+
+function required<T>(value: T | undefined | null, message: string): T {
+  if (value === null || value === undefined) {
+    throw new Error(message);
+  }
+  return value;
+}
 
 function stream(bytes: Uint8Array) {
   return new ReadableStream<Uint8Array>({
@@ -33,27 +50,32 @@ function stream(bytes: Uint8Array) {
 function recordsXml(records: Uint8Array[], creationDatetime: string) {
   return Buffer.concat([
     Buffer.from(
-      `<trademark-applications-daily><version><version-no>2.0</version-no><version-date>20041108</version-date></version><creation-datetime>${creationDatetime}</creation-datetime><application-information><file-segments><file-segment>TRMK</file-segment><action-keys><action-key>TX</action-key>\n`,
+      `<trademark-applications-daily><version><version-no>2.0</version-no><version-date>20041108</version-date></version><creation-datetime>${creationDatetime}</creation-datetime><application-information><file-segments><file-segment>TRMK</file-segment><action-keys><action-key>TX</action-key>\n`
     ),
     ...records,
-    Buffer.from("</action-keys></file-segments></application-information></trademark-applications-daily>"),
+    Buffer.from(
+      "</action-keys></file-segments></application-information></trademark-applications-daily>"
+    ),
   ]);
 }
 
 async function waitForAdvisoryWait(applicationName: string) {
   for (let attempt = 0; attempt < 200; attempt += 1) {
+    // biome-ignore lint/performance/noAwaitInLoops: Advisory-lock polling is intentionally sequential.
     const [waiting] = await database<Array<{ waiting: boolean }>>`
       select true as waiting from pg_stat_activity
       where application_name = ${applicationName} and wait_event_type = 'Lock' and wait_event = 'advisory'
       limit 1
     `;
-    if (waiting?.waiting) return;
+    if (waiting?.waiting) {
+      return;
+    }
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error(`${applicationName} did not wait on the advisory lock`);
 }
 
-type ArtifactInput = {
+interface ArtifactInput {
   artifactFilename: string;
   artifactId?: string;
   product: "TRTDXFAP" | "TRTYRAP";
@@ -61,7 +83,7 @@ type ArtifactInput = {
   sourceFromDate: string;
   sourceToDate: string;
   xml: Buffer;
-};
+}
 
 async function retainVerifiedArtifact(input: ArtifactInput) {
   const artifactId = input.artifactId ?? randomUUID();
@@ -99,9 +121,21 @@ async function retainAndStageArtifact(input: ArtifactInput) {
   return { ...retained, parse };
 }
 
+function withClass025(record: Buffer) {
+  return Buffer.from(
+    record
+      .toString("utf8")
+      .replace("<primary-code>009</primary-code>", "<primary-code>025</primary-code>")
+      .replace(
+        "<international-code>009</international-code>",
+        "<international-code>025</international-code>"
+      )
+  );
+}
+
 async function retainAndStageAnnual(filename: string, artifactFilename: string) {
-  const record = await readFile(join(fixtureRoot, filename));
-  const part = artifactFilename.match(/-(\d{2})\.zip$/)?.[1] ?? "00";
+  const record = withClass025(await readFile(join(fixtureRoot, filename)));
+  const part = artifactFilename.match(annualPartPattern)?.[1] ?? "00";
   return retainAndStageArtifact({
     artifactFilename,
     product: "TRTYRAP",
@@ -112,8 +146,44 @@ async function retainAndStageAnnual(filename: string, artifactFilename: string) 
   });
 }
 
+async function retainAndStageAnnualVariant(artifactFilename: string, replacement: string) {
+  const retained = await readFile(join(fixtureRoot, "annual-2025-full-tx-60146682.xml"));
+  const record = withClass025(
+    Buffer.from(
+      retained
+        .toString("utf8")
+        .replace("<mark-identification>MACHINE-PISTOL</mark-identification>", replacement)
+    )
+  );
+  return retainAndStageArtifact({
+    artifactFilename,
+    product: "TRTYRAP",
+    releaseDate: "2026-04-03",
+    sourceFromDate: "1884-04-07",
+    sourceToDate: "2025-12-31",
+    xml: recordsXml([record], "202604030149"),
+  });
+}
+
+async function retainAndStageAnnualWithEmptyOwners() {
+  const retained = await readFile(join(fixtureRoot, "annual-2025-full-tx-60146682.xml"));
+  const record = withClass025(
+    Buffer.from(retained.toString("utf8").replace(ownerGroupPattern, "<case-file-owners/>"))
+  );
+  return retainAndStageArtifact({
+    artifactFilename: "apc18840407-20251231-01.zip",
+    product: "TRTYRAP",
+    releaseDate: "2026-04-03",
+    sourceFromDate: "1884-04-07",
+    sourceToDate: "2025-12-31",
+    xml: recordsXml([record], "202604030149"),
+  });
+}
+
 async function retainAnnualReissue(artifactId: string, artifactFilename: string) {
-  const record = await readFile(join(fixtureRoot, "annual-2025-full-tx-60146682.xml"));
+  const record = withClass025(
+    await readFile(join(fixtureRoot, "annual-2025-full-tx-60146682.xml"))
+  );
   return retainAndStageArtifact({
     artifactFilename,
     artifactId,
@@ -125,11 +195,11 @@ async function retainAnnualReissue(artifactId: string, artifactFilename: string)
   });
 }
 
-async function retainAndStageEmptyAnnual(artifactFilename: string, artifactId?: string) {
-  const part = artifactFilename.match(/-(\d{2})\.zip$/)?.[1] ?? "00";
+function retainAndStageEmptyAnnual(artifactFilename: string, artifactId?: string) {
+  const part = artifactFilename.match(annualPartPattern)?.[1] ?? "00";
   const reissue = artifactId ? "99" : part;
   const xml = Buffer.from(
-    `<trademark-applications-daily><version><version-no>2.0</version-no><version-date>20041108</version-date></version><creation-datetime>20260403${reissue}00</creation-datetime><application-information><data-available-code>N</data-available-code></application-information></trademark-applications-daily>`,
+    `<trademark-applications-daily><version><version-no>2.0</version-no><version-date>20041108</version-date></version><creation-datetime>20260403${reissue}00</creation-datetime><application-information><data-available-code>N</data-available-code></application-information></trademark-applications-daily>`
   );
   return retainAndStageArtifact({
     artifactFilename,
@@ -143,19 +213,28 @@ async function retainAndStageEmptyAnnual(artifactFilename: string, artifactId?: 
 }
 
 async function retainAndStageEmptyAnnualRange(first = 1, last = 91) {
-  return Promise.all(Array.from({ length: last - first + 1 }, (_, offset) => {
-    const index = first + offset;
-    return retainAndStageEmptyAnnual(`apc18840407-20251231-${String(index).padStart(2, "0")}.zip`);
-  }));
+  const retained: Awaited<ReturnType<typeof retainAndStageEmptyAnnual>>[] = [];
+  for (let index = first; index <= last; index += 1) {
+    // biome-ignore lint/performance/noAwaitInLoops: Annual fixtures model the one-artifact-at-a-time reconciler contract.
+    const artifact = await retainAndStageEmptyAnnual(
+      `apc18840407-20251231-${String(index).padStart(2, "0")}.zip`
+    );
+    retained.push(artifact);
+  }
+  return retained;
 }
 
-async function retainAndStageAnnualRange() {
-  return Promise.all(Array.from({ length: 91 }, (_, index) => (
-    retainAndStageAnnual(
+async function retainAndStageAnnualRange(first = 1, last = 91) {
+  const retained: Awaited<ReturnType<typeof retainAndStageAnnual>>[] = [];
+  for (let index = first; index <= last; index += 1) {
+    // biome-ignore lint/performance/noAwaitInLoops: Annual fixtures model the one-artifact-at-a-time reconciler contract.
+    const artifact = await retainAndStageAnnual(
       "annual-2025-full-tx-60146682.xml",
-      `apc18840407-20251231-${String(index + 1).padStart(2, "0")}.zip`,
-    )
-  )));
+      `apc18840407-20251231-${String(index).padStart(2, "0")}.zip`
+    );
+    retained.push(artifact);
+  }
+  return retained;
 }
 
 async function retainStatusOnlyReissue(artifactId: string, artifactFilename: string) {
@@ -172,15 +251,18 @@ async function retainStatusOnlyReissue(artifactId: string, artifactFilename: str
   });
 }
 
-async function retainAndStageDailyConflict(options: {
-  artifactFilename?: string;
-  replacement?: string;
-} = {}) {
+async function retainAndStageDailyConflict(
+  options: { artifactFilename?: string; replacement?: string } = {}
+) {
   const retained = await readFile(join(fixtureRoot, "annual-2025-full-tx-60146682.xml"));
-  const record = Buffer.from(retained.toString("utf8").replace(
-    "<mark-identification>MACHINE-PISTOL</mark-identification>",
-    options.replacement ?? "<mark-identification>COMPETING DAILY MARK</mark-identification>",
-  ));
+  const record = Buffer.from(
+    retained
+      .toString("utf8")
+      .replace(
+        "<mark-identification>MACHINE-PISTOL</mark-identification>",
+        options.replacement ?? "<mark-identification>COMPETING DAILY MARK</mark-identification>"
+      )
+  );
   const artifactFilename = options.artifactFilename ?? "apc260101.zip";
   return retainAndStageArtifact({
     artifactFilename,
@@ -231,7 +313,7 @@ async function retainDailyFixture(filename: string, artifactFilename: string, da
 }
 
 async function retainConflictingRegistrationPart() {
-  const first = await readFile(join(fixtureRoot, "annual-2025-full-tx-60146682.xml"));
+  const first = withClass025(await readFile(join(fixtureRoot, "annual-2025-full-tx-60146682.xml")));
   const second = Buffer.from(first.toString("utf8").replaceAll("60146682", "60146683"));
   await retainAndStageArtifact({
     artifactFilename: "apc18840407-20251231-01.zip",
@@ -259,8 +341,31 @@ test("requires every member of the pinned annual generation before staging publi
     status: "ineligible",
   });
   await expect(recoverCorpusFrontier(database)).rejects.toThrow(
-    "Corpus frontier recovery is ineligible: incomplete-annual-generation",
+    "Corpus frontier recovery is ineligible: incomplete-annual-generation"
   );
+});
+
+test("accepts a scanned annual member with zero selected observations in the exact 91 candidate", async () => {
+  const record = await readFile(join(fixtureRoot, "annual-2025-full-tx-60146682.xml"));
+  const first = await retainAndStageArtifact({
+    artifactFilename: "apc18840407-20251231-01.zip",
+    product: "TRTYRAP",
+    releaseDate: "2026-04-03",
+    sourceFromDate: "1884-04-07",
+    sourceToDate: "2025-12-31",
+    xml: recordsXml([record], "202604030149"),
+  });
+  await retainAndStageEmptyAnnualRange(2);
+
+  const [persisted] = await database<Array<{ count: number }>>`
+    select count(*)::int as count from source_record where parse_run_id = ${first.parse.parseRunId}
+  `;
+  expect(first.parse).toMatchObject({ recordCount: 1, rejectCount: 0, status: "staged" });
+  expect(persisted?.count).toBe(0);
+  expect(await createCorpusPublisher(database).stage()).toMatchObject({
+    artifactCount: 91,
+    status: "staged",
+  });
 });
 
 test("frontier recovery revalidates and publishes the current eligible set", async () => {
@@ -281,11 +386,12 @@ test("frontier recovery revalidates and publishes the current eligible set", asy
 test("stages the complete pinned annual generation without assigning member order", async () => {
   const filenames = Array.from(
     { length: 91 },
-    (_, index) => `apc18840407-20251231-${String(index + 1).padStart(2, "0")}.zip`,
+    (_, index) => `apc18840407-20251231-${String(index + 1).padStart(2, "0")}.zip`
   ).reverse();
-  await Promise.all(filenames.map((filename) => (
-    retainAndStageAnnual("annual-2025-full-tx-60146682.xml", filename)
-  )));
+  for (const filename of filenames) {
+    // biome-ignore lint/performance/noAwaitInLoops: Annual fixtures model sequential artifact reconciliation.
+    await retainAndStageAnnual("annual-2025-full-tx-60146682.xml", filename);
+  }
 
   const result = await createCorpusPublisher(database).stage();
 
@@ -296,17 +402,47 @@ test("stages the complete pinned annual generation without assigning member orde
   });
 });
 
+test("publishes the exact annual baseline while retaining daily evidence outside the policy", async () => {
+  await retainAndStageEmptyAnnualRange();
+  const daily = await retainAndStageDailyConflict();
+  const publisher = createCorpusPublisher(database);
+
+  const candidate = await publisher.stage();
+
+  expect(candidate).toEqual({
+    artifactCount: 91,
+    candidateId: expect.any(String),
+    status: "staged",
+  });
+  if (candidate.status !== "staged") {
+    throw new Error("expected annual baseline candidate");
+  }
+  expect(await publisher.publish(candidate.candidateId)).toMatchObject({
+    completeThroughDate: "2025-12-31",
+    publishedThroughDate: "2025-12-31",
+    status: "published",
+  });
+  const products = await database<Array<{ product: string }>>`
+    select distinct artifact.product_id as product
+    from publication_artifact source
+    join artifact on artifact.id = source.artifact_id
+    where source.publication_id = ${candidate.candidateId}
+    order by product
+  `;
+  const [dailyState] = await database<Array<{ state: string }>>`
+    select state from artifact_version where id = ${daily.artifactVersionId}
+  `;
+  expect([...products]).toEqual([{ product: "TRTYRAP" }]);
+  expect(dailyState?.state).toBe("staged");
+});
+
 test("atomically publishes canonical state, frontier, corpus version, and one durable event", async () => {
-  const filenames = Array.from(
-    { length: 91 },
-    (_, index) => `apc18840407-20251231-${String(index + 1).padStart(2, "0")}.zip`,
-  );
-  await Promise.all(filenames.map((filename) => (
-    retainAndStageAnnual("annual-2025-full-tx-60146682.xml", filename)
-  )));
+  await retainAndStageAnnualRange();
   const publisher = createCorpusPublisher(database);
   const candidate = await publisher.stage();
-  if (candidate.status !== "staged") throw new Error("expected staged publication candidate");
+  if (candidate.status !== "staged") {
+    throw new Error("expected staged publication candidate");
+  }
 
   const published = await publisher.publish(candidate.candidateId);
   const replayed = await createCorpusPublisher(database).publish(candidate.candidateId);
@@ -329,15 +465,49 @@ test("atomically publishes canonical state, frontier, corpus version, and one du
       wordMark: "MACHINE-PISTOL",
     },
   });
-  expect(new Set(mark?.contributors.map((contributor) => contributor.artifactVersionSha256)).size).toBe(91);
+  const publishedMark = required(mark, "expected published canonical mark");
+  expect(
+    new Set(publishedMark.contributors.map((contributor) => contributor.artifactVersionSha256)).size
+  ).toBe(91);
+  const [unsupported] = await database<Array<{ count: number }>>`
+    select count(*)::int as count
+    from mark
+    where not exists (
+      select 1
+      from publication_artifact source
+      join source_record record on record.parse_run_id = source.parse_run_id
+      where source.publication_id = ${candidate.candidateId}
+        and record.serial_number = mark.serial_number
+        and jsonb_path_exists(
+          record.values,
+          ${'$.** ? (@.name == "primary-code" && @.rawValue == "025")'}::jsonpath
+        )
+    )
+  `;
+  expect(unsupported?.count).toBe(0);
+  const [outsideClass025] = await database<Array<{ count: number }>>`
+    select count(*)::int as count
+    from mark
+    where not exists (
+      select 1 from mark_class classification
+      where classification.serial_number = mark.serial_number
+        and classification.international_code = '025'
+    )
+  `;
+  expect(outsideClass025?.count).toBe(0);
 });
 
 test("persists unresolved diagnostics and rejects the whole candidate without canonical changes", async () => {
-  await retainAndStageAnnualRange();
-  await retainAndStageDailyConflict();
+  await retainAndStageAnnualVariant(
+    "apc18840407-20251231-01.zip",
+    "<mark-identification>COMPETING ANNUAL MARK</mark-identification>"
+  );
+  await retainAndStageAnnualRange(2, 91);
   const publisher = createCorpusPublisher(database);
   const candidate = await publisher.stage();
-  if (candidate.status !== "staged") throw new Error("expected staged publication candidate");
+  if (candidate.status !== "staged") {
+    throw new Error("expected staged publication candidate");
+  }
 
   const rejected = await publisher.publish(candidate.candidateId);
   const replayed = await createCorpusPublisher(database).publish(candidate.candidateId);
@@ -348,7 +518,9 @@ test("persists unresolved diagnostics and rejects the whole candidate without ca
     status: "rejected",
   });
   expect(replayed).toEqual(rejected);
-  const [diagnostic] = await database<Array<{ details: { claimPath: string; kind: string; serialNumber: string } }>>`
+  const [diagnostic] = await database<
+    Array<{ details: { claimPath: string; kind: string; serialNumber: string } }>
+  >`
     select details from publication_diagnostic where publication_id = ${candidate.candidateId}
     order by diagnostic_key limit 1
   `;
@@ -360,9 +532,39 @@ test("persists unresolved diagnostics and rejects the whole candidate without ca
   expect(await createCanonicalMarkRepository(database).read("60146682")).toBeNull();
 });
 
+test("rejects unsupported annual semantics atomically", async () => {
+  await retainAndStageAnnualWithEmptyOwners();
+  await retainAndStageEmptyAnnualRange(2, 91);
+  const publisher = createCorpusPublisher(database);
+  const candidate = await publisher.stage();
+  if (candidate.status !== "staged") {
+    throw new Error("expected unsupported annual candidate");
+  }
+
+  expect(await publisher.publish(candidate.candidateId)).toEqual({
+    candidateId: candidate.candidateId,
+    diagnosticCount: 1,
+    status: "rejected",
+  });
+  const [diagnostic] = await database<
+    Array<{ details: { claimPath: string; kind: string; serialNumber: string } }>
+  >`
+    select details from publication_diagnostic where publication_id = ${candidate.candidateId}
+    order by diagnostic_key limit 1
+  `;
+  expect(diagnostic?.details).toMatchObject({
+    claimPath: "case-file/case-file-owners",
+    kind: "unsupported-semantics",
+    serialNumber: "60146682",
+  });
+  expect(await createCanonicalMarkRepository(database).read("60146682")).toBeNull();
+});
+
 test("requires an explicit retained version when one logical artifact is reissued", async () => {
   const [firstPart] = await retainAndStageAnnualRange();
-  if (!firstPart) throw new Error("missing first annual part");
+  if (!firstPart) {
+    throw new Error("missing first annual part");
+  }
   const reissue = await retainAnnualReissue(firstPart.artifactId, "apc18840407-20251231-01.zip");
   const publisher = createCorpusPublisher(database);
 
@@ -377,40 +579,60 @@ test("requires an explicit retained version when one logical artifact is reissue
 
 test("revalidates automatic version eligibility after acquiring the publication lock", async () => {
   const [firstPart] = await retainAndStageAnnualRange();
-  if (!firstPart) throw new Error("missing first annual part");
+  if (!firstPart) {
+    throw new Error("missing first annual part");
+  }
   const publisher = createCorpusPublisher(database);
   const candidate = await publisher.stage();
-  if (candidate.status !== "staged") throw new Error("expected staged publication candidate");
+  if (candidate.status !== "staged") {
+    throw new Error("expected staged publication candidate");
+  }
   await retainAnnualReissue(firstPart.artifactId, "apc18840407-20251231-01.zip");
 
-  await expect(publisher.publish(candidate.candidateId)).rejects.toThrow("Publication candidate eligibility changed");
+  await expect(publisher.publish(candidate.candidateId)).rejects.toThrow(
+    "Publication candidate eligibility changed"
+  );
   expect(await createCanonicalMarkRepository(database).read("60146682")).toBeNull();
 
   await selectArtifactVersion(database, firstPart.artifactVersionId, "retain original version");
   const explicitlySelected = await publisher.stage();
-  if (explicitlySelected.status !== "staged") throw new Error("expected explicit candidate");
+  if (explicitlySelected.status !== "staged") {
+    throw new Error("expected explicit candidate");
+  }
   expect(explicitlySelected.candidateId).not.toBe(candidate.candidateId);
-  expect(await publisher.publish(explicitlySelected.candidateId)).toMatchObject({ status: "published" });
+  expect(await publisher.publish(explicitlySelected.candidateId)).toMatchObject({
+    status: "published",
+  });
 });
 
 test("invalidates an explicit reissue selection when the retained version set changes", async () => {
   const firstPart = await retainAndStageAnnual(
     "annual-2025-full-tx-60146682.xml",
-    "apc18840407-20251231-01.zip",
+    "apc18840407-20251231-01.zip"
   );
   await retainAndStageEmptyAnnualRange(2);
   await retainAnnualReissue(firstPart.artifactId, "apc18840407-20251231-01.zip");
   const publisher = createCorpusPublisher(database);
   await selectArtifactVersion(database, firstPart.artifactVersionId, "retain original version");
   const selected = await publisher.stage();
-  if (selected.status !== "staged") throw new Error("expected explicit reissue candidate");
+  if (selected.status !== "staged") {
+    throw new Error("expected explicit reissue candidate");
+  }
 
   await retainAndStageEmptyAnnual("apc18840407-20251231-01.zip", firstPart.artifactId);
-  await expect(publisher.publish(selected.candidateId)).rejects.toThrow("Publication candidate eligibility changed");
+  await expect(publisher.publish(selected.candidateId)).rejects.toThrow(
+    "Publication candidate eligibility changed"
+  );
 
-  await selectArtifactVersion(database, firstPart.artifactVersionId, "retain original after new version");
+  await selectArtifactVersion(
+    database,
+    firstPart.artifactVersionId,
+    "retain original after new version"
+  );
   const restaged = await publisher.stage();
-  if (restaged.status !== "staged") throw new Error("expected restaged explicit reissue candidate");
+  if (restaged.status !== "staged") {
+    throw new Error("expected restaged explicit reissue candidate");
+  }
   expect(restaged.candidateId).not.toBe(selected.candidateId);
   expect(await publisher.publish(restaged.candidateId)).toMatchObject({ status: "published" });
 });
@@ -418,28 +640,37 @@ test("invalidates an explicit reissue selection when the retained version set ch
 test("refuses a staged candidate when the persisted reissue selection changes", async () => {
   const firstPart = await retainAndStageAnnual(
     "annual-2025-full-tx-60146682.xml",
-    "apc18840407-20251231-01.zip",
+    "apc18840407-20251231-01.zip"
   );
   await retainAndStageEmptyAnnualRange(2);
   const secondPart = await retainAnnualReissue(firstPart.artifactId, "apc18840407-20251231-01.zip");
   await selectArtifactVersion(database, firstPart.artifactVersionId, "candidate A");
   const candidateA = await createCorpusPublisher(database).stage();
-  if (candidateA.status !== "staged") throw new Error("expected candidate A");
+  if (candidateA.status !== "staged") {
+    throw new Error("expected candidate A");
+  }
 
   await selectArtifactVersion(database, secondPart.artifactVersionId, "candidate B");
   await expect(createCorpusPublisher(database).publish(candidateA.candidateId)).rejects.toThrow(
-    "Publication candidate eligibility changed",
+    "Publication candidate eligibility changed"
   );
   expect(await createCanonicalMarkRepository(database).read("60146682")).toBeNull();
   const candidateB = await createCorpusPublisher(database).stage();
-  if (candidateB.status !== "staged") throw new Error("expected candidate B");
-  expect(await createCorpusPublisher(database).publish(candidateB.candidateId)).toMatchObject({ status: "published" });
+  if (candidateB.status !== "staged") {
+    throw new Error("expected candidate B");
+  }
+  expect(await createCorpusPublisher(database).publish(candidateB.candidateId)).toMatchObject({
+    status: "published",
+  });
 });
 
 test("rejects reissue selection when the latest retained discovery is outside publication policy", async () => {
   const original = await retainAndStageEmptyAnnual("apc18840407-20251231-01.zip");
   await retainAndStageEmptyAnnualRange(2);
-  const invalidReissue = await retainAndStageEmptyAnnual("apc18840407-20251231-01.zip", original.artifactId);
+  const invalidReissue = await retainAndStageEmptyAnnual(
+    "apc18840407-20251231-01.zip",
+    original.artifactId
+  );
   await database`
     insert into artifact_discovery (
       id, artifact_id, artifact_version_id, fingerprint, observed_at, download_state, download_url,
@@ -451,81 +682,70 @@ test("rejects reissue selection when the latest retained discovery is outside pu
       current_date, now()
     )
   `;
-  await expect(selectArtifactVersion(database, invalidReissue.artifactVersionId, "invalid logical artifact")).rejects.toThrow(
-    "Selected version is outside the current publication policy",
-  );
-});
-
-test("refuses to omit a parent daily artifact that lacks a current-parser run", async () => {
-  await retainAndStageEmptyAnnualRange();
-  const daily = await retainAndStageDaily("2026-01-01", "apc260101.zip");
-  const publisher = createCorpusPublisher(database);
-  const first = await publisher.stage();
-  if (first.status !== "staged") throw new Error("expected initial candidate");
-  expect(await publisher.publish(first.candidateId)).toMatchObject({ status: "published" });
-
-  await database`
-    update parse_run set parser_version = 'uspto-application-xml-v1'
-    where id = ${daily.parse.parseRunId}
-  `;
-  expect(await publisher.stage()).toEqual({
-    artifactIds: [daily.artifactId],
-    reason: "incomplete-current-parser-replay",
-    status: "ineligible",
-  });
-  const [publications] = await database<Array<{ count: number }>>`
-    select count(*)::int as count from publication
-  `;
-  expect(publications?.count).toBe(1);
+  await expect(
+    selectArtifactVersion(database, invalidReissue.artifactVersionId, "invalid logical artifact")
+  ).rejects.toThrow("Selected version is outside the current publication policy");
 });
 
 test("revalidates the staged parse digest inside the publication transaction", async () => {
   await retainAndStageEmptyAnnualRange();
   const publisher = createCorpusPublisher(database);
   const candidate = await publisher.stage();
-  if (candidate.status !== "staged") throw new Error("expected digest candidate");
+  if (candidate.status !== "staged") {
+    throw new Error("expected digest candidate");
+  }
   await database`
     update parse_run set digest = ${"f".repeat(64)}
     where id = (select parse_run_id from publication_artifact where publication_id = ${candidate.candidateId} limit 1)
   `;
 
-  await expect(publisher.publish(candidate.candidateId)).rejects.toThrow("Publication candidate eligibility changed");
+  await expect(publisher.publish(candidate.candidateId)).rejects.toThrow(
+    "Publication candidate eligibility changed"
+  );
 });
 
 test("rejects a candidate staged under older canonical semantic versions", async () => {
   await retainAndStageEmptyAnnualRange();
   const publisher = createCorpusPublisher(database);
   const candidate = await publisher.stage();
-  if (candidate.status !== "staged") throw new Error("expected semantic-version candidate");
+  if (candidate.status !== "staged") {
+    throw new Error("expected semantic-version candidate");
+  }
   await database`
     update publication set authority_policy_version = 'uspto-authority-v0'
     where id = ${candidate.candidateId}
   `;
 
   await expect(publisher.publish(candidate.candidateId)).rejects.toThrow(
-    "Publication candidate semantic versions changed",
+    "Publication candidate semantic versions changed"
   );
 });
 
-test("rejects a candidate when a verified daily becomes eligible after staging", async () => {
+test("keeps an annual candidate valid when retained daily evidence finishes parsing", async () => {
   await retainAndStageEmptyAnnualRange();
   const daily = await retainVerifiedDaily("2026-01-01", "apc260101.zip");
   const publisher = createCorpusPublisher(database);
   const candidate = await publisher.stage();
-  if (candidate.status !== "staged") throw new Error("expected candidate before daily parse completion");
+  if (candidate.status !== "staged") {
+    throw new Error("expected candidate before daily parse completion");
+  }
   expect(candidate.artifactCount).toBe(91);
 
-  expect(await createSourceObservationModule(database).stageArtifact({
-    artifactVersionId: daily.artifactVersionId,
-    xml: stream(daily.xml),
-  })).toMatchObject({ status: "staged" });
+  expect(
+    await createSourceObservationModule(database).stageArtifact({
+      artifactVersionId: daily.artifactVersionId,
+      xml: stream(daily.xml),
+    })
+  ).toMatchObject({ status: "staged" });
 
-  await expect(publisher.publish(candidate.candidateId)).rejects.toThrow(
-    "Publication candidate complete eligible source set changed",
-  );
+  expect(await publisher.publish(candidate.candidateId)).toMatchObject({
+    completeThroughDate: "2025-12-31",
+    publishedThroughDate: "2025-12-31",
+    status: "published",
+  });
 });
 
-test("serializes parse terminalization with complete candidate staging", async () => {
+test("serializes daily parse terminalization without expanding the annual candidate", async () => {
   await retainAndStageEmptyAnnualRange();
   const daily = await retainVerifiedDaily("2026-01-01", "apc260101.zip");
   await database.unsafe(`
@@ -551,7 +771,8 @@ test("serializes parse terminalization with complete candidate staging", async (
     prepare: false,
   });
   let blockerLocked = false;
-  let parse: ReturnType<ReturnType<typeof createSourceObservationModule>["stageArtifact"]> | null = null;
+  let parse: ReturnType<ReturnType<typeof createSourceObservationModule>["stageArtifact"]> | null =
+    null;
   let stage: ReturnType<ReturnType<typeof createCorpusPublisher>["stage"]> | null = null;
   let stageFinished = false;
   try {
@@ -562,27 +783,37 @@ test("serializes parse terminalization with complete candidate staging", async (
       xml: stream(daily.xml),
     });
     await waitForAdvisoryWait("prd63-parser");
-    stage = createCorpusPublisher(stagingDatabase).stage().then((result) => {
-      stageFinished = true;
-      return result;
-    });
+    stage = createCorpusPublisher(stagingDatabase)
+      .stage()
+      .then((result) => {
+        stageFinished = true;
+        return result;
+      });
     await waitForAdvisoryWait("prd63-stager");
     expect(stageFinished).toBe(false);
     await blocker`select pg_advisory_unlock(hashtext('prd63-test-parse-terminalization'))`;
     blockerLocked = false;
     expect(await parse).toMatchObject({ status: "staged" });
     const candidate = await stage;
-    expect(candidate).toMatchObject({ artifactCount: 92, status: "staged" });
-    if (candidate.status !== "staged") throw new Error("expected complete concurrent candidate");
+    expect(candidate).toMatchObject({ artifactCount: 91, status: "staged" });
+    if (candidate.status !== "staged") {
+      throw new Error("expected complete concurrent candidate");
+    }
     expect(await createCorpusPublisher(database).publish(candidate.candidateId)).toMatchObject({
-      completeThroughDate: "2026-01-01",
+      completeThroughDate: "2025-12-31",
       status: "published",
     });
   } finally {
-    if (blockerLocked) await blocker`select pg_advisory_unlock(hashtext('prd63-test-parse-terminalization'))`;
+    if (blockerLocked) {
+      await blocker`select pg_advisory_unlock(hashtext('prd63-test-parse-terminalization'))`;
+    }
     blocker.release();
-    if (parse) await parse.catch(() => undefined);
-    if (stage) await stage.catch(() => undefined);
+    if (parse) {
+      await parse.catch(() => undefined);
+    }
+    if (stage) {
+      await stage.catch(() => undefined);
+    }
     await parserDatabase.end({ timeout: 1 });
     await stagingDatabase.end({ timeout: 1 });
   }
@@ -590,10 +821,14 @@ test("serializes parse terminalization with complete candidate staging", async (
 
 test("revalidates the snapshotted discovery and coverage when the same bytes receive changed metadata", async () => {
   const [firstPart] = await retainAndStageEmptyAnnualRange();
-  if (!firstPart) throw new Error("missing first annual part");
+  if (!firstPart) {
+    throw new Error("missing first annual part");
+  }
   const publisher = createCorpusPublisher(database);
   const candidate = await publisher.stage();
-  if (candidate.status !== "staged") throw new Error("expected coverage candidate");
+  if (candidate.status !== "staged") {
+    throw new Error("expected coverage candidate");
+  }
   await database`
     insert into artifact_discovery (
       id, artifact_id, artifact_version_id, fingerprint, observed_at, download_state, download_url,
@@ -604,79 +839,111 @@ test("revalidates the snapshotted discovery and coverage when the same bytes rec
   `;
 
   await expect(publisher.publish(candidate.candidateId)).rejects.toThrow(
-    "Publication candidate complete eligible source set changed",
+    "Publication candidate complete eligible source set changed"
   );
 });
 
-test("advances only the contiguous complete frontier while publishing observations beyond a gap", async () => {
+test("does not advance the annual bootstrap frontier from retained daily coverage", async () => {
   await retainAndStageAnnualRange();
   const publisher = createCorpusPublisher(database);
   await retainAndStageDaily("2026-01-01", "apc260101.zip");
-  const first = await publisher.stage();
-  if (first.status !== "staged") throw new Error("expected first daily candidate");
-  expect(await publisher.publish(first.candidateId)).toMatchObject({
-    completeThroughDate: "2026-01-01",
+  await retainAndStageDaily("2026-01-03", "apc260103.zip");
+  const candidate = await publisher.stage();
+  if (candidate.status !== "staged") {
+    throw new Error("expected annual bootstrap candidate");
+  }
+  const published = await publisher.publish(candidate.candidateId);
+  expect(published).toMatchObject({
+    completeThroughDate: "2025-12-31",
     corpusVersion: 1,
-    publishedThroughDate: "2026-01-01",
+    publishedThroughDate: "2025-12-31",
   });
 
-  await retainAndStageDaily("2026-01-03", "apc260103.zip");
-  const gapped = await publisher.stage();
-  if (gapped.status !== "staged") throw new Error("expected gapped daily candidate");
-
-  expect(await publisher.publish(gapped.candidateId)).toMatchObject({
-    completeThroughDate: "2026-01-01",
-    corpusVersion: 2,
-    publishedThroughDate: "2026-01-03",
+  expect(await publisher.stage()).toEqual({
+    artifactCount: 91,
+    candidateId: candidate.candidateId,
+    status: "published",
   });
 });
 
-test("rejects stale A after A plus B publishes and reuses the exact current publication", async () => {
-  await retainAndStageAnnual("annual-2025-full-tx-60146682.xml", "apc18840407-20251231-01.zip");
+test("rejects a stale annual candidate after a selected reissue publishes", async () => {
+  const firstPart = await retainAndStageAnnual(
+    "annual-2025-full-tx-60146682.xml",
+    "apc18840407-20251231-01.zip"
+  );
   await retainAndStageEmptyAnnualRange(2);
   const publisher = createCorpusPublisher(database);
-  const annualOnly = await publisher.stage();
-  if (annualOnly.status !== "staged") throw new Error("expected annual-only candidate A");
+  const candidateA = await publisher.stage();
+  if (candidateA.status !== "staged") {
+    throw new Error("expected annual candidate A");
+  }
 
-  await retainAndStageDaily("2026-01-01", "apc260101.zip");
-  const annualAndDaily = await publisher.stage();
-  if (annualAndDaily.status !== "staged") throw new Error("expected A plus B candidate");
-  const published = await publisher.publish(annualAndDaily.candidateId);
-  if (published.status !== "published") throw new Error("expected A plus B publication");
+  const reissue = await retainAnnualReissue(firstPart.artifactId, "apc18840407-20251231-01.zip");
+  await selectArtifactVersion(
+    database,
+    reissue.artifactVersionId,
+    "publish retained annual reissue"
+  );
+  const candidateB = await publisher.stage();
+  if (candidateB.status !== "staged") {
+    throw new Error("expected annual candidate B");
+  }
+  const published = await publisher.publish(candidateB.candidateId);
+  if (published.status !== "published") {
+    throw new Error("expected annual candidate B publication");
+  }
   const markAfterNewer = await createCanonicalMarkRepository(database).read("60146682");
-  const [stateAfterNewer] = await database<Array<{
-    completeThroughDate: string;
-    corpusVersion: number;
-    publicationId: string;
-    publishedThroughDate: string;
-  }>>`
+  const [stateAfterNewer] = await database<
+    Array<{
+      completeThroughDate: string;
+      corpusVersion: number;
+      publicationId: string;
+      publishedThroughDate: string;
+    }>
+  >`
     select complete_through_date::text as "completeThroughDate", corpus_version as "corpusVersion",
       publication_id as "publicationId", published_through_date::text as "publishedThroughDate"
     from corpus_state where id = 'uspto'
   `;
 
-  await expect(publisher.publish(annualOnly.candidateId)).rejects.toThrow("Publication candidate parent changed");
+  await expect(publisher.publish(candidateA.candidateId)).rejects.toThrow(
+    "Publication candidate parent changed"
+  );
   expect(await createCanonicalMarkRepository(database).read("60146682")).toEqual(markAfterNewer);
-  expect((await database<Array<{ completeThroughDate: string; corpusVersion: number; publicationId: string;
-    publishedThroughDate: string }>>`
+  expect(
+    (
+      await database<
+        Array<{
+          completeThroughDate: string;
+          corpusVersion: number;
+          publicationId: string;
+          publishedThroughDate: string;
+        }>
+      >`
     select complete_through_date::text as "completeThroughDate", corpus_version as "corpusVersion",
       publication_id as "publicationId", published_through_date::text as "publishedThroughDate"
     from corpus_state where id = 'uspto'
-  `)[0]).toEqual(stateAfterNewer);
+  `
+    )[0]
+  ).toEqual(stateAfterNewer);
 
   const restaged = await publisher.stage();
   expect(restaged).toEqual({
-    artifactCount: 92,
-    candidateId: annualAndDaily.candidateId,
+    artifactCount: 91,
+    candidateId: candidateB.candidateId,
     status: "published",
   });
-  if (restaged.status !== "published") throw new Error("expected current publication replay");
+  if (restaged.status !== "published") {
+    throw new Error("expected current publication replay");
+  }
   expect(await publisher.publish(restaged.candidateId)).toEqual(published);
 });
 
 test("blocks candidacy while the latest discovery for an eligible artifact is unresolved", async () => {
   const [firstPart] = await retainAndStageEmptyAnnualRange();
-  if (!firstPart) throw new Error("missing unresolved discovery artifact");
+  if (!firstPart) {
+    throw new Error("missing unresolved discovery artifact");
+  }
   await database`
     insert into artifact_discovery (
       id, artifact_id, fingerprint, observed_at, download_state, download_url, expected_bytes,
@@ -696,10 +963,14 @@ test("blocks candidacy while the latest discovery for an eligible artifact is un
 
 test("rejects a staged candidate when a later discovery is unresolved before validation", async () => {
   const [firstPart] = await retainAndStageEmptyAnnualRange();
-  if (!firstPart) throw new Error("missing pending publication artifact");
+  if (!firstPart) {
+    throw new Error("missing pending publication artifact");
+  }
   const publisher = createCorpusPublisher(database);
   const candidate = await publisher.stage();
-  if (candidate.status !== "staged") throw new Error("expected candidate before pending discovery");
+  if (candidate.status !== "staged") {
+    throw new Error("expected candidate before pending discovery");
+  }
   await database`
     insert into artifact_discovery (
       id, artifact_id, fingerprint, observed_at, download_state, download_url, expected_bytes,
@@ -711,26 +982,33 @@ test("rejects a staged candidate when a later discovery is unresolved before val
   `;
 
   await expect(publisher.publish(candidate.candidateId)).rejects.toThrow(
-    "Publication candidate source discovery is unresolved",
+    "Publication candidate source discovery is unresolved"
   );
 });
 
 test("does not delete a mark or group when an explicitly selected reissue omits it", async () => {
   const firstPart = await retainAndStageAnnual(
     "annual-2025-full-tx-60146682.xml",
-    "apc18840407-20251231-01.zip",
+    "apc18840407-20251231-01.zip"
   );
   await retainAndStageEmptyAnnualRange(2);
   const publisher = createCorpusPublisher(database);
   const initial = await publisher.stage();
-  if (initial.status !== "staged") throw new Error("expected initial candidate");
+  if (initial.status !== "staged") {
+    throw new Error("expected initial candidate");
+  }
   await publisher.publish(initial.candidateId);
   const before = await createCanonicalMarkRepository(database).read("60146682");
 
-  const emptyReissue = await retainAndStageEmptyAnnual("apc18840407-20251231-01.zip", firstPart.artifactId);
+  const emptyReissue = await retainAndStageEmptyAnnual(
+    "apc18840407-20251231-01.zip",
+    firstPart.artifactId
+  );
   await selectArtifactVersion(database, emptyReissue.artifactVersionId, "select empty reissue");
   const omission = await publisher.stage();
-  if (omission.status !== "staged") throw new Error("expected omission candidate");
+  if (omission.status !== "staged") {
+    throw new Error("expected omission candidate");
+  }
   const published = await publisher.publish(omission.candidateId);
 
   expect(published).toMatchObject({ changed: false, corpusVersion: 1, status: "published" });
@@ -741,20 +1019,29 @@ test("does not delete a mark or group when an explicitly selected reissue omits 
 test("preserves unmentioned canonical groups when a reissue contains a status-only observation", async () => {
   const firstPart = await retainAndStageAnnual(
     "annual-2025-full-tx-60146682.xml",
-    "apc18840407-20251231-01.zip",
+    "apc18840407-20251231-01.zip"
   );
   await retainAndStageEmptyAnnualRange(2);
   const publisher = createCorpusPublisher(database);
   const initial = await publisher.stage();
-  if (initial.status !== "staged") throw new Error("expected initial candidate");
+  if (initial.status !== "staged") {
+    throw new Error("expected initial candidate");
+  }
   await publisher.publish(initial.candidateId);
   const before = await createCanonicalMarkRepository(database).read("60146682");
-  if (!before) throw new Error("expected initial canonical mark");
+  if (!before) {
+    throw new Error("expected initial canonical mark");
+  }
 
-  const reissue = await retainStatusOnlyReissue(firstPart.artifactId, "apc18840407-20251231-01.zip");
+  const reissue = await retainStatusOnlyReissue(
+    firstPart.artifactId,
+    "apc18840407-20251231-01.zip"
+  );
   await selectArtifactVersion(database, reissue.artifactVersionId, "select status-only reissue");
   const candidate = await publisher.stage();
-  if (candidate.status !== "staged") throw new Error("expected status-only candidate");
+  if (candidate.status !== "staged") {
+    throw new Error("expected status-only candidate");
+  }
   await publisher.publish(candidate.candidateId);
   const after = await createCanonicalMarkRepository(database).read("60146682");
 
@@ -774,58 +1061,86 @@ test("replaces complete collection rows and provenance when the collection shrin
   await retainAndStageEmptyAnnualRange(2);
   const publisher = createCorpusPublisher(database);
   const candidate = await publisher.stage();
-  if (candidate.status !== "staged") throw new Error("expected collection candidate");
+  if (candidate.status !== "staged") {
+    throw new Error("expected collection candidate");
+  }
   await publisher.publish(candidate.candidateId);
   const base = await createCanonicalMarkRepository(database).read("60146682");
-  if (!base) throw new Error("expected collection mark");
+  if (!base) {
+    throw new Error("expected collection mark");
+  }
   const contributor = base.contributors.find((item) => item.group === "classes");
-  if (!contributor) throw new Error("expected class contributor");
+  if (!contributor) {
+    throw new Error("expected class contributor");
+  }
   const otherContributors = base.contributors.filter((item) => item.group !== "classes");
   const firstPath = "case-file/classifications/classification[1]";
   const removedPath = "case-file/classifications/classification[2]";
 
-  await database.begin((transaction) => publishCanonicalMarks(transaction, [{
-    ...base,
-    classes: [...base.classes, { internationalCode: "999", statusCode: "A", statusDate: null }],
-    contributors: [
-      ...otherContributors,
-      { ...contributor, claimPath: firstPath },
-      { ...contributor, claimPath: removedPath, physicalRecordIndex: contributor.physicalRecordIndex + 1 },
-    ],
-  }]));
-  await database.begin((transaction) => publishCanonicalMarks(transaction, [{
-    ...base,
-    contributors: [...otherContributors, { ...contributor, claimPath: firstPath }],
-  }]));
+  await database.begin((transaction) =>
+    publishCanonicalMarks(transaction, [
+      {
+        ...base,
+        classes: [...base.classes, { internationalCode: "999", statusCode: "A", statusDate: null }],
+        contributors: [
+          ...otherContributors,
+          { ...contributor, claimPath: firstPath },
+          {
+            ...contributor,
+            claimPath: removedPath,
+            physicalRecordIndex: contributor.physicalRecordIndex + 1,
+          },
+        ],
+      },
+    ])
+  );
+  await database.begin((transaction) =>
+    publishCanonicalMarks(transaction, [
+      {
+        ...base,
+        contributors: [...otherContributors, { ...contributor, claimPath: firstPath }],
+      },
+    ])
+  );
 
   const replaced = await createCanonicalMarkRepository(database).read("60146682");
-  expect(replaced?.classes).toEqual(base.classes);
-  expect(replaced?.contributors.filter((item) => item.group === "classes")).toEqual([
+  const replacedMark = required(replaced, "expected replaced canonical mark");
+  expect(replacedMark.classes).toEqual(base.classes);
+  expect(replacedMark.contributors.filter((item) => item.group === "classes")).toEqual([
     { ...contributor, claimPath: firstPath },
   ]);
-  expect(replaced?.contributors.some((item) => item.claimPath === removedPath)).toBe(false);
+  expect(replacedMark.contributors.some((item) => item.claimPath === removedPath)).toBe(false);
 });
 
-test("keeps replay identity and work stable when alternating automatic and unnecessary sole-version selection", async () => {
-  await retainAndStageEmptyAnnualRange();
-  await retainDailyFixture("publication-before-79366581.xml", "apc240914.zip", "2024-09-14");
-  await retainDailyFixture("publication-after-79366581.xml", "apc240925.zip", "2024-09-25");
+test("keeps annual replay identity and work stable as retained daily evidence changes", async () => {
+  await retainAndStageAnnual("annual-2025-full-tx-60146682.xml", "apc18840407-20251231-01.zip");
+  await retainAndStageEmptyAnnualRange(2);
   const publisher = createCorpusPublisher(database);
   const candidate = await publisher.stage();
-  if (candidate.status !== "staged") throw new Error("expected publication transition candidate");
+  if (candidate.status !== "staged") {
+    throw new Error("expected annual publication candidate");
+  }
   const published = await publisher.publish(candidate.candidateId);
-  if (published.status !== "published") throw new Error("expected published transition");
-  const beforeReplay = await createCanonicalMarkRepository(database).read("79366581");
-  if (!beforeReplay) throw new Error("expected daily canonical mark");
+  if (published.status !== "published") {
+    throw new Error("expected annual publication");
+  }
+  const beforeReplay = await createCanonicalMarkRepository(database).read("60146682");
+  if (!beforeReplay) {
+    throw new Error("expected annual canonical mark");
+  }
 
   const [beforeCounts] = await database<[{ events: number; publications: number }]>`
     select (select count(*)::int from corpus_event) as events,
       (select count(*)::int from publication) as publications
   `;
+  await retainDailyFixture("publication-before-79366581.xml", "apc240914.zip", "2024-09-14");
+  await retainDailyFixture("publication-after-79366581.xml", "apc240925.zip", "2024-09-25");
   let observationQueries = 0;
   const instrumented = postgres(databaseUrl, {
     debug(_connection, query) {
-      if (query.includes("from publication_artifact publication_source")) observationQueries += 1;
+      if (query.includes("from publication_artifact publication_source")) {
+        observationQueries += 1;
+      }
     },
     max: 2,
     prepare: false,
@@ -834,11 +1149,13 @@ test("keeps replay identity and work stable when alternating automatic and unnec
     const replayPublisher = createCorpusPublisher(instrumented);
     const replayCandidate = await replayPublisher.stage();
     expect(replayCandidate).toEqual({
-      artifactCount: 93,
+      artifactCount: 91,
       candidateId: candidate.candidateId,
       status: "published",
     });
-    if (replayCandidate.status !== "published") throw new Error("expected stable publication replay");
+    if (replayCandidate.status !== "published") {
+      throw new Error("expected stable publication replay");
+    }
     expect(await replayPublisher.publish(replayCandidate.candidateId)).toEqual(published);
     expect(await replayPublisher.stage()).toEqual(replayCandidate);
     expect(observationQueries).toBe(0);
@@ -850,29 +1167,8 @@ test("keeps replay identity and work stable when alternating automatic and unnec
       (select count(*)::int from publication) as publications
   `;
   expect(afterCounts).toEqual(beforeCounts);
-  expect(await createCanonicalMarkRepository(database).read("79366581")).toEqual(beforeReplay);
-  expect(beforeReplay.statusEvents).toContainEqual(expect.objectContaining({ description: "PUBLISHED FOR OPPOSITION" }));
-  expect(new Set(beforeReplay.statusEvents.map((event) => JSON.stringify(event))).size).toBe(beforeReplay.statusEvents.length);
-  expect(new Set(beforeReplay.contributors.map((contributor) => JSON.stringify(contributor))).size)
-    .toBe(beforeReplay.contributors.length);
-});
-
-test("persists unsupported semantics without mutating canonical state", async () => {
-  await retainAndStageAnnualRange();
-  await retainAndStageDailyConflict({
-    artifactFilename: "apc260102.zip",
-    replacement: "<mark-identification/>",
-  });
-  const publisher = createCorpusPublisher(database);
-  const candidate = await publisher.stage();
-  if (candidate.status !== "staged") throw new Error("expected unsupported candidate");
-
-  expect(await publisher.publish(candidate.candidateId)).toEqual({
-    candidateId: candidate.candidateId,
-    diagnosticCount: 1,
-    status: "rejected",
-  });
-  expect(await createCanonicalMarkRepository(database).read("60146682")).toBeNull();
+  expect(await createCanonicalMarkRepository(database).read("60146682")).toEqual(beforeReplay);
+  expect(await createCanonicalMarkRepository(database).read("79366581")).toBeNull();
 });
 
 test("rolls back every canonical and corpus write when a database invariant fails", async () => {
@@ -880,7 +1176,9 @@ test("rolls back every canonical and corpus write when a database invariant fail
   await retainAndStageEmptyAnnualRange(2);
   const publisher = createCorpusPublisher(database);
   const candidate = await publisher.stage();
-  if (candidate.status !== "staged") throw new Error("expected rollback candidate");
+  if (candidate.status !== "staged") {
+    throw new Error("expected rollback candidate");
+  }
 
   await expect(publisher.publish(candidate.candidateId)).rejects.toThrow("duplicate key value");
   expect(await createCanonicalMarkRepository(database).read("60146682")).toBeNull();
@@ -890,7 +1188,9 @@ test("rolls back every canonical and corpus write when a database invariant fail
 test("serializes concurrent duplicate publication and converges on one durable result", async () => {
   await retainAndStageAnnualRange();
   const candidate = await createCorpusPublisher(database).stage();
-  if (candidate.status !== "staged") throw new Error("expected concurrent candidate");
+  if (candidate.status !== "staged") {
+    throw new Error("expected concurrent candidate");
+  }
   const secondDatabase = postgres(databaseUrl, { max: 2, prepare: false });
 
   try {
@@ -908,9 +1208,13 @@ test("serializes concurrent duplicate publication and converges on one durable r
 
 test("excludes artifact-version retention after publication eligibility validation", async () => {
   const [firstPart] = await retainAndStageAnnualRange();
-  if (!firstPart) throw new Error("missing concurrent retention artifact");
+  if (!firstPart) {
+    throw new Error("missing concurrent retention artifact");
+  }
   const candidate = await createCorpusPublisher(database).stage();
-  if (candidate.status !== "staged") throw new Error("expected retention candidate");
+  if (candidate.status !== "staged") {
+    throw new Error("expected retention candidate");
+  }
 
   const discoveryId = randomUUID();
   const attemptId = randomUUID();
@@ -968,9 +1272,13 @@ test("excludes artifact-version retention after publication eligibility validati
       firstPart.artifactId,
       discoveryId,
       attemptId,
-      { bytes: reissueBytes.byteLength, objectKey: `fixtures/${reissueSha256}`, sha256: reissueSha256 },
+      {
+        bytes: reissueBytes.byteLength,
+        objectKey: `fixtures/${reissueSha256}`,
+        sha256: reissueSha256,
+      },
       { status: 200 },
-      new Date(),
+      new Date()
     ).then((created) => {
       retentionFinished = true;
       return created;
@@ -990,10 +1298,16 @@ test("excludes artifact-version retention after publication eligibility validati
     `;
     expect(afterRelease?.count).toBe(2);
   } finally {
-    if (blockerLocked) await blocker`select pg_advisory_unlock(hashtext('prd63-test-canonical-write'))`;
+    if (blockerLocked) {
+      await blocker`select pg_advisory_unlock(hashtext('prd63-test-canonical-write'))`;
+    }
     blocker.release();
-    if (publication) await publication.catch(() => undefined);
-    if (retention) await retention.catch(() => undefined);
+    if (publication) {
+      await publication.catch(() => undefined);
+    }
+    if (retention) {
+      await retention.catch(() => undefined);
+    }
     retentionDatabase.release();
     await publisherDatabase.end({ timeout: 1 });
     await retentionPool.end({ timeout: 1 });
@@ -1002,9 +1316,23 @@ test("excludes artifact-version retention after publication eligibility validati
 
 test("excludes changed discovery insertion after publication eligibility validation", async () => {
   const [firstPart] = await retainAndStageAnnualRange();
-  if (!firstPart) throw new Error("missing concurrent discovery artifact");
+  if (!firstPart) {
+    throw new Error("missing concurrent discovery artifact");
+  }
+  const [initialDiscovery] = await database<Array<{ observedAt: string }>>`
+    select observed_at::text as "observedAt"
+    from artifact_discovery
+    where artifact_id = ${firstPart.artifactId}
+    order by observed_at desc
+    limit 1
+  `;
+  const observedAt = new Date(
+    new Date(required(initialDiscovery, "missing initial discovery").observedAt).getTime() + 1000
+  );
   const candidate = await createCorpusPublisher(database).stage();
-  if (candidate.status !== "staged") throw new Error("expected concurrent discovery candidate");
+  if (candidate.status !== "staged") {
+    throw new Error("expected concurrent discovery candidate");
+  }
   const attemptId = randomUUID();
   await database`insert into source_lane (id) values ('uspto-odp') on conflict do nothing`;
   await database`
@@ -1043,7 +1371,6 @@ test("excludes changed discovery insertion after publication eligibility validat
     blockerLocked = true;
     publication = createCorpusPublisher(publisherDatabase).publish(candidate.candidateId);
     await waitForAdvisoryWait("prd63-discovery-publisher");
-    const observedAt = new Date("2026-07-16T12:00:00Z");
     reconciliation = reconcileDiscoverySuccess(
       discoveryDatabase,
       {
@@ -1056,19 +1383,21 @@ test("excludes changed discovery insertion after publication eligibility validat
         },
         responseState: { status: 200 },
       },
-      [{
-        bytes: 1,
-        downloadUrl: "https://api.uspto.gov/concurrent-discovery.zip",
-        filename: "apc18840407-20251231-01.zip",
-        fingerprint: "c".repeat(64),
-        fromDate: "1884-04-07",
-        lastModifiedAt: observedAt.toISOString(),
-        releaseDate: "2026-07-16",
-        toDate: "2025-12-31",
-      }],
+      [
+        {
+          bytes: 1,
+          downloadUrl: "https://api.uspto.gov/concurrent-discovery.zip",
+          filename: "apc18840407-20251231-01.zip",
+          fingerprint: "c".repeat(64),
+          fromDate: "1884-04-07",
+          lastModifiedAt: observedAt.toISOString(),
+          releaseDate: "2026-07-16",
+          toDate: "2025-12-31",
+        },
+      ],
       attemptId,
       observedAt,
-      new Date("2027-07-16T12:00:00Z"),
+      new Date("2027-07-16T12:00:00Z")
     ).then((changed) => {
       discoveryFinished = true;
       return changed;
@@ -1092,10 +1421,16 @@ test("excludes changed discovery insertion after publication eligibility validat
       status: "ineligible",
     });
   } finally {
-    if (blockerLocked) await blocker`select pg_advisory_unlock(hashtext('prd63-test-discovery-publication'))`;
+    if (blockerLocked) {
+      await blocker`select pg_advisory_unlock(hashtext('prd63-test-discovery-publication'))`;
+    }
     blocker.release();
-    if (publication) await publication.catch(() => undefined);
-    if (reconciliation) await reconciliation.catch(() => undefined);
+    if (publication) {
+      await publication.catch(() => undefined);
+    }
+    if (reconciliation) {
+      await reconciliation.catch(() => undefined);
+    }
     discoveryDatabase.release();
     await publisherDatabase.end({ timeout: 1 });
     await discoveryPool.end({ timeout: 1 });
@@ -1104,14 +1439,24 @@ test("excludes changed discovery insertion after publication eligibility validat
 
 test("commits and replays multi-batch rejection without returning durable diagnostics", async () => {
   const retained = await readFile(join(fixtureRoot, "annual-2025-full-tx-60146682.xml"));
-  const template = retained.toString("utf8");
-  const annualRecords = Array.from({ length: 251 }, (_, index) => Buffer.from(template
-    .replaceAll("60146682", String(62_000_000 + index))
-    .replaceAll("0146682", String(2_000_000 + index))));
-  const dailyRecords = annualRecords.map((record) => Buffer.from(record.toString("utf8").replace(
-    "<mark-identification>MACHINE-PISTOL</mark-identification>",
-    "<mark-identification>COMPETING DAILY MARK</mark-identification>",
-  )));
+  const template = withClass025(retained).toString("utf8");
+  const annualRecords = Array.from({ length: 251 }, (_, index) =>
+    Buffer.from(
+      template
+        .replaceAll("60146682", String(62_000_000 + index))
+        .replaceAll("0146682", String(2_000_000 + index))
+    )
+  );
+  const conflictingRecords = annualRecords.map((record) =>
+    Buffer.from(
+      record
+        .toString("utf8")
+        .replace(
+          "<mark-identification>MACHINE-PISTOL</mark-identification>",
+          "<mark-identification>COMPETING DAILY MARK</mark-identification>"
+        )
+    )
+  );
   await retainAndStageArtifact({
     artifactFilename: "apc18840407-20251231-01.zip",
     product: "TRTYRAP",
@@ -1120,18 +1465,20 @@ test("commits and replays multi-batch rejection without returning durable diagno
     sourceToDate: "2025-12-31",
     xml: recordsXml(annualRecords, "202604030149"),
   });
-  await retainAndStageEmptyAnnualRange(2);
   await retainAndStageArtifact({
-    artifactFilename: "apc260101.zip",
-    product: "TRTDXFAP",
-    releaseDate: "2026-01-02",
-    sourceFromDate: "2026-01-01",
-    sourceToDate: "2026-01-01",
-    xml: recordsXml(dailyRecords, "202601020100"),
+    artifactFilename: "apc18840407-20251231-02.zip",
+    product: "TRTYRAP",
+    releaseDate: "2026-04-03",
+    sourceFromDate: "1884-04-07",
+    sourceToDate: "2025-12-31",
+    xml: recordsXml(conflictingRecords, "202604030249"),
   });
+  await retainAndStageEmptyAnnualRange(3);
   const publisher = createCorpusPublisher(database);
   const candidate = await publisher.stage();
-  if (candidate.status !== "staged") throw new Error("expected multi-batch diagnostic candidate");
+  if (candidate.status !== "staged") {
+    throw new Error("expected multi-batch diagnostic candidate");
+  }
 
   const rejected = await publisher.publish(candidate.candidateId);
   expect(rejected).toEqual({
@@ -1148,10 +1495,14 @@ test("commits and replays multi-batch rejection without returning durable diagno
 
 test("folds observations across read pages before fixed-size set-oriented writes", async () => {
   const retained = await readFile(join(fixtureRoot, "annual-2025-full-tx-60146682.xml"));
-  const template = retained.toString("utf8");
-  const records = Array.from({ length: 501 }, (_, index) => Buffer.from(template
-    .replaceAll("60146682", String(61_000_000 + index))
-    .replaceAll("0146682", String(1_000_000 + index))));
+  const template = withClass025(retained).toString("utf8");
+  const records = Array.from({ length: 501 }, (_, index) =>
+    Buffer.from(
+      template
+        .replaceAll("60146682", String(61_000_000 + index))
+        .replaceAll("0146682", String(1_000_000 + index))
+    )
+  );
   await retainAndStageArtifact({
     artifactFilename: "apc18840407-20251231-01.zip",
     product: "TRTYRAP",
@@ -1162,13 +1513,19 @@ test("folds observations across read pages before fixed-size set-oriented writes
   });
   await retainAndStageEmptyAnnualRange(2);
   const candidate = await createCorpusPublisher(database).stage();
-  if (candidate.status !== "staged") throw new Error("expected multi-serial candidate");
+  if (candidate.status !== "staged") {
+    throw new Error("expected multi-serial candidate");
+  }
   let markWriteBatches = 0;
   let observationReadPages = 0;
   const instrumented = postgres(databaseUrl, {
     debug(_connection, query) {
-      if (query.includes("jsonb_to_recordset") && query.includes("update mark set")) markWriteBatches += 1;
-      if (query.includes("from publication_artifact publication_source")) observationReadPages += 1;
+      if (query.includes("jsonb_to_recordset") && query.includes("update mark set")) {
+        markWriteBatches += 1;
+      }
+      if (query.includes("from publication_artifact publication_source")) {
+        observationReadPages += 1;
+      }
     },
     max: 2,
     prepare: false,
