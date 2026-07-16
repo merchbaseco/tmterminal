@@ -53,7 +53,7 @@ candidate is independently reviewed and its PR checks pass, but before merge:
   set -eu
   candidate_sha='<reviewed-40-character-commit-sha>'
   main_checkout=/Users/zknicker/srv/tmturtle
-  master_env=/Users/zknicker/Programming/tmturtle/.env
+  master_env=/Users/zknicker/srv/tmturtle/.env
   runner=$(mktemp)
   trap 'rm -f "$runner"' EXIT HUP INT TERM
 
@@ -96,7 +96,7 @@ PRD-77-or-later revision instead. After the merged deployment is accepted, remov
 candidate worktree from `main_checkout`; do not switch or rewrite the normal deployment checkout for
 the pre-merge cutover.
 
-The ignored deployment `.env` is copied from the mastered `/Users/zknicker/Programming/tmturtle/.env` without echoing values and is mode `0600`. Required secret-bearing names are `DATABASE_URL`, `POSTGRES_PASSWORD`, `CLERK_SECRET_KEY`, and `USPTO_API_KEY`; `VITE_CLERK_PUBLISHABLE_KEY` supplies the approved shared MerchBase Clerk frontend configuration. Production sets `CLERK_AUTHORIZED_PARTIES` to exactly `https://tmturtle.merchbase.co`.
+The ignored production `.env` is mastered at `/Users/zknicker/srv/tmturtle/.env`, copied into the detached candidate without echoing values, and kept at mode `0600`. Required secret-bearing names are `DATABASE_URL`, `POSTGRES_PASSWORD`, `CLERK_SECRET_KEY`, and `USPTO_API_KEY`; `VITE_CLERK_PUBLISHABLE_KEY` supplies the approved shared MerchBase Clerk frontend configuration. Production sets `CLERK_AUTHORIZED_PARTIES` to exactly `https://tmturtle.merchbase.co`.
 
 PostgreSQL and the transient artifact working directory use named volumes. API, worker, database, and Caddy use restart policies compatible with the host's existing Colima launch-on-boot service. Migration remains a successful one-shot container. Resource limits reserve the host from runaway ingestion while leaving PostgreSQL and authenticated reads independently observable.
 
