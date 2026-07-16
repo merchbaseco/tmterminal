@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { createHash, randomUUID } from "node:crypto";
+import { PgBoss } from "pg-boss";
 import postgres from "postgres";
 
 import { migrateDatabase, migrateSchedulerDatabase } from "../../src/db/migrate.ts";
@@ -8,6 +9,7 @@ import { quarantineArtifactVersion } from "../../src/ingestion/artifact-quaranti
 import { createArtifactScheduler } from "../../src/ingestion/artifact-scheduler.ts";
 import type { ArtifactStore } from "../../src/ingestion/artifact-store.ts";
 import { createIngestionReconciler } from "../../src/ingestion/ingestion-reconciler.ts";
+import { reconcileQueue } from "../../src/ingestion/ingestion-scheduler.ts";
 import { sourceObservationParserVersion } from "../../src/ingestion/source-observations.ts";
 import {
   recoverSourceLane,
@@ -123,6 +125,93 @@ test("full rebuild refuses the post-object-lifecycle schema", async () => {
       offlineConfirmed: true,
     })
   ).rejects.toThrow("pre-object-lifecycle migration schema");
+});
+
+test("full rebuild discards queued reconciliation wakeups and reports the exact count", async () => {
+  await database`alter table artifact_version alter column object_key set not null`;
+  await retainVersion({ filename: "apc260715.zip" });
+  const boss = new PgBoss({ connectionString: databaseUrl, migrate: false, supervise: false });
+  await boss.start();
+  let createdJobId: string | null = null;
+  let retryJobId: string | null = null;
+  try {
+    await boss.createQueue(reconcileQueue);
+    createdJobId = await boss.send(reconcileQueue, { reason: "cutover-created" });
+    retryJobId = await boss.send(reconcileQueue, { reason: "cutover-retry" });
+  } finally {
+    await boss.stop({ close: true, graceful: true, timeout: 30_000 });
+  }
+  if (!(createdJobId && retryJobId)) {
+    throw new Error("Expected two queued reconciliation fixtures");
+  }
+  await database`update pgboss.job set state = 'retry' where id = ${retryJobId}`;
+
+  const result = await requestFullRebuild({
+    artifactStore: { listObjectKeys: artifactObjectKeys, remove: () => Promise.resolve() },
+    database,
+    offlineConfirmed: true,
+  });
+  expect(result.discardedQueuedReconciliations).toBe(2);
+  const [remaining] = await database<Array<{ count: number }>>`
+    select count(*)::int as count from pgboss.job
+    where name = ${reconcileQueue} and state in ('created', 'retry')
+  `;
+  expect(remaining?.count).toBe(0);
+});
+
+test("full rebuild refuses active reconciliation without touching cutover state", async () => {
+  await database`alter table artifact_version alter column object_key set not null`;
+  const retained = await retainVersion({ filename: "apc260715.zip" });
+  const boss = new PgBoss({ connectionString: databaseUrl, migrate: false, supervise: false });
+  await boss.start();
+  let activeJobId: string | null = null;
+  try {
+    await boss.createQueue(reconcileQueue);
+    activeJobId = await boss.send(reconcileQueue, { reason: "cutover-active" });
+  } finally {
+    await boss.stop({ close: true, graceful: true, timeout: 30_000 });
+  }
+  if (!activeJobId) {
+    throw new Error("Expected one active reconciliation fixture");
+  }
+  await database`update pgboss.job set state = 'active' where id = ${activeJobId}`;
+  let removeCalls = 0;
+
+  await expect(
+    requestFullRebuild({
+      artifactStore: {
+        listObjectKeys: artifactObjectKeys,
+        remove: () => {
+          removeCalls += 1;
+          return Promise.resolve();
+        },
+      },
+      database,
+      offlineConfirmed: true,
+    })
+  ).rejects.toThrow("active reconciliation delivery");
+
+  const [state] = await database<
+    Array<{
+      activeJobs: number;
+      discoveryState: string;
+      objectKey: string | null;
+      proofExists: boolean;
+    }>
+  >`
+    select
+      (select count(*)::int from pgboss.job where id = ${activeJobId} and state = 'active') as "activeJobs",
+      (select download_state from artifact_discovery where artifact_version_id = ${retained.versionId}) as "discoveryState",
+      (select object_key from artifact_version where id = ${retained.versionId}) as "objectKey",
+      to_regclass('public.prd77_cutover_proof') is not null as "proofExists"
+  `;
+  expect(state).toEqual({
+    activeJobs: 1,
+    discoveryState: "verified",
+    objectKey: expect.any(String),
+    proofExists: false,
+  });
+  expect(removeCalls).toBe(0);
 });
 
 test("reissue selection is exact, and quarantine invalidates its selected staged version", async () => {
@@ -356,6 +445,7 @@ test("full rebuild retires obsolete derived state, preserves quarantine and cata
   const first = await requestFullRebuild({ artifactStore, database, offlineConfirmed: true });
   expect(first).toMatchObject({
     artifactObjectsRemoved: 6,
+    discardedQueuedReconciliations: 0,
     normalizedArtifactVersions: 3,
     orphanArtifactObjectsRemoved: 1,
     removedCanonicalMarks: 1,

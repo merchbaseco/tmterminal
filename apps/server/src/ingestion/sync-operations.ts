@@ -152,7 +152,7 @@ export async function requestFullRebuild(options: {
       ]
     >`
       select
-        (select count(*)::int from pgboss.job where name = ${reconcileQueue} and state in ('created', 'retry', 'active')) as "activeJobs",
+        (select count(*)::int from pgboss.job where name = ${reconcileQueue} and state = 'active') as "activeJobs",
         (select count(*)::int from mark) as canonical,
         (select count(*)::int from corpus_state) as "corpusStates",
         (select count(*)::int from publication) as publications,
@@ -165,18 +165,23 @@ export async function requestFullRebuild(options: {
     if (current.corpusStates > 0 || current.publications > 0) {
       throw new Error("Full rebuild requires no durable corpus or publication");
     }
+    if (current.activeJobs > 0) {
+      throw new Error("Full rebuild target has an active reconciliation delivery");
+    }
     const [catalog] = await transaction<[{ retained: number }]>`
       select count(*)::int as retained from artifact_version
     `;
     if (catalog.retained === 0) {
       throw new Error("Full rebuild target has no retained artifact catalog");
     }
-    if (current.activeJobs > 0) {
-      throw new Error("Full rebuild target already has outstanding reconciliation delivery");
-    }
     if (current.objectKeyNullable) {
       throw new Error("Full rebuild requires the pre-object-lifecycle migration schema");
     }
+    const discardedQueuedReconciliations = await transaction<Array<{ id: string }>>`
+      delete from pgboss.job
+      where name = ${reconcileQueue} and state in ('created', 'retry')
+      returning id
+    `;
     await transaction.unsafe(`
       create table if not exists prd77_cutover_proof (
         proof text primary key,
@@ -211,6 +216,7 @@ export async function requestFullRebuild(options: {
         pg_total_relation_size('source_record')::text as "sourceRecordBytes"
     `;
     return {
+      discardedQueuedReconciliations: discardedQueuedReconciliations.length,
       normalizedArtifactVersions: normalized.length,
       removedCanonicalMarks: current.canonical,
       removedObsoleteParseRuns: removedRuns.length,

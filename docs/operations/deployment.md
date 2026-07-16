@@ -40,9 +40,10 @@ candidate is independently reviewed and its PR checks pass, but before merge:
    exports them with `COMPOSE_PROJECT_NAME=tmturtle`. The normal `main` deployment checkout remains
    untouched.
 2. Let the checked cutover script build and stop the candidate worker, then run the offline rebuild.
-   The command must report no durable corpus/publication, zero outstanding reconciliation jobs,
-   lower `source_record` and `source_claim` physical sizes after `TRUNCATE`, and one-at-a-time
-   deletion of every catalogued or orphaned finalized object. It leaves the worker stopped.
+   The command must report no durable corpus/publication, the exact count of discarded `created` or
+   `retry` reconciliation wakeups, lower `source_record` and `source_claim` physical sizes after
+   `TRUNCATE`, and one-at-a-time deletion of every catalogued or orphaned finalized object. Any
+   `active` reconciliation delivery refuses the cutover. It leaves the worker stopped.
 3. Accept zero files/zero bytes in `artifact-data`; zero `source_record`/`source_claim` rows;
    near-empty physical sizes for both relations; preserved account/API-key/catalog/quarantine rows;
    pending official discoveries; and unchanged migration count through 0010. The preflight
