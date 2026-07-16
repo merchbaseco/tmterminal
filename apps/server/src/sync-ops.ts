@@ -4,13 +4,18 @@ import { createLocalArtifactStore } from "./ingestion/local-artifact-store.ts";
 import {
   recoverCorpusFrontier,
   recoverSourceLane,
+  reprocessArtifactVersion,
   requestFullRebuild,
   selectArtifactVersion,
 } from "./ingestion/sync-operations.ts";
 
 type SyncOperation =
   | { command: "full-rebuild" }
-  | { command: "quarantine" | "select-reissue"; identifier: string; reason: string }
+  | {
+      command: "quarantine" | "reprocess-artifact" | "select-reissue";
+      identifier: string;
+      reason: string;
+    }
   | { command: "recover-frontier" }
   | { command: "recover-source-lane"; reason: string };
 
@@ -38,7 +43,11 @@ function sourceRecovery(args: string[]) {
 
 export function parseSyncOperationArguments(argv: string[]): SyncOperation {
   const [command, ...args] = argv;
-  if (command === "quarantine" || command === "select-reissue") {
+  if (
+    command === "quarantine" ||
+    command === "reprocess-artifact" ||
+    command === "select-reissue"
+  ) {
     return {
       command,
       ...identifierAndReason(
@@ -63,7 +72,7 @@ export function parseSyncOperationArguments(argv: string[]): SyncOperation {
     return { command };
   }
   throw new Error(
-    "Commands: quarantine, select-reissue, recover-source-lane, recover-frontier, full-rebuild"
+    "Commands: quarantine, reprocess-artifact, select-reissue, recover-source-lane, recover-frontier, full-rebuild"
   );
 }
 
@@ -80,6 +89,8 @@ async function main(operation: SyncOperation) {
     let result: unknown;
     if (operation.command === "quarantine") {
       result = await quarantineArtifactVersion(database, operation.identifier, operation.reason);
+    } else if (operation.command === "reprocess-artifact") {
+      result = await reprocessArtifactVersion(database, operation.identifier, operation.reason);
     } else if (operation.command === "select-reissue") {
       result = await selectArtifactVersion(database, operation.identifier, operation.reason);
     } else if (operation.command === "recover-source-lane") {

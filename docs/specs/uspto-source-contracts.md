@@ -24,7 +24,7 @@ Authenticated manual retrieval on 2026-07-15 verified the current DOC checksums 
 
 ## Retained artifacts
 
-Full ZIPs stay outside Git under `~/Library/Caches/tmturtle/uspto/sha256/<zip-sha256>/<filename>`. The five retained ZIPs match their manifest byte sizes and SHA-256 values and decompress to the exact XML hashes recorded in the manifest.
+Full ZIPs stay outside Git under `~/Library/Caches/tmturtle/uspto/sha256/<zip-sha256>/<filename>`. The six retained ZIPs match their manifest byte sizes and SHA-256 values and decompress to the exact XML hashes recorded in the manifest.
 
 The 2025 `TRTYRAP` parts were downloaded from the `fileDownloadURI` values in the retained authenticated metadata. The older annual and daily files came from the legacy MerchBase downloader cache; their original per-file URIs were not retained, so the manifest leaves them null. Parsed database rows are not fixture sources.
 
@@ -32,13 +32,14 @@ The 2025 `TRTYRAP` parts were downloaded from the `fileDownloadURI` values in th
 | --- | --- | --- | --- | ---: |
 | `TRTYRAP` | `apc18840407-20251231-01.zip` | Official member of the generation ending 2025-12-31 | `TX` | 155,000 |
 | `TRTYRAP` | `apc18840407-20251231-05.zip` | Official member of the generation ending 2025-12-31 | `TX` | 155,000 |
+| `TRTYRAP` | `apc18840407-20251231-16.zip` | Official member of the generation ending 2025-12-31 | `TX` | 155,000 |
 | `TRTYRAP` | `apc18840407-20241231-02.zip` | Upstream filename label only; official metadata unavailable | `TX` | 155,000 |
 | `TRTDXFAP` | `apc240914.zip` | Every observed transaction date is 2024-09-14 | `NA`, `TX` | 11,012 |
 | `TRTDXFAP` | `apc240925.zip` | Every observed transaction date is 2024-09-25 | `IB`, `NA`, `TX` | 38,179 |
 
 The XML root is `trademark-applications-daily`, version `2.0`, version date `20041108`. Artifact creation timestamps, transaction-date ranges, action-group occurrences and counts, full XML hashes, and ZIP hashes are verification inputs rather than prose claims.
 
-The largest `case-file` in the retained inventory is 327,676 bytes. The v1 observation reader uses a deliberate 524,288-byte record cap and quarantines larger records instead of buffering them without bound.
+The retained `apc18840407-20251231-16.zip` contains the 3,669,744-byte `<case-file>` for serial `74668071`, word mark `GUESS JEANS`, at physical and `TX` action index 1,107. Its complete element SHA-256 is `2babb5e0e252a97051e7fe4d29dea4f518c629fabf635a8f5d5c0f61245e5b93`; the committed byte-exact source range additionally preserves its 16 leading indentation bytes. The official format permits variable-length repeated groups and documents no case-file ceiling. Parser v4 therefore uses an evidence-backed 4,194,304-byte operational bound while retaining a hard limit against malformed unclosed records; rejected evidence remains bounded by the limit plus one 65,536-byte input slice.
 
 Generation dates prove membership only. They do not describe the maximum XML transaction date or establish annual-versus-daily precedence: `apc18840407-20251231-05.xml` contains 1,107 verified 2026 transaction dates, including the committed `20260128` observation, and has a verified maximum transaction date of `20260402`. The retained `-01` and `-05` parts contain 155,000 unique serials each in ascending physical XML order, with disjoint observed ranges `60000001`–`60172052` and `60926995`–`72182570`. API response order, filename suffixes, release metadata, and physical order remain provenance, not processing semantics.
 
@@ -63,7 +64,7 @@ The daily before/after fixtures prove only their named same-product transitions.
 
 ## First publication policy
 
-The first corpus publication selects exactly the 91 official `TRTYRAP` members covering 1884-04-07 through 2025-12-31. Parser `uspto-application-xml-v3` validates and physically counts every record, while persisting an observation only for an explicit `primary-code` `025` plus non-empty `mark-identification`. Zero-selected members remain valid policy members. It excludes every `TRTDXFAP` artifact and sets `completeThroughDate` to 2025-12-31. The 91-member set is completeness metadata, never an execution batch: one exclusive reconciliation handles one streamed artifact and fixed observation batches. Daily metadata remains durable and operator-visible; supported selected observations and quarantine evidence remain durable. Terminal raw ZIPs are deleted, and later policy work re-downloads official bytes. This bootstrap is reversible and does not establish cross-product precedence or supersession.
+The first corpus publication selects exactly the 91 official `TRTYRAP` members covering 1884-04-07 through 2025-12-31. Parser `uspto-application-xml-v4` validates and physically counts every record, while persisting an observation only for an explicit `primary-code` `025` plus non-empty `mark-identification`. Zero-selected members remain valid policy members. It excludes every `TRTDXFAP` artifact and sets `completeThroughDate` to 2025-12-31. The 91-member set is completeness metadata, never an execution batch: one exclusive reconciliation handles one streamed artifact and fixed observation batches. Daily metadata remains durable and operator-visible; supported selected observations and quarantine evidence remain durable. Terminal raw ZIPs are deleted, and later policy work re-downloads official bytes. This bootstrap is reversible and does not establish cross-product precedence or supersession.
 
 ## Blocking gaps
 

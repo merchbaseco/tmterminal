@@ -4,13 +4,13 @@ import type postgres from "postgres";
 import type { SourceValue } from "../db/schema.ts";
 import { lockCorpusPublication } from "../queries/corpus-publication-lock.ts";
 
-export const sourceObservationParserVersion = "uspto-application-xml-v3";
+export const sourceObservationParserVersion = "uspto-application-xml-v4";
 const recordStart = Buffer.from("<case-file>");
 const recordEnd = Buffer.from("</case-file>");
 const recordBatchSize = 100;
 const inputSliceBytes = 64 * 1024;
 const maxOuterTokenBytes = 64 * 1024;
-const maxRecordBytes = 512 * 1024;
+const maxRecordBytes = 4 * 1024 * 1024;
 const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
 const xmlEntityPattern = /^&(amp|apos|gt|lt|quot|#\d+|#x[\da-fA-F]+);/;
 const recordTokenPattern = /<\/?[a-z0-9-]+>|<[a-z0-9-]+\s*\/>|[^<]+/g;
@@ -1023,10 +1023,10 @@ function completePendingRecord(pending: Buffer, physicalRecordIndex: number) {
   const closeEnd = end + recordEnd.byteLength;
   const followingNewline = pending.indexOf(10, closeEnd);
   if (followingNewline < 0) {
-    if (closeEnd > maxRecordBytes) {
+    if (pending.byteLength > maxRecordBytes) {
       throw new ParseFailure(
         `record exceeds ${maxRecordBytes} byte limit`,
-        pending.subarray(0, closeEnd),
+        pending,
         physicalRecordIndex
       );
     }
@@ -1109,40 +1109,53 @@ async function stageArtifactTransaction(
     }
   };
 
-  let pending: Buffer = Buffer.alloc(0);
+  let pending = Buffer.allocUnsafe(inputSliceBytes);
+  let pendingBytes = 0;
   let recordOpen = false;
   for await (const chunk of input.xml) {
     digest.update(chunk);
     for (let offset = 0; offset < chunk.byteLength; offset += inputSliceBytes) {
-      pending = Buffer.concat([
-        pending,
-        Buffer.from(chunk.subarray(offset, offset + inputSliceBytes)),
-      ]);
+      const slice = Buffer.from(chunk.subarray(offset, offset + inputSliceBytes));
+      const requiredBytes = pendingBytes + slice.byteLength;
+      if (requiredBytes > pending.byteLength) {
+        const capacity = Math.min(
+          maxRecordBytes + inputSliceBytes,
+          Math.max(requiredBytes, pending.byteLength * 2)
+        );
+        const expanded = Buffer.allocUnsafe(capacity);
+        pending.copy(expanded, 0, 0, pendingBytes);
+        pending = expanded;
+      }
+      slice.copy(pending, pendingBytes);
+      pendingBytes = requiredBytes;
       // biome-ignore lint/performance/noAwaitInLoops: One artifact's physical records are parsed and persisted sequentially.
       const consumed = await consumePendingRecords(
-        pending,
+        pending.subarray(0, pendingBytes),
         recordOpen,
         framing,
         actionOccurrences,
         () => recordCount + 1,
         persistRecord
       );
-      ({ pending, recordOpen } = consumed);
+      consumed.pending.copy(pending, 0);
+      pendingBytes = consumed.pending.byteLength;
+      ({ recordOpen } = consumed);
     }
   }
-  if (recordOpen || pending.includes(recordStart)) {
-    const actionClose = pending.indexOf(Buffer.from("</action-keys>"));
-    const rejected = actionClose < 0 ? pending : pending.subarray(0, actionClose);
+  const remaining = pending.subarray(0, pendingBytes);
+  if (recordOpen || remaining.includes(recordStart)) {
+    const actionClose = remaining.indexOf(Buffer.from("</action-keys>"));
+    const rejected = actionClose < 0 ? remaining : remaining.subarray(0, actionClose);
     throw new ParseFailure("malformed or truncated XML", rejected, recordCount + 1);
   }
-  consumeFraming(pending, framing, actionOccurrences);
+  consumeFraming(remaining, framing, actionOccurrences);
   if (
     !(framing.rootSeen && framing.rootClosed) ||
     framing.stack.length !== 0 ||
     framing.schemaVersion !== "2.0" ||
     framing.schemaVersionDate !== "20041108"
   ) {
-    throw new ParseFailure("unsupported root or schema version", pending);
+    throw new ParseFailure("unsupported root or schema version", remaining);
   }
   await flushObservationRows(transaction, recordRows, claimRows);
   const runDigest = digest.digest("hex");
