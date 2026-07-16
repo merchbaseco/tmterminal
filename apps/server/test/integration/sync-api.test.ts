@@ -38,6 +38,13 @@ async function waitForReconcileState(state: "active" | "failed") {
 }
 
 test("sync.status reports the complete frontier and persisted degraded state", async () => {
+  const [{ completeThroughDate, publishedThroughDate }] = await database<[
+    { completeThroughDate: string; publishedThroughDate: string },
+  ]>`
+    select
+      (current_date - 2)::text as "completeThroughDate",
+      current_date::text as "publishedThroughDate"
+  `;
   const artifactId = randomUUID();
   const versionId = randomUUID();
   const parseRunId = randomUUID();
@@ -107,7 +114,7 @@ test("sync.status reports the complete frontier and persisted degraded state", a
     insert into corpus_state (
       id, published_through_date, complete_through_date, last_successful_merge_at, corpus_version
     ) values (
-      'uspto', '2026-07-14', '2026-07-12', '2026-07-14T12:00:00Z', 7
+      'uspto', ${publishedThroughDate}, ${completeThroughDate}, '2026-07-14T12:00:00Z', 7
     )
   `;
 
@@ -127,14 +134,14 @@ test("sync.status reports the complete frontier and persisted degraded state", a
     expect(response.statusCode).toBe(200);
     expect(response.json().result.data).toEqual({
       activeState: "stopped",
-      completeThroughDate: "2026-07-12",
+      completeThroughDate,
       corpusVersion: 7,
       degraded: true,
       degradedSince: "2026-07-14T12:00:00.000Z",
       failedCount: 1,
       lastSuccessfulMergeAt: "2026-07-14T12:00:00.000Z",
       pendingCount: 0,
-      publishedThroughDate: "2026-07-14",
+      publishedThroughDate,
       quarantineCount: 1,
       rejectCount: 1,
       reissueSelectionRequiredCount: 0,
