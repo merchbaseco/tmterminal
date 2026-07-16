@@ -456,10 +456,7 @@
         "explicit primary Class 025 and GUESS JEANS mark text"
       ],
       "expectedPresence": {
-        "present": [
-          "mark-identification",
-          "classifications"
-        ],
+        "present": ["mark-identification", "classifications"],
         "absent": [],
         "empty": []
       },
@@ -546,11 +543,7 @@
         "status-only observation shape"
       ],
       "expectedPresence": {
-        "present": [
-          "serial-number",
-          "transaction-date",
-          "case-file-header"
-        ],
+        "present": ["serial-number", "transaction-date", "case-file-header"],
         "absent": [
           "mark-identification",
           "case-file-statements",
@@ -581,14 +574,8 @@
         "missing mark and owner groups"
       ],
       "expectedPresence": {
-        "present": [
-          "case-file-statements",
-          "classifications"
-        ],
-        "absent": [
-          "mark-identification",
-          "case-file-owners"
-        ],
+        "present": ["case-file-statements", "classifications"],
+        "absent": ["mark-identification", "case-file-owners"],
         "empty": []
       }
     },
@@ -623,9 +610,7 @@
           "classifications",
           "case-file-owners"
         ],
-        "empty": [
-          "correspondent"
-        ]
+        "empty": ["correspondent"]
       }
     },
     {
@@ -640,10 +625,7 @@
       "bytes": 20725,
       "sha256": "a2c21edd3eefb229bc9e3ae4d53b0fee017559e56a7a9c056937245d3b05f6cb",
       "sequence": null,
-      "evidence": [
-        "daily IB action",
-        "full application groups"
-      ],
+      "evidence": ["daily IB action", "full application groups"],
       "expectedPresence": {
         "present": [
           "mark-identification",
@@ -678,9 +660,7 @@
           "classifications",
           "case-file-owners"
         ],
-        "absent": [
-          "mark-identification"
-        ],
+        "absent": ["mark-identification"],
         "empty": []
       }
     },
@@ -696,10 +676,7 @@
       "bytes": 8042,
       "sha256": "807cb064b83a0cd58a0e0a1859bdfef5ed15f692c6f6db0c6e5d0981c23b3067",
       "sequence": null,
-      "evidence": [
-        "daily NA action",
-        "new-application shape"
-      ],
+      "evidence": ["daily NA action", "new-application shape"],
       "expectedPresence": {
         "present": [
           "filing-date",
@@ -777,14 +754,9 @@
       "bytes": 18624,
       "sha256": "34f2cec502db9074af200de2509255800f7ce83ba3781df9afa4063b5c4172ef",
       "sequence": "revival",
-      "evidence": [
-        "status 602 before revival"
-      ],
+      "evidence": ["status 602 before revival"],
       "expectedPresence": {
-        "present": [
-          "status-code",
-          "case-file-event-statements"
-        ],
+        "present": ["status-code", "case-file-event-statements"],
         "absent": [],
         "empty": []
       }
@@ -806,10 +778,7 @@
         "petition-to-revive event evidence"
       ],
       "expectedPresence": {
-        "present": [
-          "status-code",
-          "case-file-event-statements"
-        ],
+        "present": ["status-code", "case-file-event-statements"],
         "absent": [],
         "empty": []
       }
@@ -831,11 +800,7 @@
         "five-class classification group"
       ],
       "expectedPresence": {
-        "present": [
-          "status-code",
-          "case-file-statements",
-          "classifications"
-        ],
+        "present": ["status-code", "case-file-statements", "classifications"],
         "absent": [],
         "empty": []
       }
@@ -858,11 +823,7 @@
         "four-class replacement omits prior class 025"
       ],
       "expectedPresence": {
-        "present": [
-          "status-code",
-          "case-file-statements",
-          "classifications"
-        ],
+        "present": ["status-code", "case-file-statements", "classifications"],
         "absent": [],
         "empty": []
       }
