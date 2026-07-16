@@ -13,4 +13,4 @@ trap restart_worker EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 ./scripts/compose run --rm --no-deps -e TMTURTLE_OFFLINE_REBUILD=1 worker \
-  bun run --cwd apps/server sync:ops -- full-rebuild --confirm-empty-target
+  bun run --cwd apps/server sync:ops -- full-rebuild --confirm-offline-rebuild

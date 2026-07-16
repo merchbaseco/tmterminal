@@ -1,13 +1,15 @@
 import type postgres from "postgres";
 
 import { findArtifactVersionForParsing } from "../queries/artifact-repository.ts";
+import { quarantineArtifactVersion } from "./artifact-quarantine.ts";
 import type { ArtifactStore } from "./artifact-store.ts";
 import { createCorpusPublisher } from "./corpus-publisher.ts";
 import { createSourceObservationModule } from "./source-observations.ts";
-import { quarantineArtifactVersion } from "./artifact-quarantine.ts";
 import { ArtifactArchiveError } from "./zip-artifact-xml.ts";
 
-type ArtifactScheduler = { runOnce(): Promise<{ status: string } & Record<string, unknown>> };
+interface ArtifactScheduler {
+  runOnce: () => Promise<{ status: string } & Record<string, unknown>>;
+}
 export function createIngestionReconciler(options: {
   artifactScheduler: ArtifactScheduler;
   artifactStore: Pick<ArtifactStore, "get">;
@@ -19,6 +21,15 @@ export function createIngestionReconciler(options: {
 
   return {
     async reconcile() {
+      const candidate = await publisher.stage();
+      if (candidate.status === "staged") {
+        return {
+          action: "publication" as const,
+          publicationId: candidate.candidateId,
+          result: await publisher.publish(candidate.candidateId),
+        };
+      }
+
       const artifact = await findArtifactVersionForParsing(options.database);
       if (artifact) {
         let archive: ReadableStream<Uint8Array>;
@@ -27,28 +38,37 @@ export function createIngestionReconciler(options: {
         } catch {
           const reason = "Retained artifact bytes could not be read";
           await quarantineArtifactVersion(options.database, artifact.artifactVersionId, reason);
-          return { action: "quarantine" as const, artifactVersionId: artifact.artifactVersionId, reason };
+          return {
+            action: "quarantine" as const,
+            artifactVersionId: artifact.artifactVersionId,
+            reason,
+          };
         }
         try {
           const result = await observations.stageArtifact({
             artifactVersionId: artifact.artifactVersionId,
             xml: options.extractXml(archive),
           });
-          return { action: "parse" as const, artifactVersionId: artifact.artifactVersionId, result };
+          return {
+            action: "parse" as const,
+            artifactVersionId: artifact.artifactVersionId,
+            result,
+          };
         } catch (error) {
-          if (!(error instanceof ArtifactArchiveError)) throw error;
-          await quarantineArtifactVersion(options.database, artifact.artifactVersionId, error.message);
-          return { action: "quarantine" as const, artifactVersionId: artifact.artifactVersionId, reason: error.message };
+          if (!(error instanceof ArtifactArchiveError)) {
+            throw error;
+          }
+          await quarantineArtifactVersion(
+            options.database,
+            artifact.artifactVersionId,
+            error.message
+          );
+          return {
+            action: "quarantine" as const,
+            artifactVersionId: artifact.artifactVersionId,
+            reason: error.message,
+          };
         }
-      }
-
-      const candidate = await publisher.stage();
-      if (candidate.status === "staged") {
-        return {
-          action: "publication" as const,
-          publicationId: candidate.candidateId,
-          result: await publisher.publish(candidate.candidateId),
-        };
       }
 
       const source = await options.artifactScheduler.runOnce();
