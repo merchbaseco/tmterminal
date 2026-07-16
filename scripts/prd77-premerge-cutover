@@ -19,9 +19,16 @@ git -C "$main_checkout" worktree add --detach "$candidate_checkout" "$candidate_
 test "$(git -C "$candidate_checkout" rev-parse HEAD)" = "$candidate_sha"
 test -z "$(git -C "$candidate_checkout" status --porcelain)"
 install -m 600 "$master_env" "$candidate_checkout/.env"
+TMTURTLE_WEB_PORT=$(sed -n 's/^TMTURTLE_WEB_PORT=//p' "$master_env")
+TMTURTLE_API_PORT=$(sed -n 's/^TMTURTLE_API_PORT=//p' "$master_env")
+CLERK_AUTHORIZED_PARTIES=$(sed -n 's/^CLERK_AUTHORIZED_PARTIES=//p' "$master_env")
+test -n "$TMTURTLE_WEB_PORT"
+test -n "$TMTURTLE_API_PORT"
+test -n "$CLERK_AUTHORIZED_PARTIES"
 
 cd "$candidate_checkout"
-export TMTURTLE_REVISION="$candidate_sha"
+export CLERK_AUTHORIZED_PARTIES COMPOSE_PROJECT_NAME=tmturtle TMTURTLE_API_PORT
+export TMTURTLE_REVISION="$candidate_sha" TMTURTLE_WEB_PORT
 test "$(git rev-parse HEAD)" = "$TMTURTLE_REVISION"
 ./scripts/compose build
 ./scripts/compose stop worker

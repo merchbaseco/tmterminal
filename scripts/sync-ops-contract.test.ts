@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { chmod, copyFile, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -74,6 +74,90 @@ fi
     expect(await process.exited).not.toBe(0);
     expect(await Bun.file(join(candidateCheckout, "scripts", "compose")).exists()).toBe(true);
     expect(await Bun.file(composeLog).exists()).toBe(false);
+  } finally {
+    await rm(root, { force: true, recursive: true });
+  }
+});
+
+test("premerge cutover exports only required production Compose variables", async () => {
+  const root = await mkdtemp(join(tmpdir(), "tmturtle-premerge-cutover-"));
+  const mainCheckout = join(root, "main");
+  const candidateCheckout = `${mainCheckout}-prd77-cutover`;
+  const bin = join(root, "bin");
+  const composeLog = join(root, "compose.log");
+  const masterEnv = join(root, "master.env");
+  const candidateSha = "1234567890abcdef1234567890abcdef12345678";
+  await mkdir(join(mainCheckout, "scripts"), { recursive: true });
+  await mkdir(bin);
+  await Bun.write(
+    masterEnv,
+    [
+      "TMTURTLE_WEB_PORT=43101",
+      "TMTURTLE_API_PORT=43102",
+      "CLERK_AUTHORIZED_PARTIES=https://tmturtle.example.test",
+      "PRD77_SECRET_SENTINEL=must-not-be-exported",
+    ].join("\n")
+  );
+  await copyFile(
+    new URL("./prd77-premerge-cutover", import.meta.url),
+    join(mainCheckout, "scripts", "prd77-premerge-cutover")
+  );
+  await Bun.write(
+    join(bin, "git"),
+    `#!/bin/sh
+set -eu
+if [ "\${3:-}" = worktree ]; then
+  mkdir -p "$6/scripts"
+  printf '%s\n' '#!/bin/sh' 'set -eu' \
+    'test "$COMPOSE_PROJECT_NAME" = tmturtle' \
+    'test "$TMTURTLE_WEB_PORT" = 43101' \
+    'test "$TMTURTLE_API_PORT" = 43102' \
+    'test "$CLERK_AUTHORIZED_PARTIES" = https://tmturtle.example.test' \
+    'test "\${PRD77_SECRET_SENTINEL+x}" != x' \
+    'printf "compose %s\\n" "$*" >> "$FAKE_COMPOSE_LOG"' > "$6/scripts/compose"
+  printf '%s\n' '#!/bin/sh' 'set -eu' \
+    'test "$COMPOSE_PROJECT_NAME" = tmturtle' \
+    'test "$TMTURTLE_WEB_PORT" = 43101' \
+    'test "$TMTURTLE_API_PORT" = 43102' \
+    'test "$CLERK_AUTHORIZED_PARTIES" = https://tmturtle.example.test' \
+    'test "\${PRD77_SECRET_SENTINEL+x}" != x' \
+    'printf "full-rebuild\\n" >> "$FAKE_COMPOSE_LOG"' > "$6/scripts/full-rebuild"
+  chmod +x "$6/scripts/compose" "$6/scripts/full-rebuild"
+elif [ "\${3:-}" = rev-parse ] || [ "\${1:-}" = rev-parse ]; then
+  printf '%s\n' "$FAKE_CANDIDATE_SHA"
+fi
+`
+  );
+  await chmod(join(bin, "git"), 0o755);
+  await chmod(join(mainCheckout, "scripts", "prd77-premerge-cutover"), 0o755);
+
+  const process = Bun.spawn(
+    [
+      "/bin/sh",
+      join(mainCheckout, "scripts", "prd77-premerge-cutover"),
+      candidateSha,
+      mainCheckout,
+      masterEnv,
+    ],
+    {
+      env: {
+        FAKE_CANDIDATE_SHA: candidateSha,
+        FAKE_COMPOSE_LOG: composeLog,
+        PATH: `${bin}:/usr/bin:/bin:/usr/sbin:/sbin`,
+      },
+      stderr: "pipe",
+      stdout: "pipe",
+    }
+  );
+
+  try {
+    expect(await process.exited).toBe(0);
+    expect((await stat(join(candidateCheckout, ".env"))).mode.toString(8)).toEndWith("600");
+    expect((await Bun.file(composeLog).text()).trim().split("\n")).toEqual([
+      "compose build",
+      "compose stop worker",
+      "full-rebuild",
+    ]);
   } finally {
     await rm(root, { force: true, recursive: true });
   }

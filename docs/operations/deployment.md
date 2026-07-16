@@ -35,7 +35,10 @@ candidate is independently reviewed and its PR checks pass, but before merge:
 
 1. Materialize the reviewed 40-character candidate SHA in a detached worktree, verify its exact
    `HEAD`, copy the mastered ignored `.env` at mode `0600` without printing it, build that candidate,
-   and stop the current worker. The normal `main` deployment checkout remains untouched.
+   and stop the current worker. The script reads and requires only `TMTURTLE_WEB_PORT`,
+   `TMTURTLE_API_PORT`, and `CLERK_AUTHORIZED_PARTIES` from that file without sourcing it, then
+   exports them with `COMPOSE_PROJECT_NAME=tmturtle`. The normal `main` deployment checkout remains
+   untouched.
 2. Let the checked cutover script build and stop the candidate worker, then run the offline rebuild.
    The command must report no durable corpus/publication, zero outstanding reconciliation jobs,
    lower `source_record` and `source_claim` physical sizes after `TRUNCATE`, and one-at-a-time
