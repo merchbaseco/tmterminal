@@ -15,7 +15,7 @@ Reviewed against official USPTO metadata and retained source bytes on 2026-07-15
 - [USPTO XML resources](https://www.uspto.gov/learning-and-resources/xml-resources) names **Trademark Applications Documentation v2.3-20250813** and **Table 1 Trademark Status Codes 20250813** as the current trademark-application contracts.
 - The current [application documentation](https://api.uspto.gov/api/v1/datasets/products/files/TRTDXFAP/Trademark-Applications-Documentation-v2.3-20250813.doc) is 2,329,088 bytes with SHA-256 `96a1bcec082cad186ef3b41bb8bcb8fe970289ff0784de31c7e93e2a3780648b`. It defines raw class status `6` as Active; other raw class codes remain uninterpreted.
 - The current [status table](https://api.uspto.gov/api/v1/datasets/products/files/TRTDXFAP/Table1TrademarkStatusCodes_20250813.doc) is 154,624 bytes with SHA-256 `8d251bbd5af8e18eaf269524945bfd7b9714a2ac1600669486660fc75e5d6bf6`. Its 169 entries, updated 2023-06-20, contain 124 Live, 41 Dead, and four Indifferent codes (`000`, `622`, `715`, `970`). Search policy `uspto-trademark-status-20250813` maps Indifferent, null, and unlisted future codes to `unknown`.
-- The retained, directly retrievable official [Trademark Applications XML v2.0 documentation](https://www.uspto.gov/sites/default/files/products/TMDailyApp-Documentation-508.pdf) is 702,326 bytes with SHA-256 `db1211c23c2b8e206acbd5f87b02804d7d63ea3269c98e725296573a7b10406a`. It defines transaction date as the daily process date, action-key/identity order as file sequence, and a present `case-file-owners` group as containing all owner records. These statements prove source framing and v2.0 owner-group completeness, not annual-versus-daily authority.
+- The retained, directly retrievable official [Trademark Applications XML v2.0 documentation](https://www.uspto.gov/sites/default/files/products/TMDailyApp-Documentation-508.pdf) is 702,326 bytes with SHA-256 `db1211c23c2b8e206acbd5f87b02804d7d63ea3269c98e725296573a7b10406a`. It defines transaction date as the daily process date, documents action key `00`, defines action-key/identity order as file sequence, and defines a present `case-file-owners` group as containing all owner records. These statements prove source framing and v2.0 owner-group completeness, not annual-versus-daily authority.
 - [USPTO ODP registration notice](https://www.uspto.gov/subscription-center/2026/register-access-usptos-open-data-portal) requires a signed-in USPTO.gov account to search and download ODP datasets beginning June 18, 2026.
 
 Authenticated `TRTYRAP` metadata returns 177 Data files: 91 members for the 1884-04-07 through 2025-12-31 generation and 86 for the generation ending 2024-12-31. The complete JSON response is retained by SHA-256. Historical 403 evidence remains retained, but it is not the current access state.
@@ -61,13 +61,19 @@ Evidence currently pinned:
 
 The daily before/after fixtures prove only their named same-product transitions. No retained fixture observes the same serial and group in both `TRTYRAP` and `TRTDXFAP`, and the official metadata does not define a product winner. The safe PRD-59 contract is therefore the partial-order and semantic-confluence rule in [ADR 0002](../adr/0002-model-uspto-records-as-ordered-claims.md), not a total annual/daily order. Identical unordered claims resolve with all non-dominated observations retained as contributors; they do not manufacture a provenance conflict.
 
+## First publication policy
+
+The first corpus publication selects exactly the 91 official `TRTYRAP` members covering 1884-04-07 through 2025-12-31. Parser `uspto-application-xml-v3` validates and physically counts every record, while persisting an observation only for an explicit `primary-code` `025` plus non-empty `mark-identification`. Zero-selected members remain valid policy members. It excludes every `TRTDXFAP` artifact and sets `completeThroughDate` to 2025-12-31. Daily artifacts remain retained, parsed where supported, quarantined where invalid or unsupported, and operator-visible. This bootstrap is reversible and does not establish cross-product precedence or supersession. Raw ZIPs remain replay authority for all records excluded by v3 selection.
+
 ## Blocking gaps
 
 The PRD-71 full-annual evidence gate is closed. The broader canonical-ingestion fixture gate remains blocked:
 
 - Current application/status DOC bytes are not retained; only the pinned search-policy/class-status facts, complete disposition digest, and document identities are executable evidence.
-- Retained daily artifacts contain no numeric Official Gazette action key.
+- Retained production daily evidence includes documented action key `00` full records and valid sparse/status-only `TX` records that the current parser does not yet accept. Those are parser-profile gaps, not evidence that the records are invalid.
+- Retained daily artifacts still contain no numeric Official Gazette action-key fixture; action key `00` does not close that distinct evidence gap.
 - Registration and cancellation have real single-observation evidence, not retained multi-observation sequences.
 - Cross-product annual-versus-daily claim precedence is not established by retained evidence. Annual metadata to-date cannot serve as the boundary; order-sensitive overlaps remain authority conflicts and block mixed-product publication.
+- Class-absent daily updates and Class 025 add, remove, or re-add membership need a later daily-policy contract; v3 does not infer membership across records.
 
-These are evidence gaps. Do not derive annual order from suffixes or response position, equate metadata dates with transaction coverage, map unknown action keys, or promote event-history text into source-observation ordering.
+The action-key `00` and sparse/status-only `TX` parser gaps require a distinct daily-lane follow-up after first publication. Invalid duplicate top-level containers remain quarantined. Do not derive annual order from suffixes or response position, equate metadata dates with transaction coverage, map unknown action keys, or promote event-history text into source-observation ordering.

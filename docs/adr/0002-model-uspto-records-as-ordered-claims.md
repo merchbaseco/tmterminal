@@ -17,11 +17,13 @@ MerchBase supplies migration context, not source authority. Its current importer
 
 ## Decision
 
-Trademark Turtle stores immutable artifact versions and lossless source observations, then materializes each canonical group by folding presence-aware typed claims over a versioned source-authority partial order.
+Trademark Turtle stores immutable artifact versions and lossless source observations for selected Class 025 records, then materializes each canonical group by folding presence-aware typed claims over a versioned source-authority partial order. Retained raw artifacts remain replay authority for unselected records.
 
 An authority policy adds an order edge only at the scope proved. Official source documentation may establish a reusable product, action-profile, or group rule. An exact retained fixture sequence establishes only its observed transition unless further evidence proves generalization. A source transaction date may participate in such a proved edge. `status_date`, metadata dates, release times, filenames, suffixes, API response position, physical record order, ingestion order, and database identity do not create whole-record or cross-product authority.
 
 The v1 authority policy pins the complete generation from 1884-04-07 through 2025-12-31 enumerated by retained metadata response SHA-256 `48e2760d6c87175969373199aa914d06e3208d6db2345a8f1647edec329ccdd5`. Annual parts are an unordered set of generation members. Catalog order never selects a generation; older generations are not co-folded, and a later generation is ineligible until an explicit policy revision. Eligibility and generation completeness belong to PRD-63, not the PRD-59 canonicalizer.
+
+The first-publication policy is the exact 91-member pinned annual set alone, with `completeThroughDate` 2025-12-31. Daily evidence remains retained and observable but is not eligible for that publication. This is a reversible bootstrap boundary, not an authority edge and not a claim that annual data supersedes daily data.
 
 Annual and daily observations have no general precedence edge. For every serial number and claim path that spans unordered observations, resolution requires semantic confluence: every order permitted by the authority policy must produce the same normalized value. Unmentioned claims do not mutate a group; additive assertions commute with fact-level provenance. Unordered set, clear, or replace claims that assert the same semantic value resolve normally. Different semantic values remain an authority conflict unless the policy orders them.
 
@@ -35,12 +37,13 @@ Unresolved output has two kinds. `authority-conflict` returns a serial, group, c
 - Full annual records and status-only annual `TX` records can compose without erasing unmentioned groups.
 - PRD-59 can fold caller-supplied eligible observations, fixture-proven same-product transitions, confluence checks, contributor sets, and both unresolved output kinds before cross-product precedence is known. Source-set eligibility and corpus publication remain outside that canonicalizer.
 - Complete mixed-product publication waits for zero unresolved conflicts. New official evidence can add a narrow policy edge without rewriting source observations.
+- Daily retention and parser diagnostics continue independently while the annual-only first publication is active.
 - Generic whole-row replacement, a `productToDate` cutoff, pre-cutoff gap-fill authority, and MerchBase parity as authority are rejected.
 
-## Tracer proof
+## Retained fixture proof
 
-The PRD-60 tracer uses committed fixture `annual-2025-full-tx` for serial `60146682`, registration `0146682`, and word mark `MACHINE-PISTOL`. Its exact record SHA-256 is `4bea4c8e9493c6945b1734a6f5eb3075256519fd5e463e704545d8867356d636`; its artifact belongs to the officially enumerated 2025 annual generation.
+The committed `annual-2025-full-tx` fixture for serial `60146682`, registration `0146682`, and word mark `MACHINE-PISTOL` proves the canonicalizer path. Its exact record SHA-256 is `4bea4c8e9493c6945b1734a6f5eb3075256519fd5e463e704545d8867356d636`; its artifact belongs to the officially enumerated 2025 annual generation. The authentic record is Class 009, so it remains test evidence only and is never startup data or an eligible v3 corpus observation.
 
-For the fixture-scoped eligible input used by the tracer, each present claim path has one effective claim. The partial order therefore has one semantic result for mark presentation, application facts, registration facts, lifecycle, classifications, owners, and goods/services, and every group has the fixture observation as its sole contributor. The confluence gate resolves the mark. Complete-generation selection and atomic corpus publication are PRD-63 concerns, not an additional PRD-60 blocker.
+For that fixture-scoped canonicalizer input, each present claim path has one effective claim. The partial order therefore has one semantic result for mark presentation, application facts, registration facts, lifecycle, classifications, owners, and goods/services, and every group has the fixture observation as its sole contributor. The confluence gate resolves the mark. Production v3 selection is independently proved with coherent Class 025 records.
 
-The XML v2.0 profile promotes a present, non-empty owners group to **Replace**. This is source-backed rather than inferred: the official v2.0 documentation says `case-file-owners` contains all owner records. Absence remains unmentioned; present-empty remains unresolved. The tracer has one owner record, so its source owner name is unambiguous, but the collection contract does not establish a reusable current-legal-owner selection rule.
+The XML v2.0 profile promotes a present, non-empty owners group to **Replace**. This is source-backed rather than inferred: the official v2.0 documentation says `case-file-owners` contains all owner records. Absence remains unmentioned; present-empty remains unresolved. The fixture has one owner record, so its source owner name is unambiguous, but the collection contract does not establish a reusable current-legal-owner selection rule.

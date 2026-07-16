@@ -48,7 +48,7 @@ bun run compose:up
 bun run compose:smoke
 ```
 
-The startup order is PostgreSQL health, one-shot Drizzle migration, one-shot PRD-60 tracer materialization, API and worker database readiness, then the Caddy website shell. The tracer retains the committed real fixture in the artifact volume and uses the source-observation, canonicalization, and canonical repository modules; it is not a corpus publisher. Its canonical write shares the corpus publication lock and is skipped after a durable corpus publication owns canonical state. `dev-port` allocates four deterministic ports per checkout. The root scripts derive a distinct Compose project name and development image revision from that port, so each worktree owns its containers, network, volumes, and image tags. The website uses the first port and the API uses the second:
+The startup order is PostgreSQL health, one-shot Drizzle migration, API and worker database readiness, then the Caddy website shell. Runtime images contain no repository fixture payload. `dev-port` allocates four deterministic ports per checkout. The root scripts derive a distinct Compose project name and development image revision from that port, so each worktree owns its containers, network, volumes, and image tags. The website uses the first port and the API uses the second:
 
 ```bash
 dev-port --group
@@ -126,7 +126,7 @@ bun run compose -- logs api
 
 ## Corpus recovery
 
-The authenticated operator page at `/ops/sync` is read-only. It shows current dataset state, bounded logical artifacts, every retained version through a bounded version table, publications, and rejections. Use the full artifact-version UUID shown there for version-specific host commands. Recovery mutations run only inside the current checkout's worker container through the Compose wrapper:
+The authenticated operator page at `/ops/sync` is read-only. It shows current dataset state, bounded logical artifacts, every retained version through a bounded version table, publications, and rejections. The annual card reports exact first-publication parse progress out of 91; the daily card identifies daily evidence as retained-only for this policy. Use the full artifact-version UUID shown there for version-specific host commands. Recovery mutations run only inside the current checkout's worker container through the Compose wrapper:
 
 ```bash
 bun run sync:ops -- quarantine <artifact-version-id> --reason "<operator reason>"
@@ -138,15 +138,15 @@ bun run sync:ops -- recover-frontier
 
 `quarantine` accepts only a verified or staged version, preserves the reason and time, and invalidates a selection of that version. `select-reissue` accepts only a parsed, publication-policy-eligible version from a logical artifact with multiple retained versions. `replay-parser` accepts only a version without a run for the current parser. Parser upgrades are completed version by version; publication remains blocked while any logical artifact from the parent publication lacks a current-parser eligible replacement.
 
-`recover-source-lane` locks the lane, requires explicit confirmation, resolves the complete current unresolved USPTO alert set with the supplied reason, and resumes the lane. It refuses a ready lane or a stopped lane with no unresolved alert. `recover-frontier` stages and publishes the currently eligible database-derived source set through the normal corpus publisher. Every command fails closed on a wrong state. There is no automated recovery or command retry loop.
+`recover-source-lane` locks the lane, requires explicit confirmation, resolves the complete current unresolved USPTO alert set with the supplied reason, and resumes the lane. It refuses a ready lane or a stopped lane with no unresolved alert. `recover-frontier` stages and publishes the exact eligible 91-member annual policy set through the normal corpus publisher; retained daily evidence is excluded. Every command fails closed on a wrong state. There is no automated recovery or command retry loop.
 
-A full rebuild is a distinct offline preflight and wake, not a second ingestion engine:
+A full rebuild is a distinct offline cutover and wake, not a second ingestion engine:
 
 ```bash
 bun run sync:rebuild
 ```
 
-The wrapper stops the current checkout's worker, confirms an empty canonical/publication target with a retained artifact catalog, and wakes the same pg-boss reconciliation queue before restarting the worker. Under the corpus lock, staged or published retained versions that lack a current-parser run are normalized to verified so normal reconciliation can replay them; quarantined evidence is never reset. Completed artifact parses remain durable, so rerunning the command after an interrupted rebuild resumes from database state. The command refuses a non-empty target or an outstanding reconciliation delivery.
+The wrapper stops the current checkout's worker before invoking the operation. Under the corpus lock, the operation refuses any durable corpus state or publication, clears rebuildable canonical state, deletes non-quarantined obsolete parser runs and their claims/observations, and preserves retained catalog/raw objects plus durable quarantine evidence. It retires the exact historical PRD-60 tracer artifact metadata, normalizes eligible official retained versions that lack a v3 run to `verified`, and wakes the same sequential pg-boss reconciler. The tracer raw object may remain orphaned; the rebuild does not add artifact-store deletion. The command refuses online invocation or an outstanding reconciliation delivery.
 
 Drizzle owns application schema migration. pg-boss owns its separate `pgboss` schema: the one-shot migration entrypoint starts pg-boss with migration enabled after Drizzle, while the production worker starts with `migrate:false` and fails closed if that schema is absent. Repeated migration is expected to be idempotent.
 
