@@ -136,7 +136,7 @@ export const artifactVersion = pgTable(
       .references(() => artifact.id),
     sha256: varchar("sha256", { length: 64 }).notNull(),
     bytes: bigint("bytes", { mode: "number" }).notNull(),
-    objectKey: text("object_key").notNull(),
+    objectKey: text("object_key"),
     state: artifactVersionState("state").notNull().default("verified"),
     quarantinedAt: timestamp("quarantined_at", { withTimezone: true }),
     quarantineReason: text("quarantine_reason"),

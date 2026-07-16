@@ -30,12 +30,49 @@ test("streams one immutable content-addressed object for unchanged bytes", async
   expect(await readdir(join(root, "sha256", "8e"))).toEqual([first.sha256]);
 });
 
+test("removes one content-addressed working object idempotently", async () => {
+  const root = await mkdtemp(join(tmpdir(), "tmturtle-artifacts-"));
+  roots.push(root);
+  const store = createLocalArtifactStore(root);
+  const stored = await store.put(new Blob(["alpha"]).stream(), 5);
+
+  await store.remove(stored.objectKey);
+  expect(await store.head(stored.objectKey)).toBeNull();
+  await store.remove(stored.objectKey);
+  expect(await store.head(stored.objectKey)).toBeNull();
+});
+
+test("rejects a missing object before returning a lazy stream", async () => {
+  const root = await mkdtemp(join(tmpdir(), "tmturtle-artifacts-"));
+  roots.push(root);
+  const store = createLocalArtifactStore(root);
+
+  await expect(
+    store.get("sha256/8e/8ed3f6ad685b959ead7022518e1af76cd816f8e8ec7ccdda1ed4018e8f2223f8")
+  ).rejects.toThrow("ENOENT");
+});
+
+test("iterates finalized objects without reading their bytes", async () => {
+  const root = await mkdtemp(join(tmpdir(), "tmturtle-artifacts-"));
+  roots.push(root);
+  const store = createLocalArtifactStore(root);
+  const bravo = await store.put(new Blob(["bravo"]).stream(), 5);
+  const alpha = await store.put(new Blob(["alpha"]).stream(), 5);
+  await Bun.write(join(root, ".put-active"), "partial");
+
+  expect(await Array.fromAsync(store.listObjectKeys())).toEqual(
+    [alpha.objectKey, bravo.objectKey].sort()
+  );
+});
+
 test("rejects an incomplete stream without retaining it", async () => {
   const root = await mkdtemp(join(tmpdir(), "tmturtle-artifacts-"));
   roots.push(root);
   const store = createLocalArtifactStore(root);
 
-  await expect(store.put(new Blob(["short"]).stream(), 10)).rejects.toThrow("expected 10 bytes, received 5");
+  await expect(store.put(new Blob(["short"]).stream(), 10)).rejects.toThrow(
+    "expected 10 bytes, received 5"
+  );
   expect(await readdir(root)).toEqual([]);
 });
 
@@ -54,10 +91,14 @@ test("cancels an oversized stream before retaining its bytes", async () => {
     },
   });
 
-  const outcome = createLocalArtifactStore(root).put(body, 5).catch((error: unknown) => error);
+  const outcome = createLocalArtifactStore(root)
+    .put(body, 5)
+    .catch((error: unknown) => error);
   await Bun.sleep(10);
   const entriesBeforeSourceCompletion = await readdir(root);
-  if (!cancelled) controller.close();
+  if (!cancelled) {
+    controller.close();
+  }
 
   expect(await outcome).toHaveProperty("message", "Artifact expected 5 bytes, received 9");
   expect(cancelled).toBe(true);
@@ -73,7 +114,7 @@ test("removes stale staging bytes without touching a recent writer", async () =>
   await Bun.write(stale, "orphaned");
   await Bun.write(recent, "active");
   await utimes(stale, new Date(0), new Date(0));
-  const store = createLocalArtifactStore(root, { now: () => 10_000, stagingMaxAgeMs: 5_000 });
+  const store = createLocalArtifactStore(root, { now: () => 10_000, stagingMaxAgeMs: 5000 });
 
   await store.put(new Blob(["alpha"]).stream(), 5);
 

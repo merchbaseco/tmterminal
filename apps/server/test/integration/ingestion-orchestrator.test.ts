@@ -1,5 +1,8 @@
 import { afterAll, beforeEach, expect, test } from "bun:test";
 import { createHash, randomUUID } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { PgBoss } from "pg-boss";
 import postgres from "postgres";
 
@@ -12,6 +15,7 @@ import {
   reconcileQueue,
   reconcileQueueOptions,
 } from "../../src/ingestion/ingestion-scheduler.ts";
+import { createLocalArtifactStore } from "../../src/ingestion/local-artifact-store.ts";
 import { sourceObservationParserVersion } from "../../src/ingestion/source-observations.ts";
 import { extractZipXml } from "../../src/ingestion/zip-artifact-xml.ts";
 import { createSyncService } from "../../src/services/sync-service.ts";
@@ -23,6 +27,12 @@ if (!databaseUrl) {
 }
 
 const database = postgres(databaseUrl, { max: 1, prepare: false });
+const removeArtifact = () => Promise.resolve();
+async function* artifactObjectKeys(keys: string[] = []) {
+  await Promise.resolve();
+  yield* keys;
+}
+const noArtifactObjects = () => artifactObjectKeys();
 
 beforeEach(async () => {
   await resetTestDatabase(database);
@@ -136,13 +146,22 @@ for (const [shape, bytes, reason] of [
   ["multiple XML", multipleXmlZip, "Artifact ZIP contains more than one XML file"],
 ] as const) {
   test(`${shape} retained ZIP durably quarantines its exact version`, async () => {
+    const objectKey = `fixture/${shape}.zip`;
+    const removed: string[] = [];
     const artifactVersionId = await retainVerifiedArtifact({
       bytes,
-      objectKey: `fixture/${shape}.zip`,
+      objectKey,
     });
     const reconciler = createIngestionReconciler({
       artifactScheduler: { runOnce: async () => ({ status: "idle" as const }) },
-      artifactStore: { get: async () => new Blob([bytes]).stream() },
+      artifactStore: {
+        get: async () => new Blob([bytes]).stream(),
+        listObjectKeys: noArtifactObjects,
+        remove: (key) => {
+          removed.push(key);
+          return Promise.resolve();
+        },
+      },
       database,
       extractXml: extractZipXml,
     });
@@ -153,39 +172,59 @@ for (const [shape, bytes, reason] of [
       reason,
     });
     const [version] = await database<
-      Array<{ quarantinedAt: Date; quarantineReason: string; state: string }>
+      Array<{
+        objectKey: string | null;
+        quarantinedAt: Date;
+        quarantineReason: string;
+        state: string;
+      }>
     >`
-      select state, quarantined_at as "quarantinedAt", quarantine_reason as "quarantineReason"
+      select state, object_key as "objectKey", quarantined_at as "quarantinedAt",
+        quarantine_reason as "quarantineReason"
       from artifact_version where id = ${artifactVersionId}
     `;
-    expect(version).toMatchObject({ quarantineReason: reason, state: "quarantined" });
+    expect(version).toMatchObject({
+      objectKey: null,
+      quarantineReason: reason,
+      state: "quarantined",
+    });
     expect(version?.quarantinedAt).toBeInstanceOf(Date);
+    expect(removed).toEqual([objectKey]);
   });
 }
 
 test("missing retained bytes durably quarantine the exact version", async () => {
-  const artifactVersionId = await retainVerifiedArtifact({ objectKey: "fixture/missing.zip" });
-  const reconciler = createIngestionReconciler({
-    artifactScheduler: { runOnce: async () => ({ status: "idle" as const }) },
-    artifactStore: {
-      get: () => Promise.reject(new Error("ENOENT /private/path")),
-    },
-    database,
-    extractXml: extractZipXml,
-  });
+  const root = await mkdtemp(join(tmpdir(), "tmturtle-missing-artifact-"));
+  try {
+    const objectKey = `sha256/${"a".repeat(2)}/${"a".repeat(64)}`;
+    const artifactVersionId = await retainVerifiedArtifact({ objectKey });
+    const artifactStore = createLocalArtifactStore(root);
+    const reconciler = createIngestionReconciler({
+      artifactScheduler: { runOnce: async () => ({ status: "idle" as const }) },
+      artifactStore,
+      database,
+      extractXml: extractZipXml,
+    });
 
-  expect(await reconciler.reconcile()).toEqual({
-    action: "quarantine",
-    artifactVersionId,
-    reason: "Retained artifact bytes could not be read",
-  });
-  const [version] = await database<Array<{ quarantineReason: string; state: string }>>`
-    select state, quarantine_reason as "quarantineReason" from artifact_version where id = ${artifactVersionId}
-  `;
-  expect(version).toEqual({
-    quarantineReason: "Retained artifact bytes could not be read",
-    state: "quarantined",
-  });
+    expect(await reconciler.reconcile()).toEqual({
+      action: "quarantine",
+      artifactVersionId,
+      reason: "Retained artifact bytes could not be read",
+    });
+    const [version] = await database<
+      Array<{ objectKey: string | null; quarantineReason: string; state: string }>
+    >`
+      select state, object_key as "objectKey", quarantine_reason as "quarantineReason"
+      from artifact_version where id = ${artifactVersionId}
+    `;
+    expect(version).toEqual({
+      objectKey: null,
+      quarantineReason: "Retained artifact bytes could not be read",
+      state: "quarantined",
+    });
+  } finally {
+    await rm(root, { force: true, recursive: true });
+  }
 });
 
 test("quarantine after reconciliation selection remains terminal before parsing", async () => {
@@ -198,6 +237,8 @@ test("quarantine after reconciliation selection remains terminal before parsing"
         await quarantineArtifactVersion(database, artifactVersionId, reason);
         return new Blob([emptyXml]).stream();
       },
+      listObjectKeys: noArtifactObjects,
+      remove: removeArtifact,
     },
     database,
     extractXml: (archive) => archive,
@@ -219,6 +260,94 @@ test("quarantine after reconciliation selection remains terminal before parsing"
   expect(version).toEqual({ quarantineReason: reason, state: "quarantined" });
   expect(parseRuns?.count).toBe(0);
   expect(publications?.count).toBe(0);
+  expect(await reconciler.reconcile()).toEqual({ action: "cleanup", artifactVersionId });
+});
+
+test("restart releases one terminal raw object before any parse or source work", async () => {
+  const objectKey = "fixture/terminal.zip";
+  const artifactVersionId = await retainVerifiedArtifact({ objectKey });
+  await database`
+    insert into parse_run (
+      id, artifact_version_id, state, parser_version, digest, record_count, reject_count,
+      started_at, finished_at
+    ) values (
+      ${randomUUID()}, ${artifactVersionId}, 'staged', ${sourceObservationParserVersion},
+      ${"c".repeat(64)}, 0, 0, now(), now()
+    )
+  `;
+  await database`update artifact_version set state = 'staged' where id = ${artifactVersionId}`;
+  const removed: string[] = [];
+  const reconciler = createIngestionReconciler({
+    artifactScheduler: {
+      runOnce: () => Promise.reject(new Error("source work must wait for raw cleanup")),
+    },
+    artifactStore: {
+      get: () => Promise.reject(new Error("terminal raw bytes must not be parsed")),
+      listObjectKeys: noArtifactObjects,
+      remove: (key) => {
+        removed.push(key);
+        return Promise.resolve();
+      },
+    },
+    database,
+    extractXml: (archive) => archive,
+  });
+
+  expect(await reconciler.reconcile()).toEqual({ action: "cleanup", artifactVersionId });
+  expect(removed).toEqual([objectKey]);
+  const [version] = await database<Array<{ objectKey: string | null }>>`
+    select object_key as "objectKey" from artifact_version where id = ${artifactVersionId}
+  `;
+  expect(version?.objectKey).toBeNull();
+});
+
+test("shared raw bytes remain until their final terminal reference clears", async () => {
+  const objectKey = "fixture/shared.zip";
+  const first = await retainVerifiedArtifact({ objectKey });
+  const second = await retainVerifiedArtifact({ objectKey });
+  await database`
+    insert into parse_run (
+      id, artifact_version_id, state, parser_version, digest, record_count, reject_count,
+      started_at, finished_at
+    ) values
+      (
+        ${randomUUID()}, ${first}, 'staged', ${sourceObservationParserVersion},
+        ${createHash("sha256").update(first).digest("hex")}, 0, 0, now(), now()
+      ),
+      (
+        ${randomUUID()}, ${second}, 'staged', ${sourceObservationParserVersion},
+        ${createHash("sha256").update(second).digest("hex")}, 0, 0, now(), now()
+      )
+  `;
+  await database`update artifact_version set state = 'staged' where id in (${first}, ${second})`;
+  const removed: string[] = [];
+  const reconciler = createIngestionReconciler({
+    artifactScheduler: { runOnce: async () => ({ status: "idle" as const }) },
+    artifactStore: {
+      get: () => Promise.reject(new Error("terminal raw bytes must not be parsed")),
+      listObjectKeys: noArtifactObjects,
+      remove: (key) => {
+        removed.push(key);
+        return Promise.resolve();
+      },
+    },
+    database,
+    extractXml: (archive) => archive,
+  });
+
+  expect(await reconciler.reconcile()).toMatchObject({ action: "cleanup" });
+  expect(removed).toEqual([]);
+  const [afterFirst] = await database<Array<{ references: number }>>`
+    select count(*)::int as references from artifact_version where object_key = ${objectKey}
+  `;
+  expect(afterFirst?.references).toBe(1);
+
+  expect(await reconciler.reconcile()).toMatchObject({ action: "cleanup" });
+  expect(removed).toEqual([objectKey]);
+  const [afterSecond] = await database<Array<{ references: number }>>`
+    select count(*)::int as references from artifact_version where object_key = ${objectKey}
+  `;
+  expect(afterSecond?.references).toBe(0);
 });
 
 test("one pg-boss scheduler delivers reconciliation again after process restart", async () => {
@@ -353,6 +482,8 @@ test("an orphaned heartbeat lease expires and restart re-derives database work",
             controller.close();
           },
         }),
+      listObjectKeys: noArtifactObjects,
+      remove: removeArtifact,
     },
     database,
     extractXml: (archive: ReadableStream<Uint8Array>) => archive,
@@ -398,6 +529,8 @@ test("database reconciliation resumes a retained artifact after process restart"
           })
         );
       },
+      listObjectKeys: noArtifactObjects,
+      remove: removeArtifact,
     },
     database,
     extractXml: (archive: ReadableStream<Uint8Array>) => archive,
@@ -418,6 +551,78 @@ test("database reconciliation resumes a retained artifact after process restart"
   expect(sourceRuns).toEqual(["fixture/apc260715.zip"]);
 });
 
+test("durable parse releases its one raw working object", async () => {
+  const objectKey = "fixture/apc260715.zip";
+  const artifactVersionId = await retainVerifiedArtifact({ objectKey });
+  const removed: string[] = [];
+  const reconciler = createIngestionReconciler({
+    artifactScheduler: { runOnce: async () => ({ status: "idle" as const }) },
+    artifactStore: {
+      get: async () => new Blob([emptyXml]).stream(),
+      listObjectKeys: noArtifactObjects,
+      remove: (removedObjectKey: string) => {
+        removed.push(removedObjectKey);
+        return Promise.resolve();
+      },
+    },
+    database,
+    extractXml: (archive) => archive,
+  });
+
+  expect(await reconciler.reconcile()).toMatchObject({
+    action: "parse",
+    artifactVersionId,
+  });
+  expect(removed).toEqual([objectKey]);
+  const [version] = await database<Array<{ objectKey: string | null; state: string }>>`
+    select object_key as "objectKey", state from artifact_version where id = ${artifactVersionId}
+  `;
+  expect(version).toEqual({ objectKey: null, state: "staged" });
+});
+
+test("failed terminal unlink re-arms orphan cleanup before any other work", async () => {
+  const objectKey = "fixture/apc260715.zip";
+  const artifactVersionId = await retainVerifiedArtifact({ objectKey });
+  let rawPresent = true;
+  let removeAttempts = 0;
+  let sourceRuns = 0;
+  const reconciler = createIngestionReconciler({
+    artifactScheduler: {
+      runOnce: () => {
+        sourceRuns += 1;
+        return Promise.resolve({ status: "idle" as const });
+      },
+    },
+    artifactStore: {
+      get: async () => new Blob([emptyXml]).stream(),
+      listObjectKeys: () => artifactObjectKeys(rawPresent ? [objectKey] : []),
+      remove: () => {
+        removeAttempts += 1;
+        if (removeAttempts === 1) {
+          return Promise.reject(new Error("artifact unlink failed"));
+        }
+        rawPresent = false;
+        return Promise.resolve();
+      },
+    },
+    database,
+    extractXml: (archive) => archive,
+  });
+
+  await expect(reconciler.reconcile()).rejects.toThrow("artifact unlink failed");
+  const [parsed] = await database<Array<{ objectKey: string | null; state: string }>>`
+    select object_key as "objectKey", state from artifact_version where id = ${artifactVersionId}
+  `;
+  expect(parsed).toEqual({ objectKey: null, state: "staged" });
+
+  expect(await reconciler.reconcile()).toEqual({ action: "orphan-cleanup", removed: 1 });
+  expect({ rawPresent, removeAttempts, sourceRuns }).toEqual({
+    rawPresent: false,
+    removeAttempts: 2,
+    sourceRuns: 0,
+  });
+});
+
 test("provider backoff does not block database-derived local parsing", async () => {
   const artifactVersionId = await retainVerifiedArtifact();
   await database`
@@ -436,6 +641,8 @@ test("provider backoff does not block database-derived local parsing", async () 
             controller.close();
           },
         }),
+      listObjectKeys: noArtifactObjects,
+      remove: removeArtifact,
     },
     database,
     extractXml: (archive: ReadableStream<Uint8Array>) => archive,
@@ -471,6 +678,8 @@ test("parses the pinned annual baseline before retained daily evidence", async (
         opened.push(objectKey);
         return Promise.resolve(new Blob([emptyXml]).stream());
       },
+      listObjectKeys: noArtifactObjects,
+      remove: removeArtifact,
     },
     database,
     extractXml: (archive) => archive,
@@ -502,7 +711,8 @@ test("publishes the completed annual baseline before parsing retained daily evid
     await database`
       insert into artifact_version (id, artifact_id, sha256, bytes, object_key, state)
       values (
-        ${artifactVersionId}, ${artifactId}, ${digest}, 0, ${`fixture/${filename}`},
+        ${artifactVersionId}, ${artifactId}, ${digest}, 0,
+        ${parsed ? null : `fixture/${filename}`},
         ${parsed ? "staged" : "verified"}
       )
     `;
@@ -538,6 +748,8 @@ test("publishes the completed annual baseline before parsing retained daily evid
         opened.push(objectKey);
         return Promise.resolve(new Blob([emptyXml]).stream());
       },
+      listObjectKeys: noArtifactObjects,
+      remove: removeArtifact,
     },
     database,
     extractXml: (archive) => archive,
@@ -565,6 +777,9 @@ test("normal reconciliation does not replay published or quarantined versions", 
   const verified = await retainVerifiedArtifact();
   await database`update artifact_version set state = 'published' where id = ${published}`;
   await database`update artifact_version set state = 'quarantined' where id = ${quarantined}`;
+  await database`
+    update artifact_version set object_key = null where id in (${published}, ${quarantined})
+  `;
   const opened: string[] = [];
   const reconciler = createIngestionReconciler({
     artifactScheduler: { runOnce: async () => ({ status: "idle" as const }) },
@@ -580,6 +795,8 @@ test("normal reconciliation does not replay published or quarantined versions", 
           })
         );
       },
+      listObjectKeys: noArtifactObjects,
+      remove: removeArtifact,
     },
     database,
     extractXml: (archive: ReadableStream<Uint8Array>) => archive,
@@ -607,6 +824,8 @@ test("ineligible publication staging does not starve source reconciliation", asy
     },
     artifactStore: {
       get: () => Promise.reject(new Error("no retained artifact expected")),
+      listObjectKeys: noArtifactObjects,
+      remove: removeArtifact,
     },
     database,
     extractXml: (archive: ReadableStream<Uint8Array>) => archive,

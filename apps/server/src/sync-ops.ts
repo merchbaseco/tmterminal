@@ -4,18 +4,15 @@ import { createLocalArtifactStore } from "./ingestion/local-artifact-store.ts";
 import {
   recoverCorpusFrontier,
   recoverSourceLane,
-  replayArtifactVersion,
   requestFullRebuild,
   selectArtifactVersion,
 } from "./ingestion/sync-operations.ts";
-import { extractZipXml } from "./ingestion/zip-artifact-xml.ts";
 
 type SyncOperation =
   | { command: "full-rebuild" }
   | { command: "quarantine" | "select-reissue"; identifier: string; reason: string }
   | { command: "recover-frontier" }
-  | { command: "recover-source-lane"; reason: string }
-  | { command: "replay-parser"; identifier: string };
+  | { command: "recover-source-lane"; reason: string };
 
 function identifierAndReason(args: string[], usage: string) {
   const [identifier, flag, reason] = args;
@@ -50,12 +47,6 @@ export function parseSyncOperationArguments(argv: string[]): SyncOperation {
       ),
     };
   }
-  if (command === "replay-parser") {
-    if (args.length !== 1 || !args[0]) {
-      throw new Error("Usage: sync:ops replay-parser <artifact-version-id>");
-    }
-    return { command, identifier: args[0] };
-  }
   if (command === "recover-source-lane") {
     return { command, ...sourceRecovery(args) };
   }
@@ -72,7 +63,7 @@ export function parseSyncOperationArguments(argv: string[]): SyncOperation {
     return { command };
   }
   throw new Error(
-    "Commands: quarantine, select-reissue, replay-parser, recover-source-lane, recover-frontier, full-rebuild"
+    "Commands: quarantine, select-reissue, recover-source-lane, recover-frontier, full-rebuild"
   );
 }
 
@@ -91,21 +82,14 @@ async function main(operation: SyncOperation) {
       result = await quarantineArtifactVersion(database, operation.identifier, operation.reason);
     } else if (operation.command === "select-reissue") {
       result = await selectArtifactVersion(database, operation.identifier, operation.reason);
-    } else if (operation.command === "replay-parser") {
-      result = await replayArtifactVersion({
-        artifactStore,
-        artifactVersionId: operation.identifier,
-        database,
-        extractXml: extractZipXml,
-      });
     } else if (operation.command === "recover-source-lane") {
       result = await recoverSourceLane(database, operation);
     } else if (operation.command === "recover-frontier") {
       result = await recoverCorpusFrontier(database);
     } else {
       result = await requestFullRebuild({
+        artifactStore,
         database,
-        databaseUrl,
         offlineConfirmed: process.env.TMTURTLE_OFFLINE_REBUILD === "1",
       });
     }

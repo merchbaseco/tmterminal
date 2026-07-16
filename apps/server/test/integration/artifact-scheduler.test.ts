@@ -4,11 +4,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import postgres from "postgres";
 
+import { migrateDatabase } from "../../src/db/migrate.ts";
 import { createArtifactScheduler } from "../../src/ingestion/artifact-scheduler.ts";
 import type { ArtifactStore } from "../../src/ingestion/artifact-store.ts";
+import { createIngestionReconciler } from "../../src/ingestion/ingestion-reconciler.ts";
 import { createLocalArtifactStore } from "../../src/ingestion/local-artifact-store.ts";
-import { SourceHttpError, type DiscoveredProduct, type SourceCatalog } from "../../src/ingestion/source-catalog.ts";
-import { migrateDatabase } from "../../src/db/migrate.ts";
+import {
+  type DiscoveredProduct,
+  type SourceCatalog,
+  SourceHttpError,
+} from "../../src/ingestion/source-catalog.ts";
 import { readArtifactInventory, resetTestDatabase } from "./test-database.ts";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
@@ -19,6 +24,11 @@ if (!databaseUrl) {
 
 const database = postgres(databaseUrl, { max: 4, prepare: false });
 const artifactRoots: string[] = [];
+
+async function* artifactObjectKeys(keys: string[] = []) {
+  await Promise.resolve();
+  yield* keys;
+}
 
 const discovery: DiscoveredProduct = {
   product: {
@@ -44,9 +54,11 @@ const discovery: DiscoveredProduct = {
 const unusedStore: ArtifactStore = {
   get: async () => new Blob([]).stream(),
   head: async () => null,
+  listObjectKeys: artifactObjectKeys,
   put: async () => {
     throw new Error("download not expected");
   },
+  remove: () => Promise.resolve(),
 };
 
 beforeEach(async () => {
@@ -137,6 +149,81 @@ test("unchanged bytes are a no-op and changed bytes create immutable versions", 
       { filename: "apc240925.zip", sha256: "8ed3f6ad685b959ead7022518e1af76cd816f8e8ec7ccdda1ed4018e8f2223f8" },
       { filename: "apc240925.zip", sha256: "f144a6907dc4284d1f9fe6a7d9b9ff53c02c1d07ba68f24d413d7ff7f757a782" },
     ],
+  });
+});
+
+test("restart removes a finalized orphan before retaining changed retry bytes", async () => {
+  let clock = new Date("2026-07-14T12:00:00Z");
+  let downloadBytes = "alpha";
+  const catalog: SourceCatalog = {
+    discover: () => Promise.resolve(discovery),
+    download: () =>
+      Promise.resolve({
+        body: new Blob([downloadBytes]).stream(),
+        expectedBytes: 5,
+        responseState: { contentLength: "5", status: 200 },
+      }),
+  };
+  const root = await mkdtemp(join(tmpdir(), "tmturtle-scheduler-crash-"));
+  artifactRoots.push(root);
+  const localStore = createLocalArtifactStore(root);
+  const crashingStore: ArtifactStore = {
+    ...localStore,
+    put: async (body, expectedBytes) => {
+      await localStore.put(body, expectedBytes);
+      throw new Error("crash after finalized put");
+    },
+  };
+  const crashed = createArtifactScheduler({
+    artifactStore: crashingStore,
+    database,
+    discoveryIntervalMs: 60_000,
+    now: () => clock,
+    products: ["TRTDXFAP"],
+    sourceCatalog: catalog,
+  });
+
+  expect(await crashed.runOnce()).toMatchObject({ action: "discover" });
+  await expect(crashed.runOnce()).rejects.toThrow("crash after finalized put");
+  const orphan = "sha256/8e/8ed3f6ad685b959ead7022518e1af76cd816f8e8ec7ccdda1ed4018e8f2223f8";
+  expect(await Array.fromAsync(localStore.listObjectKeys())).toEqual([orphan]);
+
+  downloadBytes = "bravo";
+  const restartedScheduler = createArtifactScheduler({
+    artifactStore: localStore,
+    database,
+    discoveryIntervalMs: 60_000,
+    now: () => clock,
+    products: ["TRTDXFAP"],
+    retry: { baseMs: 1000, jitter: () => 0, maxAttempts: 3, maxMs: 1000 },
+    sourceCatalog: catalog,
+  });
+  const restarted = createIngestionReconciler({
+    artifactScheduler: restartedScheduler,
+    artifactStore: localStore,
+    database,
+    extractXml: (archive) => archive,
+  });
+  expect(await restarted.reconcile()).toEqual({ action: "orphan-cleanup", removed: 1 });
+  const interrupted = await restarted.reconcile();
+  expect(interrupted).toMatchObject({ action: "source", source: { status: "backoff" } });
+  const nextEligibleAt = interrupted.action === "source" && interrupted.source.nextEligibleAt;
+  if (!(nextEligibleAt instanceof Date)) {
+    throw new Error("Expected interrupted source backoff");
+  }
+  clock = new Date(nextEligibleAt.getTime() + 1);
+  expect(await restarted.reconcile()).toMatchObject({
+    action: "source",
+    source: { action: "download", versionCreated: true },
+  });
+
+  const retryKey =
+    "sha256/f1/f144a6907dc4284d1f9fe6a7d9b9ff53c02c1d07ba68f24d413d7ff7f757a782";
+  expect(await localStore.head(orphan)).toBeNull();
+  expect(await Array.fromAsync(localStore.listObjectKeys())).toEqual([retryKey]);
+  expect(await readArtifactInventory(database)).toMatchObject({
+    discoveries: [{ downloadState: "verified", versionSha256: retryKey.slice(-64) }],
+    versions: [{ sha256: retryKey.slice(-64) }],
   });
 });
 
