@@ -131,7 +131,18 @@ export async function findPendingDiscovery(database: postgres.Sql) {
     from artifact_discovery d
     join artifact a on a.id = d.artifact_id
     where d.download_state in ('pending', 'downloading')
-    order by d.release_date, a.product_id, a.filename, d.observed_at, d.id
+    order by
+      case when
+        a.product_id = 'TRTYRAP'
+        and a.filename in ${database([...annualGenerationV1Artifacts])}
+        and d.source_from_date = '1884-04-07'
+        and d.source_to_date = '2025-12-31'
+      then 0 else 1 end,
+      d.release_date,
+      a.product_id,
+      a.filename,
+      d.observed_at,
+      d.id
     limit 1
   `;
   return discovery ? { ...discovery, expectedBytes: Number(discovery.expectedBytes) } : null;
@@ -321,6 +332,10 @@ export function retainArtifactVersion(
       throw new Error("Artifact version insert returned no row");
     }
     await database`
+      update artifact_version set object_key = ${stored.objectKey}
+      where id = ${version.id}
+    `;
+    await database`
       update artifact_discovery
       set download_state = 'verified', artifact_version_id = ${version.id}
       where id = ${discoveryId}
@@ -351,6 +366,7 @@ export async function findArtifactVersionForParsing(database: postgres.Sql) {
     from artifact_version v
     join artifact a on a.id = v.artifact_id
     where v.state = 'verified'
+      and v.object_key is not null
       and exists (
       select 1 from artifact_discovery d
       where d.artifact_version_id = v.id and d.download_state = 'verified'
@@ -376,4 +392,49 @@ export async function findArtifactVersionForParsing(database: postgres.Sql) {
     limit 1
   `;
   return artifact ?? null;
+}
+
+export async function findArtifactObjectForCleanup(database: postgres.Sql) {
+  const [artifact] = await database<Array<{ artifactVersionId: string; objectKey: string }>>`
+    select id as "artifactVersionId", object_key as "objectKey"
+    from artifact_version
+    where state in ('staged', 'published', 'quarantined')
+      and object_key is not null
+    order by created_at, id
+    limit 1
+  `;
+  return artifact ?? null;
+}
+
+export async function artifactObjectHasReference(database: postgres.Sql, objectKey: string) {
+  const [result] = await database<[{ referenced: boolean }]>`
+    select exists (
+      select 1 from artifact_version where object_key = ${objectKey}
+    ) as referenced
+  `;
+  return result?.referenced ?? false;
+}
+
+export function releaseArtifactObjectReference(
+  database: postgres.Sql,
+  artifactVersionId: string,
+  objectKey: string
+) {
+  return database.begin(async (transaction) => {
+    await lockCorpusPublication(transaction);
+    const [cleared] = await transaction<Array<{ id: string }>>`
+      update artifact_version set object_key = null
+      where id = ${artifactVersionId} and object_key = ${objectKey}
+      returning id
+    `;
+    if (!cleared) {
+      return false;
+    }
+    const [remaining] = await transaction<[{ referenced: boolean }]>`
+      select exists (
+        select 1 from artifact_version where object_key = ${objectKey}
+      ) as referenced
+    `;
+    return remaining?.referenced === false;
+  });
 }

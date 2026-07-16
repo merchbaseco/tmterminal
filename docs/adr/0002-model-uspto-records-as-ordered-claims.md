@@ -17,7 +17,7 @@ MerchBase supplies migration context, not source authority. Its current importer
 
 ## Decision
 
-Trademark Turtle stores immutable artifact versions and lossless source observations for selected Class 025 records, then materializes each canonical group by folding presence-aware typed claims over a versioned source-authority partial order. Retained raw artifacts remain replay authority for unselected records.
+Trademark Turtle stores immutable artifact-version metadata and lossless source observations for selected Class 025 records, then materializes each canonical group by folding presence-aware typed claims over a versioned source-authority partial order. Raw artifacts are transient; later work re-downloads official bytes when it needs records outside the stored selection.
 
 An authority policy adds an order edge only at the scope proved. Official source documentation may establish a reusable product, action-profile, or group rule. An exact retained fixture sequence establishes only its observed transition unless further evidence proves generalization. A source transaction date may participate in such a proved edge. `status_date`, metadata dates, release times, filenames, suffixes, API response position, physical record order, ingestion order, and database identity do not create whole-record or cross-product authority.
 
@@ -33,11 +33,11 @@ Unresolved output has two kinds. `authority-conflict` returns a serial, group, c
 
 ## Consequences
 
-- Canonical provenance is group-specific, supports multiple contributors, and is replayable from retained bytes.
+- Canonical provenance is group-specific, supports multiple contributors, and is reproducible by re-downloading the identified official artifact version.
 - Full annual records and status-only annual `TX` records can compose without erasing unmentioned groups.
 - PRD-59 can fold caller-supplied eligible observations, fixture-proven same-product transitions, confluence checks, contributor sets, and both unresolved output kinds before cross-product precedence is known. Source-set eligibility and corpus publication remain outside that canonicalizer.
 - Complete mixed-product publication waits for zero unresolved conflicts. New official evidence can add a narrow policy edge without rewriting source observations.
-- Daily retention and parser diagnostics continue independently while the annual-only first publication is active.
+- Daily discovery metadata, selected observations, and parser diagnostics continue independently while the annual-only first publication is active.
 - Generic whole-row replacement, a `productToDate` cutoff, pre-cutoff gap-fill authority, and MerchBase parity as authority are rejected.
 
 ## Retained fixture proof

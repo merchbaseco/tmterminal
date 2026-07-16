@@ -1,18 +1,15 @@
-import { PgBoss } from "pg-boss";
 import type postgres from "postgres";
 
 import { lockCorpusPublication } from "../queries/corpus-publication-lock.ts";
 import type { ArtifactStore } from "./artifact-store.ts";
 import { retainedVersionFingerprint } from "./artifact-version-selection.ts";
 import { createCorpusPublisher } from "./corpus-publisher.ts";
-import { reconcileQueue, reconcileQueueOptions } from "./ingestion-scheduler.ts";
+import { reconcileQueue } from "./ingestion-scheduler.ts";
 import { isPublicationPolicyArtifact } from "./publication-policy.ts";
-import {
-  createSourceObservationModule,
-  sourceObservationParserVersion,
-} from "./source-observations.ts";
+import { sourceObservationParserVersion } from "./source-observations.ts";
 
 const retiredTracerFilename = "prd-60-tracer-annual-2025-full-tx-60146682.xml";
+const prd77CutoverProof = "artifact-lifecycle-v1";
 
 export function selectArtifactVersion(
   database: postgres.Sql,
@@ -131,34 +128,9 @@ export async function recoverCorpusFrontier(database: postgres.Sql) {
   return publisher.publish(candidate.candidateId);
 }
 
-export async function replayArtifactVersion(options: {
-  artifactStore: Pick<ArtifactStore, "get">;
-  artifactVersionId: string;
-  database: postgres.Sql;
-  extractXml: (archive: ReadableStream<Uint8Array>) => ReadableStream<Uint8Array>;
-}) {
-  const [version] = await options.database<Array<{ objectKey: string; parsed: boolean }>>`
-    select version.object_key as "objectKey", exists (
-      select 1 from parse_run where artifact_version_id = version.id
-        and parser_version = ${sourceObservationParserVersion}
-    ) as parsed
-    from artifact_version version where version.id = ${options.artifactVersionId}
-  `;
-  if (!version) {
-    throw new Error("Artifact version not found");
-  }
-  if (version.parsed) {
-    throw new Error("Artifact version already has a run for the current parser");
-  }
-  return createSourceObservationModule(options.database).stageArtifact({
-    artifactVersionId: options.artifactVersionId,
-    xml: options.extractXml(await options.artifactStore.get(version.objectKey)),
-  });
-}
-
 export async function requestFullRebuild(options: {
+  artifactStore: Pick<ArtifactStore, "listObjectKeys" | "remove">;
   database: postgres.Sql;
-  databaseUrl: string;
   offlineConfirmed: boolean;
 }) {
   if (!options.offlineConfirmed) {
@@ -173,56 +145,122 @@ export async function requestFullRebuild(options: {
           canonical: number;
           corpusStates: number;
           publications: number;
-          retained: number;
+          objectKeyNullable: boolean;
+          sourceClaimBytes: string;
+          sourceRecordBytes: string;
         },
       ]
     >`
       select
-        (select count(*)::int from pgboss.job where name = ${reconcileQueue} and state in ('created', 'retry', 'active')) as "activeJobs",
+        (select count(*)::int from pgboss.job where name = ${reconcileQueue} and state = 'active') as "activeJobs",
         (select count(*)::int from mark) as canonical,
         (select count(*)::int from corpus_state) as "corpusStates",
         (select count(*)::int from publication) as publications,
-        (select count(*)::int from artifact_version) as retained
+        (select is_nullable = 'YES' from information_schema.columns
+          where table_schema = 'public' and table_name = 'artifact_version'
+            and column_name = 'object_key') as "objectKeyNullable",
+        pg_total_relation_size('source_claim')::text as "sourceClaimBytes",
+        pg_total_relation_size('source_record')::text as "sourceRecordBytes"
     `;
     if (current.corpusStates > 0 || current.publications > 0) {
       throw new Error("Full rebuild requires no durable corpus or publication");
     }
-    if (current.retained === 0) {
+    if (current.activeJobs > 0) {
+      throw new Error("Full rebuild target has an active reconciliation delivery");
+    }
+    const [catalog] = await transaction<[{ retained: number }]>`
+      select count(*)::int as retained from artifact_version
+    `;
+    if (catalog.retained === 0) {
       throw new Error("Full rebuild target has no retained artifact catalog");
     }
-    if (current.activeJobs > 0) {
-      throw new Error("Full rebuild target already has outstanding reconciliation delivery");
+    if (current.objectKeyNullable) {
+      throw new Error("Full rebuild requires the pre-object-lifecycle migration schema");
     }
-    await transaction`delete from mark`;
-    await transaction`
-      delete from source_claim claim
-      using source_record record, parse_run run, artifact_version version
-      where claim.source_record_id = record.id
-        and record.parse_run_id = run.id
-        and run.artifact_version_id = version.id
-        and run.parser_version <> ${sourceObservationParserVersion}
-        and run.state <> 'quarantined'
-        and version.state <> 'quarantined'
+    const discardedQueuedReconciliations = await transaction<Array<{ id: string }>>`
+      delete from pgboss.job
+      where name = ${reconcileQueue} and state in ('created', 'retry')
+      returning id
     `;
+    await transaction.unsafe(`
+      create table if not exists prd77_cutover_proof (
+        proof text primary key,
+        completed_at timestamptz not null
+      )
+    `);
+    await transaction`delete from prd77_cutover_proof`;
+    await transaction.unsafe("truncate table source_claim, source_record, mark cascade");
     await transaction`
-      delete from source_record record
-      using parse_run run, artifact_version version
-      where record.parse_run_id = run.id
-        and run.artifact_version_id = version.id
-        and run.parser_version <> ${sourceObservationParserVersion}
-        and run.state <> 'quarantined'
-        and version.state <> 'quarantined'
+      delete from parse_reject reject
+      using parse_run run
+      where reject.parse_run_id = run.id and run.state <> 'quarantined'
     `;
     const removedRuns = await transaction<Array<{ id: string }>>`
-      delete from parse_run run
-      using artifact_version version
-      where run.artifact_version_id = version.id
-        and run.parser_version <> ${sourceObservationParserVersion}
-        and run.state <> 'quarantined'
-        and version.state <> 'quarantined'
-      returning run.id
+      delete from parse_run where state <> 'quarantined'
+      returning id
     `;
-    const retiredTracerVersions = await transaction<Array<{ id: string }>>`
+    await transaction`
+      delete from artifact_version_selection
+    `;
+    await transaction`
+      update artifact_discovery
+      set artifact_version_id = null, download_state = 'pending'
+    `;
+    const normalized = await transaction<Array<{ id: string }>>`
+      update artifact_version set state = 'verified', quarantined_at = null, quarantine_reason = null
+      where state not in ('verified', 'quarantined')
+      returning id
+    `;
+    const [after] = await transaction<[{ sourceClaimBytes: string; sourceRecordBytes: string }]>`
+      select pg_total_relation_size('source_claim')::text as "sourceClaimBytes",
+        pg_total_relation_size('source_record')::text as "sourceRecordBytes"
+    `;
+    return {
+      discardedQueuedReconciliations: discardedQueuedReconciliations.length,
+      normalizedArtifactVersions: normalized.length,
+      removedCanonicalMarks: current.canonical,
+      removedObsoleteParseRuns: removedRuns.length,
+      retainedArtifactVersions: catalog.retained,
+      sourceClaimBytesAfter: Number(after.sourceClaimBytes),
+      sourceClaimBytesBefore: Number(current.sourceClaimBytes),
+      sourceRecordBytesAfter: Number(after.sourceRecordBytes),
+      sourceRecordBytesBefore: Number(current.sourceRecordBytes),
+    };
+  });
+
+  let artifactObjectsRemoved = 0;
+  let artifactBytesRemoved = 0;
+  let cursor = "";
+  // biome-ignore lint/suspicious/noUnnecessaryConditions: The absent keyset row terminates the cutover scan.
+  while (true) {
+    // biome-ignore lint/performance/noAwaitInLoops: The cutover intentionally reads one object identity at a time.
+    const [artifact] = await options.database<Array<{ bytes: string; objectKey: string }>>`
+      select max(bytes)::text as bytes, object_key as "objectKey"
+      from artifact_version
+      where object_key > ${cursor}
+      group by object_key
+      order by object_key
+      limit 1
+    `;
+    if (!artifact) {
+      break;
+    }
+    await options.artifactStore.remove(artifact.objectKey);
+    artifactObjectsRemoved += 1;
+    artifactBytesRemoved += Number(artifact.bytes);
+    cursor = artifact.objectKey;
+  }
+
+  let orphanArtifactObjectsRemoved = 0;
+  for await (const objectKey of options.artifactStore.listObjectKeys()) {
+    await options.artifactStore.remove(objectKey);
+    artifactObjectsRemoved += 1;
+    orphanArtifactObjectsRemoved += 1;
+  }
+
+  const retiredTracerArtifactVersions = await options.database.begin(async (transaction) => {
+    await lockCorpusPublication(transaction);
+    const versions = await transaction<Array<{ id: string }>>`
       delete from artifact_version version
       using artifact
       where version.artifact_id = artifact.id
@@ -234,50 +272,19 @@ export async function requestFullRebuild(options: {
       delete from artifact
       where product_id = 'TRTYRAP' and filename = ${retiredTracerFilename}
     `;
-    const normalized = await transaction<Array<{ id: string }>>`
-      update artifact_version version set state = 'verified'
-      where version.state in ('staged', 'published')
-        and exists (
-          select 1 from artifact_discovery discovery
-          where discovery.artifact_version_id = version.id and discovery.download_state = 'verified'
-        )
-        and not exists (
-          select 1 from parse_run run
-          where run.artifact_version_id = version.id
-            and run.parser_version = ${sourceObservationParserVersion}
-        )
-      returning version.id
+    await transaction`
+      insert into prd77_cutover_proof (proof, completed_at)
+      values (${prd77CutoverProof}, now())
     `;
-    return {
-      normalizedArtifactVersions: normalized.length,
-      removedCanonicalMarks: current.canonical,
-      removedObsoleteParseRuns: removedRuns.length,
-      retainedArtifactVersions: current.retained - retiredTracerVersions.length,
-      retiredTracerArtifactVersions: retiredTracerVersions.length,
-    };
+    return versions.length;
   });
 
-  const boss = new PgBoss({
-    connectionString: options.databaseUrl,
-    migrate: false,
-    supervise: false,
-  });
-  await boss.start();
-  try {
-    await boss.createQueue(reconcileQueue, reconcileQueueOptions);
-    const jobId = await boss.send(reconcileQueue, { reason: "full-rebuild" });
-    if (!jobId) {
-      throw new Error("Full rebuild reconciliation wake was not accepted");
-    }
-    return {
-      jobId,
-      normalizedArtifactVersions: state.normalizedArtifactVersions,
-      removedCanonicalMarks: state.removedCanonicalMarks,
-      removedObsoleteParseRuns: state.removedObsoleteParseRuns,
-      retainedArtifactVersions: state.retainedArtifactVersions,
-      retiredTracerArtifactVersions: state.retiredTracerArtifactVersions,
-    };
-  } finally {
-    await boss.stop({ close: true, graceful: true, timeout: 30_000 });
-  }
+  return {
+    ...state,
+    artifactBytesRemoved,
+    artifactObjectsRemoved,
+    orphanArtifactObjectsRemoved,
+    retainedArtifactVersions: state.retainedArtifactVersions - retiredTracerArtifactVersions,
+    retiredTracerArtifactVersions,
+  };
 }

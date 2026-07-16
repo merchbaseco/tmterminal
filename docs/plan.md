@@ -163,13 +163,13 @@ Authoritative references:
 
 ## Ingestion module
 
-`docs/ingestion.md` is the normative source-authority, replay, parser, publication, and freshness contract.
+`docs/ingestion.md` is the normative source-authority, artifact-lifecycle, parser, publication, and freshness contract.
 
 The ingestion module exposes a small service interface while hiding USPTO products, action keys, partial record shapes, artifact versions, and projection policies. Its invariants are:
 
 - Serial number is canonical mark identity; nonzero registration number is a unique secondary identity.
 - Logical artifacts and immutable content versions are distinct.
-- Raw ZIPs are retained as byte replay authority. Lossless source observations are persisted only for records selected into the Class 025 corpus.
+- Raw ZIPs are transient one-artifact working files. After terminal parse or quarantine they are deleted; reprocessing re-downloads from USPTO. Lossless source observations are persisted only for records selected into the Class 025 corpus.
 - USPTO records are partially ordered observations. Canonical state comes from presence-aware, group-specific claim folding, never generic row replacement.
 - `status_date` orders only status facts where the source profile requires it; it never establishes whole-record authority.
 - Annual metadata dates establish generation membership, not transaction coverage or cross-product precedence.
@@ -180,7 +180,7 @@ The ingestion module exposes a small service interface while hiding USPTO produc
 - A dead or cancelled mark is a state transition, not a row deletion.
 - Unknown values remain raw/unknown instead of being guessed.
 
-The stored and programmatic corpus is Class 025 only. Parser identity `uspto-application-xml-v3` validates, hashes, and physically counts every source record before persisting a full observation only when the record has an explicit `primary-code` of `025` and a non-empty `mark-identification`. A valid artifact with zero selected observations remains a parsed annual-policy member. Raw retained ZIPs preserve every unselected record for later replay.
+The stored and programmatic corpus is Class 025 only. Parser identity `uspto-application-xml-v3` validates, hashes, and physically counts every source record before persisting a full observation only when the record has an explicit `primary-code` of `025` and a non-empty `mark-identification`. A valid artifact with zero selected observations remains a parsed annual-policy member. Unselected records require a later official re-download.
 
 The first-publication bootstrap pins exactly the 91 officially enumerated members of the generation from 1884-04-07 through 2025-12-31 and publishes them as an unordered set. Its `completeThroughDate` and `publishedThroughDate` are both 2025-12-31. Daily artifacts remain retained, parsed, quarantined, and operator-visible, but they are outside this first publication policy. This reversible bootstrap does not declare daily data superseded or establish annual-versus-daily precedence. Mixed publication and any later annual generation require an explicit policy revision.
 
@@ -229,7 +229,7 @@ Required indexes:
 - `role_assignment`
 - `corpus_event`
 
-Account data and keys are not re-derivable and receive backup priority. Source observations and provenance are rebuildable but expensive and quota-sensitive; database backup and raw-artifact retention cover both.
+Account data and keys are not re-derivable and receive backup priority. Selected source observations and provenance are rebuildable but expensive and quota-sensitive, so database backup covers them; raw artifacts are not backup state.
 
 ## Canonical HTTP interface
 
@@ -357,7 +357,7 @@ Mac mini Docker Compose topology:
 - `tmturtle-core`: Fastify/tRPC API and anonymous readiness endpoint; no jobs or schedules
 - `tmturtle-worker`: same image, pg-boss reconciliation/scheduling entrypoint
 - Caddy: serves the built website at `tmturtle.merchbase.co` and proxies `/api`
-- Artifact volume for raw USPTO ZIP files
+- Artifact working volume for one streamed USPTO ZIP
 
 All host ports bind to loopback behind the existing reverse-proxy/Tailscale setup.
 
@@ -386,11 +386,11 @@ Operations:
 
 - `/api/health` for process and database readiness only
 - Nightly PostgreSQL backup covering account, observation, provenance, and corpus state
-- Raw-artifact checksum inventory with no automatic v1 deletion
+- Durable artifact checksum/provenance inventory with terminal raw-object deletion
 - Disk-pressure alert for database and artifact volumes
 - Complete-frontier staleness and publication-gap alerts
 - Changed-hash reissue, provider-access, reject/profile drift, and backup-age alerts
-- Runbooks for reissue, replay/parser upgrade, quarantine, key rotation, restore, frontier recovery, and full corpus rebuild
+- Runbooks for reissue, parser re-download, quarantine, key rotation, restore, frontier recovery, and full corpus rebuild
 
 ## Testing
 
@@ -443,13 +443,13 @@ Acceptance:
 ### Phase 2: durable corpus ingestion
 
 - Logical artifact/version/discovery/parse/publication state model
-- Quota-aware downloads, checksums, and retained raw artifacts
+- Quota-aware downloads, checksums, transient raw artifacts, and bounded terminal cleanup
 - Streaming lossless parser, action profiles, claim folding, and atomic publication
 - Exact 91-member annual first publication from officially enumerated membership
 - Retained and observable daily ingestion outside the first-publication policy; later mixed publication requires its own fixture-proven authority policy
 - Freshness frontiers, retries, quarantine, durable corpus events, observability, backup, and recovery
 
-Acceptance: corpus-through date is accurate; replay is a no-op; a partial amendment changes only asserted groups; an out-of-order artifact cannot regress canonical state.
+Acceptance: corpus-through date is accurate; repeated publication is a no-op; a partial amendment changes only asserted groups; an out-of-order artifact cannot regress canonical state.
 
 ### Phase 3: search and text matching
 
@@ -467,10 +467,10 @@ Acceptance: search and matching satisfy the canonical contract at production-sca
 
 - Publish exact-pinned HTTP client and CLI versions
 - Deploy the full corpus and daily reconciliation runtime
-- Verify backup/restore, artifact replay, reissue, quarantine, and frontier-recovery runbooks
+- Verify backup/restore, artifact re-download, reissue, quarantine, and frontier-recovery runbooks
 - Exercise provider-access failure and corpus-unavailable errors
 
-Acceptance: the deployed service rebuilds from retained artifacts, restores account state, reports truthful freshness, and serves the published client/CLI contracts.
+Acceptance: the deployed service re-downloads one official artifact at a time, preserves account state, reports truthful freshness, and serves the published client/CLI contracts.
 
 ## Decisions fixed by this plan
 

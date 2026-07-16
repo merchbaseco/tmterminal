@@ -6,7 +6,8 @@ import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 
 import { buildServer } from "../../src/api/server.ts";
-import { migrateDatabase } from "../../src/db/migrate.ts";
+import { migrateDatabase, migrateSchedulerDatabase } from "../../src/db/migrate.ts";
+import { requestFullRebuild } from "../../src/ingestion/sync-operations.ts";
 import { resetTestDatabase } from "./test-database.ts";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
@@ -17,6 +18,11 @@ if (!databaseUrl) {
 
 const database = postgres(databaseUrl, { max: 1, prepare: false });
 const temporaryDirectories: string[] = [];
+
+async function* artifactObjectKeys(keys: string[] = []) {
+  await Promise.resolve();
+  yield* keys;
+}
 
 async function stageMigrationPrefix(entryCount: number) {
   const source = fileURLToPath(new URL("../../drizzle", import.meta.url));
@@ -65,7 +71,7 @@ describe("runtime database spine", () => {
     `;
 
     expect(before).toEqual({ artifactTable: false, migrations: 2 });
-    expect(after).toEqual({ artifactTable: true, migrations: 12 });
+    expect(after).toEqual({ artifactTable: true, migrations: 13 });
   });
 
   test("upgrades populated pre-search data and preserves immutable generated search columns", async () => {
@@ -122,12 +128,13 @@ describe("runtime database spine", () => {
     ]);
     expect(normalizeFunctions.length).toBeGreaterThan(0);
     expect(normalizeFunctions.every(({ volatility }) => volatility === "i")).toBe(true);
-    expect(migrationCount?.count).toBe(12);
+    expect(migrationCount?.count).toBe(13);
   }, 30_000);
 
   test("retires pre-v3 derived state before the first Class 025 worker starts", async () => {
     const staged = await stageMigrationPrefix(11);
     await migrateDatabase(databaseUrl, staged);
+    await migrateSchedulerDatabase(databaseUrl);
 
     await database`
       insert into dataset_product (id) values ('TRTYRAP'), ('TRTDXFAP')
@@ -194,6 +201,56 @@ describe("runtime database spine", () => {
       ) values ('60146682', 'MACHINE-PISTOL', 'v1', 'v1', 'v1', 'v1')
     `;
 
+    const removedObjects: string[] = [];
+    const cutover = await requestFullRebuild({
+      artifactStore: {
+        listObjectKeys: artifactObjectKeys,
+        remove: (objectKey) => {
+          removedObjects.push(objectKey);
+          return Promise.resolve();
+        },
+      },
+      database,
+      offlineConfirmed: true,
+    });
+    expect(cutover).toMatchObject({
+      artifactObjectsRemoved: 3,
+      removedCanonicalMarks: 1,
+      removedObsoleteParseRuns: 2,
+      retiredTracerArtifactVersions: 1,
+    });
+    expect(removedObjects).toEqual(["sha256/official", "sha256/quarantine", "sha256/tracer"]);
+    const [preMigration] = await database<
+      Array<{
+        nonnullObjects: number;
+        nullable: boolean;
+        pendingDiscoveries: number;
+        proofs: number;
+        sourceClaims: number;
+        sourceRecords: number;
+      }>
+    >`
+      select
+        (select count(*)::int from artifact_version where object_key is not null) as "nonnullObjects",
+        (select is_nullable = 'YES' from information_schema.columns
+          where table_schema = 'public' and table_name = 'artifact_version'
+            and column_name = 'object_key') as nullable,
+        (select count(*)::int from artifact_discovery
+          where download_state = 'pending' and artifact_version_id is null) as "pendingDiscoveries",
+        (select count(*)::int from prd77_cutover_proof
+          where proof = 'artifact-lifecycle-v1') as proofs,
+        (select count(*)::int from source_claim) as "sourceClaims",
+        (select count(*)::int from source_record) as "sourceRecords"
+    `;
+    expect(preMigration).toEqual({
+      nonnullObjects: 2,
+      nullable: false,
+      pendingDiscoveries: 1,
+      proofs: 1,
+      sourceClaims: 0,
+      sourceRecords: 0,
+    });
+
     await migrateDatabase(databaseUrl);
     await migrateDatabase(databaseUrl);
 
@@ -205,7 +262,9 @@ describe("runtime database spine", () => {
         officialCatalog: number;
         officialState: string;
         quarantineEvidence: number;
-        retainedObjects: string[];
+        nonnullObjects: number;
+        nullable: boolean;
+        proofTable: boolean;
         tracerArtifacts: number;
       }>
     >`
@@ -216,21 +275,104 @@ describe("runtime database spine", () => {
         (select count(*)::int from artifact where filename = 'apc18840407-20251231-01.zip') as "officialCatalog",
         (select state::text from artifact_version where id = '10000000-0000-4000-8000-000000000001') as "officialState",
         (select count(*)::int from parse_reject where reason = 'durable quarantine') as "quarantineEvidence",
-        (select array_agg(object_key order by object_key) from artifact_version) as "retainedObjects",
+        (select count(*)::int from artifact_version where object_key is not null) as "nonnullObjects",
+        (select is_nullable = 'YES' from information_schema.columns
+          where table_schema = 'public' and table_name = 'artifact_version'
+            and column_name = 'object_key') as nullable,
+        to_regclass('public.prd77_cutover_proof') is not null as "proofTable",
         (select count(*)::int from artifact where filename = 'prd-60-tracer-annual-2025-full-tx-60146682.xml') as "tracerArtifacts"
     `;
 
     expect(result).toEqual({
       canonicalMarks: 0,
-      migrationCount: 12,
+      migrationCount: 13,
+      nonnullObjects: 0,
+      nullable: true,
       obsoleteRuns: 0,
       officialCatalog: 1,
       officialState: "verified",
+      proofTable: false,
       quarantineEvidence: 1,
-      retainedObjects: ["sha256/official", "sha256/quarantine"],
       tracerArtifacts: 0,
     });
   }, 30_000);
+
+  test("refuses populated object-lifecycle migration without completed offline cutover proof", async () => {
+    await migrateDatabase(databaseUrl, await stageMigrationPrefix(11));
+    await database`insert into dataset_product (id) values ('TRTYRAP')`;
+    await database`
+      insert into artifact (id, product_id, filename)
+      values ('00000000-0000-4000-8000-000000000011', 'TRTYRAP', 'apc18840407-20251231-01.zip')
+    `;
+    await database`
+      insert into artifact_version (id, artifact_id, sha256, bytes, object_key)
+      values (
+        '10000000-0000-4000-8000-000000000011',
+        '00000000-0000-4000-8000-000000000011',
+        ${"1".repeat(64)}, 10, 'sha256/populated'
+      )
+    `;
+
+    await expect(migrateDatabase(databaseUrl)).rejects.toThrow(
+      "Object lifecycle migration requires completed PRD-77 offline cutover"
+    );
+    const [result] = await database<
+      Array<{ migrations: number; nullable: boolean; objectKey: string }>
+    >`
+      select
+        (select count(*)::int from drizzle.__drizzle_migrations) as migrations,
+        (select is_nullable = 'YES' from information_schema.columns
+          where table_schema = 'public' and table_name = 'artifact_version'
+            and column_name = 'object_key') as nullable,
+        (select object_key from artifact_version
+          where id = '10000000-0000-4000-8000-000000000011') as "objectKey"
+    `;
+    expect(result).toEqual({ migrations: 11, nullable: false, objectKey: "sha256/populated" });
+  });
+
+  test("failed raw sweep cannot authorize object-lifecycle migration", async () => {
+    await migrateDatabase(databaseUrl, await stageMigrationPrefix(11));
+    await migrateSchedulerDatabase(databaseUrl);
+    await database`insert into dataset_product (id) values ('TRTYRAP')`;
+    await database`
+      insert into artifact (id, product_id, filename) values
+        ('00000000-0000-4000-8000-000000000021', 'TRTYRAP', 'apc18840407-20251231-01.zip'),
+        ('00000000-0000-4000-8000-000000000022', 'TRTYRAP', 'apc18840407-20251231-02.zip')
+    `;
+    await database`
+      insert into artifact_version (id, artifact_id, sha256, bytes, object_key) values
+        ('10000000-0000-4000-8000-000000000021', '00000000-0000-4000-8000-000000000021', ${"2".repeat(64)}, 10, 'sha256/first'),
+        ('10000000-0000-4000-8000-000000000022', '00000000-0000-4000-8000-000000000022', ${"3".repeat(64)}, 11, 'sha256/second')
+    `;
+    let removals = 0;
+
+    await expect(
+      requestFullRebuild({
+        artifactStore: {
+          listObjectKeys: artifactObjectKeys,
+          remove: () => {
+            removals += 1;
+            return removals === 2
+              ? Promise.reject(new Error("injected raw sweep failure"))
+              : Promise.resolve();
+          },
+        },
+        database,
+        offlineConfirmed: true,
+      })
+    ).rejects.toThrow("injected raw sweep failure");
+    const [proof] = await database<[{ count: number }]>`
+      select count(*)::int as count from prd77_cutover_proof
+    `;
+    expect(proof?.count).toBe(0);
+    await expect(migrateDatabase(databaseUrl)).rejects.toThrow(
+      "Object lifecycle migration requires completed PRD-77 offline cutover"
+    );
+    const [pointers] = await database<[{ count: number }]>`
+      select count(*)::int as count from artifact_version where object_key is not null
+    `;
+    expect(pointers?.count).toBe(2);
+  });
 
   test("refuses the Class 025 cutover after durable publication exists", async () => {
     await migrateDatabase(databaseUrl, await stageMigrationPrefix(11));
@@ -279,7 +421,7 @@ describe("runtime database spine", () => {
     `;
 
     expect(extension?.installed).toBe(true);
-    expect(migrationCount?.count).toBe(12);
+    expect(migrationCount?.count).toBe(13);
   });
 
   test("reports ready after migrations complete", async () => {

@@ -1,14 +1,18 @@
-import { beforeEach, expect, test } from "bun:test";
+import { afterEach, beforeEach, expect, test } from "bun:test";
 import { createHash, randomUUID } from "node:crypto";
+import { PgBoss } from "pg-boss";
 import postgres from "postgres";
 
 import { migrateDatabase, migrateSchedulerDatabase } from "../../src/db/migrate.ts";
 import { annualGenerationV1Artifacts } from "../../src/ingestion/annual-generation-v1.ts";
 import { quarantineArtifactVersion } from "../../src/ingestion/artifact-quarantine.ts";
+import { createArtifactScheduler } from "../../src/ingestion/artifact-scheduler.ts";
+import type { ArtifactStore } from "../../src/ingestion/artifact-store.ts";
+import { createIngestionReconciler } from "../../src/ingestion/ingestion-reconciler.ts";
+import { reconcileQueue } from "../../src/ingestion/ingestion-scheduler.ts";
 import { sourceObservationParserVersion } from "../../src/ingestion/source-observations.ts";
 import {
   recoverSourceLane,
-  replayArtifactVersion,
   requestFullRebuild,
   selectArtifactVersion,
 } from "../../src/ingestion/sync-operations.ts";
@@ -21,6 +25,11 @@ if (!databaseUrl) {
 }
 const database = postgres(databaseUrl, { max: 2, prepare: false });
 
+async function* artifactObjectKeys(keys: string[] = []) {
+  await Promise.resolve();
+  yield* keys;
+}
+
 const emptyXml = Buffer.from(
   "<trademark-applications-daily><version><version-no>2.0</version-no><version-date>20041108</version-date></version><creation-datetime>202607150000</creation-datetime><application-information><data-available-code>N</data-available-code></application-information></trademark-applications-daily>"
 );
@@ -30,6 +39,10 @@ beforeEach(async () => {
   await migrateDatabase(databaseUrl);
   await migrateSchedulerDatabase(databaseUrl);
   await database`insert into dataset_product (id) values ('TRTDXFAP'), ('TRTYRAP')`;
+});
+
+afterEach(async () => {
+  await database`alter table artifact_version alter column object_key drop not null`;
 });
 
 async function retainVersion(input: {
@@ -103,71 +116,102 @@ test("quarantine persists a private reason and refuses a terminal version", asyn
   );
 });
 
-test("parser replay creates only the missing current-parser run", async () => {
-  const retained = await retainVersion({ filename: "apc260714.zip" });
-  await insertStagedParse(retained.versionId, "uspto-application-xml-v1");
-  const artifactStore = {
-    get: async () =>
-      new ReadableStream<Uint8Array>({
-        start(controller) {
-          controller.enqueue(emptyXml);
-          controller.close();
-        },
-      }),
-  };
-
-  await replayArtifactVersion({
-    artifactStore,
-    artifactVersionId: retained.versionId,
-    database,
-    extractXml: (archive) => archive,
-  });
-  const [runs] = await database<Array<{ count: number }>>`
-    select count(*)::int as count from parse_run
-    where artifact_version_id = ${retained.versionId} and parser_version = ${sourceObservationParserVersion}
-  `;
-  expect(runs?.count).toBe(1);
+test("full rebuild refuses the post-object-lifecycle schema", async () => {
+  await retainVersion({ filename: "apc260715.zip" });
   await expect(
-    replayArtifactVersion({
-      artifactStore,
-      artifactVersionId: retained.versionId,
+    requestFullRebuild({
+      artifactStore: { listObjectKeys: artifactObjectKeys, remove: async () => undefined },
       database,
-      extractXml: (archive) => archive,
+      offlineConfirmed: true,
     })
-  ).rejects.toThrow("Artifact version already has a run for the current parser");
+  ).rejects.toThrow("pre-object-lifecycle migration schema");
 });
 
-test("parser replay cannot resurrect quarantined evidence", async () => {
-  const retained = await retainVersion({ filename: "apc260714.zip" });
-  const reason = "Operator quarantined retained evidence before parser replay";
-  await quarantineArtifactVersion(database, retained.versionId, reason);
-  const artifactStore = {
-    get: async () =>
-      new ReadableStream<Uint8Array>({
-        start(controller) {
-          controller.enqueue(emptyXml);
-          controller.close();
-        },
-      }),
-  };
+test("full rebuild discards queued reconciliation wakeups and reports the exact count", async () => {
+  await database`alter table artifact_version alter column object_key set not null`;
+  await retainVersion({ filename: "apc260715.zip" });
+  const boss = new PgBoss({ connectionString: databaseUrl, migrate: false, supervise: false });
+  await boss.start();
+  let createdJobId: string | null = null;
+  let retryJobId: string | null = null;
+  try {
+    await boss.createQueue(reconcileQueue);
+    createdJobId = await boss.send(reconcileQueue, { reason: "cutover-created" });
+    retryJobId = await boss.send(reconcileQueue, { reason: "cutover-retry" });
+  } finally {
+    await boss.stop({ close: true, graceful: true, timeout: 30_000 });
+  }
+  if (!(createdJobId && retryJobId)) {
+    throw new Error("Expected two queued reconciliation fixtures");
+  }
+  await database`update pgboss.job set state = 'retry' where id = ${retryJobId}`;
+
+  const result = await requestFullRebuild({
+    artifactStore: { listObjectKeys: artifactObjectKeys, remove: () => Promise.resolve() },
+    database,
+    offlineConfirmed: true,
+  });
+  expect(result.discardedQueuedReconciliations).toBe(2);
+  const [remaining] = await database<Array<{ count: number }>>`
+    select count(*)::int as count from pgboss.job
+    where name = ${reconcileQueue} and state in ('created', 'retry')
+  `;
+  expect(remaining?.count).toBe(0);
+});
+
+test("full rebuild refuses active reconciliation without touching cutover state", async () => {
+  await database`alter table artifact_version alter column object_key set not null`;
+  const retained = await retainVersion({ filename: "apc260715.zip" });
+  const boss = new PgBoss({ connectionString: databaseUrl, migrate: false, supervise: false });
+  await boss.start();
+  let activeJobId: string | null = null;
+  try {
+    await boss.createQueue(reconcileQueue);
+    activeJobId = await boss.send(reconcileQueue, { reason: "cutover-active" });
+  } finally {
+    await boss.stop({ close: true, graceful: true, timeout: 30_000 });
+  }
+  if (!activeJobId) {
+    throw new Error("Expected one active reconciliation fixture");
+  }
+  await database`update pgboss.job set state = 'active' where id = ${activeJobId}`;
+  let removeCalls = 0;
 
   await expect(
-    replayArtifactVersion({
-      artifactStore,
-      artifactVersionId: retained.versionId,
+    requestFullRebuild({
+      artifactStore: {
+        listObjectKeys: artifactObjectKeys,
+        remove: () => {
+          removeCalls += 1;
+          return Promise.resolve();
+        },
+      },
       database,
-      extractXml: (archive) => archive,
+      offlineConfirmed: true,
     })
-  ).rejects.toThrow("Artifact version must be verified, staged, or published to parse");
-  const [version] = await database<Array<{ quarantineReason: string; state: string }>>`
-    select state, quarantine_reason as "quarantineReason"
-    from artifact_version where id = ${retained.versionId}
+  ).rejects.toThrow("active reconciliation delivery");
+
+  const [state] = await database<
+    Array<{
+      activeJobs: number;
+      discoveryState: string;
+      objectKey: string | null;
+      proofExists: boolean;
+    }>
+  >`
+    select
+      (select count(*)::int from pgboss.job where id = ${activeJobId} and state = 'active') as "activeJobs",
+      (select download_state from artifact_discovery where artifact_version_id = ${retained.versionId}) as "discoveryState",
+      (select object_key from artifact_version where id = ${retained.versionId}) as "objectKey",
+      to_regclass('public.prd77_cutover_proof') is not null as "proofExists"
   `;
-  const [parseRuns] = await database<Array<{ count: number }>>`
-    select count(*)::int as count from parse_run where artifact_version_id = ${retained.versionId}
-  `;
-  expect(version).toEqual({ quarantineReason: reason, state: "quarantined" });
-  expect(parseRuns?.count).toBe(0);
+  expect(state).toEqual({
+    activeJobs: 1,
+    discoveryState: "verified",
+    objectKey: expect.any(String),
+    proofExists: false,
+  });
+  expect(removeCalls).toBe(0);
 });
 
 test("reissue selection is exact, and quarantine invalidates its selected staged version", async () => {
@@ -310,6 +354,30 @@ test("source recovery requires and resolves the exact current stopped-lane alert
 });
 
 test("full rebuild retires obsolete derived state, preserves quarantine and catalog, and remains resumable", async () => {
+  await database`alter table artifact_version alter column object_key set not null`;
+  const orphanObjectKey = "fixture/unreferenced-finalized.zip";
+  const finalizedOrphans = new Set([orphanObjectKey]);
+  const proofCountsDuringOrphanRemoval: number[] = [];
+  const removedObjects: string[] = [];
+  let activeRemovals = 0;
+  let maximumActiveRemovals = 0;
+  const artifactStore = {
+    listObjectKeys: () => artifactObjectKeys([...finalizedOrphans]),
+    remove: async (objectKey: string) => {
+      activeRemovals += 1;
+      maximumActiveRemovals = Math.max(maximumActiveRemovals, activeRemovals);
+      if (objectKey === orphanObjectKey) {
+        const [proof] = await database<Array<{ count: number }>>`
+          select count(*)::int as count from prd77_cutover_proof
+        `;
+        proofCountsDuringOrphanRemoval.push(proof?.count ?? -1);
+        finalizedOrphans.delete(objectKey);
+      }
+      await Promise.resolve();
+      removedObjects.push(objectKey);
+      activeRemovals -= 1;
+    },
+  };
   const retained = await retainVersion({ filename: "apc260711.zip" });
   const restoredStaged = await retainVersion({ filename: "apc260710.zip", state: "staged" });
   const restoredPublished = await retainVersion({ filename: "apc260709.zip", state: "published" });
@@ -353,6 +421,12 @@ test("full rebuild retires obsolete derived state, preserves quarantine and cata
       projection_version, authority_policy_version
     ) values ('60146682', '0146682', 'MACHINE-PISTOL', 'v1', 'v1', 'v1', 'v1')
   `;
+  const accountId = randomUUID();
+  await database`insert into account (id, name) values (${accountId}, 'cutover-owner')`;
+  await database`
+    insert into api_key (id, account_id, name, secret_hash, suffix)
+    values (${randomUUID()}, ${accountId}, 'preserved', ${"0".repeat(64)}, '12345678')
+  `;
   const tracerArtifactId = randomUUID();
   const tracerVersionId = randomUUID();
   await database`
@@ -365,18 +439,31 @@ test("full rebuild retires obsolete derived state, preserves quarantine and cata
   `;
   await insertStagedParse(tracerVersionId, "uspto-application-xml-v2");
   await expect(
-    requestFullRebuild({ database, databaseUrl, offlineConfirmed: false })
+    requestFullRebuild({ artifactStore, database, offlineConfirmed: false })
   ).rejects.toThrow("stopped-worker offline invocation");
 
-  const first = await requestFullRebuild({ database, databaseUrl, offlineConfirmed: true });
+  const first = await requestFullRebuild({ artifactStore, database, offlineConfirmed: true });
   expect(first).toMatchObject({
-    normalizedArtifactVersions: 2,
+    artifactObjectsRemoved: 6,
+    discardedQueuedReconciliations: 0,
+    normalizedArtifactVersions: 3,
+    orphanArtifactObjectsRemoved: 1,
     removedCanonicalMarks: 1,
     removedObsoleteParseRuns: 3,
     retainedArtifactVersions: 4,
     retiredTracerArtifactVersions: 1,
   });
-  expect(first.jobId).toBeString();
+  expect(first.sourceClaimBytesAfter).toBeLessThan(first.sourceClaimBytesBefore);
+  expect(first.sourceRecordBytesAfter).toBeLessThan(first.sourceRecordBytesBefore);
+  expect(maximumActiveRemovals).toBe(1);
+  expect(removedObjects).toHaveLength(6);
+  expect(removedObjects).toContain(orphanObjectKey);
+  expect([...finalizedOrphans]).toEqual([]);
+  expect(proofCountsDuringOrphanRemoval).toEqual([0]);
+  const [cutoverProof] = await database<Array<{ count: number }>>`
+    select count(*)::int as count from prd77_cutover_proof
+  `;
+  expect(cutoverProof?.count).toBe(1);
   const restoredStates = await database<Array<{ id: string; state: string }>>`
     select id, state from artifact_version
     where id in (${restoredStaged.versionId}, ${restoredPublished.versionId}, ${quarantined.versionId})
@@ -392,8 +479,11 @@ test("full rebuild retires obsolete derived state, preserves quarantine and cata
   const [preserved] = await database<
     Array<{
       artifacts: number;
+      apiKeys: number;
       discoveries: number;
+      pendingDiscoveries: number;
       marks: number;
+      objectKeys: number;
       obsoleteRuns: number;
       quarantineRejects: number;
       quarantineRuns: number;
@@ -406,8 +496,11 @@ test("full rebuild retires obsolete derived state, preserves quarantine and cata
   >`
     select
       (select count(*)::int from artifact) as artifacts,
+      (select count(*)::int from api_key where account_id = ${accountId}) as "apiKeys",
       (select count(*)::int from artifact_discovery) as discoveries,
+      (select count(*)::int from artifact_discovery where download_state = 'pending' and artifact_version_id is null) as "pendingDiscoveries",
       (select count(*)::int from mark) as marks,
+      (select count(*)::int from artifact_version where object_key is not null) as "objectKeys",
       (select count(*)::int from parse_run where state <> 'quarantined' and parser_version <> ${sourceObservationParserVersion}) as "obsoleteRuns",
       (select count(*)::int from parse_reject where parse_run_id = ${quarantineRunId}) as "quarantineRejects",
       (select count(*)::int from parse_run where id = ${quarantineRunId}) as "quarantineRuns",
@@ -418,10 +511,13 @@ test("full rebuild retires obsolete derived state, preserves quarantine and cata
       (select count(*)::int from artifact_version) as versions
   `;
   expect(preserved).toEqual({
+    apiKeys: 1,
     artifacts: 4,
     discoveries: 4,
     marks: 0,
+    objectKeys: 4,
     obsoleteRuns: 0,
+    pendingDiscoveries: 4,
     quarantineRejects: 1,
     quarantineRuns: 1,
     sourceClaims: 0,
@@ -430,27 +526,19 @@ test("full rebuild retires obsolete derived state, preserves quarantine and cata
     tracerVersions: 0,
     versions: 4,
   });
-  await database`
-    update pgboss.job set state = 'completed', completed_on = now()
-    where id = ${first.jobId}
-  `;
   await insertStagedParse(retained.versionId);
   await database`update artifact_version set state = 'staged' where id = ${retained.versionId}`;
 
-  const resumed = await requestFullRebuild({ database, databaseUrl, offlineConfirmed: true });
+  const resumed = await requestFullRebuild({ artifactStore, database, offlineConfirmed: true });
   expect(resumed).toMatchObject({
-    normalizedArtifactVersions: 0,
+    artifactObjectsRemoved: 4,
+    normalizedArtifactVersions: 1,
+    orphanArtifactObjectsRemoved: 0,
     removedCanonicalMarks: 0,
-    removedObsoleteParseRuns: 0,
+    removedObsoleteParseRuns: 1,
     retainedArtifactVersions: 4,
     retiredTracerArtifactVersions: 0,
   });
-  expect(resumed.jobId).toBeString();
-  expect(resumed.jobId).not.toBe(first.jobId);
-  await database`
-    update pgboss.job set state = 'completed', completed_on = now()
-    where id = ${resumed.jobId}
-  `;
   await database`
     insert into publication (
       id, fingerprint, source_fingerprint, parser_version, authority_policy_version, projection_version,
@@ -461,6 +549,169 @@ test("full rebuild retires obsolete derived state, preserves quarantine and cata
     )
   `;
   await expect(
-    requestFullRebuild({ database, databaseUrl, offlineConfirmed: true })
+    requestFullRebuild({ artifactStore, database, offlineConfirmed: true })
   ).rejects.toThrow("no durable corpus or publication");
+});
+
+test("offline rebuild re-downloads one existing SHA, parses once, and releases its raw object", async () => {
+  await database`alter table artifact_version alter column object_key set not null`;
+  const retained = await retainVersion({ filename: "apc260715.zip" });
+  const sha256 = createHash("sha256").update(emptyXml).digest("hex");
+  const objectKey = `sha256/${sha256.slice(0, 2)}/${sha256}`;
+  await database`
+    update artifact_version set sha256 = ${sha256}, bytes = ${emptyXml.byteLength}, object_key = ${objectKey}
+    where id = ${retained.versionId}
+  `;
+  await database`
+    update dataset_product set next_discovery_at = '2099-01-01T00:00:00Z'
+  `;
+  let rawPresent = true;
+  const removed: string[] = [];
+  const artifactStore: ArtifactStore = {
+    get: () => {
+      if (!rawPresent) {
+        return Promise.reject(new Error("raw object is absent"));
+      }
+      return Promise.resolve(new Blob([emptyXml]).stream());
+    },
+    head: () => Promise.resolve(rawPresent ? { bytes: emptyXml.byteLength } : null),
+    listObjectKeys: () => artifactObjectKeys(rawPresent ? [objectKey] : []),
+    put: async (body) => {
+      const bytes = Buffer.from(await new Response(body).arrayBuffer());
+      rawPresent = true;
+      return {
+        bytes: bytes.byteLength,
+        objectKey,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+      };
+    },
+    remove: (removedObjectKey) => {
+      removed.push(removedObjectKey);
+      rawPresent = false;
+      return Promise.resolve();
+    },
+  };
+
+  await requestFullRebuild({ artifactStore, database, offlineConfirmed: true });
+  const [reset] = await database<Array<{ downloadState: string; objectKey: string | null }>>`
+    select discovery.download_state as "downloadState", version.object_key as "objectKey"
+    from artifact_discovery discovery
+    join artifact_version version on version.artifact_id = discovery.artifact_id
+    where version.id = ${retained.versionId}
+  `;
+  expect(reset).toEqual({ downloadState: "pending", objectKey });
+  await database`alter table artifact_version alter column object_key drop not null`;
+  await database`update artifact_version set object_key = null`;
+
+  const scheduler = createArtifactScheduler({
+    artifactStore,
+    database,
+    discoveryIntervalMs: 60_000,
+    products: ["TRTDXFAP"],
+    sourceCatalog: {
+      discover: () => Promise.reject(new Error("discovery is not due")),
+      download: async () => ({
+        body: new Blob([emptyXml]).stream(),
+        expectedBytes: emptyXml.byteLength,
+        responseState: { status: 200 },
+      }),
+    },
+  });
+  expect(await scheduler.runOnce()).toMatchObject({
+    action: "download",
+    versionCreated: false,
+  });
+  const [redownloaded] = await database<Array<{ objectKey: string | null }>>`
+    select object_key as "objectKey" from artifact_version where id = ${retained.versionId}
+  `;
+  expect(redownloaded?.objectKey).toBe(objectKey);
+
+  const reconciler = createIngestionReconciler({
+    artifactScheduler: scheduler,
+    artifactStore,
+    database,
+    extractXml: (archive) => archive,
+  });
+  expect(await reconciler.reconcile()).toMatchObject({
+    action: "parse",
+    artifactVersionId: retained.versionId,
+  });
+  const [parsed] = await database<Array<{ objectKey: string | null; runs: number }>>`
+    select version.object_key as "objectKey",
+      (select count(*)::int from parse_run where artifact_version_id = version.id) as runs
+    from artifact_version version where id = ${retained.versionId}
+  `;
+  expect(parsed).toEqual({ objectKey: null, runs: 1 });
+  expect(removed).toEqual([objectKey, objectKey]);
+});
+
+test("offline rebuild downloads one pinned annual member before older daily work", async () => {
+  await database`alter table artifact_version alter column object_key set not null`;
+  const daily = await retainVersion({ filename: "apc240925.zip" });
+  const [annualFilename] = annualGenerationV1Artifacts;
+  if (!annualFilename) {
+    throw new Error("Expected the pinned annual publication policy");
+  }
+  const annual = await retainVersion({
+    filename: annualFilename,
+    product: "TRTYRAP",
+    sourceFromDate: "1884-04-07",
+    sourceToDate: "2025-12-31",
+  });
+  await database`
+    update artifact_discovery
+    set release_date = '2024-09-26', download_url = 'https://example.test/apc240925.zip'
+    where artifact_id = ${daily.artifactId}
+  `;
+  await database`
+    update artifact_discovery
+    set release_date = '2026-01-01', download_url = ${`https://example.test/${annualFilename}`}
+    where artifact_id = ${annual.artifactId}
+  `;
+  await requestFullRebuild({
+    artifactStore: { listObjectKeys: artifactObjectKeys, remove: () => Promise.resolve() },
+    database,
+    offlineConfirmed: true,
+  });
+  await database`alter table artifact_version alter column object_key drop not null`;
+  await database`update artifact_version set object_key = null`;
+  await database`
+    update dataset_product set next_discovery_at = '2099-01-01T00:00:00Z'
+  `;
+  const downloaded: string[] = [];
+  const scheduler = createArtifactScheduler({
+    artifactStore: {
+      get: () => Promise.reject(new Error("parse is outside this test")),
+      head: () => Promise.resolve(null),
+      listObjectKeys: artifactObjectKeys,
+      put: async (body) => {
+        const bytes = Buffer.from(await new Response(body).arrayBuffer());
+        const sha256 = createHash("sha256").update(bytes).digest("hex");
+        return {
+          bytes: bytes.byteLength,
+          objectKey: `sha256/${sha256.slice(0, 2)}/${sha256}`,
+          sha256,
+        };
+      },
+      remove: () => Promise.resolve(),
+    },
+    database,
+    discoveryIntervalMs: 60_000,
+    products: ["TRTDXFAP", "TRTYRAP"],
+    sourceCatalog: {
+      discover: () => Promise.reject(new Error("discovery is not due")),
+      download: (url) => {
+        downloaded.push(url);
+        return Promise.resolve({
+          body: new Blob([emptyXml]).stream(),
+          expectedBytes: emptyXml.byteLength,
+          responseState: { status: 200 },
+        });
+      },
+    },
+  });
+
+  expect(await scheduler.runOnce()).toMatchObject({ action: "download", filename: annualFilename });
+  expect(downloaded).toHaveLength(1);
+  expect(downloaded[0]).toContain(annualFilename);
 });

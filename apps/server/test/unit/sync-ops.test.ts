@@ -6,7 +6,6 @@ test("host sync operations reject unknown flags and extra positionals", () => {
   expect(() =>
     parseSyncOperationArguments(["quarantine", "version", "--unknown", "reason"])
   ).toThrow();
-  expect(() => parseSyncOperationArguments(["replay-parser", "version", "extra"])).toThrow();
   expect(() =>
     parseSyncOperationArguments(["full-rebuild", "--confirm-offline-rebuild", "extra"])
   ).toThrow();
