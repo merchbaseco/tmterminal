@@ -1,44 +1,98 @@
-import { once } from "node:events";
-import { PassThrough, Readable } from "node:stream";
-import type { ReadableStream as NodeReadableStream } from "node:stream/web";
+import { open } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { Readable } from "node:stream";
 
-const Parse = require("unzipper/lib/parse") as (options: { forceStream: boolean }) => NodeJS.ReadWriteStream;
-
-type ZipEntry = NodeJS.ReadableStream & AsyncIterable<Uint8Array> & {
-  type: string;
-  path: string;
-  autodrain(): { promise(): Promise<void> };
+const loadModule = createRequire(import.meta.url);
+const Open = loadModule("unzipper").Open as {
+  file: (path: string, options: { tailSize: number }) => Promise<{ files: ZipEntry[] }>;
 };
+const zipEndOfCentralDirectoryBytes = 22;
+const zipMaxCommentBytes = 65_535;
+const zipCentralDirectoryTailBytes = zipEndOfCentralDirectoryBytes + zipMaxCommentBytes;
+const zipEndOfCentralDirectorySignature = 0x06_05_4b_50;
+
+interface ZipEntry {
+  path: string;
+  stream: () => NodeJS.ReadableStream;
+  type: string;
+}
 
 export class ArtifactArchiveError extends Error {}
 
-export function extractZipXml(archive: ReadableStream<Uint8Array>) {
-  const output = new PassThrough();
-  const parser = Readable.fromWeb(archive as unknown as NodeReadableStream<Uint8Array>)
-    .pipe(Parse({ forceStream: true }));
+export async function extractZipXml(archivePath: string) {
+  let files: ZipEntry[];
+  try {
+    const tailSize = await findZipEndOfCentralDirectory(archivePath);
+    ({ files } = await Open.file(archivePath, { tailSize }));
+  } catch (error) {
+    throw new ArtifactArchiveError("Artifact ZIP is invalid", { cause: error });
+  }
+  const xmlEntries = files.filter(
+    (candidate) => candidate.type === "File" && candidate.path.toLowerCase().endsWith(".xml")
+  );
+  if (xmlEntries.length === 0) {
+    throw new ArtifactArchiveError("Artifact ZIP contains no XML file");
+  }
+  if (xmlEntries.length > 1) {
+    throw new ArtifactArchiveError("Artifact ZIP contains more than one XML file");
+  }
+  const [entry] = xmlEntries as [ZipEntry];
+  return mapArchiveErrors(Readable.toWeb(entry.stream()) as unknown as ReadableStream<Uint8Array>);
+}
 
-  void (async () => {
-    let found = false;
-    try {
-      for await (const entry of parser as AsyncIterable<ZipEntry>) {
-        if (entry.type !== "File" || !entry.path.toLowerCase().endsWith(".xml")) {
-          await entry.autodrain().promise();
-          continue;
-        }
-        if (found) throw new ArtifactArchiveError("Artifact ZIP contains more than one XML file");
-        found = true;
-        for await (const chunk of entry) {
-          if (!output.write(chunk)) await once(output, "drain");
-        }
+async function findZipEndOfCentralDirectory(archivePath: string) {
+  const archive = await open(archivePath, "r");
+  try {
+    const { size } = await archive.stat();
+    const tailSize = Math.min(size, zipCentralDirectoryTailBytes);
+    const tail = Buffer.allocUnsafe(tailSize);
+    let bytesRead = 0;
+    while (bytesRead < tailSize) {
+      // biome-ignore lint/performance/noAwaitInLoops: One bounded tail buffer must be filled in file order.
+      const result = await archive.read(
+        tail,
+        bytesRead,
+        tailSize - bytesRead,
+        size - tailSize + bytesRead
+      );
+      if (result.bytesRead === 0) {
+        throw new Error("Artifact ZIP ended before its central directory");
       }
-      if (!found) throw new ArtifactArchiveError("Artifact ZIP contains no XML file");
-      output.end();
-    } catch (error) {
-      output.destroy(error instanceof ArtifactArchiveError
-        ? error
-        : new ArtifactArchiveError("Artifact ZIP is invalid"));
+      bytesRead += result.bytesRead;
     }
-  })();
+    for (let offset = tailSize - zipEndOfCentralDirectoryBytes; offset >= 0; offset -= 1) {
+      if (tail.readUInt32LE(offset) !== zipEndOfCentralDirectorySignature) {
+        continue;
+      }
+      const commentBytes = tail.readUInt16LE(offset + 20);
+      const candidateTailSize = tailSize - offset;
+      if (candidateTailSize === zipEndOfCentralDirectoryBytes + commentBytes) {
+        return candidateTailSize;
+      }
+    }
+    throw new Error("Artifact ZIP has no end-of-central-directory record");
+  } finally {
+    await archive.close();
+  }
+}
 
-  return Readable.toWeb(output) as unknown as ReadableStream<Uint8Array>;
+function mapArchiveErrors(stream: ReadableStream<Uint8Array>) {
+  const reader = stream.getReader();
+  return new ReadableStream<Uint8Array>({
+    async cancel(reason) {
+      await reader.cancel(reason);
+    },
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read();
+        if (done) {
+          controller.close();
+          return;
+        }
+        controller.enqueue(value);
+      } catch (error) {
+        controller.error(new ArtifactArchiveError("Artifact ZIP is invalid", { cause: error }));
+      }
+    },
+  });
 }

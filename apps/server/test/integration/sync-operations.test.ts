@@ -568,14 +568,14 @@ test("offline rebuild re-downloads one existing SHA, parses once, and releases i
   let rawPresent = true;
   const removed: string[] = [];
   const artifactStore: ArtifactStore = {
-    get: () => {
+    head: () => Promise.resolve(rawPresent ? { bytes: emptyXml.byteLength } : null),
+    listObjectKeys: () => artifactObjectKeys(rawPresent ? [objectKey] : []),
+    openFile: () => {
       if (!rawPresent) {
         return Promise.reject(new Error("raw object is absent"));
       }
-      return Promise.resolve(new Blob([emptyXml]).stream());
+      return Promise.resolve(objectKey);
     },
-    head: () => Promise.resolve(rawPresent ? { bytes: emptyXml.byteLength } : null),
-    listObjectKeys: () => artifactObjectKeys(rawPresent ? [objectKey] : []),
     put: async (body) => {
       const bytes = Buffer.from(await new Response(body).arrayBuffer());
       rawPresent = true;
@@ -630,7 +630,7 @@ test("offline rebuild re-downloads one existing SHA, parses once, and releases i
     artifactScheduler: scheduler,
     artifactStore,
     database,
-    extractXml: (archive) => archive,
+    extractXml: () => new Blob([emptyXml]).stream(),
   });
   expect(await reconciler.reconcile()).toMatchObject({
     action: "parse",
@@ -681,9 +681,9 @@ test("offline rebuild downloads one pinned annual member before older daily work
   const downloaded: string[] = [];
   const scheduler = createArtifactScheduler({
     artifactStore: {
-      get: () => Promise.reject(new Error("parse is outside this test")),
       head: () => Promise.resolve(null),
       listObjectKeys: artifactObjectKeys,
+      openFile: () => Promise.reject(new Error("parse is outside this test")),
       put: async (body) => {
         const bytes = Buffer.from(await new Response(body).arrayBuffer());
         const sha256 = createHash("sha256").update(bytes).digest("hex");

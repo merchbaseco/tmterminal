@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeEach, expect, test } from "bun:test";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -28,6 +28,7 @@ if (!databaseUrl) {
 
 const database = postgres(databaseUrl, { max: 1, prepare: false });
 const removeArtifact = () => Promise.resolve();
+const artifactRoots: string[] = [];
 async function* artifactObjectKeys(keys: string[] = []) {
   await Promise.resolve();
   yield* keys;
@@ -42,6 +43,12 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await database.end({ timeout: 1 });
+});
+
+afterEach(async () => {
+  await Promise.all(
+    artifactRoots.splice(0).map((root) => rm(root, { force: true, recursive: true }))
+  );
 });
 
 async function waitFor(predicate: () => boolean | Promise<boolean>) {
@@ -146,22 +153,17 @@ for (const [shape, bytes, reason] of [
   ["multiple XML", multipleXmlZip, "Artifact ZIP contains more than one XML file"],
 ] as const) {
   test(`${shape} retained ZIP durably quarantines its exact version`, async () => {
-    const objectKey = `fixture/${shape}.zip`;
-    const removed: string[] = [];
+    const root = await mkdtemp(join(tmpdir(), "tmturtle-reconciler-archive-"));
+    artifactRoots.push(root);
+    const artifactStore = createLocalArtifactStore(root);
+    const stored = await artifactStore.put(new Blob([bytes]).stream(), bytes.byteLength);
     const artifactVersionId = await retainVerifiedArtifact({
       bytes,
-      objectKey,
+      objectKey: stored.objectKey,
     });
     const reconciler = createIngestionReconciler({
       artifactScheduler: { runOnce: async () => ({ status: "idle" as const }) },
-      artifactStore: {
-        get: async () => new Blob([bytes]).stream(),
-        listObjectKeys: noArtifactObjects,
-        remove: (key) => {
-          removed.push(key);
-          return Promise.resolve();
-        },
-      },
+      artifactStore,
       database,
       extractXml: extractZipXml,
     });
@@ -189,7 +191,7 @@ for (const [shape, bytes, reason] of [
       state: "quarantined",
     });
     expect(version?.quarantinedAt).toBeInstanceOf(Date);
-    expect(removed).toEqual([objectKey]);
+    expect(await artifactStore.head(stored.objectKey)).toBeNull();
   });
 }
 
@@ -233,15 +235,15 @@ test("quarantine after reconciliation selection remains terminal before parsing"
   const reconciler = createIngestionReconciler({
     artifactScheduler: { runOnce: async () => ({ status: "idle" as const }) },
     artifactStore: {
-      get: async () => {
-        await quarantineArtifactVersion(database, artifactVersionId, reason);
-        return new Blob([emptyXml]).stream();
-      },
       listObjectKeys: noArtifactObjects,
+      openFile: async () => {
+        await quarantineArtifactVersion(database, artifactVersionId, reason);
+        return "fixture/apc260715.zip";
+      },
       remove: removeArtifact,
     },
     database,
-    extractXml: (archive) => archive,
+    extractXml: () => new Blob([emptyXml]).stream(),
   });
 
   await expect(reconciler.reconcile()).rejects.toThrow(
@@ -282,15 +284,15 @@ test("restart releases one terminal raw object before any parse or source work",
       runOnce: () => Promise.reject(new Error("source work must wait for raw cleanup")),
     },
     artifactStore: {
-      get: () => Promise.reject(new Error("terminal raw bytes must not be parsed")),
       listObjectKeys: noArtifactObjects,
+      openFile: () => Promise.reject(new Error("terminal raw bytes must not be parsed")),
       remove: (key) => {
         removed.push(key);
         return Promise.resolve();
       },
     },
     database,
-    extractXml: (archive) => archive,
+    extractXml: () => new Blob([emptyXml]).stream(),
   });
 
   expect(await reconciler.reconcile()).toEqual({ action: "cleanup", artifactVersionId });
@@ -324,15 +326,15 @@ test("shared raw bytes remain until their final terminal reference clears", asyn
   const reconciler = createIngestionReconciler({
     artifactScheduler: { runOnce: async () => ({ status: "idle" as const }) },
     artifactStore: {
-      get: () => Promise.reject(new Error("terminal raw bytes must not be parsed")),
       listObjectKeys: noArtifactObjects,
+      openFile: () => Promise.reject(new Error("terminal raw bytes must not be parsed")),
       remove: (key) => {
         removed.push(key);
         return Promise.resolve();
       },
     },
     database,
-    extractXml: (archive) => archive,
+    extractXml: () => new Blob([emptyXml]).stream(),
   });
 
   expect(await reconciler.reconcile()).toMatchObject({ action: "cleanup" });
@@ -475,18 +477,12 @@ test("an orphaned heartbeat lease expires and restart re-derives database work",
   const reconciler = createIngestionReconciler({
     artifactScheduler: { runOnce: async () => ({ status: "idle" as const }) },
     artifactStore: {
-      get: async () =>
-        new ReadableStream({
-          start(controller) {
-            controller.enqueue(emptyXml);
-            controller.close();
-          },
-        }),
       listObjectKeys: noArtifactObjects,
+      openFile: async () => "fixture/apc260715.zip",
       remove: removeArtifact,
     },
     database,
-    extractXml: (archive: ReadableStream<Uint8Array>) => archive,
+    extractXml: () => new Blob([emptyXml]).stream(),
   });
   const restarted = createIngestionScheduler({
     databaseUrl,
@@ -518,22 +514,15 @@ test("database reconciliation resumes a retained artifact after process restart"
   const options = {
     artifactScheduler: { runOnce: async () => ({ status: "idle" as const }) },
     artifactStore: {
-      get: (objectKey: string) => {
-        sourceRuns.push(objectKey);
-        return Promise.resolve(
-          new ReadableStream({
-            start(controller) {
-              controller.enqueue(emptyXml);
-              controller.close();
-            },
-          })
-        );
-      },
       listObjectKeys: noArtifactObjects,
+      openFile: (objectKey: string) => {
+        sourceRuns.push(objectKey);
+        return Promise.resolve(objectKey);
+      },
       remove: removeArtifact,
     },
     database,
-    extractXml: (archive: ReadableStream<Uint8Array>) => archive,
+    extractXml: () => new Blob([emptyXml]).stream(),
   };
 
   expect(await createIngestionReconciler(options).reconcile()).toMatchObject({
@@ -558,15 +547,15 @@ test("durable parse releases its one raw working object", async () => {
   const reconciler = createIngestionReconciler({
     artifactScheduler: { runOnce: async () => ({ status: "idle" as const }) },
     artifactStore: {
-      get: async () => new Blob([emptyXml]).stream(),
       listObjectKeys: noArtifactObjects,
+      openFile: async () => objectKey,
       remove: (removedObjectKey: string) => {
         removed.push(removedObjectKey);
         return Promise.resolve();
       },
     },
     database,
-    extractXml: (archive) => archive,
+    extractXml: () => new Blob([emptyXml]).stream(),
   });
 
   expect(await reconciler.reconcile()).toMatchObject({
@@ -594,8 +583,8 @@ test("failed terminal unlink re-arms orphan cleanup before any other work", asyn
       },
     },
     artifactStore: {
-      get: async () => new Blob([emptyXml]).stream(),
       listObjectKeys: () => artifactObjectKeys(rawPresent ? [objectKey] : []),
+      openFile: async () => objectKey,
       remove: () => {
         removeAttempts += 1;
         if (removeAttempts === 1) {
@@ -606,7 +595,7 @@ test("failed terminal unlink re-arms orphan cleanup before any other work", asyn
       },
     },
     database,
-    extractXml: (archive) => archive,
+    extractXml: () => new Blob([emptyXml]).stream(),
   });
 
   await expect(reconciler.reconcile()).rejects.toThrow("artifact unlink failed");
@@ -634,18 +623,12 @@ test("provider backoff does not block database-derived local parsing", async () 
       runOnce: () => Promise.reject(new Error("source scheduler must not run before local work")),
     },
     artifactStore: {
-      get: async () =>
-        new ReadableStream({
-          start(controller) {
-            controller.enqueue(emptyXml);
-            controller.close();
-          },
-        }),
       listObjectKeys: noArtifactObjects,
+      openFile: async () => "fixture/apc260715.zip",
       remove: removeArtifact,
     },
     database,
-    extractXml: (archive: ReadableStream<Uint8Array>) => archive,
+    extractXml: () => new Blob([emptyXml]).stream(),
   });
 
   expect(await reconciler.reconcile()).toMatchObject({ action: "parse", artifactVersionId });
@@ -674,15 +657,15 @@ test("parses the pinned annual baseline before retained daily evidence", async (
   const reconciler = createIngestionReconciler({
     artifactScheduler: { runOnce: async () => ({ status: "idle" as const }) },
     artifactStore: {
-      get: (objectKey: string) => {
-        opened.push(objectKey);
-        return Promise.resolve(new Blob([emptyXml]).stream());
-      },
       listObjectKeys: noArtifactObjects,
+      openFile: (objectKey: string) => {
+        opened.push(objectKey);
+        return Promise.resolve(objectKey);
+      },
       remove: removeArtifact,
     },
     database,
-    extractXml: (archive) => archive,
+    extractXml: () => new Blob([emptyXml]).stream(),
   });
 
   expect(await reconciler.reconcile()).toMatchObject({
@@ -744,15 +727,15 @@ test("publishes the completed annual baseline before parsing retained daily evid
   const reconciler = createIngestionReconciler({
     artifactScheduler: { runOnce: async () => ({ status: "idle" as const }) },
     artifactStore: {
-      get: (objectKey: string) => {
-        opened.push(objectKey);
-        return Promise.resolve(new Blob([emptyXml]).stream());
-      },
       listObjectKeys: noArtifactObjects,
+      openFile: (objectKey: string) => {
+        opened.push(objectKey);
+        return Promise.resolve(objectKey);
+      },
       remove: removeArtifact,
     },
     database,
-    extractXml: (archive) => archive,
+    extractXml: () => new Blob([emptyXml]).stream(),
   });
 
   expect(await reconciler.reconcile()).toMatchObject({
@@ -784,22 +767,15 @@ test("normal reconciliation does not replay published or quarantined versions", 
   const reconciler = createIngestionReconciler({
     artifactScheduler: { runOnce: async () => ({ status: "idle" as const }) },
     artifactStore: {
-      get: (objectKey: string) => {
-        opened.push(objectKey);
-        return Promise.resolve(
-          new ReadableStream({
-            start(controller) {
-              controller.enqueue(emptyXml);
-              controller.close();
-            },
-          })
-        );
-      },
       listObjectKeys: noArtifactObjects,
+      openFile: (objectKey: string) => {
+        opened.push(objectKey);
+        return Promise.resolve(objectKey);
+      },
       remove: removeArtifact,
     },
     database,
-    extractXml: (archive: ReadableStream<Uint8Array>) => archive,
+    extractXml: () => new Blob([emptyXml]).stream(),
   });
 
   expect(await reconciler.reconcile()).toMatchObject({
@@ -823,12 +799,12 @@ test("ineligible publication staging does not starve source reconciliation", asy
       },
     },
     artifactStore: {
-      get: () => Promise.reject(new Error("no retained artifact expected")),
       listObjectKeys: noArtifactObjects,
+      openFile: () => Promise.reject(new Error("no retained artifact expected")),
       remove: removeArtifact,
     },
     database,
-    extractXml: (archive: ReadableStream<Uint8Array>) => archive,
+    extractXml: () => new Blob([emptyXml]).stream(),
   });
 
   expect(await reconciler.reconcile()).toEqual({
