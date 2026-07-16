@@ -31,23 +31,23 @@ async function* artifactObjectKeys(keys: string[] = []) {
 }
 
 const discovery: DiscoveredProduct = {
-  product: {
-    identifier: "TRTDXFAP",
-    title: "Trademark Daily XML Files",
-    frequency: "Daily",
-    lastModifiedAt: "2024-09-26T12:00:00Z",
-  },
   artifacts: [
     {
-      filename: "apc240925.zip",
       bytes: 5,
       downloadUrl: "https://api.uspto.gov/files/apc240925.zip",
+      filename: "apc240925.zip",
       fromDate: "2024-09-25",
-      toDate: "2024-09-25",
-      releaseDate: "2024-09-26",
       lastModifiedAt: "2024-09-26T11:30:00Z",
+      releaseDate: "2024-09-26",
+      toDate: "2024-09-25",
     },
   ],
+  product: {
+    frequency: "Daily",
+    identifier: "TRTDXFAP",
+    lastModifiedAt: "2024-09-26T12:00:00Z",
+    title: "Trademark Daily XML Files",
+  },
   responseState: { status: 200 },
 };
 
@@ -55,9 +55,7 @@ const unusedStore: ArtifactStore = {
   get: async () => new Blob([]).stream(),
   head: async () => null,
   listObjectKeys: artifactObjectKeys,
-  put: async () => {
-    throw new Error("download not expected");
-  },
+  put: () => Promise.reject(new Error("download not expected")),
   remove: () => Promise.resolve(),
 };
 
@@ -67,7 +65,9 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await Promise.all(artifactRoots.splice(0).map((root) => rm(root, { force: true, recursive: true })));
+  await Promise.all(
+    artifactRoots.splice(0).map((root) => rm(root, { force: true, recursive: true }))
+  );
 });
 
 afterAll(async () => {
@@ -76,10 +76,8 @@ afterAll(async () => {
 
 test("repeated discovery is a persisted no-op", async () => {
   const catalog: SourceCatalog = {
-    discover: async () => discovery,
-    download: async () => {
-      throw new Error("download not expected");
-    },
+    discover: () => Promise.resolve(discovery),
+    download: () => Promise.reject(new Error("download not expected")),
   };
   const scheduler = createArtifactScheduler({
     artifactStore: unusedStore,
@@ -92,7 +90,7 @@ test("repeated discovery is a persisted no-op", async () => {
   expect(await scheduler.runOnce()).toMatchObject({ action: "discover", changed: true });
   expect(await scheduler.runOnce()).toMatchObject({ action: "discover", changed: false });
   expect(await readArtifactInventory(database)).toMatchObject({
-    artifacts: [{ filename: "apc240925.zip", downloadState: "pending" }],
+    artifacts: [{ downloadState: "pending", filename: "apc240925.zip" }],
     attempts: [{ outcome: "success" }, { outcome: "success" }],
     discoveryCount: 1,
     productCount: 1,
@@ -101,7 +99,11 @@ test("repeated discovery is a persisted no-op", async () => {
 });
 
 test("unchanged bytes are a no-op and changed bytes create immutable versions", async () => {
-  let currentDiscovery = structuredClone(discovery);
+  const currentDiscovery = structuredClone(discovery);
+  const [currentArtifact] = currentDiscovery.artifacts;
+  if (!currentArtifact) {
+    throw new Error("Expected one discovery artifact fixture");
+  }
   let downloadBytes = "alpha";
   let clock = new Date("2026-07-14T12:00:00Z");
   const catalog: SourceCatalog = {
@@ -127,27 +129,42 @@ test("unchanged bytes are a no-op and changed bytes create immutable versions", 
   expect(await scheduler.runOnce()).toMatchObject({ action: "download", versionCreated: true });
 
   clock = new Date(clock.getTime() + 60_001);
-  currentDiscovery.artifacts[0]!.lastModifiedAt = "2024-09-26T11:31:00Z";
+  currentArtifact.lastModifiedAt = "2024-09-26T11:31:00Z";
   await scheduler.runOnce();
   expect(await scheduler.runOnce()).toMatchObject({ action: "download", versionCreated: false });
 
   clock = new Date(clock.getTime() + 60_001);
-  currentDiscovery.artifacts[0]!.lastModifiedAt = "2024-09-26T11:32:00Z";
+  currentArtifact.lastModifiedAt = "2024-09-26T11:32:00Z";
   downloadBytes = "bravo";
   await scheduler.runOnce();
   expect(await scheduler.runOnce()).toMatchObject({ action: "download", versionCreated: true });
 
   expect(await readArtifactInventory(database)).toMatchObject({
-    artifacts: [{ filename: "apc240925.zip", downloadState: "verified" }],
-    discoveryCount: 3,
+    artifacts: [{ downloadState: "verified", filename: "apc240925.zip" }],
     discoveries: [
-      { downloadState: "verified", versionSha256: "8ed3f6ad685b959ead7022518e1af76cd816f8e8ec7ccdda1ed4018e8f2223f8" },
-      { downloadState: "verified", versionSha256: "8ed3f6ad685b959ead7022518e1af76cd816f8e8ec7ccdda1ed4018e8f2223f8" },
-      { downloadState: "verified", versionSha256: "f144a6907dc4284d1f9fe6a7d9b9ff53c02c1d07ba68f24d413d7ff7f757a782" },
+      {
+        downloadState: "verified",
+        versionSha256: "8ed3f6ad685b959ead7022518e1af76cd816f8e8ec7ccdda1ed4018e8f2223f8",
+      },
+      {
+        downloadState: "verified",
+        versionSha256: "8ed3f6ad685b959ead7022518e1af76cd816f8e8ec7ccdda1ed4018e8f2223f8",
+      },
+      {
+        downloadState: "verified",
+        versionSha256: "f144a6907dc4284d1f9fe6a7d9b9ff53c02c1d07ba68f24d413d7ff7f757a782",
+      },
     ],
+    discoveryCount: 3,
     versions: [
-      { filename: "apc240925.zip", sha256: "8ed3f6ad685b959ead7022518e1af76cd816f8e8ec7ccdda1ed4018e8f2223f8" },
-      { filename: "apc240925.zip", sha256: "f144a6907dc4284d1f9fe6a7d9b9ff53c02c1d07ba68f24d413d7ff7f757a782" },
+      {
+        filename: "apc240925.zip",
+        sha256: "8ed3f6ad685b959ead7022518e1af76cd816f8e8ec7ccdda1ed4018e8f2223f8",
+      },
+      {
+        filename: "apc240925.zip",
+        sha256: "f144a6907dc4284d1f9fe6a7d9b9ff53c02c1d07ba68f24d413d7ff7f757a782",
+      },
     ],
   });
 });
@@ -217,8 +234,7 @@ test("restart removes a finalized orphan before retaining changed retry bytes", 
     source: { action: "download", versionCreated: true },
   });
 
-  const retryKey =
-    "sha256/f1/f144a6907dc4284d1f9fe6a7d9b9ff53c02c1d07ba68f24d413d7ff7f757a782";
+  const retryKey = "sha256/f1/f144a6907dc4284d1f9fe6a7d9b9ff53c02c1d07ba68f24d413d7ff7f757a782";
   expect(await localStore.head(orphan)).toBeNull();
   expect(await Array.fromAsync(localStore.listObjectKeys())).toEqual([retryKey]);
   expect(await readArtifactInventory(database)).toMatchObject({
@@ -228,17 +244,21 @@ test("restart removes a finalized orphan before retaining changed retry bytes", 
 });
 
 test("queues every changed discovery and links each retained version", async () => {
-  let currentDiscovery = structuredClone(discovery);
+  const currentDiscovery = structuredClone(discovery);
+  const [currentArtifact] = currentDiscovery.artifacts;
+  if (!currentArtifact) {
+    throw new Error("Expected one discovery artifact fixture");
+  }
   let clock = new Date("2026-07-14T12:00:00Z");
   const catalog: SourceCatalog = {
     discover: async () => currentDiscovery,
-    download: async (url) => {
+    download: (url) => {
       const bytes = url.endsWith("reissued.zip") ? "bravo" : "alpha";
-      return {
+      return Promise.resolve({
         body: new Blob([bytes]).stream(),
         expectedBytes: 5,
         responseState: { contentLength: "5", status: 200 },
-      };
+      });
     },
   };
   const root = await mkdtemp(join(tmpdir(), "tmturtle-scheduler-"));
@@ -254,14 +274,13 @@ test("queues every changed discovery and links each retained version", async () 
 
   await scheduler.runOnce();
   clock = new Date(clock.getTime() + 60_001);
-  currentDiscovery.artifacts[0]!.downloadUrl = "https://api.uspto.gov/files/reissued.zip";
-  currentDiscovery.artifacts[0]!.lastModifiedAt = "2024-09-26T11:31:00Z";
+  currentArtifact.downloadUrl = "https://api.uspto.gov/files/reissued.zip";
+  currentArtifact.lastModifiedAt = "2024-09-26T11:31:00Z";
   await scheduler.runOnce();
   expect(await scheduler.runOnce()).toMatchObject({ action: "download", versionCreated: true });
   expect(await scheduler.runOnce()).toMatchObject({ action: "download", versionCreated: true });
 
   expect(await readArtifactInventory(database)).toMatchObject({
-    discoveryCount: 2,
     discoveries: [
       {
         downloadState: "verified",
@@ -274,6 +293,7 @@ test("queues every changed discovery and links each retained version", async () 
         versionSha256: "f144a6907dc4284d1f9fe6a7d9b9ff53c02c1d07ba68f24d413d7ff7f757a782",
       },
     ],
+    discoveryCount: 2,
     versions: [
       { sha256: "8ed3f6ad685b959ead7022518e1af76cd816f8e8ec7ccdda1ed4018e8f2223f8" },
       { sha256: "f144a6907dc4284d1f9fe6a7d9b9ff53c02c1d07ba68f24d413d7ff7f757a782" },
@@ -294,9 +314,9 @@ test("rejects a response length that conflicts with discovered metadata", async 
   const scheduler = createArtifactScheduler({
     artifactStore: {
       ...unusedStore,
-      put: async () => {
+      put: () => {
         stored = true;
-        throw new Error("store should not receive conflicting bytes");
+        return Promise.reject(new Error("store should not receive conflicting bytes"));
       },
     },
     database,
@@ -319,20 +339,20 @@ test("restart preserves provider retry eligibility and transient count", async (
   let clock = new Date("2026-07-14T12:00:00Z");
   let requests = 0;
   const catalog: SourceCatalog = {
-    discover: async () => {
+    discover: () => {
       requests += 1;
       if (requests === 1) {
-        throw new SourceHttpError("throttled", {
-          rateLimitReset: String((clock.getTime() + 180_000) / 1_000),
-          retryAfter: "120",
-          status: 429,
-        });
+        return Promise.reject(
+          new SourceHttpError("throttled", {
+            rateLimitReset: String((clock.getTime() + 180_000) / 1000),
+            retryAfter: "120",
+            status: 429,
+          })
+        );
       }
-      return discovery;
+      return Promise.resolve(discovery);
     },
-    download: async () => {
-      throw new Error("download not expected");
-    },
+    download: () => Promise.reject(new Error("download not expected")),
   };
   const options = {
     artifactStore: unusedStore,
@@ -340,7 +360,7 @@ test("restart preserves provider retry eligibility and transient count", async (
     discoveryIntervalMs: 60_000,
     now: () => clock,
     products: ["TRTDXFAP"],
-    retry: { baseMs: 1_000, jitter: () => 0, maxMs: 60_000 },
+    retry: { baseMs: 1000, jitter: () => 0, maxMs: 60_000 },
     sourceCatalog: catalog,
   };
 
@@ -356,11 +376,18 @@ test("restart preserves provider retry eligibility and transient count", async (
   expect(requests).toBe(1);
 
   clock = new Date("2026-07-14T12:03:01Z");
-  expect(await createArtifactScheduler(options).runOnce()).toMatchObject({ action: "discover", changed: true });
+  expect(await createArtifactScheduler(options).runOnce()).toMatchObject({
+    action: "discover",
+    changed: true,
+  });
   expect(requests).toBe(2);
   expect(await readArtifactInventory(database)).toMatchObject({
     attempts: [
-      { errorCode: "HTTP_429", outcome: "transient_failure", retryEligibleAt: new Date("2026-07-14T12:03:00Z") },
+      {
+        errorCode: "HTTP_429",
+        outcome: "transient_failure",
+        retryEligibleAt: new Date("2026-07-14T12:03:00Z"),
+      },
       { errorCode: null, outcome: "success", retryEligibleAt: null },
     ],
     lane: { status: "ready", transientFailureCount: 0 },
@@ -382,15 +409,13 @@ test("restart recovers an interrupted attempt into persisted backoff before anot
     discoveryIntervalMs: 60_000,
     now: () => clock,
     products: ["TRTDXFAP"],
-    retry: { baseMs: 1_000, jitter: () => 0, maxMs: 60_000 },
+    retry: { baseMs: 1000, jitter: () => 0, maxMs: 60_000 },
     sourceCatalog: {
-      discover: async () => {
+      discover: () => {
         requests += 1;
-        return discovery;
+        return Promise.resolve(discovery);
       },
-      download: async () => {
-        throw new Error("download not expected");
-      },
+      download: () => Promise.reject(new Error("download not expected")),
     } satisfies SourceCatalog,
   };
 
@@ -411,20 +436,23 @@ test("restart recovers an interrupted attempt into persisted backoff before anot
   });
 
   clock = new Date("2026-07-14T12:00:02Z");
-  expect(await createArtifactScheduler(options).runOnce()).toMatchObject({ action: "discover", changed: true });
+  expect(await createArtifactScheduler(options).runOnce()).toMatchObject({
+    action: "discover",
+    changed: true,
+  });
   expect(requests).toBe(1);
 });
 
 test("credential failure stops and alerts the persisted lane", async () => {
   let requests = 0;
   const catalog: SourceCatalog = {
-    discover: async () => {
+    discover: () => {
       requests += 1;
-      throw new SourceHttpError("forbidden", { requestId: "safe-request-id", status: 403 });
+      return Promise.reject(
+        new SourceHttpError("forbidden", { requestId: "safe-request-id", status: 403 })
+      );
     },
-    download: async () => {
-      throw new Error("download not expected");
-    },
+    download: () => Promise.reject(new Error("download not expected")),
   };
   const options = {
     artifactStore: unusedStore,
@@ -434,7 +462,10 @@ test("credential failure stops and alerts the persisted lane", async () => {
     sourceCatalog: catalog,
   };
 
-  expect(await createArtifactScheduler(options).runOnce()).toEqual({ reason: "HTTP_403", status: "stopped" });
+  expect(await createArtifactScheduler(options).runOnce()).toEqual({
+    reason: "HTTP_403",
+    status: "stopped",
+  });
   expect(await createArtifactScheduler(options).runOnce()).toEqual({ status: "stopped" });
   expect(requests).toBe(1);
   expect(await readArtifactInventory(database)).toMatchObject({
@@ -455,17 +486,19 @@ test("credential failure stops and alerts the persisted lane", async () => {
 test("one credential lane serializes source calls", async () => {
   let releaseDiscovery!: () => void;
   let reportStarted!: () => void;
-  const started = new Promise<void>((resolve) => (reportStarted = resolve));
-  const release = new Promise<void>((resolve) => (releaseDiscovery = resolve));
+  const started = new Promise<void>((resolve) => {
+    reportStarted = resolve;
+  });
+  const release = new Promise<void>((resolve) => {
+    releaseDiscovery = resolve;
+  });
   const catalog: SourceCatalog = {
     discover: async () => {
       reportStarted();
       await release;
       return discovery;
     },
-    download: async () => {
-      throw new Error("download not expected");
-    },
+    download: () => Promise.reject(new Error("download not expected")),
   };
   const options = {
     artifactStore: unusedStore,
