@@ -58,7 +58,7 @@ candidate is independently reviewed and its PR checks pass, but before merge:
   trap 'rm -f "$runner"' EXIT HUP INT TERM
 
   git -C "$main_checkout" fetch --prune origin
-  git -C "$main_checkout" show "$candidate_sha:scripts/prd77-premerge-cutover" > "$runner"
+  git -C "$main_checkout" show "${candidate_sha}:scripts/prd77-premerge-cutover" > "$runner"
   chmod 0700 "$runner"
   "$runner" "$candidate_sha" "$main_checkout" "$master_env"
 )
