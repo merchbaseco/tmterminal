@@ -18,6 +18,38 @@ test("full rebuild requires the explicit offline cutover confirmation", () => {
   });
 });
 
+test("artifact reprocessing requires one exact version and a nonempty reason", () => {
+  expect(
+    parseSyncOperationArguments([
+      "reprocess-artifact",
+      "10000000-0000-4000-8000-000000000001",
+      "--reason",
+      "Reparse with parser v4",
+    ])
+  ).toEqual({
+    command: "reprocess-artifact",
+    identifier: "10000000-0000-4000-8000-000000000001",
+    reason: "Reparse with parser v4",
+  });
+  expect(() =>
+    parseSyncOperationArguments([
+      "reprocess-artifact",
+      "10000000-0000-4000-8000-000000000001",
+      "--reason",
+      " ",
+    ])
+  ).toThrow("Usage: sync:ops reprocess-artifact");
+  expect(() =>
+    parseSyncOperationArguments([
+      "reprocess-artifact",
+      "10000000-0000-4000-8000-000000000001",
+      "--reason",
+      "Reparse with parser v4",
+      "extra",
+    ])
+  ).toThrow("Usage: sync:ops reprocess-artifact");
+});
+
 test("host sync operations reject duplicate reasons and obsolete alert-ID arguments", () => {
   expect(() =>
     parseSyncOperationArguments([

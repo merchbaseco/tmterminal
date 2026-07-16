@@ -130,12 +130,13 @@ The authenticated operator page at `/ops/sync` is read-only. It shows current da
 
 ```bash
 bun run sync:ops -- quarantine <artifact-version-id> --reason "<operator reason>"
+bun run sync:ops -- reprocess-artifact <artifact-version-id> --reason "<operator reason>"
 bun run sync:ops -- select-reissue <artifact-version-id> --reason "<selection reason>"
 bun run sync:ops -- recover-source-lane --confirm-all-current-alerts --reason "<recovery reason>"
 bun run sync:ops -- recover-frontier
 ```
 
-`quarantine` accepts only a verified or staged version, preserves the reason and time, invalidates a selection of that version, and releases its raw working object through reconciliation. `select-reissue` accepts only a parsed, publication-policy-eligible version from a logical artifact with multiple retained versions. Reprocessing resets the discovery and re-downloads official bytes; there is no raw-object replay command.
+`quarantine` accepts only a verified or staged version, preserves the reason and time, invalidates a selection of that version, and releases its raw working object through reconciliation. `reprocess-artifact` is the explicit parser-v3-to-v4 transition for one reviewed annual artifact-version ID before first publication. It requires terminal staged or quarantined v3 evidence, deleted raw bytes, no v4 run, no published corpus membership, and the single latest verified discovery; it resets only that version and discovery while preserving all v3 observations and rejects. Invoke it once per exact ID, then let the sequential worker re-download identical official bytes and create the v4 run. `select-reissue` accepts only a parsed, publication-policy-eligible version from a logical artifact with multiple retained versions. There is no raw-object replay command, bulk reprocessing command, or automatic parser-generation retry.
 
 `recover-source-lane` locks the lane, requires explicit confirmation, resolves the complete current unresolved USPTO alert set with the supplied reason, and resumes the lane. It refuses a ready lane or a stopped lane with no unresolved alert. `recover-frontier` stages and publishes the exact eligible 91-member annual policy set through the normal corpus publisher; retained daily evidence is excluded. Every command fails closed on a wrong state. There is no automated recovery or command retry loop.
 

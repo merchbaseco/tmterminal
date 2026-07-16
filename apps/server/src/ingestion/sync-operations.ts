@@ -1,5 +1,6 @@
 import type postgres from "postgres";
 
+import { resetArtifactVersionForReprocessing } from "../queries/artifact-reprocessing-repository.ts";
 import { lockCorpusPublication } from "../queries/corpus-publication-lock.ts";
 import type { ArtifactStore } from "./artifact-store.ts";
 import { retainedVersionFingerprint } from "./artifact-version-selection.ts";
@@ -126,6 +127,14 @@ export async function recoverCorpusFrontier(database: postgres.Sql) {
     throw new Error("Corpus frontier recovery selected a rejected publication");
   }
   return publisher.publish(candidate.candidateId);
+}
+
+export function reprocessArtifactVersion(
+  database: postgres.Sql,
+  artifactVersionId: string,
+  reason: string
+) {
+  return resetArtifactVersionForReprocessing(database, artifactVersionId, reason);
 }
 
 export async function requestFullRebuild(options: {
