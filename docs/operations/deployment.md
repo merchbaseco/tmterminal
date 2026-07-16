@@ -11,7 +11,15 @@ Trademark Turtle runs from `/Users/zknicker/srv/tmturtle` as Compose project `tm
 
 ## Deployment contract
 
-The host checkout stays on `main`. A push to `main` runs `.github/workflows/deploy.yml` on the existing self-hosted runner. The workflow fast-forwards the host checkout, refuses tracked or untracked checkout changes, requires `HEAD` to equal both `origin/main` and the workflow's expected Git revision, labels both production images with that revision, builds, starts the stack, and runs `scripts/deployment-smoke`.
+The host checkout stays on `main`. A push to `main` first runs the reusable quality workflow on a
+GitHub-hosted runner. Deployment starts on the existing self-hosted runner only after install,
+changed-file lint, typecheck, tests, build, fixture tooling, migration drift, and production-shaped
+PostgreSQL integration are green. The deployment then fast-forwards the host checkout, refuses
+tracked or untracked checkout changes, requires `HEAD` to equal both `origin/main` and the
+workflow's expected Git revision, labels both production images with that revision, builds, starts
+the stack, and runs `scripts/deployment-smoke`. Full retained-source verification remains an
+ingestion-change lane because its external byte cache is intentionally not copied to CI or the
+production host.
 
 Startup is ordered:
 
