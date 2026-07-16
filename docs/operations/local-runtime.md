@@ -15,6 +15,11 @@ bun run check
 bun run build
 ```
 
+Before committing, pass every touched authored path to `bun run lint --`. Pull-request CI runs
+`lint:changed` against committed changes from `origin/main`. Use `bun run lint` without paths only
+when working down the repository-wide baseline, and pass explicit paths to `bun run lint:fix`; do
+not use a broad autofix during feature work.
+
 ## PostgreSQL integration tests
 
 The integration lane starts a dedicated PostgreSQL 16 service under a unique Compose project, runs migration and readiness tests against it, and removes its containers, network, and temporary database when the command exits:

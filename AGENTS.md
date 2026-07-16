@@ -34,6 +34,57 @@
 - Keep files cohesive, use kebab-case names, avoid barrel exports, and export only imported symbols.
 - Test behavior through module interfaces using real PostgreSQL where persistence semantics matter.
 
+## Code quality
+
+- Keep TypeScript strictness and the repo-standard Ultracite/Biome configuration intact. Use
+  `bun run lint` for the lint baseline and `bun run lint:fix` only on explicit quality-only paths.
+- Build contracts and types before implementation details. Prefer inference from tRPC, Zod, and
+  Drizzle; validate external input at boundaries; model states with narrow unions and exhaustive
+  checks.
+- Keep failures explicit and contextual. Do not swallow errors or add broad catches, fallback
+  paths, speculative retries, compatibility branches, or defensive machinery outside the current
+  contract.
+- Keep hand-written production modules cohesive; target under roughly 300 lines and split when
+  responsibilities diverge. Do not mechanically split generated code, COSS primitives, fixtures,
+  or cohesive tests to satisfy a number.
+- Keep the main export and core flow near the top and local helpers near the bottom. Prefer concrete
+  product nouns over vague names such as `manager`, `helper`, or `data`.
+- Keep transport routes thin: authenticate, validate, call domain logic, and return a narrow result.
+  Keep SQL in query/repository modules and map database or external payloads explicitly at
+  boundaries.
+- Use the server and TanStack Query cache as data sources of truth. Derive React state during render;
+  reserve effects for external synchronization; make cache, freshness, invalidation, and navigation
+  persistence intentional.
+- Prefer stock COSS UI primitives and existing dependencies. Do not customize or lint vendored COSS
+  component internals. Add a dependency only for a current capability and pin it exactly.
+- Treat `apps/server/src/db/schema.ts` as schema source of truth. Generate migrations with
+  `bun run db:generate`; never hand-edit generated snapshots or rewrite, rename, or renumber landed
+  migrations. Inspect generated diffs and verify upgrade/idempotency.
+- Do not hand-edit generated output or byte-exact fixtures. Keep generated declarations, build
+  output, Drizzle metadata, migration SQL, COSS internals, and retained fixture payloads narrowly
+  excluded from formatting and linting.
+- Test behavior through public or module interfaces. Choose the smallest lane that proves the
+  change, mock only true external boundaries, use real PostgreSQL for persistence semantics, and
+  avoid tests whose primary assertion is that a spy was called.
+- Ordered provider, transaction, and ingestion loops stay sequential when the contract requires it;
+  do not parallelize them merely to satisfy a lint rule.
+- Operational failures must identify the operation and relevant run, artifact, candidate, or
+  publication. Avoid heartbeat, retry, and per-row log noise.
+
+## PRD closeout
+
+Before any PRD commit, PR, merge, or closeout:
+
+1. Inspect the whole diff against its current `origin/main` baseline.
+2. Perform a simplification audit and remove unnecessary abstractions, fallback/retry/error
+   branches, compatibility paths, duplicate state, and code outside the narrow contract.
+3. Report what was removed and justify every remaining nontrivial branch or state surface.
+4. Obtain orchestrator approval, then run an independent review.
+5. Run lint for every touched authored path, typecheck, focused tests, build, and every applicable
+   domain-specific verification lane.
+6. Commit and ship only after review findings are resolved; close Linear and archive the Codex task
+   only after deployment acceptance.
+
 ## Verification
 
 - Parser changes require byte-exact real XML fixtures with source/action context.
