@@ -34,24 +34,6 @@ services:
         condition: service_healthy
     restart: "no"
 
-  tracer:
-    image: tmturtle-core:${TMTURTLE_REVISION:-development}
-    command: ["bun", "run", "--cwd", "apps/server", "tracer:materialize"]
-    deploy:
-      resources:
-        limits:
-          cpus: "1"
-          memory: 1G
-    environment:
-      ARTIFACT_STORE_ROOT: /var/lib/tmturtle/artifacts
-      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-    restart: "no"
-    volumes:
-      - artifact-data:/var/lib/tmturtle/artifacts
-
   api:
     build:
       context: .
@@ -71,7 +53,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
       NODE_ENV: production
     depends_on:
-      tracer:
+      migrate:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "bun", "-e", "const r=await fetch('http://127.0.0.1:3000/api/health');if(!r.ok)process.exit(1)"]
@@ -101,7 +83,7 @@ services:
       USPTO_RETRY_MAX_MS: ${USPTO_RETRY_MAX_MS:-21600000}
       USPTO_SCHEDULER_POLL_MS: ${USPTO_SCHEDULER_POLL_MS:-10000}
     depends_on:
-      tracer:
+      migrate:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "bun", "-e", "if(Date.now()-Number(await Bun.file('/tmp/tmturtle-worker-ready').text())>30000)process.exit(1)"]

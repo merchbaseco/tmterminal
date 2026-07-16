@@ -29,5 +29,6 @@ jobs:
           git pull --ff-only origin main
           export TMTURTLE_REVISION="$(./scripts/deployment-revision "$GITHUB_SHA")"
           docker compose --project-name tmturtle --env-file .env build
+          docker compose --project-name tmturtle --env-file .env stop worker
           docker compose --project-name tmturtle --env-file .env up --detach --remove-orphans --wait
           ./scripts/deployment-smoke

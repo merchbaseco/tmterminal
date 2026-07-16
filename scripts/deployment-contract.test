@@ -60,4 +60,11 @@ test "$(compose_revision 4100 4101)" = "tmturtle-4100|development-tmturtle-4100"
 test "$(compose_revision 4200 4201)" = "tmturtle-4200|development-tmturtle-4200"
 test "$(compose_revision 4100 4101 production-sha)" = "tmturtle-4100|production-sha"
 
+deployment_workflow="$root/.github/workflows/deploy.yml"
+worker_stop_line="$(grep -nF 'docker compose --project-name tmturtle --env-file .env stop worker' "$deployment_workflow" | cut -d: -f1)"
+stack_start_line="$(grep -nF 'docker compose --project-name tmturtle --env-file .env up --detach --remove-orphans --wait' "$deployment_workflow" | cut -d: -f1)"
+test -n "$worker_stop_line"
+test -n "$stack_start_line"
+test "$worker_stop_line" -lt "$stack_start_line"
+
 echo "Deployment shell contracts passed"

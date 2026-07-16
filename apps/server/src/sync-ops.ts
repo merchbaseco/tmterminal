@@ -19,16 +19,22 @@ type SyncOperation =
 
 function identifierAndReason(args: string[], usage: string) {
   const [identifier, flag, reason] = args;
-  if (args.length !== 3 || !identifier || flag !== "--reason" || !reason?.trim()) throw new Error(usage);
+  if (args.length !== 3 || !identifier || flag !== "--reason" || !reason?.trim()) {
+    throw new Error(usage);
+  }
   return { identifier, reason: reason.trim() };
 }
 
 function sourceRecovery(args: string[]) {
   if (
-    args.length !== 3 || args[0] !== "--confirm-all-current-alerts" ||
-    args[1] !== "--reason" || !args[2]?.trim()
+    args.length !== 3 ||
+    args[0] !== "--confirm-all-current-alerts" ||
+    args[1] !== "--reason" ||
+    !args[2]?.trim()
   ) {
-    throw new Error("Usage: sync:ops recover-source-lane --confirm-all-current-alerts --reason <reason>");
+    throw new Error(
+      "Usage: sync:ops recover-source-lane --confirm-all-current-alerts --reason <reason>"
+    );
   }
   return { reason: args[2].trim() };
 }
@@ -36,31 +42,49 @@ function sourceRecovery(args: string[]) {
 export function parseSyncOperationArguments(argv: string[]): SyncOperation {
   const [command, ...args] = argv;
   if (command === "quarantine" || command === "select-reissue") {
-    return { command, ...identifierAndReason(args, `Usage: sync:ops ${command} <artifact-version-id> --reason <reason>`) };
+    return {
+      command,
+      ...identifierAndReason(
+        args,
+        `Usage: sync:ops ${command} <artifact-version-id> --reason <reason>`
+      ),
+    };
   }
   if (command === "replay-parser") {
-    if (args.length !== 1 || !args[0]) throw new Error("Usage: sync:ops replay-parser <artifact-version-id>");
+    if (args.length !== 1 || !args[0]) {
+      throw new Error("Usage: sync:ops replay-parser <artifact-version-id>");
+    }
     return { command, identifier: args[0] };
   }
-  if (command === "recover-source-lane") return { command, ...sourceRecovery(args) };
-  if (command === "recover-frontier") {
-    if (args.length !== 0) throw new Error("Usage: sync:ops recover-frontier");
-    return { command };
+  if (command === "recover-source-lane") {
+    return { command, ...sourceRecovery(args) };
   }
-  if (command === "full-rebuild") {
-    if (args.length !== 1 || args[0] !== "--confirm-empty-target") {
-      throw new Error("Usage: sync:ops full-rebuild --confirm-empty-target");
+  if (command === "recover-frontier") {
+    if (args.length !== 0) {
+      throw new Error("Usage: sync:ops recover-frontier");
     }
     return { command };
   }
-  throw new Error("Commands: quarantine, select-reissue, replay-parser, recover-source-lane, recover-frontier, full-rebuild");
+  if (command === "full-rebuild") {
+    if (args.length !== 1 || args[0] !== "--confirm-offline-rebuild") {
+      throw new Error("Usage: sync:ops full-rebuild --confirm-offline-rebuild");
+    }
+    return { command };
+  }
+  throw new Error(
+    "Commands: quarantine, select-reissue, replay-parser, recover-source-lane, recover-frontier, full-rebuild"
+  );
 }
 
 async function main(operation: SyncOperation) {
   const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) throw new Error("DATABASE_URL is required");
+  if (!databaseUrl) {
+    throw new Error("DATABASE_URL is required");
+  }
   const database = createDatabaseClient(databaseUrl);
-  const artifactStore = createLocalArtifactStore(process.env.ARTIFACT_STORE_ROOT ?? "/var/lib/tmturtle/artifacts");
+  const artifactStore = createLocalArtifactStore(
+    process.env.ARTIFACT_STORE_ROOT ?? "/var/lib/tmturtle/artifacts"
+  );
   try {
     let result: unknown;
     if (operation.command === "quarantine") {
@@ -91,4 +115,6 @@ async function main(operation: SyncOperation) {
   }
 }
 
-if (import.meta.main) await main(parseSyncOperationArguments(process.argv.slice(2)));
+if (import.meta.main) {
+  await main(parseSyncOperationArguments(process.argv.slice(2)));
+}

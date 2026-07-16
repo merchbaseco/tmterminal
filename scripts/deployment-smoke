@@ -31,7 +31,7 @@ for service in database api worker web; do
   test "$(docker inspect --format '{{.State.Health.Status}}' "$container_id")" = "healthy"
 done
 
-for service in migrate tracer; do
+for service in migrate; do
   container_id="$(compose ps --all --quiet "$service")"
   test -n "$container_id"
   test "$(docker inspect --format '{{.State.ExitCode}}' "$container_id")" = "0"
@@ -45,4 +45,4 @@ for service in api worker web; do
   test "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$container_id")" = "$TMTURTLE_REVISION"
 done
 
-echo "Deployment smoke passed: disk, migration, tracer, services, worker lane, loopback, and public readiness"
+echo "Deployment smoke passed: disk, migration, services, worker lane, loopback, and public readiness"
