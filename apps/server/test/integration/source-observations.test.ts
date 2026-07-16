@@ -241,6 +241,105 @@ test("persists a lossless full observation with explicit primary Class 025 and m
   ).toEqual(["021", "023", "026", "036", "038"]);
 });
 
+test("persists the authentic 3.67 MiB GUESS JEANS observation across input slices", async () => {
+  const preceding = await readFile(join(fixtureRoot, "annual-2025-status-only-tx-60000001.xml"));
+  const authentic = await readFile(join(fixtureRoot, "annual-2025-large-class025-tx-74668071.xml"));
+  const caseFile = authentic.subarray(authentic.indexOf("<case-file>"));
+  expect(caseFile.byteLength).toBe(3_669_744);
+  expect(createHash("sha256").update(caseFile).digest("hex")).toBe(
+    "2babb5e0e252a97051e7fe4d29dea4f518c629fabf635a8f5d5c0f61245e5b93"
+  );
+  const xml = Buffer.concat([
+    Buffer.from(
+      "<trademark-applications-daily><version><version-no>2.0</version-no><version-date>20041108</version-date></version><creation-datetime>202604031406</creation-datetime><application-information><file-segments><file-segment>TRMK</file-segment><action-keys><action-key>TX</action-key>\n"
+    ),
+    ...Array.from({ length: 1106 }, () => preceding),
+    authentic,
+    Buffer.from(
+      "</action-keys></file-segments></application-information></trademark-applications-daily>"
+    ),
+  ]);
+  const artifactVersionId = await retainXml("apc18840407-20251231-16.zip", xml);
+  const observations = createSourceObservationModule(database);
+
+  const result = await observations.stageArtifact({
+    artifactVersionId,
+    xml: chunked(xml, 65_537),
+  });
+  const records = await Array.fromAsync(observations.readRecords(result.parseRunId));
+
+  expect(result).toMatchObject({ recordCount: 1107, rejectCount: 0, status: "staged" });
+  expect(records).toHaveLength(1);
+  expect(records[0]).toMatchObject({
+    actionKey: "TX",
+    actionOccurrence: 1,
+    actionRecordIndex: 1107,
+    digest: "dc127805bde802fc19a9bf057d07989462387b15f46366bb0dad8db57d54e08b",
+    physicalRecordIndex: 1107,
+    profile: "annual-tx-full-v1",
+    serialNumber: "74668071",
+    sourceTransactionDate: "2023-08-25",
+    sourceTransactionDateRaw: "20230825",
+  });
+  expect(records[0]?.claims).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        path: "case-file/case-file-header/mark-identification",
+        rawValue: "GUESS JEANS",
+      }),
+      expect.objectContaining({
+        operation: "replace",
+        path: "case-file/classifications",
+      }),
+    ])
+  );
+  const root = required(records[0]?.values[0], "expected authentic source value");
+  const owners = required(
+    root.children?.find((value) => value.name === "case-file-owners"),
+    "expected repeated owners"
+  );
+  expect(
+    owners.children
+      ?.filter((value) => value.name === "case-file-owner")
+      .map((owner) => owner.children?.find((value) => value.name === "party-type")?.rawValue)
+  ).toEqual(["31", "30", "20", "10"]);
+  const events = required(
+    root.children?.find((value) => value.name === "case-file-event-statements"),
+    "expected repeated event statements"
+  );
+  expect(
+    events.children
+      ?.filter((value) => value.name === "case-file-event-statement")
+      .map((event) => event.children?.find((value) => value.name === "code")?.rawValue)
+  ).toEqual([
+    "DOCK",
+    "DOCK",
+    "CNRT",
+    "CRFA",
+    "CNSA",
+    "NPUB",
+    "PUBO",
+    "R.PR",
+    "MAIL",
+    "815F",
+    "C15A",
+    "MAIL",
+    "89AF",
+    "PLGL",
+    "PLGL",
+    "89AG",
+    "RNL1",
+    "ASCK",
+    "CFIT",
+    "E89R",
+    "APRE",
+    "89AG",
+    "RNL2",
+    "NA89",
+    "REM2",
+  ]);
+});
+
 test("scans a status-only annual TX without persisting an observation", async () => {
   const fixture = await retainAnnualFixture("annual-2025-status-only-tx-60000001.xml");
   const observations = createSourceObservationModule(database);
@@ -362,7 +461,7 @@ test("returns a staged parse result on redelivery without consuming the supplied
   expect(await remainingBytes(redelivery)).toEqual(marker);
 });
 
-test("Class 025 selection uses a new parser version instead of reusing an all-class v2 run", async () => {
+test("Class 025 selection uses parser v4 instead of reusing an all-class v2 run", async () => {
   const fixture = await retainAnnualFixture("annual-2025-full-tx-60146682.xml");
   await database`
     insert into parse_run (
@@ -387,7 +486,7 @@ test("Class 025 selection uses a new parser version instead of reusing an all-cl
   expect(result).toMatchObject({ recordCount: 1, status: "staged" });
   expect([...versions]).toEqual([
     { parserVersion: "uspto-application-xml-v2" },
-    { parserVersion: "uspto-application-xml-v3" },
+    { parserVersion: "uspto-application-xml-v4" },
   ]);
 });
 
@@ -629,7 +728,7 @@ test("bounds one huge incoming chunk while quarantining an oversized record with
           .toString("utf8")
           .replace(
             "</case-file>",
-            `<correspondent>${"A".repeat(2 * 1024 * 1024)}</correspondent></case-file>`
+            `<correspondent>${"A".repeat(8 * 1024 * 1024)}</correspondent></case-file>`
           )
       );
     },
@@ -644,15 +743,40 @@ test("bounds one huge incoming chunk while quarantining an oversized record with
   const rejection = required(reject, "expected oversized-record rejection");
 
   expect(result).toMatchObject({ recordCount: 0, rejectCount: 1, status: "quarantined" });
-  expect(reject).toMatchObject({ reason: "record exceeds 524288 byte limit" });
-  expect(rejection.bytes).toBeGreaterThan(512 * 1024);
-  expect(rejection.bytes).toBeLessThanOrEqual(512 * 1024 + 64 * 1024);
+  expect(reject).toMatchObject({ reason: "record exceeds 4194304 byte limit" });
+  expect(rejection.bytes).toBeGreaterThan(4 * 1024 * 1024);
+  expect(rejection.bytes).toBeLessThanOrEqual(4 * 1024 * 1024 + 64 * 1024);
   expect(
     Buffer.compare(
       Buffer.from(rejection.rawXml),
       Buffer.from(fixture.record.subarray(0, rejection.bytes))
     )
   ).toBe(0);
+});
+
+test("bounds an unclosed case-file at the record limit", async () => {
+  const fixture = await retainAnnualFixture("annual-2025-status-only-tx-60000001.xml", {
+    recordTransform(record) {
+      return Buffer.from(
+        record
+          .toString("utf8")
+          .replace("</case-file>", `<correspondent>${"A".repeat(8 * 1024 * 1024)}</correspondent>`)
+      );
+    },
+  });
+  const observations = createSourceObservationModule(database);
+
+  const result = await observations.stageArtifact({
+    artifactVersionId: fixture.artifactVersionId,
+    xml: chunked(fixture.xml, fixture.xml.byteLength),
+  });
+  const [reject] = await Array.fromAsync(observations.readRejects(result.parseRunId));
+  const rejection = required(reject, "expected unclosed-record rejection");
+
+  expect(result).toMatchObject({ recordCount: 0, rejectCount: 1, status: "quarantined" });
+  expect(reject).toMatchObject({ reason: "record exceeds 4194304 byte limit" });
+  expect(rejection.bytes).toBeGreaterThan(4 * 1024 * 1024);
+  expect(rejection.bytes).toBeLessThanOrEqual(4 * 1024 * 1024 + 64 * 1024);
 });
 
 test("bounds an unterminated outer XML token", async () => {

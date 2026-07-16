@@ -231,6 +231,60 @@
       }
     },
     {
+      "id": "TRTYRAP-apc18840407-20251231-16",
+      "product": "TRTYRAP",
+      "cachePath": "sha256/4c469866586be617101f751ddb477a42949ff7bf850dd0103abf2c2fac4559c2/apc18840407-20251231-16.zip",
+      "retainedFrom": "official ODP download",
+      "upstreamDownloadUri": "https://api.uspto.gov/api/v1/datasets/products/files/TRTYRAP/apc18840407-20251231-16.zip",
+      "coverage": {
+        "officialMetadata": "TRTYRAP-product-metadata-2026-07-15"
+      },
+      "officialMetadata": {
+        "sourceId": "TRTYRAP-product-metadata-2026-07-15",
+        "responseArrayIndex": 75,
+        "generationFromDate": "1884-04-07",
+        "generationToDate": "2025-12-31"
+      },
+      "zip": {
+        "filename": "apc18840407-20251231-16.zip",
+        "bytes": 110481114,
+        "sha256": "4c469866586be617101f751ddb477a42949ff7bf850dd0103abf2c2fac4559c2"
+      },
+      "xml": {
+        "filename": "apc18840407-20251231-16.xml",
+        "bytes": 2266615311,
+        "sha256": "4d4a2f6bdb8668150d4d604a1f8fd29803400324a2bfe7c39e701573b332c89c",
+        "recordCount": 155000,
+        "maxRecordBytes": 3669760,
+        "actionRecordCounts": {
+          "TX": 155000
+        },
+        "actionGroups": [
+          {
+            "actionKey": "TX",
+            "actionOccurrence": 1,
+            "recordCount": 155000
+          }
+        ],
+        "transactionDateRange": {
+          "from": "20160316",
+          "to": "20260403"
+        },
+        "serialNumberRange": {
+          "from": "74666965",
+          "to": "75081866"
+        },
+        "uniqueSerialNumberCount": 155000,
+        "serialNumberOrder": "ascending",
+        "root": {
+          "name": "trademark-applications-daily",
+          "version": "2.0",
+          "versionDate": "20041108",
+          "creationDatetime": "202604031406"
+        }
+      }
+    },
+    {
       "id": "TRTYRAP-apc18840407-20241231-02",
       "product": "TRTYRAP",
       "cachePath": "sha256/5fd3d811d780939101778281af4de9b400107e5147addfc6ac57146c8202b848/apc18840407-20241231-02.zip",
@@ -384,6 +438,36 @@
     }
   ],
   "fixtures": [
+    {
+      "id": "annual-2025-large-class025-tx",
+      "artifactId": "TRTYRAP-apc18840407-20251231-16",
+      "actionKey": "TX",
+      "actionOccurrence": 1,
+      "recordIndex": 1107,
+      "actionRecordIndex": 1107,
+      "serialNumber": "74668071",
+      "path": "fixtures/uspto/records/annual-2025-large-class025-tx-74668071.xml",
+      "bytes": 3669760,
+      "sha256": "dc127805bde802fc19a9bf057d07989462387b15f46366bb0dad8db57d54e08b",
+      "sequence": null,
+      "evidence": [
+        "annual 2025-generation TX",
+        "authentic 3,669,744-byte record",
+        "explicit primary Class 025 and GUESS JEANS mark text"
+      ],
+      "expectedPresence": {
+        "present": [
+          "mark-identification",
+          "classifications"
+        ],
+        "absent": [],
+        "empty": []
+      },
+      "expectedValues": {
+        "mark-identification": "GUESS JEANS",
+        "primary-code": "025"
+      }
+    },
     {
       "id": "annual-2025-status-only-tx",
       "artifactId": "TRTYRAP-apc18840407-20251231-01",
