@@ -79,7 +79,7 @@ USPTO_RETRY_MAX_ATTEMPTS=8
 USPTO_RETRY_MAX_MS=21600000
 ```
 
-Retained downloads live in the dedicated `artifact-data` volume under content-addressed keys. Normal `compose:down` preserves both database and artifact volumes.
+One active download at a time uses the dedicated `artifact-data` volume under a content-addressed key. Terminal parse or quarantine deletes that raw object. Normal `compose:down` preserves the database and any interrupted working object.
 
 Authenticated website use also requires `CLERK_SECRET_KEY`, `CLERK_AUTHORIZED_PARTIES`, and `VITE_CLERK_PUBLISHABLE_KEY`. The Compose wrapper derives `CLERK_AUTHORIZED_PARTIES` from the worktree website port; direct deployments must set the public website origin explicitly. The production-shaped Compose contract refuses to render without all three values; the anonymous API readiness response remains data-free.
 
@@ -131,22 +131,21 @@ The authenticated operator page at `/ops/sync` is read-only. It shows current da
 ```bash
 bun run sync:ops -- quarantine <artifact-version-id> --reason "<operator reason>"
 bun run sync:ops -- select-reissue <artifact-version-id> --reason "<selection reason>"
-bun run sync:ops -- replay-parser <artifact-version-id>
 bun run sync:ops -- recover-source-lane --confirm-all-current-alerts --reason "<recovery reason>"
 bun run sync:ops -- recover-frontier
 ```
 
-`quarantine` accepts only a verified or staged version, preserves the reason and time, and invalidates a selection of that version. `select-reissue` accepts only a parsed, publication-policy-eligible version from a logical artifact with multiple retained versions. `replay-parser` accepts only a version without a run for the current parser. Parser upgrades are completed version by version; publication remains blocked while any logical artifact from the parent publication lacks a current-parser eligible replacement.
+`quarantine` accepts only a verified or staged version, preserves the reason and time, invalidates a selection of that version, and releases its raw working object through reconciliation. `select-reissue` accepts only a parsed, publication-policy-eligible version from a logical artifact with multiple retained versions. Reprocessing resets the discovery and re-downloads official bytes; there is no raw-object replay command.
 
 `recover-source-lane` locks the lane, requires explicit confirmation, resolves the complete current unresolved USPTO alert set with the supplied reason, and resumes the lane. It refuses a ready lane or a stopped lane with no unresolved alert. `recover-frontier` stages and publishes the exact eligible 91-member annual policy set through the normal corpus publisher; retained daily evidence is excluded. Every command fails closed on a wrong state. There is no automated recovery or command retry loop.
 
-A full rebuild is a distinct offline cutover and wake, not a second ingestion engine:
+A full rebuild is the one-time pre-migration PRD-77 storage cutover, not a second ingestion engine:
 
 ```bash
 bun run sync:rebuild
 ```
 
-The wrapper stops the current checkout's worker before invoking the operation. Under the corpus lock, the operation refuses any durable corpus state or publication, clears rebuildable canonical state, deletes non-quarantined obsolete parser runs and their claims/observations, and preserves retained catalog/raw objects plus durable quarantine evidence. It retires the exact historical PRD-60 tracer artifact metadata, normalizes eligible official retained versions that lack a v3 run to `verified`, and wakes the same sequential pg-boss reconciler. The tracer raw object may remain orphaned; the rebuild does not add artifact-store deletion. The command refuses online invocation or an outstanding reconciliation delivery.
+The wrapper stops the current checkout's worker and intentionally leaves it stopped. Under the corpus lock, the operation refuses any durable corpus state, publication, outstanding reconciliation delivery, or post-0012 nullable object-key schema. It physically truncates rebuildable canonical/source-observation relations, removes non-quarantined parse runs, preserves account/API-key/catalog metadata and durable quarantine evidence, resets discoveries for re-download, and retires the exact historical PRD-60 tracer metadata. It then keyset-scans unique catalog object keys and awaits one idempotent raw-object deletion at a time, followed by sequential finalized-key enumeration to remove any unreferenced put-before-retain orphan. Only after every database cleanup and raw unlink succeeds does it write the one-time PRD-77 cutover proof. Because the preflight runs on migration 0010 where `object_key` is still required, pointers remain until migration 0012 verifies that proof, makes the column nullable, clears the pointers, and removes the proof. A populated database without the proof fails migration; a fresh empty database does not require it. The normal migration dependency must complete before the worker starts.
 
 Drizzle owns application schema migration. pg-boss owns its separate `pgboss` schema: the one-shot migration entrypoint starts pg-boss with migration enabled after Drizzle, while the production worker starts with `migrate:false` and fails closed if that schema is absent. Repeated migration is expected to be idempotent.
 
@@ -164,4 +163,4 @@ For an intentional clean local reset only:
 bun run compose -- down --volumes
 ```
 
-That reset deletes both the database and retained-artifact volumes. It is never a routine deployment or retry operation.
+That reset deletes both the database and transient artifact-working volumes. It is never a routine deployment or retry operation.

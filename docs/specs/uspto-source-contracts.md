@@ -63,7 +63,7 @@ The daily before/after fixtures prove only their named same-product transitions.
 
 ## First publication policy
 
-The first corpus publication selects exactly the 91 official `TRTYRAP` members covering 1884-04-07 through 2025-12-31. Parser `uspto-application-xml-v3` validates and physically counts every record, while persisting an observation only for an explicit `primary-code` `025` plus non-empty `mark-identification`. Zero-selected members remain valid policy members. It excludes every `TRTDXFAP` artifact and sets `completeThroughDate` to 2025-12-31. Daily artifacts remain retained, parsed where supported, quarantined where invalid or unsupported, and operator-visible. This bootstrap is reversible and does not establish cross-product precedence or supersession. Raw ZIPs remain replay authority for all records excluded by v3 selection.
+The first corpus publication selects exactly the 91 official `TRTYRAP` members covering 1884-04-07 through 2025-12-31. Parser `uspto-application-xml-v3` validates and physically counts every record, while persisting an observation only for an explicit `primary-code` `025` plus non-empty `mark-identification`. Zero-selected members remain valid policy members. It excludes every `TRTDXFAP` artifact and sets `completeThroughDate` to 2025-12-31. The 91-member set is completeness metadata, never an execution batch: one exclusive reconciliation handles one streamed artifact and fixed observation batches. Daily metadata remains durable and operator-visible; supported selected observations and quarantine evidence remain durable. Terminal raw ZIPs are deleted, and later policy work re-downloads official bytes. This bootstrap is reversible and does not establish cross-product precedence or supersession.
 
 ## Blocking gaps
 
