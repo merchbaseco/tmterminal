@@ -1,0 +1,25 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "extends": ["ultracite/biome/core", "ultracite/biome/react"],
+  "files": {
+    "includes": [
+      "!!apps/server/drizzle/meta",
+      "!!apps/server/drizzle/**/*.sql",
+      "!!apps/web/src/components/ui",
+      "!!fixtures/uspto/records",
+      "!!fixtures/uspto/prologs"
+    ]
+  },
+  "formatter": {
+    "lineWidth": 100
+  },
+  "javascript": {
+    "globals": ["Bun"]
+  },
+  "vcs": {
+    "clientKind": "git",
+    "defaultBranch": "main",
+    "enabled": true,
+    "useIgnoreFile": true
+  }
+}

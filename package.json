@@ -18,6 +18,9 @@
     "db:migrate": "bun run --cwd apps/server db:migrate",
     "docs:list": "docs-list",
     "fixtures:verify": "bun scripts/uspto-fixtures.ts",
+    "lint": "ultracite check",
+    "lint:changed": "ultracite check --changed --since=${LINT_BASE:-origin/main}",
+    "lint:fix": "ultracite fix",
     "sync:ops": "./scripts/compose exec worker bun run --cwd apps/server sync:ops --",
     "sync:rebuild": "./scripts/full-rebuild",
     "test": "bun test apps/server/test/unit packages/http-client/test packages/cli/test scripts/sync-ops-contract.test.ts && bun test apps/web/test && ./scripts/deployment-contract.test",
@@ -27,7 +30,9 @@
     "typecheck": "bun run --cwd packages/http-client build && tsc --noEmit"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.4",
     "@types/bun": "1.3.14",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "ultracite": "7.9.4"
   }
 }
