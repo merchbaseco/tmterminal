@@ -511,7 +511,11 @@
         "non-Class 025 record validates before persistence selection"
       ],
       "expectedPresence": {
-        "present": ["mark-identification", "classifications", "madrid-history-events"],
+        "present": [
+          "mark-identification",
+          "classifications",
+          "madrid-history-events"
+        ],
         "absent": [],
         "empty": []
       },
