@@ -340,6 +340,36 @@ test("persists the authentic 3.67 MiB GUESS JEANS observation across input slice
   ]);
 });
 
+test("validates the authentic 10,948,464-byte annual record before Class 025 selection", async () => {
+  const record = await readFile(join(fixtureRoot, "annual-2025-largest-record-tx-85951867.xml"));
+  expect(record.byteLength).toBe(10_948_464);
+  expect(createHash("sha256").update(record).digest("hex")).toBe(
+    "9894d0636478d4821f195cb22a938497de99b0bcc2348f79aba2fe4218fccc40"
+  );
+  const recordText = record.toString("utf8");
+  expect(recordText.match(/<madrid-history-event>/g)).toHaveLength(26_496);
+  expect(recordText).not.toContain("<primary-code>025</primary-code>");
+  const xml = Buffer.concat([
+    Buffer.from(
+      "<trademark-applications-daily><version><version-no>2.0</version-no><version-date>20041108</version-date></version><creation-datetime>202604031508</creation-datetime><application-information><file-segments><file-segment>TRMK</file-segment><action-keys><action-key>TX</action-key>\n"
+    ),
+    record,
+    Buffer.from(
+      "</action-keys></file-segments></application-information></trademark-applications-daily>"
+    ),
+  ]);
+  const artifactVersionId = await retainXml("apc18840407-20251231-49.zip", xml);
+  const observations = createSourceObservationModule(database);
+
+  const result = await observations.stageArtifact({
+    artifactVersionId,
+    xml: chunked(xml, 65_537),
+  });
+
+  expect(result).toMatchObject({ recordCount: 1, rejectCount: 0, status: "staged" });
+  expect(await Array.fromAsync(observations.readRecords(result.parseRunId))).toEqual([]);
+});
+
 test("scans a status-only annual TX without persisting an observation", async () => {
   const fixture = await retainAnnualFixture("annual-2025-status-only-tx-60000001.xml");
   const observations = createSourceObservationModule(database);
@@ -461,7 +491,7 @@ test("returns a staged parse result on redelivery without consuming the supplied
   expect(await remainingBytes(redelivery)).toEqual(marker);
 });
 
-test("Class 025 selection uses parser v4 instead of reusing an all-class v2 run", async () => {
+test("Class 025 selection uses parser v5 instead of reusing an all-class v2 run", async () => {
   const fixture = await retainAnnualFixture("annual-2025-full-tx-60146682.xml");
   await database`
     insert into parse_run (
@@ -486,7 +516,7 @@ test("Class 025 selection uses parser v4 instead of reusing an all-class v2 run"
   expect(result).toMatchObject({ recordCount: 1, status: "staged" });
   expect([...versions]).toEqual([
     { parserVersion: "uspto-application-xml-v2" },
-    { parserVersion: "uspto-application-xml-v4" },
+    { parserVersion: "uspto-application-xml-v5" },
   ]);
 });
 
@@ -728,7 +758,7 @@ test("bounds one huge incoming chunk while quarantining an oversized record with
           .toString("utf8")
           .replace(
             "</case-file>",
-            `<correspondent>${"A".repeat(8 * 1024 * 1024)}</correspondent></case-file>`
+            `<correspondent>${"A".repeat(17 * 1024 * 1024)}</correspondent></case-file>`
           )
       );
     },
@@ -743,9 +773,9 @@ test("bounds one huge incoming chunk while quarantining an oversized record with
   const rejection = required(reject, "expected oversized-record rejection");
 
   expect(result).toMatchObject({ recordCount: 0, rejectCount: 1, status: "quarantined" });
-  expect(reject).toMatchObject({ reason: "record exceeds 4194304 byte limit" });
-  expect(rejection.bytes).toBeGreaterThan(4 * 1024 * 1024);
-  expect(rejection.bytes).toBeLessThanOrEqual(4 * 1024 * 1024 + 64 * 1024);
+  expect(reject).toMatchObject({ reason: "record exceeds 16777216 byte limit" });
+  expect(rejection.bytes).toBeGreaterThan(16 * 1024 * 1024);
+  expect(rejection.bytes).toBeLessThanOrEqual(16 * 1024 * 1024 + 64 * 1024);
   expect(
     Buffer.compare(
       Buffer.from(rejection.rawXml),
@@ -760,7 +790,7 @@ test("bounds an unclosed case-file at the record limit", async () => {
       return Buffer.from(
         record
           .toString("utf8")
-          .replace("</case-file>", `<correspondent>${"A".repeat(8 * 1024 * 1024)}</correspondent>`)
+          .replace("</case-file>", `<correspondent>${"A".repeat(17 * 1024 * 1024)}</correspondent>`)
       );
     },
   });
@@ -774,9 +804,9 @@ test("bounds an unclosed case-file at the record limit", async () => {
   const rejection = required(reject, "expected unclosed-record rejection");
 
   expect(result).toMatchObject({ recordCount: 0, rejectCount: 1, status: "quarantined" });
-  expect(reject).toMatchObject({ reason: "record exceeds 4194304 byte limit" });
-  expect(rejection.bytes).toBeGreaterThan(4 * 1024 * 1024);
-  expect(rejection.bytes).toBeLessThanOrEqual(4 * 1024 * 1024 + 64 * 1024);
+  expect(reject).toMatchObject({ reason: "record exceeds 16777216 byte limit" });
+  expect(rejection.bytes).toBeGreaterThan(16 * 1024 * 1024);
+  expect(rejection.bytes).toBeLessThanOrEqual(16 * 1024 * 1024 + 64 * 1024);
 });
 
 test("bounds an unterminated outer XML token", async () => {

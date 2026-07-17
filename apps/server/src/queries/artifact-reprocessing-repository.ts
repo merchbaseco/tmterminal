@@ -4,8 +4,8 @@ import { isPublicationPolicyArtifact } from "../ingestion/publication-policy.ts"
 import { sourceObservationParserVersion } from "../ingestion/source-observations.ts";
 import { lockCorpusPublication } from "./corpus-publication-lock.ts";
 
-const previousParserVersion = "uspto-application-xml-v3";
-const requiredParserVersion = "uspto-application-xml-v4";
+const previousParserVersion = "uspto-application-xml-v4";
+const requiredParserVersion = "uspto-application-xml-v5";
 
 interface ReprocessingTarget {
   artifactId: string;
@@ -55,7 +55,7 @@ function validateReprocessingTarget(
     throw new Error("Artifact version is outside the first annual publication policy");
   }
   if (target.versionState !== "staged" && target.versionState !== "quarantined") {
-    throw new Error("Artifact version must have terminal parser v3 state");
+    throw new Error("Artifact version must have terminal parser v4 state");
   }
   if (target.objectKey !== null) {
     throw new Error("Artifact version still has retained bytes");
@@ -73,7 +73,7 @@ function validateReprocessingTarget(
     (target.previousParseRejectCount ?? 0) > 0 &&
     target.previousParseRejectRows > 0;
   if (!(terminalPreviousRun && (stagedEvidence || quarantinedEvidence))) {
-    throw new Error("Artifact version lacks durable terminal parser v3 evidence");
+    throw new Error("Artifact version lacks durable terminal parser v4 evidence");
   }
   if (
     target.latestDiscoveryCount !== 1 ||
@@ -95,7 +95,7 @@ export function resetArtifactVersionForReprocessing(
     throw new Error("Artifact reprocessing requires a reason");
   }
   if (sourceObservationParserVersion !== requiredParserVersion) {
-    throw new Error("Artifact reprocessing requires parser v4");
+    throw new Error("Artifact reprocessing requires parser v5");
   }
   return database.begin(async (transaction) => {
     await lockCorpusPublication(transaction);

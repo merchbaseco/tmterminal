@@ -180,7 +180,7 @@ The ingestion module exposes a small service interface while hiding USPTO produc
 - A dead or cancelled mark is a state transition, not a row deletion.
 - Unknown values remain raw/unknown instead of being guessed.
 
-The stored and programmatic corpus is Class 025 only. Parser identity `uspto-application-xml-v4` validates, hashes, and physically counts every source record before persisting a full observation only when the record has an explicit `primary-code` of `025` and a non-empty `mark-identification`. A valid artifact with zero selected observations remains a parsed annual-policy member. Unselected records require a later official re-download.
+The stored and programmatic corpus is Class 025 only. Parser identity `uspto-application-xml-v5` validates, hashes, and physically counts every source record before persisting a full observation only when the record has an explicit `primary-code` of `025` and a non-empty `mark-identification`. A valid artifact with zero selected observations remains a parsed annual-policy member. Unselected records require a later official re-download.
 
 The first-publication bootstrap pins exactly the 91 officially enumerated members of the generation from 1884-04-07 through 2025-12-31 and publishes them as an unordered set. Its `completeThroughDate` and `publishedThroughDate` are both 2025-12-31. Daily artifacts remain retained, parsed, quarantined, and operator-visible, but they are outside this first publication policy. This reversible bootstrap does not declare daily data superseded or establish annual-versus-daily precedence. Mixed publication and any later annual generation require an explicit policy revision.
 

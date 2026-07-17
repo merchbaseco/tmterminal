@@ -13,7 +13,7 @@ if (!databaseUrl) {
   throw new Error("TEST_DATABASE_URL is required for PostgreSQL integration tests");
 }
 const database = postgres(databaseUrl, { max: 2, prepare: false });
-const parserV3 = "uspto-application-xml-v3";
+const parserV4 = "uspto-application-xml-v4";
 
 beforeEach(async () => {
   await resetTestDatabase(database);
@@ -25,7 +25,7 @@ afterAll(async () => {
   await database.end({ timeout: 1 });
 });
 
-async function retainTerminalV3(state: "quarantined" | "staged") {
+async function retainTerminalV4(state: "quarantined" | "staged") {
   const artifactId = randomUUID();
   const artifactVersionId = randomUUID();
   const discoveryId = randomUUID();
@@ -42,7 +42,7 @@ async function retainTerminalV3(state: "quarantined" | "staged") {
     ) values (
       ${artifactVersionId}, ${artifactId}, ${sha256}, 100, null, ${state},
       ${state === "quarantined" ? new Date("2026-07-16T12:00:00Z") : null},
-      ${state === "quarantined" ? "record exceeds 524288 byte limit" : null}
+      ${state === "quarantined" ? "record exceeds 4194304 byte limit" : null}
     )
   `;
   await database`
@@ -62,7 +62,7 @@ async function retainTerminalV3(state: "quarantined" | "staged") {
       id, artifact_version_id, state, parser_version, digest, record_count, reject_count,
       started_at, finished_at
     ) values (
-      ${parseRunId}, ${artifactVersionId}, ${state}, ${parserV3}, ${parseDigest},
+      ${parseRunId}, ${artifactVersionId}, ${state}, ${parserV4}, ${parseDigest},
       ${state === "staged" ? 1 : 0}, ${state === "quarantined" ? 1 : 0},
       '2026-07-16T12:00:00Z', '2026-07-16T12:01:00Z'
     )
@@ -83,9 +83,9 @@ async function retainTerminalV3(state: "quarantined" | "staged") {
       insert into parse_reject (
         id, parse_run_id, reason, raw_xml, bytes, digest, physical_record_index
       ) values (
-        ${randomUUID()}, ${parseRunId}, 'record exceeds 524288 byte limit',
-        ${Buffer.from("bounded v3 reject")}, 17,
-        ${createHash("sha256").update("bounded v3 reject").digest("hex")}, 1107
+        ${randomUUID()}, ${parseRunId}, 'record exceeds 4194304 byte limit',
+        ${Buffer.from("bounded v4 reject")}, 17,
+        ${createHash("sha256").update("bounded v4 reject").digest("hex")}, 67098
       )
     `;
   }
@@ -114,13 +114,13 @@ async function readRecoveryState(artifactVersionId: string) {
   return state;
 }
 
-test("reprocesses one staged v3 annual version while preserving its observations", async () => {
-  const retained = await retainTerminalV3("staged");
+test("reprocesses one staged v4 annual version while preserving its observations", async () => {
+  const retained = await retainTerminalV4("staged");
 
   const result = await reprocessArtifactVersion(
     database,
     retained.artifactVersionId,
-    "Re-download for parser v4"
+    "Re-download for parser v5"
   );
 
   expect(result).toEqual({
@@ -130,7 +130,7 @@ test("reprocesses one staged v3 annual version while preserving its observations
     filename: annualGenerationV1Artifacts[0],
     previousState: "staged",
     product: "TRTYRAP",
-    reason: "Re-download for parser v4",
+    reason: "Re-download for parser v5",
     sha256: retained.sha256,
   });
   expect(await readRecoveryState(retained.artifactVersionId)).toEqual({
@@ -150,8 +150,8 @@ test("reprocesses one staged v3 annual version while preserving its observations
   expect(evidence).toEqual({ digest: retained.parseDigest, records: 1 });
 });
 
-test("reprocesses one quarantined v3 annual version while preserving its reject", async () => {
-  const retained = await retainTerminalV3("quarantined");
+test("reprocesses one quarantined v4 annual version while preserving its reject", async () => {
+  const retained = await retainTerminalV4("quarantined");
   const [before] = await database<Array<{ bytes: number; digest: string; rawXml: Buffer }>>`
     select bytes, digest, raw_xml as "rawXml" from parse_reject
     where parse_run_id = ${retained.parseRunId}
@@ -160,7 +160,7 @@ test("reprocesses one quarantined v3 annual version while preserving its reject"
   const result = await reprocessArtifactVersion(
     database,
     retained.artifactVersionId,
-    "Authentic record exceeds parser v3 bound"
+    "Authentic record exceeds parser v4 bound"
   );
 
   expect(result).toMatchObject({
@@ -182,7 +182,7 @@ test("reprocesses one quarantined v3 annual version while preserving its reject"
 });
 
 test("refuses an already-published annual member without mutation", async () => {
-  const retained = await retainTerminalV3("staged");
+  const retained = await retainTerminalV4("staged");
   const publicationId = randomUUID();
   await database`
     insert into publication (
@@ -190,7 +190,7 @@ test("refuses an already-published annual member without mutation", async () => 
       projection_version, normalization_version, source_profile_version, state,
       artifact_count, published_at
     ) values (
-      ${publicationId}, ${"a".repeat(64)}, ${"b".repeat(64)}, ${parserV3}, 'v1', 'v1',
+      ${publicationId}, ${"a".repeat(64)}, ${"b".repeat(64)}, ${parserV4}, 'v1', 'v1',
       'v1', 'v1', 'published', 1, now()
     )
   `;
@@ -218,8 +218,8 @@ test("refuses an already-published annual member without mutation", async () => 
   expect(await readRecoveryState(retained.artifactVersionId)).toEqual(before);
 });
 
-test("refuses a stale discovery or existing v4 run without mutation", async () => {
-  const stale = await retainTerminalV3("staged");
+test("refuses a stale discovery or existing v5 run without mutation", async () => {
+  const stale = await retainTerminalV4("staged");
   await database`
     insert into artifact_discovery (
       id, artifact_id, fingerprint, observed_at, download_state, download_url,
@@ -239,7 +239,7 @@ test("refuses a stale discovery or existing v4 run without mutation", async () =
   await resetTestDatabase(database);
   await migrateDatabase(databaseUrl);
   await database`insert into dataset_product (id) values ('TRTYRAP')`;
-  const current = await retainTerminalV3("staged");
+  const current = await retainTerminalV4("staged");
   await database`
     insert into parse_run (
       id, artifact_version_id, state, parser_version, digest, finished_at
@@ -250,7 +250,7 @@ test("refuses a stale discovery or existing v4 run without mutation", async () =
   `;
   const currentBefore = await readRecoveryState(current.artifactVersionId);
   await expect(
-    reprocessArtifactVersion(database, current.artifactVersionId, "must refuse v4")
+    reprocessArtifactVersion(database, current.artifactVersionId, "must refuse v5")
   ).rejects.toThrow("current parser run");
   expect(await readRecoveryState(current.artifactVersionId)).toEqual(currentBefore);
 });
