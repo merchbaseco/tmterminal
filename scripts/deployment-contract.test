@@ -44,8 +44,10 @@ fi
 
 fake_bin="$temporary_directory/bin"
 mkdir "$fake_bin"
-printf '%s\n' '#!/bin/sh' 'printf '\''%s|%s\n'\'' "$COMPOSE_PROJECT_NAME" "$TMTURTLE_REVISION"' > "$fake_bin/docker"
+printf '%s\n' '#!/bin/sh' 'printf '\''%s|%s|%s\n'\'' "$COMPOSE_PROJECT_NAME" "$TMTURTLE_REVISION" "$TMTURTLE_DATABASE_PORT"' > "$fake_bin/docker"
 chmod +x "$fake_bin/docker"
+printf '%s\n' '#!/bin/sh' 'test "$1" = 2' 'printf '\''4102\n'\''' > "$fake_bin/dev-port"
+chmod +x "$fake_bin/dev-port"
 
 compose_revision() (
   explicit_revision="${3:-}"
@@ -56,9 +58,9 @@ compose_revision() (
   PATH="$fake_bin:$PATH" TMTURTLE_WEB_PORT="$1" TMTURTLE_API_PORT="$2" "$root/scripts/compose" config
 )
 
-test "$(compose_revision 4100 4101)" = "tmturtle-4100|development-tmturtle-4100"
-test "$(compose_revision 4200 4201)" = "tmturtle-4200|development-tmturtle-4200"
-test "$(compose_revision 4100 4101 production-sha)" = "tmturtle-4100|production-sha"
+test "$(compose_revision 4100 4101)" = "tmturtle-4100|development-tmturtle-4100|4102"
+test "$(compose_revision 4200 4201)" = "tmturtle-4200|development-tmturtle-4200|4102"
+test "$(compose_revision 4100 4101 production-sha)" = "tmturtle-4100|production-sha|4102"
 
 deployment_workflow="$root/.github/workflows/deploy.yml"
 worker_stop_line="$(grep -nF 'docker compose --project-name tmturtle --env-file .env stop worker' "$deployment_workflow" | cut -d: -f1)"

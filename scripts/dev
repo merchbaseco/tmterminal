@@ -1,0 +1,58 @@
+#!/bin/sh
+set -eu
+
+root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+
+set -a
+. "$root/.env"
+set +a
+
+web_port="$(dev-port 0)"
+api_port="$(dev-port 1)"
+
+: "${DATABASE_URL:?set DATABASE_URL in .env}"
+DATABASE_URL="$(
+  printf '%s\n' "$DATABASE_URL" |
+    sed -E 's#@[^/]+/#@zachs-mac-mini.taila0b849.ts.net:5437/#'
+)"
+CLERK_AUTHORIZED_PARTIES="http://127.0.0.1:${web_port}"
+export CLERK_AUTHORIZED_PARTIES DATABASE_URL
+
+printf 'Using the production database; mutations are real. Worker and migrations are disabled.\n'
+printf 'Website: http://127.0.0.1:%s\nAPI: http://127.0.0.1:%s\n' "$web_port" "$api_port"
+
+cd "$root"
+HOST="127.0.0.1" PORT="$api_port" bun apps/server/src/server.ts &
+api_pid=$!
+TMTURTLE_API_PORT="$api_port" apps/web/node_modules/.bin/vite apps/web --host 127.0.0.1 --port "$web_port" &
+web_pid=$!
+
+cleanup() {
+  kill "$api_pid" "$web_pid" 2>/dev/null || true
+  wait "$api_pid" "$web_pid" 2>/dev/null || true
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+while :; do
+  jobs -p >/dev/null
+  if ! kill -0 "$api_pid" 2>/dev/null; then
+    if wait "$api_pid"; then
+      status=1
+    else
+      status=$?
+    fi
+    break
+  fi
+  if ! kill -0 "$web_pid" 2>/dev/null; then
+    if wait "$web_pid"; then
+      status=1
+    else
+      status=$?
+    fi
+    break
+  fi
+  sleep 1
+done
+exit "$status"
