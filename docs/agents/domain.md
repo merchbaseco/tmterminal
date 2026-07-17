@@ -12,7 +12,7 @@ How the engineering skills should consume this repository's domain documentation
 ## Before exploring, read these
 
 - `docs/plan.md` — the durable product and architecture contract.
-- `docs/ingestion.md` — USPTO source authority, replay, and freshness.
+- `docs/ingestion.md` — annual source, direct projection, generation visibility, and freshness.
 - `docs/cli.md` — published command and automation contract.
 - `docs/website.md` — website behavior and visual contract.
 - `CONTEXT.md` at the repository root, when present.

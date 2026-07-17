@@ -23,82 +23,15 @@ intentionally not copied to CI or the production host.
 
 Startup is ordered:
 
-1. The workflow stops the current worker before the migration-bearing Compose start.
-2. PostgreSQL becomes healthy.
-3. The one-shot Drizzle migration exits successfully.
-4. The API and credential-scoped new worker become healthy.
-5. Caddy serves the built website and proxies `/api/*` to the API.
+1. Keep the current production worker stopped.
+2. Back up PostgreSQL and record the exact deployed and candidate SHAs.
+3. Fast-forward the clean production checkout to the reviewed merge SHA.
+4. Build images labeled with that exact SHA.
+5. Start PostgreSQL and run the one-shot Drizzle migrator. Its single transaction discards rebuildable legacy ingestion state, preserves auth/role/provider-lane data, and creates the direct annual schema atomically.
+6. Start API and Caddy; verify database/API/web readiness and auth/search behavior while the worker remains stopped.
+7. Start the worker only after explicit deployment authorization. Its first database-derived action removes any unreferenced legacy ZIP before source access. Verify that cleanup, one annual reconciliation, and truthful `/ops/sync` state.
 
-PRD-77 has one manual pre-merge cutover because production still has the migration-0010 schema and
-roughly 45 GiB of obsolete derived PostgreSQL state plus 37.9 GiB of raw objects. After the exact
-candidate is independently reviewed and its PR checks pass, but before merge:
-
-1. Materialize the reviewed 40-character candidate SHA in a detached worktree, verify its exact
-   `HEAD`, copy the mastered ignored `.env` at mode `0600` without printing it, build that candidate,
-   and stop the current worker. The script reads and requires only `TMTURTLE_WEB_PORT`,
-   `TMTURTLE_API_PORT`, and `CLERK_AUTHORIZED_PARTIES` from that file without sourcing it, then
-   exports them with `COMPOSE_PROJECT_NAME=tmturtle`. The normal `main` deployment checkout remains
-   untouched.
-2. Let the checked cutover script build and stop the candidate worker, then run the offline rebuild.
-   The command must report no durable corpus/publication, the exact count of discarded `created` or
-   `retry` reconciliation wakeups, lower `source_record` and `source_claim` physical sizes after
-   `TRUNCATE`, and one-at-a-time deletion of every catalogued or orphaned finalized object. Any
-   `active` reconciliation delivery refuses the cutover. It leaves the worker stopped.
-3. Accept zero files/zero bytes in `artifact-data`; zero `source_record`/`source_claim` rows;
-   near-empty physical sizes for both relations; preserved account/API-key/catalog/quarantine rows;
-   pending official discoveries; and unchanged migration count through 0010. The preflight
-   intentionally leaves stale non-null object pointers because migration 0010 still requires them.
-   A successful sweep writes the one-time PRD-77 proof only after database cleanup, every sequential
-   raw unlink, and exact tracer retirement finish.
-4. Merge only after those checks. Do not start the worker between preflight and merge.
-
-```sh
-(
-  set -eu
-  candidate_sha='<reviewed-40-character-commit-sha>'
-  main_checkout=/Users/zknicker/srv/tmturtle
-  master_env=/Users/zknicker/srv/tmturtle/.env
-  runner=$(mktemp)
-  trap 'rm -f "$runner"' EXIT HUP INT TERM
-
-  git -C "$main_checkout" fetch --prune origin
-  git -C "$main_checkout" show "${candidate_sha}:scripts/prd77-premerge-cutover" > "$runner"
-  chmod 0700 "$runner"
-  "$runner" "$candidate_sha" "$main_checkout" "$master_env"
-)
-```
-
-Cutover capacity acceptance uses the recovered live baseline and explicit bounds:
-
-| Measure | Before preflight | Required after preflight, before merge |
-| --- | ---: | ---: |
-| Colima free space | 93.1 GiB | at least 150 GiB |
-| `artifact-data` regular files / payload | 738 / 37.9 GiB | 0 / 0 bytes |
-| PostgreSQL database | 45 GiB | less than 5 GiB logical database size |
-| `source_record` | 7,054,012 rows / 28 GiB relation | 0 rows / less than 16 MiB total relation size |
-| `source_claim` | 17 GiB relation | 0 rows / less than 16 MiB total relation size |
-| `parse_run` | 182 rows | zero non-quarantined rows; quarantine evidence preserved |
-
-All artifact-version rows except the exact retired tracer remain with their SHA-256, byte count,
-and discovery provenance. API keys, accounts, roles, migration history, product/artifact catalog,
-source attempts/alerts, and quarantine evidence retain their preflight counts. The preflight result's
-`artifactObjectsRemoved` is the number of unique catalogued and orphaned finalized keys removed;
-`orphanArtifactObjectsRemoved` identifies the unreferenced subset. `artifactBytesRemoved` is the
-catalog-known byte total because orphan byte content is not read during the sweep. The reported
-post-`TRUNCATE` relation sizes and final zero-file volume inspection must satisfy the table above.
-
-The ordinary deployment workflow then runs unchanged. Landed migration
-`0011_retire_prd60_tracer` is cheap against the already-empty derived state. Migration 0012 refuses
-a populated database without the exact completed-cutover proof, drops the `object_key` NOT NULL
-constraint, clears the stale pointers, and removes the one-time proof. Fresh empty databases migrate
-without a proof. The normal Compose dependency
-graph starts the new worker only after both migrations succeed. Reconciliation then downloads,
-validates, persists, and removes one artifact at a time; the exact 91-member annual set is
-publication completeness metadata only. Later deployments do not repeat the manual cutover. Do
-not roll back across it to a pre-PRD-77 worker or tracer-bearing runtime; deploy a corrected
-PRD-77-or-later revision instead. After the merged deployment is accepted, remove the detached
-candidate worktree from `main_checkout`; do not switch or rewrite the normal deployment checkout for
-the pre-merge cutover.
+There is no pre-merge cutover script, data translation, compatibility view, dual write, or rollback across the schema cutover. Production has no query-visible marks; legacy ingestion state is rebuildable. If migration or acceptance fails, leave the worker stopped and deploy a corrected post-cutover revision against the restored backup.
 
 The ignored production `.env` is mastered at `/Users/zknicker/srv/tmturtle/.env`, copied into the detached candidate without echoing values, and kept at mode `0600`. Required secret-bearing names are `DATABASE_URL`, `POSTGRES_PASSWORD`, `CLERK_SECRET_KEY`, and `USPTO_API_KEY`; `VITE_CLERK_PUBLISHABLE_KEY` supplies the approved shared MerchBase Clerk frontend configuration. Production sets `CLERK_AUTHORIZED_PARTIES` to exactly `https://tmturtle.merchbase.co`.
 
@@ -108,7 +41,7 @@ PostgreSQL and the transient artifact working directory use named volumes. API, 
 
 `scripts/deployment-smoke` is the external readiness and capacity hook. Worker readiness begins only after the current process completes its first scheduler reconciliation; its startup grace matches the existing 15-minute provider request bound, persisted backoff remains valid, and a stopped lane fails smoke. The hook also fails when either the PostgreSQL or artifact volume filesystem has less than 20 GiB free, migration failed, another long-running service is unhealthy, a bounded loopback or public HTTPS probe fails, or image labels do not match the deployed revision.
 
-The anonymous readiness response is exactly `{"status":"ready"}` and contains no corpus data. Readiness does not claim corpus availability. Provider pacing, persisted backoff, retry caps, and serial downloads remain worker-owned. The authenticated sync contracts report durable corpus state; the operator page separately reports annual first-publication progress and retained-only daily state.
+The anonymous readiness response is exactly `{"status":"ready"}` and contains no corpus data. Readiness does not claim corpus availability. The worker owns a fixed 10-second cadence, serial downloads, persisted backoff, and a non-configurable eight-attempt ceiling. The authenticated sync contracts report durable corpus state; the operator page reports the annual generation, provider lane, and compact artifact state.
 
 For an explicit smoke or post-restart check:
 
@@ -120,10 +53,10 @@ export TMTURTLE_REVISION="$(git rev-parse HEAD)"
 
 ## Rollback
 
-Rollback is one exact-image rebuild from a known good Git revision. Named database and transient-working-data volumes remain attached.
+After the direct-schema migration, recovery uses the PostgreSQL backup plus a corrected exact Git revision. Do not run a pre-cutover worker against the direct schema. Named database and transient-working-data volumes remain attached only when the selected revision owns their schema.
 
 ```bash
-git switch --detach <known-good-sha>
+git switch --detach <corrected-post-cutover-sha>
 export TMTURTLE_REVISION="$(git rev-parse HEAD)"
 docker compose --project-name tmturtle --env-file .env build
 docker compose --project-name tmturtle --env-file .env up --detach --remove-orphans --wait

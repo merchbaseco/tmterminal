@@ -136,14 +136,12 @@ Client credentials:
 
 ## USPTO sources and freshness
 
-Primary source: USPTO Open Data Portal bulk trademark products.
+Primary source: USPTO Open Data Portal annual full-text trademark XML without images (`TRTYRAP`).
 
-- `TRTDXFAP`: daily full-text trademark activity XML without images
-- `TRTYRAP`: annual full-text trademark XML without images
 - Product discovery: `https://api.uspto.gov/api/v1/datasets/products/<product>`
 - Authentication: `x-api-key`
 
-Daily artifacts include filings, publications, registrations, renewals, cancellations, and amendments. Trademark Turtle is therefore a daily batch system, not a realtime USPTO stream.
+Daily `TRTDXFAP` processing is outside the v1 runtime and requires a later update-semantics decision.
 
 Freshness contract:
 
@@ -151,11 +149,10 @@ Freshness contract:
 
 Trademark Turtle separately records the newest published source date, complete-through date, last successful merge time, and query-visible corpus version. A gap or changed upstream artifact can leave published data ahead of the complete frontier; callers see the degraded state rather than a false current date.
 
-The worker coordinates discovery and downloads globally per USPTO credential. Provider concurrency and backoff remain runtime-configurable because ODP does not publish a stable numeric quota contract. Retryable responses use persisted exponential backoff with jitter and honor provider retry headers when present. Authentication, permanent request errors, and unresolved artifact identity changes stop the affected lane for operator action.
+The worker coordinates discovery and downloads globally per USPTO credential. USPTO limits one API key to 20 annual downloads of the same file and one IP to five files per 10 seconds; signed redirect URLs expire after five seconds. Trademark Turtle processes one artifact at a time on a fixed 10-second cadence, follows an accepted redirect immediately without forwarding the API key, and stops after eight consecutive persisted attempts. Retryable responses use persisted capped exponential backoff with jitter and honor provider retry headers when present. Authentication, permanent request errors, parser failures, and unresolved artifact identity changes stop without redownloading the artifact.
 
 Authoritative references:
 
-- <https://data.uspto.gov/bulkdata/datasets/TRTDXFAP>
 - <https://data.uspto.gov/bulkdata/datasets/trtyrap>
 - <https://data.uspto.gov/apis/getting-started>
 - <https://www.uspto.gov/learning-and-resources/xml-resources>
@@ -163,38 +160,35 @@ Authoritative references:
 
 ## Ingestion module
 
-`docs/ingestion.md` is the normative source-authority, artifact-lifecycle, parser, publication, and freshness contract.
+`docs/ingestion.md` is the normative annual-source, artifact-lifecycle, direct-projection, activation, and freshness contract.
 
-The ingestion module exposes a small service interface while hiding USPTO products, action keys, partial record shapes, artifact versions, and projection policies. Its invariants are:
+The ingestion module exposes two operations—reconcile the next database-derived action and read truthful status—while hiding USPTO, ZIP, XML, and projection details. Its invariants are:
 
-- Serial number is canonical mark identity; nonzero registration number is a unique secondary identity.
-- Logical artifacts and immutable content versions are distinct.
-- Raw ZIPs are transient one-artifact working files. After terminal parse or quarantine they are deleted; reprocessing re-downloads from USPTO. Lossless source observations are persisted only for records selected into the Class 025 corpus.
-- USPTO records are partially ordered observations. Canonical state comes from presence-aware, group-specific claim folding, never generic row replacement.
-- `status_date` orders only status facts where the source profile requires it; it never establishes whole-record authority.
-- Annual metadata dates establish generation membership, not transaction coverage or cross-product precedence.
-- Source authority contains only order edges proved at their documented scope. Official contracts may establish reusable profile rules; exact fixture sequences establish only their observed transitions unless further evidence proves generalization.
-- Metadata dates, release times, filenames, response position, and physical order remain provenance. Unordered annual and daily claims reconcile only when every admissible fold produces the same semantic value. Identical values retain every non-dominated contributing claim; different values produce a publication-ineligible authority conflict.
-- Source absence never deletes a mark or group.
-- Parsing, validation, canonical publication, corpus state, and durable event insertion commit atomically.
+- Serial number is mark identity; nonzero registration number is a unique secondary identity inside a generation.
+- The exact pinned 91-member annual set is one generation. Metadata dates establish membership and the public frontier, not record transaction bounds.
+- One compact artifact row owns each product/filename/SHA, coverage, state, counts, current error, and transient ZIP pointer.
+- Exactly one ZIP/XML is streamed at a time. No extracted XML is written. Selected marks are projected in fixed batches.
+- Raw ZIPs are deleted immediately after success or terminal failure.
+- Every projected mark/class/owner/goods/status-event row carries compact source coordinates.
+- Building generations are invisible. Exactly 91/91 complete members activate through one `corpus_state` pointer flip, version increment, and corpus event.
 - A dead or cancelled mark is a state transition, not a row deletion.
 - Unknown values remain raw/unknown instead of being guessed.
 
-The stored and programmatic corpus is Class 025 only. Parser identity `uspto-application-xml-v5` validates, hashes, and physically counts every source record before persisting a full observation only when the record has an explicit `primary-code` of `025` and a non-empty `mark-identification`. A valid artifact with zero selected observations remains a parsed annual-policy member. Unselected records require a later official re-download.
+The stored and programmatic corpus is Class 025 only. The parser validates and physically counts every source record, then projects only records with explicit `primary-code` `025` and a non-empty `mark-identification`. A valid artifact with zero selected marks remains a complete generation member.
 
-The first-publication bootstrap pins exactly the 91 officially enumerated members of the generation from 1884-04-07 through 2025-12-31 and publishes them as an unordered set. Its `completeThroughDate` and `publishedThroughDate` are both 2025-12-31. Daily artifacts remain retained, parsed, quarantined, and operator-visible, but they are outside this first publication policy. This reversible bootstrap does not declare daily data superseded or establish annual-versus-daily precedence. Mixed publication and any later annual generation require an explicit policy revision.
+The first corpus pins exactly the 91 officially enumerated members covering 1884-04-07 through 2025-12-31. Activation sets both frontiers to 2025-12-31. The worker does not discover, download, parse, quarantine, or publish daily files.
 
 ## Database map
 
 ### Corpus
 
-- `mark`: canonical current identity and presentation keyed by serial number
+- `mark`: generation-scoped identity and presentation keyed by serial number
 - `mark_class`: projected International Class state per mark
 - `mark_owner`: current normalized owner group
 - `mark_goods_services`: source-reported goods/services text and type per mark
 - `mark_status_event`: distinct source-reported status transitions with provenance
 
-Every canonical domain group retains its contributing source observations. Canonical rows are rebuildable from immutable observations.
+Every projected row carries the annual artifact filename, SHA-256, product, and physical record index.
 
 Required indexes:
 
@@ -206,20 +200,12 @@ Required indexes:
 
 ### Ingestion
 
-- `dataset_product`
-- `artifact`
-- `artifact_version`
-- `artifact_discovery`
 - `source_lane`
-- `source_attempt`
-- `source_alert`
-- `parse_run`
-- `source_record`
-- `source_claim`
-- `parse_reject`
-- `publication`
+- `corpus_generation`
+- `source_artifact`
 - `corpus_state`
-- pg-boss job execution/log tables
+- `corpus_event`
+- pg-boss job execution tables
 
 ### Auth and events
 
@@ -227,13 +213,12 @@ Required indexes:
 - `clerk_identity`
 - `api_key`
 - `role_assignment`
-- `corpus_event`
 
-Account data and keys are not re-derivable and receive backup priority. Selected source observations and provenance are rebuildable but expensive and quota-sensitive, so database backup covers them; raw artifacts are not backup state.
+Account data and keys are not re-derivable and receive backup priority. Generation state, projected rows, and source coordinates are rebuildable but expensive and quota-sensitive, so database backup covers them; raw artifacts are not backup state.
 
 ## Canonical HTTP interface
 
-One public tRPC router defines customer capabilities. The website, HTTP client, and CLI expose authorized projections of that router; they are not required to expose every procedure. Detailed ingestion and reject diagnostics live under a private operator router and do not enter published SDK types.
+One public tRPC router defines customer capabilities. The website, HTTP client, and CLI expose authorized projections of that router; they are not required to expose every procedure. Compact ingestion state lives under a private operator router and does not enter published SDK types.
 
 ### Marks
 
@@ -279,9 +264,6 @@ External realtime subscriptions are deferred in v1. Cross-process worker complet
 
 - `ops.sync.status`
 - `ops.sync.artifacts`
-- `ops.sync.artifact-versions`
-- `ops.sync.rejects`
-- `ops.sync.publications`
 
 These private procedures require a Clerk session plus a database-backed operator role. The website exposes them only on the operator-only `/ops/sync` route; they do not enter the published client or CLI.
 
@@ -385,21 +367,19 @@ Deployment follows the house pattern:
 Operations:
 
 - `/api/health` for process and database readiness only
-- Nightly PostgreSQL backup covering account, observation, provenance, and corpus state
-- Durable artifact checksum/provenance inventory with terminal raw-object deletion
+- Nightly PostgreSQL backup covering account, generation, projected corpus, and corpus state
+- Compact artifact checksum/source-coordinate inventory with terminal raw-object deletion
 - Disk-pressure alert for database and artifact volumes
-- Complete-frontier staleness and publication-gap alerts
-- Changed-hash reissue, provider-access, reject/profile drift, and backup-age alerts
-- Runbooks for reissue, parser re-download, quarantine, key rotation, restore, frontier recovery, and full corpus rebuild
+- Complete-frontier staleness and activation-gap alerts
+- Provider-access, artifact failure, stale-frontier, disk, and backup-age alerts
+- Runbooks for key rotation, restore, and exact-SHA deployment
 
 ## Testing
 
 - Byte-exact real USPTO fixtures with source manifests and action-key context
-- Full annual record plus status-only annual `TX` reduction tests
-- Missing-versus-empty, collection replacement, status revival, class cancellation, registration, publication, and goods-markup tests
-- Artifact version/reissue, out-of-order replay, idempotency, provenance, and publication-failure tests
-- Worker duplicate-delivery, lease-expiry, restart, and publication-lock tests
-- Published/complete frontier and corpus-version tests
+- Full annual Class 025 record plus the authentic maximum unselected annual record
+- Fixed projection batches, malformed-record failure, restart, idempotency, and immediate ZIP cleanup tests
+- Exact 91-member discovery, 90/91 invisibility, atomic activation, source-coordinate, and corpus-version tests
 - PostgreSQL integration tests for search/filter/sort/count/pagination
 - Unicode normalization, wildcard escaping, Split punctuation, overlap, and span-offset tests
 - Query-plan checks for exact B-tree and trigram index use
@@ -424,12 +404,11 @@ Operations:
 
 Acceptance: Compose starts cleanly; a Clerk-authenticated website user creates a key, and that key authenticates `account.me`.
 
-### Phase 1: source-observation proof
+### Phase 1: source projection proof
 
 - Pin current USPTO application/status contracts and source manifests
-- Retain one real immutable artifact version
-- Parse a full application record and status-only `TX` fixture into lossless observations
-- Fold both through a versioned source profile with group provenance
+- Retain byte-exact annual record fixtures
+- Parse a full Class 025 application record into the direct projection
 - Implement exact `marks.get`
 - Generate the HTTP client
 - Implement `tt auth set` and `tt marks get`
@@ -438,18 +417,17 @@ Acceptance: Compose starts cleanly; a Clerk-authenticated website user creates a
 
 Acceptance:
 
-> The exact retained record resolves consistently through every test seam without becoming startup or corpus data.
+> The exact retained record projects consistently through every test seam without becoming startup or corpus data.
 
 ### Phase 2: durable corpus ingestion
 
-- Logical artifact/version/discovery/parse/publication state model
-- Quota-aware downloads, checksums, transient raw artifacts, and bounded terminal cleanup
-- Streaming lossless parser, action profiles, claim folding, and atomic publication
-- Exact 91-member annual first publication from officially enumerated membership
-- Retained and observable daily ingestion outside the first-publication policy; later mixed publication requires its own fixture-proven authority policy
-- Freshness frontiers, retries, quarantine, durable corpus events, observability, backup, and recovery
+- Generation and compact source-artifact state
+- Provider-aware downloads, checksums, transient raw artifacts, and immediate terminal cleanup
+- `unzipper` plus `xml-flow` streaming direct projection in fixed batches
+- Exact 91-member annual activation from officially enumerated membership
+- Generation isolation, freshness frontiers, one provider lane, durable corpus events, observability, backup, and recovery
 
-Acceptance: corpus-through date is accurate; repeated publication is a no-op; a partial amendment changes only asserted groups; an out-of-order artifact cannot regress canonical state.
+Acceptance: 90/91 is invisible; 91/91 activates atomically; repeated activation is a no-op; restarts resume one retained ZIP without exposing a partial corpus.
 
 ### Phase 3: search and text matching
 
@@ -461,13 +439,13 @@ Acceptance: corpus-through date is accurate; repeated publication is a no-op; a 
 - `marks.match-text` and `marks.latest`
 - Query-plan, Unicode, span, report-date, and opposition-status tests
 
-Acceptance: search and matching satisfy the canonical contract at production-scale query plans.
+Acceptance: search and matching satisfy the public contract at production-scale query plans.
 
 ### Phase 4: package release and operations
 
 - Publish exact-pinned HTTP client and CLI versions
-- Deploy the full corpus and daily reconciliation runtime
-- Verify backup/restore, artifact re-download, reissue, quarantine, and frontier-recovery runbooks
+- Deploy the full annual corpus runtime
+- Verify backup/restore and exact-SHA deployment
 - Exercise provider-access failure and corpus-unavailable errors
 
 Acceptance: the deployed service re-downloads one official artifact at a time, preserves account state, reports truthful freshness, and serves the published client/CLI contracts.
@@ -479,10 +457,9 @@ Acceptance: the deployed service re-downloads one official artifact at a time, p
 - Website self-service API keys with host-side bootstrap and recovery
 - Stored, website, API, HTTP-client, and CLI corpus fixed to International Class 025 in v1
 - Live, dead, and unknown mark states within that corpus
-- Daily batch freshness, not realtime USPTO sync
-- Immutable source observations and presence-aware claim folding; no whole-record `status_date` merge
-- Partial source authority: annual generation membership is distinct from transaction coverage, and unordered annual/daily claims publish only when their group fold is confluent
-- First publication is the exact 91-member annual generation through 2025-12-31; daily evidence remains retained and observable, not superseded
+- Direct annual corpus generations; no source-observation, claim, contributor, publication-candidate, or reprocessing graph
+- Annual generation membership is distinct from record transaction coverage
+- First publication is the exact 91-member annual generation through 2025-12-31; daily processing is deferred
 - Public complete frontier distinct from newest published source date
 - Private operator diagnostics and database-backed operator roles
 - No external realtime subscription in v1

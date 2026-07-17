@@ -62,7 +62,7 @@ tt sync status
 
 `--match` is valid only for Multi. Split and Wildcard reject it. `--text` and `--stdin` are mutually exclusive.
 
-Detailed artifacts, rejects, jobs, and recovery remain host/operator capabilities outside the published CLI.
+Annual artifact state and provider diagnostics remain read-only operator capabilities outside the published CLI.
 
 ## Output
 

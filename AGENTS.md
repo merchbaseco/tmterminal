@@ -4,7 +4,7 @@
 
 - Run `bun run docs:list` at task start and read docs whose `Read when` hints match the work.
 - Read `docs/plan.md` before architecture, ingestion, API, client, CLI, website, or deployment work.
-- Read `docs/ingestion.md` before USPTO source, parser, canonicalization, provenance, replay, or freshness work.
+- Read `docs/ingestion.md` before USPTO source, parser, projection, provenance, replay, or freshness work.
 - Read `docs/cli.md` before changing commands, credentials, output, errors, or pagination.
 - Read `docs/website.md` before website, authentication UI, search UI, reports, or visual-system work.
 - Prefer the right end state. Do not add legacy aliases, compatibility shims, dual-write paths, or website features outside the v1 contract.
@@ -22,7 +22,7 @@
 - Exact serial and registration numbers are identities. Never treat them as fuzzy search terms.
 - Apply filtering and sorting on the server before pagination and count.
 - Corpus state is database-backed. Worker completion must be observable across processes.
-- USPTO records are ordered partial observations. Never merge whole marks by `status_date` or infer deletion from source absence.
+- The v1 corpus is a direct projection of the exact pinned annual generation. Daily update semantics are deferred.
 - Public corpus-through date is the contiguous complete frontier, not the newest downloaded or published artifact.
 
 ## Code shape
@@ -68,8 +68,8 @@
   avoid tests whose primary assertion is that a spy was called.
 - Ordered provider, transaction, and ingestion loops stay sequential when the contract requires it;
   do not parallelize them merely to satisfy a lint rule.
-- Operational failures must identify the operation and relevant run, artifact, candidate, or
-  publication. Avoid heartbeat, retry, and per-row log noise.
+- Operational failures must identify the operation and relevant generation or artifact. Avoid
+  heartbeat, retry, and per-row log noise.
 
 ## PRD closeout
 
@@ -88,7 +88,7 @@ Before any PRD commit, PR, merge, or closeout:
 ## Verification
 
 - Parser changes require byte-exact real XML fixtures with source/action context.
-- Ingestion changes require replay, out-of-order, reissue, provenance, and atomic-publication coverage.
+- Ingestion changes require restart, idempotency, cleanup, source-coordinate, generation-isolation, and atomic-activation coverage.
 - Search changes require filter, sort, count, pagination, and index-use coverage.
 - Client and CLI changes require contract generation/build plus JSON-envelope tests.
 - Website changes require focused automated checks plus the `app-feature-verification` happy and adjacent paths.
