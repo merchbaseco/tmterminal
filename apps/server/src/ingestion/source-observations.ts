@@ -4,13 +4,13 @@ import type postgres from "postgres";
 import type { SourceValue } from "../db/schema.ts";
 import { lockCorpusPublication } from "../queries/corpus-publication-lock.ts";
 
-export const sourceObservationParserVersion = "uspto-application-xml-v4";
+export const sourceObservationParserVersion = "uspto-application-xml-v5";
 const recordStart = Buffer.from("<case-file>");
 const recordEnd = Buffer.from("</case-file>");
 const recordBatchSize = 100;
 const inputSliceBytes = 64 * 1024;
 const maxOuterTokenBytes = 64 * 1024;
-const maxRecordBytes = 4 * 1024 * 1024;
+const maxRecordBytes = 16 * 1024 * 1024;
 const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
 const xmlEntityPattern = /^&(amp|apos|gt|lt|quot|#\d+|#x[\da-fA-F]+);/;
 const recordTokenPattern = /<\/?[a-z0-9-]+>|<[a-z0-9-]+\s*\/>|[^<]+/g;

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "reviewedAt": "2026-07-15",
+  "reviewedAt": "2026-07-17",
   "cacheRootDefault": "~/Library/Caches/tmturtle/uspto",
   "officialContracts": [
     {
@@ -285,6 +285,60 @@
       }
     },
     {
+      "id": "TRTYRAP-apc18840407-20251231-49",
+      "product": "TRTYRAP",
+      "cachePath": "sha256/0c2bf69ba736476d3ef0cefa62457e1dc5859430cde77b5721aede71726efd0d/apc18840407-20251231-49.zip",
+      "retainedFrom": "official ODP download",
+      "upstreamDownloadUri": "https://api.uspto.gov/api/v1/datasets/products/files/TRTYRAP/apc18840407-20251231-49.zip",
+      "coverage": {
+        "officialMetadata": "TRTYRAP-product-metadata-2026-07-15"
+      },
+      "officialMetadata": {
+        "sourceId": "TRTYRAP-product-metadata-2026-07-15",
+        "responseArrayIndex": 42,
+        "generationFromDate": "1884-04-07",
+        "generationToDate": "2025-12-31"
+      },
+      "zip": {
+        "filename": "apc18840407-20251231-49.zip",
+        "bytes": 180852358,
+        "sha256": "0c2bf69ba736476d3ef0cefa62457e1dc5859430cde77b5721aede71726efd0d"
+      },
+      "xml": {
+        "filename": "apc18840407-20251231-49.xml",
+        "bytes": 3156497078,
+        "sha256": "e58c21444eac66914f33a60ccdf0bf8b3943c762c60473dacfc1e10d5d3b4e27",
+        "recordCount": 155000,
+        "maxRecordBytes": 10948464,
+        "actionRecordCounts": {
+          "TX": 155000
+        },
+        "actionGroups": [
+          {
+            "actionKey": "TX",
+            "actionOccurrence": 1,
+            "recordCount": 155000
+          }
+        ],
+        "transactionDateRange": {
+          "from": "20160316",
+          "to": "20260403"
+        },
+        "serialNumberRange": {
+          "from": "85884770",
+          "to": "86055375"
+        },
+        "uniqueSerialNumberCount": 155000,
+        "serialNumberOrder": "ascending",
+        "root": {
+          "name": "trademark-applications-daily",
+          "version": "2.0",
+          "versionDate": "20041108",
+          "creationDatetime": "202604031508"
+        }
+      }
+    },
+    {
       "id": "TRTYRAP-apc18840407-20241231-02",
       "product": "TRTYRAP",
       "cachePath": "sha256/5fd3d811d780939101778281af4de9b400107e5147addfc6ac57146c8202b848/apc18840407-20241231-02.zip",
@@ -438,6 +492,38 @@
     }
   ],
   "fixtures": [
+    {
+      "id": "annual-2025-largest-record-tx",
+      "artifactId": "TRTYRAP-apc18840407-20251231-49",
+      "actionKey": "TX",
+      "actionOccurrence": 1,
+      "recordIndex": 67098,
+      "actionRecordIndex": 67098,
+      "serialNumber": "85951867",
+      "path": "fixtures/uspto/records/annual-2025-largest-record-tx-85951867.xml",
+      "bytes": 10948464,
+      "sha256": "9894d0636478d4821f195cb22a938497de99b0bcc2348f79aba2fe4218fccc40",
+      "sequence": null,
+      "evidence": [
+        "annual 2025-generation TX",
+        "authentic 10,948,464-byte artifact-maximum record",
+        "26,496 repeated Madrid history events",
+        "non-Class 025 record validates before persistence selection"
+      ],
+      "expectedPresence": {
+        "present": [
+          "mark-identification",
+          "classifications",
+          "madrid-history-events"
+        ],
+        "absent": [],
+        "empty": []
+      },
+      "expectedValues": {
+        "mark-identification": "IWATCH",
+        "primary-code": "009"
+      }
+    },
     {
       "id": "annual-2025-large-class025-tx",
       "artifactId": "TRTYRAP-apc18840407-20251231-16",
