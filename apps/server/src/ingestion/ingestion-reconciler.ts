@@ -17,9 +17,11 @@ interface ArtifactScheduler {
 }
 export function createIngestionReconciler(options: {
   artifactScheduler: ArtifactScheduler;
-  artifactStore: Pick<ArtifactStore, "get" | "listObjectKeys" | "remove">;
+  artifactStore: Pick<ArtifactStore, "listObjectKeys" | "openFile" | "remove">;
   database: postgres.Sql;
-  extractXml: (archive: ReadableStream<Uint8Array>) => ReadableStream<Uint8Array>;
+  extractXml: (
+    archivePath: string
+  ) => Promise<ReadableStream<Uint8Array>> | ReadableStream<Uint8Array>;
 }) {
   const observations = createSourceObservationModule(options.database);
   const publisher = createCorpusPublisher(options.database);
@@ -81,9 +83,9 @@ export function createIngestionReconciler(options: {
 
       const artifact = await findArtifactVersionForParsing(options.database);
       if (artifact) {
-        let archive: ReadableStream<Uint8Array>;
+        let archivePath: string;
         try {
-          archive = await options.artifactStore.get(artifact.objectKey);
+          archivePath = await options.artifactStore.openFile(artifact.objectKey);
         } catch {
           const reason = "Retained artifact bytes could not be read";
           await quarantineArtifactVersion(options.database, artifact.artifactVersionId, reason);
@@ -97,7 +99,7 @@ export function createIngestionReconciler(options: {
         try {
           const result = await observations.stageArtifact({
             artifactVersionId: artifact.artifactVersionId,
-            xml: options.extractXml(archive),
+            xml: await options.extractXml(archivePath),
           });
           await releaseArtifactObject(artifact);
           return {

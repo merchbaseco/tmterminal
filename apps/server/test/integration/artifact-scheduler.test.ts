@@ -52,9 +52,9 @@ const discovery: DiscoveredProduct = {
 };
 
 const unusedStore: ArtifactStore = {
-  get: async () => new Blob([]).stream(),
   head: async () => null,
   listObjectKeys: artifactObjectKeys,
+  openFile: () => Promise.reject(new Error("parse not expected")),
   put: () => Promise.reject(new Error("download not expected")),
   remove: () => Promise.resolve(),
 };
@@ -219,7 +219,7 @@ test("restart removes a finalized orphan before retaining changed retry bytes", 
     artifactScheduler: restartedScheduler,
     artifactStore: localStore,
     database,
-    extractXml: (archive) => archive,
+    extractXml: () => new Blob([]).stream(),
   });
   expect(await restarted.reconcile()).toEqual({ action: "orphan-cleanup", removed: 1 });
   const interrupted = await restarted.reconcile();

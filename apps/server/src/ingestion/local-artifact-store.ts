@@ -143,10 +143,10 @@ export function createLocalArtifactStore(
 
     listObjectKeys,
 
-    async get(objectKey) {
+    async openFile(objectKey) {
       const path = objectPath(root, objectKey);
       await stat(path);
-      return Bun.file(path).stream();
+      return path;
     },
 
     async head(objectKey) {
