@@ -1,6 +1,6 @@
 import { open } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { Readable } from "node:stream";
+import { PassThrough, Readable } from "node:stream";
 
 const loadModule = createRequire(import.meta.url);
 const Open = loadModule("unzipper").Open as {
@@ -13,7 +13,7 @@ const zipEndOfCentralDirectorySignature = 0x06_05_4b_50;
 
 interface ZipEntry {
   path: string;
-  stream: () => NodeJS.ReadableStream;
+  stream: () => Readable;
   type: string;
 }
 
@@ -37,7 +37,16 @@ export async function extractZipXml(archivePath: string) {
     throw new ArtifactArchiveError("Artifact ZIP contains more than one XML file");
   }
   const [entry] = xmlEntries as [ZipEntry];
-  return mapArchiveErrors(Readable.toWeb(entry.stream()) as unknown as ReadableStream<Uint8Array>);
+  return Readable.toWeb(mapArchiveErrors(entry.stream())) as unknown as ReadableStream<Uint8Array>;
+}
+
+function mapArchiveErrors(stream: Readable) {
+  const mapped = new PassThrough();
+  stream.once("error", (error) => {
+    mapped.destroy(new ArtifactArchiveError("Artifact ZIP is invalid", { cause: error }));
+  });
+  mapped.once("close", () => stream.destroy());
+  return stream.pipe(mapped);
 }
 
 async function findZipEndOfCentralDirectory(archivePath: string) {
@@ -74,25 +83,4 @@ async function findZipEndOfCentralDirectory(archivePath: string) {
   } finally {
     await archive.close();
   }
-}
-
-function mapArchiveErrors(stream: ReadableStream<Uint8Array>) {
-  const reader = stream.getReader();
-  return new ReadableStream<Uint8Array>({
-    async cancel(reason) {
-      await reader.cancel(reason);
-    },
-    async pull(controller) {
-      try {
-        const { done, value } = await reader.read();
-        if (done) {
-          controller.close();
-          return;
-        }
-        controller.enqueue(value);
-      } catch (error) {
-        controller.error(new ArtifactArchiveError("Artifact ZIP is invalid", { cause: error }));
-      }
-    },
-  });
 }
