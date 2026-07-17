@@ -1,5 +1,5 @@
 import type { inferRouterOutputs } from "@trpc/server";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { AppRouter } from "../../server/src/api/router.ts";
 
@@ -7,85 +7,54 @@ type Outputs = inferRouterOutputs<AppRouter>["ops"]["sync"];
 interface PageInput {
   limit: number;
   offset: number;
-  product?: "TRTDXFAP" | "TRTYRAP";
 }
-
 export interface OperatorSyncApi {
   artifacts: (input: PageInput) => Promise<Outputs["artifacts"]>;
-  artifactVersions: (input: PageInput) => Promise<Outputs["artifact-versions"]>;
-  publications: (input: Omit<PageInput, "product">) => Promise<Outputs["publications"]>;
-  rejects: (input: PageInput) => Promise<Outputs["rejects"]>;
   status: () => Promise<Outputs["status"]>;
 }
 
 const limit = 25;
-
-function timestamp(value: string | null) {
-  if (!value) {
-    return "—";
-  }
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(
-    new Date(value)
-  );
-}
-
-function date(value: string | null) {
-  if (!value) {
-    return "—";
-  }
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeZone: "UTC" }).format(
-    new Date(`${value}T00:00:00Z`)
-  );
-}
-
+const timestamp = (value: string | null) =>
+  value
+    ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(
+        new Date(value)
+      )
+    : "—";
+const date = (value: string | null) =>
+  value
+    ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeZone: "UTC" }).format(
+        new Date(`${value}T00:00:00Z`)
+      )
+    : "—";
+const count = (value: number) => new Intl.NumberFormat().format(value);
 function isForbidden(error: unknown) {
-  if (!error || typeof error !== "object" || !("data" in error)) {
-    return false;
-  }
-  const { data } = error;
-  return Boolean(data && typeof data === "object" && "code" in data && data.code === "FORBIDDEN");
+  return Boolean(
+    error &&
+      typeof error === "object" &&
+      "data" in error &&
+      error.data &&
+      typeof error.data === "object" &&
+      "code" in error.data &&
+      error.data.code === "FORBIDDEN"
+  );
 }
 
 export function OperatorSyncPage({ api }: { api: OperatorSyncApi }) {
   const [status, setStatus] = useState<Outputs["status"] | null>(null);
   const [artifacts, setArtifacts] = useState<Outputs["artifacts"] | null>(null);
-  const [artifactVersions, setArtifactVersions] = useState<Outputs["artifact-versions"] | null>(
-    null
-  );
-  const [publications, setPublications] = useState<Outputs["publications"] | null>(null);
-  const [rejects, setRejects] = useState<Outputs["rejects"] | null>(null);
   const [error, setError] = useState<"forbidden" | "load" | null>(null);
-  const [artifactPageLoading, setArtifactPageLoading] = useState(false);
-  const [artifactPageError, setArtifactPageError] = useState(false);
-  const [versionPageLoading, setVersionPageLoading] = useState(false);
-  const [versionPageError, setVersionPageError] = useState(false);
-  const [publicationPageLoading, setPublicationPageLoading] = useState(false);
-  const [publicationPageError, setPublicationPageError] = useState(false);
-  const [rejectPageLoading, setRejectPageLoading] = useState(false);
-  const [rejectPageError, setRejectPageError] = useState(false);
-  const artifactPagePending = useRef(false);
-  const versionPagePending = useRef(false);
-  const publicationPagePending = useRef(false);
-  const rejectPagePending = useRef(false);
+  const [pageLoading, setPageLoading] = useState(false);
+  const [pageError, setPageError] = useState(false);
+  const pagePending = useRef(false);
 
   useEffect(() => {
     let active = true;
-    Promise.all([
-      api.status(),
-      api.artifacts({ limit, offset: 0 }),
-      api.artifactVersions({ limit, offset: 0 }),
-      api.publications({ limit, offset: 0 }),
-      api.rejects({ limit, offset: 0 }),
-    ])
-      .then(([nextStatus, nextArtifacts, nextVersions, nextPublications, nextRejects]) => {
-        if (!active) {
-          return;
+    Promise.all([api.status(), api.artifacts({ limit, offset: 0 })])
+      .then(([nextStatus, nextArtifacts]) => {
+        if (active) {
+          setStatus(nextStatus);
+          setArtifacts(nextArtifacts);
         }
-        setStatus(nextStatus);
-        setArtifacts(nextArtifacts);
-        setArtifactVersions(nextVersions);
-        setPublications(nextPublications);
-        setRejects(nextRejects);
       })
       .catch((cause: unknown) => {
         if (active) {
@@ -97,73 +66,25 @@ export function OperatorSyncPage({ api }: { api: OperatorSyncApi }) {
     };
   }, [api]);
 
-  async function loadArtifactPage(offset: number) {
-    if (artifactPagePending.current) {
-      return;
-    }
-    artifactPagePending.current = true;
-    setArtifactPageLoading(true);
-    setArtifactPageError(false);
-    try {
-      setArtifacts(await api.artifacts({ limit, offset }));
-    } catch {
-      setArtifactPageError(true);
-    } finally {
-      artifactPagePending.current = false;
-      setArtifactPageLoading(false);
-    }
-  }
-
-  async function loadVersionPage(offset: number) {
-    if (versionPagePending.current) {
-      return;
-    }
-    versionPagePending.current = true;
-    setVersionPageLoading(true);
-    setVersionPageError(false);
-    try {
-      setArtifactVersions(await api.artifactVersions({ limit, offset }));
-    } catch {
-      setVersionPageError(true);
-    } finally {
-      versionPagePending.current = false;
-      setVersionPageLoading(false);
-    }
-  }
-
-  async function loadPublicationPage(offset: number) {
-    if (publicationPagePending.current) {
-      return;
-    }
-    publicationPagePending.current = true;
-    setPublicationPageLoading(true);
-    setPublicationPageError(false);
-    try {
-      setPublications(await api.publications({ limit, offset }));
-    } catch {
-      setPublicationPageError(true);
-    } finally {
-      publicationPagePending.current = false;
-      setPublicationPageLoading(false);
-    }
-  }
-
-  async function loadRejectPage(offset: number) {
-    if (rejectPagePending.current) {
-      return;
-    }
-    rejectPagePending.current = true;
-    setRejectPageLoading(true);
-    setRejectPageError(false);
-    try {
-      setRejects(await api.rejects({ limit, offset }));
-    } catch {
-      setRejectPageError(true);
-    } finally {
-      rejectPagePending.current = false;
-      setRejectPageLoading(false);
-    }
-  }
+  const loadPage = useCallback(
+    async (offset: number) => {
+      if (pagePending.current) {
+        return;
+      }
+      pagePending.current = true;
+      setPageLoading(true);
+      setPageError(false);
+      try {
+        setArtifacts(await api.artifacts({ limit, offset }));
+      } catch {
+        setPageError(true);
+      } finally {
+        pagePending.current = false;
+        setPageLoading(false);
+      }
+    },
+    [api]
+  );
 
   if (error === "forbidden") {
     return (
@@ -176,7 +97,6 @@ export function OperatorSyncPage({ api }: { api: OperatorSyncApi }) {
       </main>
     );
   }
-
   return (
     <main aria-busy={!(status || error)} className="ops-shell">
       <header className="ops-heading">
@@ -184,9 +104,7 @@ export function OperatorSyncPage({ api }: { api: OperatorSyncApi }) {
           <p className="eyebrow">Operations / sync</p>
           <h1>CORPUS</h1>
         </div>
-        <p className="ops-intro">
-          Durable ingestion state for the annual archive and daily updates.
-        </p>
+        <p className="ops-intro">Direct annual corpus generation state.</p>
       </header>
       {error === "load" ? (
         <p className="error-message" role="alert">
@@ -194,79 +112,70 @@ export function OperatorSyncPage({ api }: { api: OperatorSyncApi }) {
         </p>
       ) : null}
       {status || error ? null : <p className="empty-row">Loading durable sync state…</p>}
-
       {status ? (
-        <section aria-label="Dataset status" className="dataset-grid">
-          {status.datasets.map((dataset) => (
-            <article className="dataset-summary" key={dataset.product}>
-              <header>
-                <p>{dataset.product === "TRTYRAP" ? "Annual archive" : "Daily updates"}</p>
-                <h2>{dataset.product}</h2>
-              </header>
-              <p className={`stage-label stage-${dataset.currentStage}`}>{dataset.currentStage}</p>
-              {dataset.reason ? <p className="dataset-reason">{dataset.reason}</p> : null}
-              <dl className="dataset-facts tabular-nums">
-                <div>
-                  <dt>Publication policy</dt>
-                  <dd>
-                    {dataset.publicationPolicy === "annual-baseline"
-                      ? `Annual baseline · ${dataset.publicationParsedArtifactCount} of ${dataset.publicationTargetArtifactCount} parsed`
-                      : "Retained only · excluded from first publication"}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Coverage</dt>
-                  <dd>
-                    {date(dataset.coverageFromDate)} — {date(dataset.coverageThroughDate)}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Complete frontier</dt>
-                  <dd>{date(dataset.completeThroughDate)}</dd>
-                </div>
-                <div>
-                  <dt>Stage since</dt>
-                  <dd>{timestamp(dataset.stageSince)}</dd>
-                </div>
-                <div>
-                  <dt>Latest activity</dt>
-                  <dd>{timestamp(dataset.latestSuccessfulActivityAt)}</dd>
-                </div>
-                <div>
-                  <dt>Latest publication</dt>
-                  <dd>{timestamp(dataset.latestPublicationAt)}</dd>
-                </div>
-                <div>
-                  <dt>Backlog</dt>
-                  <dd>{dataset.backlogCount}</dd>
-                </div>
-                <div>
-                  <dt>Provider backoff</dt>
-                  <dd>{timestamp(dataset.providerBackoffUntil)}</dd>
-                </div>
-                <div>
-                  <dt>Provider stopped</dt>
-                  <dd>{dataset.providerStopReason ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt>Diagnostics</dt>
-                  <dd>
-                    {dataset.failedCount} failed · {dataset.rejectCount} rejected ·{" "}
-                    {dataset.quarantineCount} quarantined
-                  </dd>
-                </div>
-              </dl>
-            </article>
-          ))}
+        <section aria-label="Annual generation status" className="dataset-grid">
+          <article className="dataset-summary">
+            <header>
+              <p>Annual archive</p>
+              <h2>TRTYRAP</h2>
+            </header>
+            <p className={`stage-label stage-${status.summary.activeState}`}>
+              {status.summary.activeState}
+            </p>
+            <dl className="dataset-facts tabular-nums">
+              <div>
+                <dt>Artifacts</dt>
+                <dd>
+                  {status.generation.completeArtifactCount} of{" "}
+                  {status.generation.expectedArtifactCount} complete
+                </dd>
+              </div>
+              <div>
+                <dt>Projected marks</dt>
+                <dd>{count(status.generation.projectedMarkCount)}</dd>
+              </div>
+              <div>
+                <dt>Failed artifacts</dt>
+                <dd>{status.generation.failedArtifactCount}</dd>
+              </div>
+              <div>
+                <dt>Complete frontier</dt>
+                <dd>{date(status.summary.completeThroughDate)}</dd>
+              </div>
+              <div>
+                <dt>Corpus version</dt>
+                <dd>{status.summary.corpusVersion}</dd>
+              </div>
+              <div>
+                <dt>Last activation</dt>
+                <dd>{timestamp(status.summary.lastSuccessfulMergeAt)}</dd>
+              </div>
+              <div>
+                <dt>Provider</dt>
+                <dd>{status.provider.status}</dd>
+              </div>
+              <div>
+                <dt>Provider failures</dt>
+                <dd>{status.provider.failureCount}</dd>
+              </div>
+              <div>
+                <dt>Next eligible</dt>
+                <dd>{timestamp(status.provider.nextEligibleAt)}</dd>
+              </div>
+              <div>
+                <dt>Current error</dt>
+                <dd>{status.provider.currentError ?? "—"}</dd>
+              </div>
+            </dl>
+          </article>
         </section>
       ) : null}
-
       {artifacts ? (
         <section className="ops-section">
           <div className="ops-section-heading">
             <div>
-              <p className="eyebrow">Bounded diagnostic read</p>
-              <h2>Recent artifacts</h2>
+              <p className="eyebrow">Bounded source state</p>
+              <h2>Annual artifacts</h2>
             </div>
             <p>{artifacts.total} total</p>
           </div>
@@ -276,12 +185,12 @@ export function OperatorSyncPage({ api }: { api: OperatorSyncApi }) {
                 <thead>
                   <tr>
                     <th>Artifact</th>
-                    <th>Product</th>
-                    <th>Stage</th>
-                    <th>Selected version</th>
+                    <th>State</th>
+                    <th>Records</th>
+                    <th>Marks</th>
                     <th>Coverage</th>
-                    <th>Since</th>
-                    <th>Diagnostic</th>
+                    <th>Updated</th>
+                    <th>Error</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -289,213 +198,32 @@ export function OperatorSyncPage({ api }: { api: OperatorSyncApi }) {
                     <tr key={artifact.artifactId}>
                       <td>
                         <strong>{artifact.filename}</strong>
-                        <code>{artifact.sha256?.slice(0, 12) ?? "not retained"}</code>
+                        <code>{artifact.sha256?.slice(0, 12) ?? "not downloaded"}</code>
                       </td>
-                      <td>{artifact.product}</td>
-                      <td>{artifact.selectionRequired ? "selection required" : artifact.stage}</td>
-                      <td>
-                        {artifact.selectedSha256?.slice(0, 12) ?? "—"} ·{" "}
-                        {artifact.retainedVersionCount} retained
-                      </td>
+                      <td>{artifact.state}</td>
+                      <td className="tabular-nums">{count(artifact.physicalRecordCount)}</td>
+                      <td className="tabular-nums">{count(artifact.projectedMarkCount)}</td>
                       <td>
                         {date(artifact.sourceFromDate)} — {date(artifact.sourceToDate)}
                       </td>
-                      <td>{timestamp(artifact.stageSince)}</td>
-                      <td>{artifact.quarantineReason ?? artifact.lastErrorCode ?? "—"}</td>
+                      <td>{timestamp(artifact.updatedAt)}</td>
+                      <td>{artifact.currentError ?? "—"}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           </div>
-          {artifactPageError ? (
+          {pageError ? (
             <p className="error-message" role="alert">
               Artifact page could not be loaded; the previous page remains shown.
             </p>
           ) : null}
           <Pagination
-            loading={artifactPageLoading}
+            loading={pageLoading}
             offset={artifacts.offset}
-            // biome-ignore lint/performance/noJsxPropsBind: This local handler owns the artifact pending guard.
-            onPage={loadArtifactPage}
+            onPage={loadPage}
             total={artifacts.total}
-          />
-        </section>
-      ) : null}
-
-      {artifactVersions ? (
-        <section className="ops-section">
-          <div className="ops-section-heading">
-            <div>
-              <p className="eyebrow">Bounded retained provenance</p>
-              <h2>Artifact versions</h2>
-            </div>
-            <p>{artifactVersions.total} total</p>
-          </div>
-          <div className="ops-table-scroll">
-            <div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Artifact</th>
-                    <th>Version ID</th>
-                    <th>SHA-256</th>
-                    <th>State</th>
-                    <th>Parser</th>
-                    <th>Coverage</th>
-                    <th>Retained</th>
-                    <th>Diagnostic</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {artifactVersions.items.map((version) => (
-                    <tr key={version.artifactVersionId}>
-                      <td>
-                        <strong>{version.filename}</strong>
-                        <code>{version.artifactId}</code>
-                      </td>
-                      <td>
-                        <code>{version.artifactVersionId}</code>
-                      </td>
-                      <td>
-                        <code>{version.sha256}</code>
-                      </td>
-                      <td>{version.selected ? `selected · ${version.state}` : version.state}</td>
-                      <td>
-                        {version.parserVersion
-                          ? `${version.parserVersion} · ${version.parseState}`
-                          : "not parsed"}
-                      </td>
-                      <td>
-                        {date(version.sourceFromDate)} — {date(version.sourceToDate)}
-                      </td>
-                      <td>{timestamp(version.createdAt)}</td>
-                      <td>{version.quarantineReason ?? "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          {versionPageError ? (
-            <p className="error-message" role="alert">
-              Artifact version page could not be loaded; the previous page remains shown.
-            </p>
-          ) : null}
-          <Pagination
-            loading={versionPageLoading}
-            offset={artifactVersions.offset}
-            // biome-ignore lint/performance/noJsxPropsBind: This local handler owns the version pending guard.
-            onPage={loadVersionPage}
-            total={artifactVersions.total}
-          />
-        </section>
-      ) : null}
-
-      {publications ? (
-        <section className="ops-section">
-          <div className="ops-section-heading">
-            <div>
-              <p className="eyebrow">Bounded diagnostic read</p>
-              <h2>Recent publications</h2>
-            </div>
-            <p>{publications.total} total</p>
-          </div>
-          <div className="ops-table-scroll">
-            <div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Publication</th>
-                    <th>State</th>
-                    <th>Artifacts</th>
-                    <th>Corpus version</th>
-                    <th>Complete through</th>
-                    <th>Created</th>
-                    <th>Diagnostics</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {publications.items.map((publication) => (
-                    <tr key={publication.id}>
-                      <td>
-                        <code>{publication.id.slice(0, 12)}</code>
-                      </td>
-                      <td>{publication.state}</td>
-                      <td>{publication.artifactCount}</td>
-                      <td>{publication.corpusVersion ?? "—"}</td>
-                      <td>{date(publication.completeThroughDate)}</td>
-                      <td>{timestamp(publication.createdAt)}</td>
-                      <td>{publication.diagnosticCount}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          {publicationPageError ? (
-            <p className="error-message" role="alert">
-              Publication page could not be loaded; the previous page remains shown.
-            </p>
-          ) : null}
-          <Pagination
-            loading={publicationPageLoading}
-            offset={publications.offset}
-            // biome-ignore lint/performance/noJsxPropsBind: This local handler owns the publication pending guard.
-            onPage={loadPublicationPage}
-            total={publications.total}
-          />
-        </section>
-      ) : null}
-
-      {rejects ? (
-        <section className="ops-section">
-          <div className="ops-section-heading">
-            <div>
-              <p className="eyebrow">Bounded diagnostic read</p>
-              <h2>Recent rejections</h2>
-            </div>
-            <p>{rejects.total} total</p>
-          </div>
-          <div className="ops-table-scroll">
-            <div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Artifact</th>
-                    <th>Product</th>
-                    <th>Kind</th>
-                    <th>Record</th>
-                    <th>Reason</th>
-                    <th>Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rejects.items.map((reject) => (
-                    <tr key={reject.id}>
-                      <td>{reject.filename ?? "Publication"}</td>
-                      <td>{reject.product ?? "—"}</td>
-                      <td>{reject.kind}</td>
-                      <td>{reject.physicalRecordIndex ?? reject.serialNumber ?? "—"}</td>
-                      <td>{reject.reason}</td>
-                      <td>{timestamp(reject.createdAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          {rejectPageError ? (
-            <p className="error-message" role="alert">
-              Rejection page could not be loaded; the previous page remains shown.
-            </p>
-          ) : null}
-          <Pagination
-            loading={rejectPageLoading}
-            offset={rejects.offset}
-            // biome-ignore lint/performance/noJsxPropsBind: This local handler owns the rejection pending guard.
-            onPage={loadRejectPage}
-            total={rejects.total}
           />
         </section>
       ) : null}
@@ -514,27 +242,17 @@ function Pagination({
   onPage: (offset: number) => void;
   total: number;
 }) {
-  const previousPage = () => onPage(Math.max(0, offset - limit));
-  const nextPage = () => onPage(offset + limit);
+  const previousPage = useCallback(() => onPage(Math.max(0, offset - limit)), [offset, onPage]);
+  const nextPage = useCallback(() => onPage(offset + limit), [offset, onPage]);
   return (
     <nav aria-label="Pagination" className="ops-pagination">
-      <Button
-        disabled={loading || offset === 0}
-        // biome-ignore lint/performance/noJsxPropsBind: The local callback closes over this page offset.
-        onClick={previousPage}
-        variant="outline"
-      >
+      <Button disabled={loading || offset === 0} onClick={previousPage} variant="outline">
         Previous
       </Button>
       <p className="tabular-nums">
         {total === 0 ? 0 : offset + 1}–{Math.min(total, offset + limit)} of {total}
       </p>
-      <Button
-        disabled={loading || offset + limit >= total}
-        // biome-ignore lint/performance/noJsxPropsBind: The local callback closes over this page offset.
-        onClick={nextPage}
-        variant="outline"
-      >
+      <Button disabled={loading || offset + limit >= total} onClick={nextPage} variant="outline">
         Next
       </Button>
     </nav>

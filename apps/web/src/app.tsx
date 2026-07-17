@@ -79,9 +79,6 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
   }), [client]);
   const operatorApi = useMemo<OperatorSyncApi>(() => ({
     artifacts: (input) => client.ops.sync.artifacts.query(input),
-    artifactVersions: (input) => client.ops.sync["artifact-versions"].query(input),
-    publications: (input) => client.ops.sync.publications.query(input),
-    rejects: (input) => client.ops.sync.rejects.query(input),
     status: () => client.ops.sync.status.query(),
   }), [client]);
   const [operator, setOperator] = useState(false);

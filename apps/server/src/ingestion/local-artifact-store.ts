@@ -148,17 +148,5 @@ export function createLocalArtifactStore(
       await stat(path);
       return path;
     },
-
-    async head(objectKey) {
-      const details = await stat(objectPath(root, objectKey)).catch(
-        (error: NodeJS.ErrnoException) => {
-          if (error.code === "ENOENT") {
-            return null;
-          }
-          throw error;
-        }
-      );
-      return details ? { bytes: details.size } : null;
-    },
   };
 }

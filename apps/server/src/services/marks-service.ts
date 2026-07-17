@@ -1,18 +1,14 @@
 import type postgres from "postgres";
 
-import {
-  legalDisclaimer,
-  type MarkDetail,
-  type MarksService,
-} from "../api/contracts.ts";
-import type { ResolvedCanonicalMark } from "../ingestion/canonical-mark-types.ts";
-import { createCanonicalMarkRepository } from "../queries/canonical-mark-repository.ts";
+import { legalDisclaimer, type MarkDetail, type MarksService } from "../api/contracts.ts";
+import type { ProjectedMark } from "../ingestion/mark-types.ts";
+import { createMarkRepository } from "../queries/mark-repository.ts";
 import { searchMulti } from "../queries/multi-search.ts";
 
 export function createMarksService(database: postgres.Sql): MarksService {
-  const repository = createCanonicalMarkRepository(database);
+  const repository = createMarkRepository(database);
 
-  function publicMark(materialization: ResolvedCanonicalMark): MarkDetail {
+  function publicMark(materialization: ProjectedMark): MarkDetail {
     const { contributors, kind: _kind, versions, ...mark } = materialization;
     return {
       ...mark,
@@ -22,14 +18,14 @@ export function createMarksService(database: postgres.Sql): MarksService {
   }
 
   return {
-    search: (input) => searchMulti(database, input),
-    async getBySerialNumber(serialNumber: string) {
-      const materialization = await repository.read(serialNumber);
-      return materialization ? publicMark(materialization) : null;
-    },
     async getByRegistrationNumber(registrationNumber: string) {
       const materialization = await repository.readByRegistrationNumber(registrationNumber);
       return materialization ? publicMark(materialization) : null;
     },
+    async getBySerialNumber(serialNumber: string) {
+      const materialization = await repository.read(serialNumber);
+      return materialization ? publicMark(materialization) : null;
+    },
+    search: (input) => searchMulti(database, input),
   };
 }

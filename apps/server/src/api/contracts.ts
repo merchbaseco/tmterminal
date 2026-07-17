@@ -1,4 +1,4 @@
-import type { Contributor, ResolvedCanonicalMark } from "../ingestion/canonical-mark-types.ts";
+import type { ProjectedMark, SourceContributor } from "../ingestion/mark-types.ts";
 
 export const legalDisclaimer =
   "Trademark data is informational, not legal advice. Verify critical decisions with the USPTO or qualified counsel.";
@@ -23,11 +23,11 @@ export interface AccountService {
   revokeApiKey: (id: string) => Promise<PublicApiKey | null>;
 }
 
-export type MarkDetail = Omit<ResolvedCanonicalMark, "contributors" | "kind" | "versions"> & {
+export type MarkDetail = Omit<ProjectedMark, "contributors" | "kind" | "versions"> & {
   legalDisclaimer: typeof legalDisclaimer;
   provenance: {
-    contributors: Contributor[];
-    versions: ResolvedCanonicalMark["versions"];
+    contributors: SourceContributor[];
+    versions: ProjectedMark["versions"];
   };
 };
 
@@ -76,7 +76,6 @@ export interface MarksService {
 export interface SyncStatus {
   activeState:
     | "backoff"
-    | "discovering"
     | "downloading"
     | "failed"
     | "idle"
@@ -112,122 +111,43 @@ export interface BoundedPage<T> {
 
 export interface OperatorArtifact {
   artifactId: string;
-  artifactVersionId: string | null;
   bytes: number | null;
+  completedAt: string | null;
+  currentError: string | null;
   filename: string;
-  lastErrorAt: string | null;
-  lastErrorCode: string | null;
-  observedAt: string;
-  parseRunId: string | null;
-  product: "TRTDXFAP" | "TRTYRAP";
-  quarantineReason: string | null;
-  retainedVersionCount: number;
-  selectedArtifactVersionId: string | null;
-  selectedSha256: string | null;
-  selectionRequired: boolean;
+  physicalRecordCount: number;
+  product: "TRTYRAP";
+  projectedMarkCount: number;
   sha256: string | null;
   sourceFromDate: string;
   sourceToDate: string;
-  stage:
-    | "downloading"
-    | "parsing"
-    | "pending"
-    | "published"
-    | "quarantined"
-    | "staged"
-    | "verified";
-  stageSince: string;
+  state: "complete" | "downloading" | "failed" | "pending" | "projecting";
+  updatedAt: string;
 }
 
 export interface OperatorPageInput {
   limit: number;
   offset: number;
-  product?: "TRTDXFAP" | "TRTYRAP";
-}
-
-export interface OperatorArtifactVersion {
-  artifactId: string;
-  artifactVersionId: string;
-  bytes: number;
-  createdAt: string;
-  filename: string;
-  observedAt: string | null;
-  parserVersion: string | null;
-  parseState: "parsing" | "quarantined" | "staged" | null;
-  product: "TRTDXFAP" | "TRTYRAP";
-  quarantineReason: string | null;
-  selected: boolean;
-  sha256: string;
-  sourceFromDate: string | null;
-  sourceToDate: string | null;
-  state: "parsing" | "published" | "quarantined" | "staged" | "verified";
-}
-
-export interface OperatorPublication {
-  artifactCount: number;
-  completeThroughDate: string | null;
-  corpusVersion: number | null;
-  createdAt: string;
-  diagnosticCount: number;
-  id: string;
-  parentPublicationId: string | null;
-  publishedAt: string | null;
-  publishedThroughDate: string | null;
-  rejectedAt: string | null;
-  state: "published" | "rejected" | "staged";
-}
-
-export interface OperatorRejection {
-  artifactVersionSha256: string | null;
-  bytes: number | null;
-  claimPath: string | null;
-  createdAt: string;
-  diagnostic: Record<string, unknown> | null;
-  digest: string | null;
-  filename: string | null;
-  group: string | null;
-  id: string;
-  kind: "authority-conflict" | "parse-reject" | "unsupported-semantics";
-  parseRunId: string | null;
-  physicalRecordIndex: number | null;
-  product: "TRTDXFAP" | "TRTYRAP" | null;
-  publicationId: string | null;
-  reason: string;
-  serialNumber: string | null;
-}
-
-export interface OperatorDatasetStatus {
-  backlogCount: number;
-  completeThroughDate: string | null;
-  coverageFromDate: string | null;
-  coverageThroughDate: string | null;
-  currentStage: SyncStatus["activeState"] | "pending" | "quarantined" | "rejected";
-  failedCount: number;
-  latestPublicationAt: string | null;
-  latestSuccessfulActivityAt: string | null;
-  product: "TRTDXFAP" | "TRTYRAP";
-  providerBackoffUntil: string | null;
-  providerStopReason: string | null;
-  publicationParsedArtifactCount: number;
-  publicationPolicy: "annual-baseline" | "retained-only";
-  publicationTargetArtifactCount: number;
-  quarantineCount: number;
-  reason: string | null;
-  rejectCount: number;
-  stageSince: string | null;
 }
 
 export interface OperatorSyncStatus {
-  datasets: OperatorDatasetStatus[];
+  generation: {
+    activeGenerationId: string | null;
+    completeArtifactCount: number;
+    expectedArtifactCount: number;
+    failedArtifactCount: number;
+    projectedMarkCount: number;
+  };
+  provider: {
+    currentError: string | null;
+    failureCount: number;
+    nextEligibleAt: string | null;
+    status: "backoff" | "ready" | "stopped";
+  };
   summary: SyncStatus;
 }
 
 export interface OperatorSyncService {
   artifacts: (input: OperatorPageInput) => Promise<BoundedPage<OperatorArtifact>>;
-  artifactVersions: (input: OperatorPageInput) => Promise<BoundedPage<OperatorArtifactVersion>>;
-  publications: (
-    input: Omit<OperatorPageInput, "product">
-  ) => Promise<BoundedPage<OperatorPublication>>;
-  rejects: (input: OperatorPageInput) => Promise<BoundedPage<OperatorRejection>>;
   status: () => Promise<OperatorSyncStatus>;
 }
