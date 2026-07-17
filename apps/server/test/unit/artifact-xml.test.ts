@@ -2,6 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Readable } from "node:stream";
 
 import { extractZipXml } from "../../src/ingestion/zip-artifact-xml.ts";
 
@@ -45,19 +46,29 @@ test("streams the sole XML entry from a path-backed ZIP after a consumer pause",
   const xml = await extractZipXml(archivePath);
   await Bun.sleep(20);
 
-  expect(await new Response(xml).text()).toBe("<root>ok</root>");
+  expect(await new Response(Readable.toWeb(xml) as unknown as BodyInit).text()).toBe(
+    "<root>ok</root>"
+  );
 });
 
 test("opens a valid ZIP with a comment beyond unzipper's default tail", async () => {
   const archivePath = await retainArchive(commentedXmlZip);
 
-  expect(await new Response(await extractZipXml(archivePath)).text()).toBe("<root>ok</root>");
+  expect(
+    await new Response(
+      Readable.toWeb(await extractZipXml(archivePath)) as unknown as BodyInit
+    ).text()
+  ).toBe("<root>ok</root>");
 });
 
 test("ignores an EOCD signature embedded before the real trailing directory", async () => {
   const archivePath = await retainArchive(embeddedEocdXmlZip);
 
-  expect(await new Response(await extractZipXml(archivePath)).text()).toBe("<root>ok</root>");
+  expect(
+    await new Response(
+      Readable.toWeb(await extractZipXml(archivePath)) as unknown as BodyInit
+    ).text()
+  ).toBe("<root>ok</root>");
 });
 
 test("rejects a retained artifact that is not a ZIP", async () => {
@@ -69,7 +80,9 @@ test("maps a corrupt XML entry to the archive error contract", async () => {
   const archivePath = await retainArchive(corruptXmlZip);
   const xml = await extractZipXml(archivePath);
 
-  await expect(new Response(xml).text()).rejects.toThrow("Artifact ZIP is invalid");
+  await expect(new Response(Readable.toWeb(xml) as unknown as BodyInit).text()).rejects.toThrow(
+    "Artifact ZIP is invalid"
+  );
 });
 
 test("rejects ZIPs without exactly one XML file", async () => {

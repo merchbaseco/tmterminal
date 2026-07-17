@@ -5,266 +5,82 @@ if (!GlobalRegistrator.isRegistered) {
 }
 Element.prototype.getAnimations ??= () => [];
 
-const { act, cleanup, fireEvent, render, screen, within } = await import("@testing-library/react");
+const { cleanup, render, screen } = await import("@testing-library/react");
 const { afterEach, expect, test } = await import("bun:test");
 const { OperatorSyncPage } = await import("../src/operator-sync-page.tsx");
 type OperatorSyncApi = import("../src/operator-sync-page.tsx").OperatorSyncApi;
 
 afterEach(cleanup);
 
-const actionButtonPattern = /retry|rebuild|quarantine|reissue/i;
-
-function required<T>(value: T | null | undefined, message: string): T {
-  if (value === null || value === undefined) {
-    throw new Error(message);
-  }
-  return value;
-}
-
-const summary = {
-  activeState: "failed" as const,
-  completeThroughDate: "2026-07-14",
-  corpusVersion: 9,
-  degraded: true,
-  degradedSince: "2026-07-15T12:00:00.000Z",
-  failedCount: 1,
-  lastSuccessfulMergeAt: "2026-07-15T11:00:00.000Z",
-  pendingCount: 1,
-  publishedThroughDate: "2026-07-15",
-  quarantineCount: 1,
-  reissueSelectionRequiredCount: 0,
-  rejectCount: 1,
-  stale: false,
-  staleSince: null,
-};
-
-function dataset(product: "TRTDXFAP" | "TRTYRAP", failed = false) {
-  return {
-    backlogCount: failed ? 1 : 0,
-    completeThroughDate: product === "TRTDXFAP" ? null : "2025-12-31",
-    coverageFromDate: product === "TRTDXFAP" ? "2026-07-14" : "1884-04-07",
-    coverageThroughDate: product === "TRTDXFAP" ? "2026-07-15" : "2025-12-31",
-    currentStage: failed ? ("failed" as const) : ("idle" as const),
-    failedCount: failed ? 1 : 0,
-    latestPublicationAt: "2026-07-15T11:00:00.000Z",
-    latestSuccessfulActivityAt: "2026-07-15T10:00:00.000Z",
-    product,
-    providerBackoffUntil: null,
-    providerStopReason: null,
-    publicationParsedArtifactCount: product === "TRTYRAP" ? 91 : 0,
-    publicationPolicy:
-      product === "TRTYRAP" ? ("annual-baseline" as const) : ("retained-only" as const),
-    publicationTargetArtifactCount: product === "TRTYRAP" ? 91 : 0,
-    quarantineCount: failed ? 1 : 0,
-    reason: failed ? "Retained artifact bytes are missing" : null,
-    rejectCount: failed ? 1 : 0,
-    stageSince: failed ? "2026-07-15T12:00:00.000Z" : null,
-  };
-}
-
-function api(overrides: Partial<OperatorSyncApi> = {}): OperatorSyncApi {
+function api(): OperatorSyncApi {
   return {
     artifacts: async ({ limit, offset }) => ({
-      items:
-        offset === 0
-          ? [
-              {
-                artifactId: "artifact-1",
-                artifactVersionId: "version-1",
-                bytes: 100,
-                filename: "apc260715.zip",
-                lastErrorAt: null,
-                lastErrorCode: null,
-                observedAt: "2026-07-15T10:00:00.000Z",
-                parseRunId: "parse-1",
-                product: "TRTDXFAP" as const,
-                quarantineReason: "Malformed record framing",
-                retainedVersionCount: 1,
-                selectedArtifactVersionId: null,
-                selectedSha256: null,
-                selectionRequired: false,
-                sha256: "a".repeat(64),
-                sourceFromDate: "2026-07-15",
-                sourceToDate: "2026-07-15",
-                stage: "quarantined" as const,
-                stageSince: "2026-07-15T12:00:00.000Z",
-              },
-            ]
-          : [],
+      items: [
+        {
+          artifactId: "artifact-1",
+          bytes: 123,
+          completedAt: null,
+          currentError: null,
+          filename: "apc18840407-20251231-01.zip",
+          physicalRecordCount: 155_000,
+          product: "TRTYRAP",
+          projectedMarkCount: 12_345,
+          sha256: "a".repeat(64),
+          sourceFromDate: "1884-04-07",
+          sourceToDate: "2025-12-31",
+          state: "complete",
+          updatedAt: "2026-07-17T12:00:00.000Z",
+        },
+      ],
       limit,
       offset,
-      total: 26,
+      total: 91,
     }),
-    artifactVersions: async ({ limit, offset }) => ({
-      items:
-        offset === 0
-          ? [
-              {
-                artifactId: "artifact-1",
-                artifactVersionId: "version-alternate",
-                bytes: 100,
-                createdAt: "2026-07-15T09:00:00.000Z",
-                filename: "apc260715.zip",
-                observedAt: "2026-07-15T09:00:00.000Z",
-                parserVersion: "uspto-application-xml-v2",
-                parseState: "staged" as const,
-                product: "TRTDXFAP" as const,
-                quarantineReason: null,
-                selected: true,
-                sha256: "b".repeat(64),
-                sourceFromDate: "2026-07-15",
-                sourceToDate: "2026-07-15",
-                state: "staged" as const,
-              },
-            ]
-          : [],
-      limit,
-      offset,
-      total: 1,
+    status: async () => ({
+      generation: {
+        activeGenerationId: null,
+        completeArtifactCount: 1,
+        expectedArtifactCount: 91,
+        failedArtifactCount: 0,
+        projectedMarkCount: 12_345,
+      },
+      provider: { currentError: null, failureCount: 0, nextEligibleAt: null, status: "ready" },
+      summary: {
+        activeState: "idle",
+        completeThroughDate: null,
+        corpusVersion: 0,
+        degraded: true,
+        degradedSince: null,
+        failedCount: 0,
+        lastSuccessfulMergeAt: null,
+        pendingCount: 90,
+        publishedThroughDate: null,
+        quarantineCount: 0,
+        reissueSelectionRequiredCount: 0,
+        rejectCount: 0,
+        stale: true,
+        staleSince: null,
+      },
     }),
-    publications: async ({ limit, offset }) => ({ items: [], limit, offset, total: 0 }),
-    rejects: async ({ limit, offset }) => ({ items: [], limit, offset, total: 0 }),
-    status: async () => ({ datasets: [dataset("TRTYRAP"), dataset("TRTDXFAP", true)], summary }),
-    ...overrides,
-  } as OperatorSyncApi;
+  };
 }
 
-test("renders the operator happy path and identifies one failed dataset and quarantined artifact", async () => {
+test("shows the compact annual generation and artifact state", async () => {
   render(<OperatorSyncPage api={api()} />);
-
-  expect(await screen.findByRole("heading", { name: "TRTDXFAP" })).toBeTruthy();
-  expect(screen.getByRole("heading", { name: "TRTYRAP" })).toBeTruthy();
-  expect(screen.getByText("Retained artifact bytes are missing")).toBeTruthy();
-  expect(screen.getByText("Malformed record framing")).toBeTruthy();
-  expect(screen.getAllByText("apc260715.zip")).toHaveLength(2);
-  expect(screen.getByText("version-alternate")).toBeTruthy();
-  expect(screen.getByText("selected · staged")).toBeTruthy();
-  expect(screen.getByText("Annual baseline · 91 of 91 parsed")).toBeTruthy();
-  expect(screen.getByText("Retained only · excluded from first publication")).toBeTruthy();
-  const dailyCard = required(
-    screen.getByRole("heading", { name: "TRTDXFAP" }).closest("article"),
-    "expected daily dataset card"
-  );
-  const frontier = within(dailyCard).getByText("Complete frontier");
-  expect(frontier.nextElementSibling?.textContent).toBe("—");
-  expect(screen.queryByRole("button", { name: actionButtonPattern })).toBeNull();
+  expect(await screen.findByText("1 of 91 complete")).toBeTruthy();
+  expect(screen.getAllByText("12,345")).toHaveLength(2);
+  expect(screen.getByText("apc18840407-20251231-01.zip")).toBeTruthy();
+  expect(screen.queryByText("Artifact versions")).toBeNull();
+  expect(screen.queryByText("Recent publications")).toBeNull();
 });
 
-test("date-only coverage stays on January 1 outside UTC", async () => {
-  const daily = {
-    ...dataset("TRTDXFAP"),
-    coverageFromDate: "2026-01-01",
-    coverageThroughDate: "2026-01-01",
+test("keeps the operator surface closed to a forbidden Clerk viewer", async () => {
+  const forbidden = { data: { code: "FORBIDDEN" } };
+  const forbiddenApi: OperatorSyncApi = {
+    artifacts: () => Promise.reject(forbidden),
+    status: () => Promise.reject(forbidden),
   };
-  render(
-    <OperatorSyncPage
-      api={api({
-        status: async () => ({ datasets: [dataset("TRTYRAP"), daily], summary }),
-      })}
-    />
-  );
-
-  const dailyCard = required(
-    (await screen.findByRole("heading", { name: "TRTDXFAP" })).closest("article"),
-    "expected daily dataset card"
-  );
-  expect(within(dailyCard).getByText("Jan 1, 2026 — Jan 1, 2026")).toBeTruthy();
-  const frontier = within(dailyCard).getByText("Complete frontier");
-  expect(frontier.nextElementSibling?.textContent).toBe("—");
-  expect(within(dailyCard).queryByText("Dec 31, 2025")).toBeNull();
-});
-
-test("active work keeps the provider stop reason independently visible", async () => {
-  const daily = {
-    ...dataset("TRTDXFAP"),
-    currentStage: "parsing" as const,
-    providerStopReason: "USPTO credential rejected",
-    stageSince: "2026-07-15T12:00:00.000Z",
-  };
-  render(
-    <OperatorSyncPage
-      api={api({
-        status: async () => ({ datasets: [dataset("TRTYRAP"), daily], summary }),
-      })}
-    />
-  );
-
-  await screen.findByRole("heading", { name: "TRTDXFAP" });
-  expect(screen.getByText("parsing")).toBeTruthy();
-  expect(screen.getByText("USPTO credential rejected")).toBeTruthy();
-});
-
-test("renders the server-enforced non-operator path", async () => {
-  const forbidden = Object.assign(new Error("Operator access required"), {
-    data: { code: "FORBIDDEN" },
-  });
-  render(
-    <OperatorSyncPage
-      api={api({
-        status: () => Promise.reject(forbidden),
-      })}
-    />
-  );
-
-  expect((await screen.findByRole("alert")).textContent).toBe(
-    "This page requires the server-side operator role."
-  );
-  expect(screen.queryByText("Recent artifacts")).toBeNull();
-});
-
-test("a failed bounded page read is surfaced while the previous page remains explicit", async () => {
-  const operatorApi = api({
-    artifacts: (input) => {
-      if (input.offset > 0) {
-        return Promise.reject(new Error("page unavailable"));
-      }
-      return api().artifacts(input);
-    },
-  });
-  render(<OperatorSyncPage api={operatorApi} />);
-  await screen.findAllByText("apc260715.zip");
-  const next = screen
-    .getAllByRole("button", { name: "Next" })
-    .find((button) => !(button as HTMLButtonElement).disabled);
-  expect(next).toBeTruthy();
-  fireEvent.click(required(next, "expected enabled artifact next button"));
-
-  expect((await screen.findByRole("alert")).textContent).toBe(
-    "Artifact page could not be loaded; the previous page remains shown."
-  );
-  expect(screen.getByText("1–25 of 26")).toBeTruthy();
-});
-
-test("artifact pagination excludes overlapping requests while the next page is pending", async () => {
-  let resolvePage!: (page: Awaited<ReturnType<OperatorSyncApi["artifacts"]>>) => void;
-  const pending = new Promise<Awaited<ReturnType<OperatorSyncApi["artifacts"]>>>((resolve) => {
-    resolvePage = resolve;
-  });
-  let pageCalls = 0;
-  const operatorApi = api({
-    artifacts: (input) => {
-      if (input.offset === 0) {
-        return api().artifacts(input);
-      }
-      pageCalls += 1;
-      return pending;
-    },
-  });
-  render(<OperatorSyncPage api={operatorApi} />);
-  await screen.findAllByText("apc260715.zip");
-  const next = required(
-    screen
-      .getAllByRole("button", { name: "Next" })
-      .find((button) => !(button as HTMLButtonElement).disabled),
-    "expected enabled artifact next button"
-  );
-  fireEvent.click(next);
-  fireEvent.click(next);
-
-  expect(pageCalls).toBe(1);
-  expect((next as HTMLButtonElement).disabled).toBe(true);
-  await act(async () => {
-    resolvePage({ items: [], limit: 25, offset: 25, total: 26 });
-    await pending;
-  });
+  render(<OperatorSyncPage api={forbiddenApi} />);
+  expect((await screen.findByRole("alert")).textContent).toContain("server-side operator role");
+  expect(screen.queryByText("Annual artifacts")).toBeNull();
 });

@@ -1,63 +1,81 @@
 import { expect, test } from "bun:test";
 
-import type { SyncFacts } from "../../src/queries/sync-repository.ts";
+import type { AnnualCorpusStatus } from "../../src/ingestion/annual-corpus.ts";
 import { syncStatusFromFacts } from "../../src/services/sync-service.ts";
 
-const current: SyncFacts = {
-  activeAttemptKind: null,
-  activeAttemptStartedAt: null,
-  completeThroughDate: "2026-07-15",
+const healthy: AnnualCorpusStatus = {
+  activeGenerationId: "70000000-0000-4000-8000-000000000001",
+  completeArtifactCount: 91,
+  completeThroughDate: "2099-01-01",
   corpusVersion: 1,
-  currentDate: "2026-07-15",
-  failedCount: 0,
-  failedSince: null,
-  hasParseTarget: false,
-  hasPublicationTarget: false,
-  lastSuccessfulMergeAt: new Date("2026-07-15T12:00:00Z"),
-  laneNextEligibleAt: null,
-  laneStatus: "ready",
-  laneUpdatedAt: new Date("2026-07-15T12:00:00Z"),
-  pendingCount: 0,
-  publishedThroughDate: "2026-07-15",
-  quarantineCount: 0,
-  reconcileActiveSince: null,
-  reconcileFailedSince: null,
-  reconcileFailureMessage: null,
-  rejectCount: 0,
-  rejectedSince: null,
-  reissueSelectionRequiredCount: 0,
-  reissueSelectionRequiredSince: null,
+  currentArtifact: null,
+  expectedArtifactCount: 91,
+  failedArtifactCount: 0,
+  failedArtifactUpdatedAt: null,
+  lane: {
+    currentError: null,
+    failureCount: 0,
+    nextEligibleAt: null,
+    status: "ready",
+    updatedAt: new Date("2026-01-03T00:00:00Z"),
+  },
+  lastSuccessfulMergeAt: new Date("2026-01-01T00:00:00Z"),
+  pendingArtifactCount: 0,
+  projectedMarkCount: 1,
+  publishedThroughDate: "2099-01-01",
 };
 
-test("active publication remains publishing with unrelated pending work", () => {
-  expect(syncStatusFromFacts({
-    ...current,
-    pendingCount: 1,
-    hasPublicationTarget: true,
-    reconcileActiveSince: new Date("2026-07-15T13:00:00Z"),
-  }).activeState).toBe("publishing");
+test("healthy status has no future degradation timestamp", () => {
+  expect(syncStatusFromFacts(healthy)).toMatchObject({
+    degraded: false,
+    degradedSince: null,
+    rejectCount: 0,
+    stale: false,
+    staleSince: null,
+  });
 });
 
-test("pending download is not parsing before a source attempt starts", () => {
-  expect(syncStatusFromFacts({ ...current, pendingCount: 1 }).activeState).toBe("idle");
+test("staleness begins at the public stale threshold", () => {
+  expect(syncStatusFromFacts({ ...healthy, completeThroughDate: "2000-01-01" })).toMatchObject({
+    degraded: true,
+    degradedSince: "2000-01-05T00:00:00.000Z",
+    stale: true,
+    staleSince: "2000-01-05T00:00:00.000Z",
+  });
 });
 
-test("active publication wins while the source lane remains in backoff", () => {
-  expect(syncStatusFromFacts({
-    ...current,
-    laneStatus: "backoff",
-    pendingCount: 1,
-    hasPublicationTarget: true,
-    reconcileActiveSince: new Date("2026-07-15T13:00:00Z"),
-  })).toMatchObject({ activeState: "publishing", degraded: true });
+test("artifact failure uses its own timestamp without creating rejects", () => {
+  expect(
+    syncStatusFromFacts({
+      ...healthy,
+      failedArtifactCount: 1,
+      failedArtifactUpdatedAt: new Date("2026-01-02T00:00:00Z"),
+    })
+  ).toMatchObject({
+    activeState: "failed",
+    degraded: true,
+    degradedSince: "2026-01-02T00:00:00.000Z",
+    failedCount: 1,
+    rejectCount: 0,
+  });
 });
 
-test("active recovery parse wins over the preceding failed delivery", () => {
-  expect(syncStatusFromFacts({
-    ...current,
-    hasParseTarget: true,
-    reconcileActiveSince: new Date("2026-07-15T13:00:00Z"),
-    reconcileFailedSince: new Date("2026-07-15T12:30:00Z"),
-    reconcileFailureMessage: "previous delivery failed",
-  })).toMatchObject({ activeState: "parsing", degraded: true, failedCount: 1 });
+test("provider backoff and stop use the lane transition timestamp", () => {
+  const updatedAt = new Date("2026-01-03T00:00:00Z");
+  expect(
+    syncStatusFromFacts({ ...healthy, lane: { ...healthy.lane, status: "backoff", updatedAt } })
+  ).toMatchObject({
+    activeState: "backoff",
+    degraded: true,
+    degradedSince: updatedAt.toISOString(),
+    failedCount: 0,
+  });
+  expect(
+    syncStatusFromFacts({ ...healthy, lane: { ...healthy.lane, status: "stopped", updatedAt } })
+  ).toMatchObject({
+    activeState: "stopped",
+    degraded: true,
+    degradedSince: updatedAt.toISOString(),
+    failedCount: 1,
+  });
 });
