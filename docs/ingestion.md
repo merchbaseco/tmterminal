@@ -1,230 +1,92 @@
 ---
-summary: Defines USPTO source authority, transient artifact handling, immutable observations, canonical projection, and corpus freshness.
+summary: Defines direct annual corpus generations, transient artifact handling, atomic activation, and corpus freshness.
 read_when:
   - changing USPTO discovery, downloads, parsing, projection, publication, or freshness
-  - changing corpus source authority, provenance, replay, or status derivation
+  - changing corpus generation isolation, source coordinates, replay, or status derivation
 ---
 
 # USPTO ingestion
 
-Trademark Turtle turns USPTO bulk artifacts into a searchable corpus without exposing source-file mechanics to callers. Artifact metadata and selected parsed observations are durable; raw downloads are transient working files and canonical marks are rebuildable materializations.
+Trademark Turtle builds one generation-scoped Class 025 corpus directly from the pinned USPTO annual archive. Callers see only the active generation. Source mechanics stay behind one ingestion module interface:
 
-## Source authority
+- reconcile the next database-derived unit of work;
+- read truthful build and corpus status.
 
-- `TRTYRAP` provides annual retrospective application XML.
-- `TRTDXFAP` provides current-calendar-year daily application XML.
-- Annual metadata coverage dates establish generation membership and completeness only. They do not bound XML transaction dates or establish observation precedence.
-- Annual part suffixes, product-response position, release metadata, and physical record order are provenance, not claim precedence.
-- Source authority is a partial order. A versioned policy adds an order edge only at the scope proved: official source documentation may establish a reusable profile rule; an exact retained fixture sequence establishes only its observed transition unless further evidence proves generalization.
-- A transaction date may order a fixture-proven transition inside a source profile. It does not establish whole-record or cross-product authority by itself.
-- Annual and daily observations have no general precedence edge. Their claims reconcile by claim path only when every admissible fold produces the same semantic value.
-- Artifact or generation absence never deletes a mark. Only explicit USPTO facts change canonical state.
-- Daily artifact metadata remains observable after an annual generation covers its date.
-- The first publication includes only the exact pinned annual generation. Daily discovery and supported parsing continue without making daily observations publication-eligible.
-- The v1 database stores observations only for the Class 025 corpus. Reprocessing re-downloads official bytes from USPTO.
+The module hides discovery, download, ZIP/XML streaming, validation, batching, projection, cleanup, and activation. PostgreSQL is durable state. The USPTO client is the true-external adapter.
 
-`status_date` is a trademark-status fact. It is never whole-record source precedence.
+## Annual source contract
 
-## Provider access and pacing
+- `TRTYRAP` is the only v1 worker source. Its official ODP product frequency is `YEARLY`.
+- The baseline is the exact 91-member generation covering 1884-04-07 through 2025-12-31 from retained metadata response SHA-256 `48e2760d6c87175969373199aa914d06e3208d6db2345a8f1647edec329ccdd5`.
+- Coverage dates prove generation membership and the public frontier. They do not bound record transaction dates.
+- Parts form snapshot partitions. Filename suffix and physical order are source coordinates, not cross-record precedence.
+- `TRTDXFAP` daily files are neither downloaded nor parsed by this pipeline. Daily update semantics require a later product decision.
 
-USPTO Open Data Portal access uses one operator-managed `USPTO_API_KEY` associated with a valid USPTO.gov account. The key is a server secret. It never enters browser or client output, logs, database rows, fixtures, source manifests, or application error payloads. The operator keeps the associated ODP account profile current.
+## Durable state
 
-USPTO currently publishes no numeric request, download, or concurrency limit for the ODP bulk-product API and documents no stable rate-limit-header or retry contract. Numeric limits published for TSDR are a different service and do not apply to ODP. Trademark Turtle therefore does not hardcode an assumed USPTO quota.
+One `corpus_generation` row owns a build. One `source_artifact` row per generation member stores product, filename, downloaded SHA-256, coverage, state, byte/record/mark counts, current error, and a transient object pointer. The one `source_lane` row stores only provider status, next eligibility, failure count, and a safe current error.
 
-All discovery and downloads pass through one credential-scoped scheduler. Initial artifact downloads are serial. Discovery interval, concurrency, timeouts, retry attempts, and backoff bounds remain runtime-configurable. The scheduler:
+Projected tables are generation-scoped:
 
-- honors `Retry-After` or reset headers when actually returned;
-- pauses the provider lane and applies persisted exponential backoff with jitter after observed throttling;
-- retries timeouts and server failures within a configured cap;
-- stops and alerts on authentication, authorization, or permanent request failures;
-- persists next eligibility, attempts, sanitized response state, and artifact verification state so restart cannot hammer USPTO;
-- never advances artifact or corpus state before verified download and committed publication.
+- `mark`
+- `mark_class`
+- `mark_owner`
+- `mark_goods_services`
+- `mark_status_event`
 
-“Daily” and “annual” describe source-product cadence, not a promised publication time. Discovery is idempotent and does not assume a release hour.
+Every projected row carries product, filename, SHA-256, and physical record index. There is no source-observation, claim, contributor, publication-candidate, parser-generation, version-selection, attempt-history, or diagnostic graph.
 
-The v1 worker uses one persisted `uspto-odp` lane and a PostgreSQL advisory lock, so multiple worker processes cannot issue simultaneous discovery or download calls for the credential. The lane stores retry eligibility, consecutive transient failures, sanitized response state, and terminal stop reason. Attempts remain durable; credential, permanent, and retry-exhaustion failures also create durable operator alerts. Runtime pacing is configured with `USPTO_DISCOVERY_INTERVAL_MS`, `USPTO_SCHEDULER_POLL_MS`, `USPTO_REQUEST_TIMEOUT_MS`, `USPTO_RETRY_BASE_MS`, `USPTO_RETRY_MAX_ATTEMPTS`, and `USPTO_RETRY_MAX_MS`.
+## Reconciliation
 
-One pg-boss queue and one handler wake database-derived reconciliation at process start, on cron, and after a corpus-event notification. Each delivery performs at most one eligible parse, publication, or source action. Job delivery owns leases and duplicate exclusion; artifact, parse, publication, lane, and alert rows own recovery. A failed step leaves those rows truthful, and the next startup or scheduled delivery derives eligible work again. There is no recursive job chain, job-owned workflow state, secondary retry loop, or fallback scheduler.
+One pg-boss queue wakes reconciliation on startup and a bounded schedule. A transaction-scoped advisory lock reserves build transitions and serializes activation. Each delivery performs one database-derived action:
 
-Reconciliation processes one artifact at a time. Parser `uspto-application-xml-v5` validates framing, every physical record, and the full artifact digest before committing. It increments the physical record count for every valid record, then persists the complete observation only when `case-file-header/mark-identification` is non-empty and a classification has explicit `primary-code` `025`. Selection never bypasses malformed-record quarantine. A valid artifact may therefore stage with zero persisted observations.
+1. clean one unreferenced or terminal raw ZIP;
+2. activate an exact complete generation;
+3. resume/project a downloaded member;
+4. discover the pinned generation;
+5. download the next pending member;
+6. report idle or provider backoff/stop.
 
-The reader streams 64 KiB input slices and grows only the current record buffer geometrically. Its 16 MiB case-file bound is an operational memory limit, not a semantic USPTO ceiling; malformed or larger records quarantine with reject evidence bounded by that limit plus at most one input slice. Selected observations still flush in 100-record batches, so accepting a large authentic record does not create an artifact-wide result array.
+A process interruption before ZIP retention makes that artifact terminally failed on restart; it is never downloaded again. Any finalized but uncommitted ZIP is removed first as an orphan. One failed member blocks every later download in that building generation because 91/91 activation is no longer reachable. A completed artifact is never projected again. A projecting artifact resumes from its retained ZIP; its prior transaction has rolled back, so projection restarts cleanly for that source filename.
 
-Until the first corpus exists, reconciliation selects members of the exact 91-member annual policy before older daily work for both pending downloads and verified parse targets. Within that annual priority class and within all remaining work, selection remains stable by source or retention identity. Each query still returns one target. Operator status uses the same priority rule.
+All provider access uses `USPTO_API_KEY`. Authentication, authorization, contract, and permanent HTTP failures stop the lane. Timeouts, throttling, integrity failures, and server errors use persisted capped exponential backoff with jitter. Eight consecutive attempts is the private fail-closed ceiling; it cannot be raised by configuration, survives restarts, and stops before the provider's 20-download annual same-file limit. The fixed 10-second scheduler and serial artifact flow stay below the provider's five-files-per-10-seconds IP limit. No job-owned workflow chain or second retry loop exists.
 
-Official references:
+## Streaming projection
 
-- [ODP bulk-data search API](https://data.uspto.gov/apis/bulk-data/search)
-- [USPTO.gov account requirement for ODP](https://www.uspto.gov/subscription-center/2026/register-access-usptos-open-data-portal)
+Exactly one ZIP is retained at a time. The worker hashes and writes the download once, opens the sole XML entry with `unzipper`, and streams `case-file` events with `xml-flow`. It never buffers an artifact or writes extracted XML.
 
-## Artifact identity
+Every XML document must use the `trademark-applications-daily` root and declare exactly one `version-no` equal to `2.0` and one `version-date` equal to `20041108` before records. Every physical record must be well-formed and have an eight-digit serial identity. The parser counts and validates all records, including unselected records. A record is selected only when it has a non-empty word mark and explicit `primary-code` `025` evidence.
 
-An artifact has two identities:
+Selected records project directly in fixed 100-mark batches. Missing, zero, and malformed-width optional dates become null; exactly eight-digit non-calendar dates remain invalid. Nonzero registration numbers normalize to seven digits. Status, normalization, mark-type, and Class 025 search policies remain server-owned and fixture-backed.
 
-- **Logical artifact:** USPTO product plus upstream filename.
-- **Artifact version:** logical artifact plus downloaded SHA-256.
+The authentic 10,948,448-byte part-49 record is valid but not selected because it has no Class 025 assertion. Memory is bounded by the current `xml-flow` record, one fixed projection batch, ZIP stream buffers, and database-client buffers.
 
-Discovery timestamps, release metadata, byte size, coverage dates, and URL are observations about a logical artifact. Changed bytes under the same filename create a new immutable version. Unchanged bytes are a no-op.
+Artifact projection is one database transaction. Success commits all rows and terminal counts, then removes the ZIP immediately. Parse/validation failure rolls back all rows, stores one clear artifact error, and removes the ZIP immediately. A failed unlink remains a cleanup target and blocks later work.
 
-Each changed discovery observation is its own persisted download queue item, so later metadata cannot overwrite an undownloaded reissue. The worker streams that observation's response into one content-addressed working object while calculating SHA-256, then links the observation to the durable version metadata. A repeated hash reuses the existing version identity; a different hash inserts one new immutable version identity. Parsing opens that local ZIP by path, validates exactly one XML entry from its central directory, and streams that entry without buffering the archive or writing an extracted XML file. On process startup, the worker enumerates finalized object keys without reading their bytes and sequentially removes only keys with no database reference, closing a crash between finalizing `put` and retaining version metadata. After terminal parse or quarantine, it clears that version's pointer; shared content-addressed bytes remain until the final database reference clears, then the worker deletes the object. A failed terminal unlink re-arms that same orphan sweep, surfaces the error, and makes the next reconciliation remove the unreferenced object before other work. Reprocessing resets discovery and re-downloads from USPTO.
+## Atomic visibility and freshness
 
-`reprocess-artifact` is an explicit pre-first-publication parser transition for one exact artifact-version ID. Under the publication lock it accepts only a terminal staged or quarantined v4 member of the pinned annual generation with no retained object, no v5 run, no published corpus membership, and one unambiguous latest verified discovery. It resets only that version and discovery for re-download while preserving the complete v4 parse run, observations, and reject evidence. Operators invoke it once per reviewed ID; the worker does not bulk-reset or automatically retry parser generations.
+A building generation is invisible. Customer reads join `mark` rows through `corpus_state.current_generation_id`; exact lookup, Multi search, filtering, sorting, count, and pagination all use that same pointer.
 
-Annual files sharing one official metadata coverage range form one generation. The product response enumerates membership but does not establish semantic part order. A generation publishes only after every enumerated part is present and valid.
+Activation requires exactly 91 total artifacts, all 91 complete, and a nonzero Class 025 corpus. One transaction:
 
-The v1 authority policy pins the complete generation from 1884-04-07 through 2025-12-31 enumerated by retained metadata response SHA-256 `48e2760d6c87175969373199aa914d06e3208d6db2345a8f1647edec329ccdd5`. The source catalog does not choose by discovery or response order, co-fold older generations, or admit a newer generation without an explicit policy revision. Reissued versions of one logical artifact reconcile before their observations become eligible; superseded bytes never compete in canonical folding.
+1. takes the corpus/build advisory lock;
+2. marks the generation active;
+3. points `corpus_state` at it;
+4. sets `publishedThroughDate` and `completeThroughDate` to 2025-12-31;
+5. increments `corpusVersion` once;
+6. inserts one durable corpus event and sends a PostgreSQL wake-up notification.
 
-The publisher carries that metadata response's exact 91 logical-artifact identities as an unordered v1 policy set. One retained, staged version is selected automatically when it is the logical artifact's sole version; supplying that sole SHA-256 has the same automatic identity. Multiple retained versions make staging ineligible until the caller explicitly selects one SHA-256 for that candidate. The candidate snapshots required selection evidence, verified discovery identity and coverage dates, selected version SHA-256, and parse-run digest. Publication revalidates those exact facts under the corpus lock.
+At 90/91, after any failure, or after process restart, the pointer is unchanged. Repeating activation is a no-op. Continuation queries retain corpus-version conflict behavior.
 
-Artifact versions move through explicit states:
+## Migration and recovery
 
-```text
-discovered -> downloading -> downloaded -> verified -> parsing -> staged -> published
-                                                                    \-> quarantined
-```
+Landed migration history is immutable. The forward cutover migrations run in the migrator's single transaction: first discard rebuildable legacy ingestion/canonical tables, then create the direct-generation schema. Account, Clerk identity, API key, role, and provider-lane rows survive.
 
-Superseded version SHA-256, byte count, discovery, parse, and selection metadata remain available for provenance. Their source bytes are re-downloaded when reprocessing is required.
+Raw ZIPs are not backup state. Operational rollback uses the normal PostgreSQL backup plus a known Git revision; no compatibility schema, dual write, legacy reader, fallback pipeline, or embedded rollback path exists.
 
-## Source observations
+## Verification
 
-USPTO `case-file` records are variably complete observations, not unconditional mark snapshots. Each stored source observation includes:
-
-- Artifact version and parse run
-- Physical record index and action key
-- Serial number and source transaction date
-- Schema version and record-shape profile
-- Element/group presence
-- Lossless parsed values and digest
-- Parser, projection-profile, normalization, and authority-policy versions
-
-Bounded raw XML slices are retained only for durable parse rejects. Successful source evidence is the selected lossless observation plus artifact/discovery/version digests; full ZIPs are not retained.
-
-## Canonicalization
-
-The canonicalizer folds a caller-supplied eligible observation set for one serial number and domain group over the source-authority partial order. It never performs a generic row merge. Artifact eligibility, generation completeness, reissue selection, publication locking, corpus versions, and frontier advancement belong to the source catalog and corpus publisher.
-
-Scalar claims distinguish:
-
-- **Unmentioned:** preserve the prior fact or remain unknown.
-- **Set:** replace the scalar with the supplied value.
-- **Clear:** clear only when a versioned source profile proves that the present empty or zero value means clear.
-
-`uspto-normalization-v1` decodes the XML entities already validated by the lossless parser and trims boundary whitespace before semantic comparison and canonical persistence. The original lexical value remains only in the immutable source observation.
-
-Collection claims distinguish:
-
-- **Unmentioned:** preserve the prior group.
-- **Replace:** replace a present complete group, such as a classification or statement set.
-- **Assert:** add a fact when the source contract is additive.
-
-For the retained XML v2.0 profile, a present, non-empty `case-file-owners` group is **Replace**: the official v2.0 documentation defines it as containing all owner records. An absent owners group remains **Unmentioned**. A present-empty owners group returns **Unsupported Semantics** until fixture evidence proves clear semantics. Collection completeness does not make optional child fields complete, and current-owner derivation from the retained owner history is a separate versioned mapping.
-
-Action keys and record position preserve source framing. They establish claim precedence only where the versioned source profile proves that meaning, and they do not establish record completeness. Class-absent status-only or partial records are outside the v3 stored-observation selection. Later daily-policy work defining Class 025 add, remove, and re-add behavior must re-download the official artifact when it needs those records.
-
-For observations without a proved order edge, the canonicalizer requires semantic confluence at each affected claim path:
-
-- Unmentioned claims do not mutate the group.
-- Additive assertions commute and retain fact-level provenance.
-- One effective set, clear, or replacement may establish the group.
-- Unordered set, clear, or replacement claims with the same normalized semantic value resolve to that value.
-- Competing order-sensitive claims are unresolved when admissible folds yield different semantic values.
-
-Resolved provenance is a contributor set, not a selected winner. For each resolved claim path it contains every observation carrying a non-dominated effective claim that establishes the output value or additive fact; group provenance is the union of those sets. Two unordered observations asserting the same value both remain contributors. Contributor references serialize by immutable source coordinate—product, artifact-version SHA-256, and physical record index—so storage order is deterministic and auditable without implying authority.
-
-The canonicalizer returns either resolved groups with contributor sets or stable versioned unresolved diagnostics. `authority-conflict` contains the serial number, group, claim path, observations, policy version, and competing semantic values. `unsupported-semantics` contains the same source coordinates plus the unproved presence/operation and profile. Neither chooses by metadata date, release time, transaction date alone, filename, suffix, API order, physical order alone, ingestion time, database identity, or MerchBase's current row. A publication candidate containing either unresolved kind is ineligible. Diagnostic persistence, publication locking, corpus-version changes, and frontier advancement belong to the corpus publisher.
-
-Unknown shapes and unproven clear/collection semantics do not mutate the affected canonical group. They return `unsupported-semantics` and block complete publication until supported.
-
-Canonical provenance is group-specific. Mark presentation, application facts, registration facts, lifecycle, owners, classifications, goods/services, and prosecution history each retain their contributing source observations.
-
-## Derived domain values
-
-Trademark Turtle preserves raw USPTO values and derives query values through versioned maps.
-
-- **Status:** raw status code and date plus `live | dead | unknown` from policy `uspto-trademark-status-20250813`. The explicit 169-code table maps 124 Live and 41 Dead entries directly; Indifferent codes `000`, `622`, `715`, and `970`, null, and unlisted future codes are `unknown`.
-- **Registration:** a nonzero registration number means ever registered; it is independent of current liveness.
-- **Type:** `typeset = 1`, `text = 4`, `design = 2 | 3 | 5`, and `other = 0 | 6 | unknown`.
-- **Class:** raw class code, class status, and class-status date remain distinct from whole-mark status. Only raw class status `6` is Active; other raw codes stay uninterpreted.
-- **Class 025 corpus:** every published canonical mark has persisted explicit `primary-code` `025` source evidence and a canonical Class 025 membership row. Search status is the whole-mark `live | dead | unknown` disposition; class is not a caller filter.
-- **Published for opposition:** the current versioned USPTO status semantic, currently associated with status code 686. It is not a claim that the legal opposition window remains open.
-
-Goods/services retain raw type code and source text. Display cleanup is versioned and fixture-tested because brackets, double parentheses, and asterisks carry source meaning.
-
-Date-only USPTO values use PostgreSQL `date`, not JavaScript local-time timestamps. The all-zero unknown projects to null. Other partial or zero-filled dates remain lossless in the source observation and return `unsupported-semantics` instead of rolling into invented canonical dates.
-
-## Parsing and publication
-
-The reader is tolerant of documented source sparsity and strict about structure.
-
-Valid absence includes optional elements, empty tags, zero registration numbers, nullable word marks for design marks, opaque class codes such as `A` and `B`, and unknown raw codes. These values become null, unknown, or raw facts according to a versioned profile; they are not guessed.
-
-The following quarantine an artifact version:
-
-- Incomplete download, checksum failure, or invalid ZIP
-- Malformed or truncated XML
-- Unsupported root or schema version
-- Ambiguous record boundaries or source order
-- Missing mandatory case identity
-- Unknown record-shape profile that could mutate canonical state
-- Observation-count, digest, or canonical invariant failure
-
-v1 publishes with zero unresolved record rejects. The parser stages and validates each full artifact atomically; the corpus publisher then publishes the complete eligible source set in one database transaction. A valid `data-available-code=N` artifact publishes successfully with zero records.
-
-The first durable publication candidate contains exactly one selected version of each of the 91 pinned annual logical artifacts and no daily artifact. The 91 identities are completeness metadata only: the exclusive reconciler selects one `LIMIT 1` target, streams one ZIP/XML, persists observations in 100-row batches, and finishes raw cleanup before another artifact can run. Candidate identity includes the exact annual eligibility snapshot, canonical semantic versions, and current parent publication. Daily discovery, selected observations, and quarantine metadata remain durable but cannot create, invalidate, or advance this annual candidate. Publication rejects a candidate when its parent is no longer current or when the exact annual eligible set differs from the snapshot. Staging the exact source and semantic identity already current returns that published candidate instead of creating a redundant child. `authority-conflict` and `unsupported-semantics` diagnostics inside the annual set are stored on a rejected candidate; a repeated publication call returns only the candidate identity and diagnostic count, and changes no canonical row, corpus version, or frontier.
-
-Publication transaction:
-
-1. Acquire the corpus publication advisory lock.
-2. Revalidate the parent publication, canonical semantic versions, staged discovery, coverage, artifact version, parse-run digest, and reissue-selection evidence.
-3. Stream observations in serial-number order. A bounded first pass persists any unresolved diagnostics; only a clean candidate receives a second, fixed-size set-oriented canonical write pass.
-4. Replace only claim paths and complete groups established by eligible positive claims; source absence preserves existing marks and unmentioned facts.
-5. Append distinct source-reported status events.
-6. Update corpus state and `corpusVersion` only for query-visible changes.
-7. Insert durable corpus events and call `pg_notify(eventId)`.
-8. Commit.
-
-PostgreSQL notification is wake-up only. Durable event rows are the recovery source.
-
-Successful publication marks the selected artifact versions published in the same transaction. A staged candidate survives process restart and can be published again; a published or rejected candidate replays its durable result. Database invariant failures roll back the complete transaction.
-
-Changed discovery reconciliation, artifact-version retention, successful parse terminalization, candidate staging, and corpus publication acquire the same transaction-scoped corpus lock. A latest pending or downloading discovery blocks staging and publication until it is retained and verified. A parse run can become eligible before a candidate snapshots the complete source set or after publication commits, never between publication revalidation and commit. Changed discovery and reissue transitions obey the same exclusion; unchanged discovery remains a persisted no-op.
-
-## Freshness
-
-Corpus state keeps separate facts:
-
-- `publishedThroughDate`: newest source date represented by a successful publication.
-- `completeThroughDate`: contiguous authoritative frontier with every required artifact resolved.
-- `lastSuccessfulMergeAt`: wall-clock time of the last committed publication.
-- `corpusVersion`: monotonic version of query-visible canonical state.
-
-Public `corpusThroughDate` means `completeThroughDate`. A later artifact may publish beyond a gap, but the complete frontier remains behind and the service reports degraded state. A changed artifact version at or before the frontier makes completeness provisional until reconciled.
-
-The first annual publication sets both frontiers to 2025-12-31. Retained daily coverage does not advance either frontier under this policy. A later mixed-product policy must define daily chronology and equal- or missing-date behavior before it can advance freshness. `corpusVersion` advances only when canonical values or query-visible provenance change.
-
-## Module interfaces
-
-The ingestion implementation is hidden behind deep modules:
-
-- **Source catalog module:** reconciles USPTO product metadata into logical artifacts and versions.
-- **Artifact pipeline module:** downloads, verifies, parses, stages, and releases one version's transient raw object.
-- **Canonicalizer module:** folds a partially ordered eligible observation set for one serial into resolved canonical groups or versioned `authority-conflict` / `unsupported-semantics` output.
-- **Corpus publisher module:** stages one complete eligible source set, revalidates it under the publication lock, and atomically publishes all affected serials or durable unresolved diagnostics.
-- **Reconciliation runtime:** reads database state and enqueues eligible work; jobs do not recursively chain one another.
-
-The USPTO client is a true-external adapter. Production uses the HTTP adapter; tests use fixtures through an in-memory adapter. PostgreSQL behavior is tested through the module interface using a real test database.
-
-## Fixture gate
-
-Complete mixed-product publication remains a later policy gate. It does not begin until the repository contains:
-
-- Current USPTO application documentation, status table, and source manifest with checksums
-- Official metadata enumerating one complete annual generation
-- Full annual application and status-only annual `TX` fixtures
-- Daily `NA`, `TX`, `IB`, and numeric Official Gazette action fixtures
-- Full-to-partial, missing-versus-empty, collection replacement, revival, class cancellation, registration, and publication sequences
-- Real PostgreSQL replay tests for out-of-order ingestion, reissues, idempotency, provenance, and frontier behavior
-
-Small committed fixtures are byte-exact excerpts with their original root, version, action-key context, artifact checksum, record index, and expected observation. Full ZIPs live outside Git in a content-addressed integration cache.
-
-The pinned inventory and current blockers live in [USPTO source contracts](specs/uspto-source-contracts.md). Retained official metadata and source bytes prove complete 2025-generation enumeration plus byte-exact full, status-only, and post-metadata-to-date annual `TX` shapes. The exact annual set may publish independently. Mixed-product publication remains closed on unresolved annual-versus-daily conflicts and the documented daily parser gaps; unsupported semantics remain subject to the same zero-reject publication rule.
+- Byte-exact annual fixtures prove selected Class 025 and unselected part-49 records.
+- Module tests cover exact discovery, fixed batches, cleanup, terminal error, restart, and idempotency.
+- Real PostgreSQL tests cover auth-preserving migration, generation isolation, 90/91 invisibility, exact 91/91 activation, corpus events, exact lookup, Multi search, and corpus-version conflicts.
+- Production-shaped verification uses an isolated Compose project. The live production worker remains stopped until authorized deployment.

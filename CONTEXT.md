@@ -32,21 +32,20 @@ Searches the query as a pattern in which `*` represents zero or more characters.
 A trademark result set produced from typed corpus constraints rather than a word-mark search query.
 _Avoid_: Saved search, dashboard
 
-**Source Observation**:
-One immutable USPTO `case-file` occurrence with artifact, action-key, ordering, presence, and parser provenance. It may assert only part of a mark.
-_Avoid_: Snapshot, canonical row
+**Corpus Generation**:
+One complete, query-isolated projection of the pinned annual USPTO source set. A building generation is invisible until atomic activation.
 
-**Canonical Mark**:
-The rebuildable current trademark materialization produced by folding eligible source observations for one serial number.
+**Source Artifact**:
+One annual generation member identified by product, filename, and downloaded SHA-256, with coverage, state, counts, and a current error.
 
-**Authority Conflict**:
-An unresolved canonical claim path for which source-authorized fold orders produce different semantic values. Different observation identities supporting the same value are contributors, not a conflict.
+**Source Coordinate**:
+The product, filename, downloaded SHA-256, and physical record index attached to a projected row.
 
-**Unsupported Semantics**:
-An unresolved source shape whose operation is not proved by its versioned profile. It is distinct from an authority conflict between known claim effects.
+**Projected Mark**:
+The generation-scoped mark, class, owner, goods/services, and status-event rows produced directly from one selected annual record.
 
 **Corpus Version**:
-The monotonic identity of query-visible canonical state. Paged requests use it to detect a changed corpus.
+The monotonic identity of query-visible projected state. Paged requests use it to detect a changed corpus.
 
 **Complete Frontier**:
 The contiguous source date through which every required artifact is resolved and published. This is the public corpus-through date.

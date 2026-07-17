@@ -5,7 +5,6 @@ export interface StoredArtifact {
 }
 
 export interface ArtifactStore {
-  head: (objectKey: string) => Promise<{ bytes: number } | null>;
   listObjectKeys: () => AsyncIterable<string>;
   openFile: (objectKey: string) => Promise<string>;
   put: (body: ReadableStream<Uint8Array>, expectedBytes: number | null) => Promise<StoredArtifact>;

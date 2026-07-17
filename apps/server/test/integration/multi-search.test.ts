@@ -3,13 +3,10 @@ import postgres from "postgres";
 import { multiSearchInputSchema } from "../../src/api/multi-search-input.ts";
 import { buildServer } from "../../src/api/server.ts";
 import { migrateDatabase } from "../../src/db/migrate.ts";
-import {
-  canonicalVersions,
-  type ResolvedCanonicalMark,
-} from "../../src/ingestion/canonical-mark-types.ts";
-import { createCanonicalMarkRepository } from "../../src/queries/canonical-mark-repository.ts";
+import type { ProjectedMark } from "../../src/ingestion/mark-types.ts";
 import { buildMultiSearchQueries } from "../../src/queries/multi-search.ts";
 import { resetTestDatabase } from "./test-database.ts";
+import { createTestMarkRepository, testGenerationId } from "./test-mark-repository.ts";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 if (!databaseUrl) {
@@ -22,8 +19,8 @@ let server: Awaited<ReturnType<typeof buildServer>>;
 function mark(
   serialNumber: string,
   wordMark: string,
-  options: Partial<ResolvedCanonicalMark["mark"]> = {}
-): ResolvedCanonicalMark {
+  options: Partial<ProjectedMark["mark"]> = {}
+): ProjectedMark {
   return {
     classes: [{ internationalCode: "025", statusCode: "6", statusDate: "2026-07-10" }],
     contributors: [],
@@ -43,14 +40,19 @@ function mark(
     },
     owners: [{ entryNumber: "1", partyName: "TURTLE GOODS LLC", partyType: "16" }],
     statusEvents: [],
-    versions: canonicalVersions,
+    versions: {
+      authorityPolicy: "uspto-authority-v1",
+      normalization: "uspto-normalization-v1",
+      projection: "uspto-projection-v1",
+      sourceProfile: "uspto-application-xml-v2.0-v1",
+    },
   };
 }
 
 beforeAll(async () => {
   await resetTestDatabase(database);
   await migrateDatabase(databaseUrl);
-  const repository = createCanonicalMarkRepository(database);
+  const repository = createTestMarkRepository(database);
   await repository.replace(mark("10000001", "Caf\u00e9 Society"));
   await repository.replace(mark("10000002", "Cafe\u0301"));
   await repository.replace(mark("10000003", "THE CAF\u00c9 SOCIETY CLUB", { statusCode: "626" }));
@@ -102,13 +104,15 @@ beforeAll(async () => {
   await database`
     insert into mark ${database(
       Array.from({ length: 27 }, (_, index) => ({
-        authority_policy_version: canonicalVersions.authorityPolicy,
+        generation_id: testGenerationId,
         mark_drawing_code: "4",
-        normalization_version: canonicalVersions.normalization,
-        projection_version: canonicalVersions.projection,
+        normalization_version: "uspto-normalization-v1",
         registration_number: String(2_000_001 + index),
         serial_number: String(20_000_001 + index),
-        source_profile_version: canonicalVersions.sourceProfile,
+        source_filename: "test.zip",
+        source_physical_record_index: index + 1,
+        source_product: "TRTYRAP",
+        source_sha256: "a".repeat(64),
         source_transaction_date: "2026-07-10",
         status_code: "616",
         word_mark: `PAGINATION ${String(index + 1).padStart(2, "0")}`,
@@ -116,8 +120,10 @@ beforeAll(async () => {
     )}
   `;
   await database`
-    insert into mark_class (serial_number, ordinal, international_code, status_code, status_date)
-    select serial_number, 0, '025', '6', '2026-07-10'
+    insert into mark_class (generation_id, serial_number, ordinal, international_code, status_code, status_date,
+      source_product, source_filename, source_sha256, source_physical_record_index)
+    select generation_id, serial_number, 1, '025', '6', '2026-07-10',
+      source_product, source_filename, source_sha256, source_physical_record_index
     from mark where word_mark like 'PAGINATION %'
   `;
   await repository.replace(
@@ -134,8 +140,8 @@ beforeAll(async () => {
   );
   await repository.replace(mark("20000031", "PAGINATION UNREGISTERED"));
   await database`
-    insert into corpus_state (id, complete_through_date, published_through_date, corpus_version)
-    values ('uspto', '2026-07-10', '2026-07-10', 7)
+    insert into corpus_state (id, current_generation_id, complete_through_date, published_through_date, corpus_version)
+    values ('uspto', ${testGenerationId}, '2026-07-10', '2026-07-10', 7)
   `;
   server = await buildServer({
     databaseUrl,
@@ -214,6 +220,45 @@ test("Multi lowercases compatibility characters after NFKC", async () => {
     items: [{ match: "exact", serialNumber: "10000013", wordMark: "ᴬ" }],
     total: 1,
   });
+});
+
+test("exact lookups distinguish an unavailable corpus from an absent identity", async () => {
+  await database`update corpus_state set current_generation_id = null where id = 'uspto'`;
+  try {
+    const unavailableSerial = await server.inject({
+      headers: { authorization: "Bearer clerk-session" },
+      method: "GET",
+      url: `/api/trpc/marks.get?input=${encodeURIComponent(JSON.stringify({ serialNumber: "99999999" }))}`,
+    });
+    const unavailableRegistration = await server.inject({
+      headers: { authorization: "Bearer clerk-session" },
+      method: "GET",
+      url: `/api/trpc/marks.get-by-registration?input=${encodeURIComponent(JSON.stringify({ registrationNumber: "9999999" }))}`,
+    });
+    expect(unavailableSerial.statusCode).toBe(503);
+    expect(unavailableSerial.json().error.data.code).toBe("SERVICE_UNAVAILABLE");
+    expect(unavailableRegistration.statusCode).toBe(503);
+    expect(unavailableRegistration.json().error.data.code).toBe("SERVICE_UNAVAILABLE");
+  } finally {
+    await database`
+      update corpus_state set current_generation_id = ${testGenerationId} where id = 'uspto'
+    `;
+  }
+
+  const absentSerial = await server.inject({
+    headers: { authorization: "Bearer clerk-session" },
+    method: "GET",
+    url: `/api/trpc/marks.get?input=${encodeURIComponent(JSON.stringify({ serialNumber: "99999999" }))}`,
+  });
+  const absentRegistration = await server.inject({
+    headers: { authorization: "Bearer clerk-session" },
+    method: "GET",
+    url: `/api/trpc/marks.get-by-registration?input=${encodeURIComponent(JSON.stringify({ registrationNumber: "9999999" }))}`,
+  });
+  expect(absentSerial.statusCode).toBe(404);
+  expect(absentSerial.json().error.data.code).toBe("NOT_FOUND");
+  expect(absentRegistration.statusCode).toBe(404);
+  expect(absentRegistration.json().error.data.code).toBe("NOT_FOUND");
 });
 
 test("Multi partial treats percent, underscore, and the escape character literally", async () => {
@@ -364,24 +409,18 @@ test("rejects the retired class-filter input", async () => {
 test("representative-scale exact and partial plans use general and live indexes", async () => {
   await database`
     insert into mark (
-      serial_number,
+      generation_id, serial_number,
       word_mark,
       status_code,
       source_transaction_date,
-      normalization_version,
-      source_profile_version,
-      projection_version,
-      authority_policy_version
+      normalization_version, source_product, source_filename, source_sha256, source_physical_record_index
     )
     select
-      '4' || lpad(value::text, 7, '0'),
+      ${testGenerationId}, '4' || lpad(value::text, 7, '0'),
       'PLAN NEEDLE ' || lpad(value::text, 6, '0'),
       case when value % 10 = 0 then '616' else '626' end,
       '2026-07-10',
-      ${canonicalVersions.normalization},
-      ${canonicalVersions.sourceProfile},
-      ${canonicalVersions.projection},
-      ${canonicalVersions.authorityPolicy}
+      'uspto-normalization-v1', 'TRTYRAP', 'plan.zip', ${"b".repeat(64)}, value
     from generate_series(1, 100000) value
   `;
   await database.unsafe("vacuum analyze mark");
@@ -418,8 +457,8 @@ test("representative-scale exact and partial plans use general and live indexes"
     status: "live",
   });
 
-  expect(generalExact).toContain("mark_word_mark_normalized_exact_idx");
+  expect(generalExact).toContain("mark_generation_word_mark_exact_idx");
   expect(generalPartial).toContain("mark_word_mark_normalized_trgm_idx");
-  expect(liveExact).toContain("mark_live_word_mark_normalized_exact_idx");
+  expect(liveExact).toContain("mark_live_generation_word_mark_exact_idx");
   expect(livePartial).toContain("mark_live_word_mark_normalized_trgm_idx");
 }, 60_000);

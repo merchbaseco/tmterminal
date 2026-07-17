@@ -1,6 +1,6 @@
 import { open } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { PassThrough, Readable } from "node:stream";
+import { PassThrough, type Readable } from "node:stream";
 
 const loadModule = createRequire(import.meta.url);
 const Open = loadModule("unzipper").Open as {
@@ -37,7 +37,7 @@ export async function extractZipXml(archivePath: string) {
     throw new ArtifactArchiveError("Artifact ZIP contains more than one XML file");
   }
   const [entry] = xmlEntries as [ZipEntry];
-  return Readable.toWeb(mapArchiveErrors(entry.stream())) as unknown as ReadableStream<Uint8Array>;
+  return mapArchiveErrors(entry.stream());
 }
 
 function mapArchiveErrors(stream: Readable) {

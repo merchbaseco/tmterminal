@@ -552,6 +552,67 @@
       }
     },
     {
+      "id": "annual-2025-repeated-international-codes-tx",
+      "artifactId": "TRTYRAP-apc18840407-20251231-05",
+      "actionKey": "TX",
+      "actionOccurrence": 1,
+      "recordIndex": 16137,
+      "actionRecordIndex": 16137,
+      "serialNumber": "71060608",
+      "path": "fixtures/uspto/records/annual-2025-repeated-international-codes-tx-71060608.xml",
+      "bytes": 17487,
+      "sha256": "ebe20e72e8f786392fc511c1b84d85cf62b3ce003686407070bf2bcedda9f278",
+      "sequence": null,
+      "evidence": [
+        "annual 2025-generation TX",
+        "physical record 16,137 from retained annual part 05",
+        "explicit primary Class 025 and SARGENT mark text",
+        "one classification repeats international-code 006 and 020"
+      ],
+      "expectedPresence": {
+        "present": [
+          "mark-identification",
+          "classifications",
+          "international-code"
+        ],
+        "absent": [],
+        "empty": []
+      },
+      "expectedValues": {
+        "mark-identification": "SARGENT",
+        "international-code": "006",
+        "primary-code": "025"
+      }
+    },
+    {
+      "id": "annual-2025-malformed-class-date-tx",
+      "artifactId": "TRTYRAP-apc18840407-20251231-16",
+      "actionKey": "TX",
+      "actionOccurrence": 1,
+      "recordIndex": 70301,
+      "actionRecordIndex": 70301,
+      "serialNumber": "74800000",
+      "path": "fixtures/uspto/records/annual-2025-malformed-class-date-tx-74800000.xml",
+      "bytes": 23028,
+      "sha256": "7fcb036819c38a043090a7a7b31da58c061e390047cc8f5a137fa35416de373c",
+      "sequence": null,
+      "evidence": [
+        "annual 2025-generation TX",
+        "explicit primary Class 025 and GRIGIOPERLA mark text",
+        "five-digit optional class status-date normalizes to null"
+      ],
+      "expectedPresence": {
+        "present": ["mark-identification", "classifications", "status-date"],
+        "absent": [],
+        "empty": []
+      },
+      "expectedValues": {
+        "mark-identification": "GRIGIOPERLA",
+        "status-date": "10101",
+        "primary-code": "025"
+      }
+    },
+    {
       "id": "annual-2025-status-only-tx",
       "artifactId": "TRTYRAP-apc18840407-20251231-01",
       "actionKey": "TX",

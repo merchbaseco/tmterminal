@@ -1,9 +1,0 @@
-#!/bin/sh
-set -eu
-
-root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-cd "$root"
-
-./scripts/compose stop worker
-./scripts/compose run --rm --no-deps -e TMTURTLE_OFFLINE_REBUILD=1 worker \
-  bun run --cwd apps/server sync:ops -- full-rebuild --confirm-offline-rebuild

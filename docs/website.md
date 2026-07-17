@@ -132,7 +132,7 @@ The API Keys page lists name, suffix, creation time, last-used time, and status.
 
 The corpus-through date is the contiguous complete frontier. It opens a COSS popover with the newest published date, last successful merge, current sync state, pending/failed/reject counts, and staleness. The popover rereads status when opened; it does not poll.
 
-Operators with the server-enforced database role also receive a top-bar link to `/ops/sync`. That read-only route shows the two dataset summaries plus bounded, server-paginated logical artifacts, retained artifact versions, publications, and rejections. Version rows expose the immutable version UUID and SHA needed by host recovery commands. The route has no retry, rebuild, quarantine, or reissue controls and is not available to ordinary authenticated customers or API keys.
+Operators with the server-enforced database role also receive a top-bar link to `/ops/sync`. That read-only route shows the annual generation summary, provider lane, and bounded server-paginated source artifacts with state, counts, compact SHA, coverage, and current error. It has no mutation controls and is not available to ordinary authenticated customers or API keys.
 
 ## States and responsiveness
 

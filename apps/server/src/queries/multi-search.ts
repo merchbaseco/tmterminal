@@ -1,13 +1,13 @@
 import type postgres from "postgres";
 
 import type { MultiSearchInput, MultiSearchPage } from "../api/contracts.ts";
+import { CorpusUnavailableError } from "./corpus-errors.ts";
 
 interface CorpusState {
   completeThroughDate: string | null;
   corpusVersion: string;
 }
 
-export class CorpusUnavailableError extends Error {}
 export class CorpusVersionConflictError extends Error {}
 
 type QueryValue = number | string;
@@ -72,7 +72,9 @@ export function buildMultiSearchQueries(input: MultiSearchInput) {
   return {
     count: {
       text: `with ${normalizedQuery}
-        select count(*)::int as total from mark m cross join normalized where ${predicate}`,
+        select count(*)::int as total
+        from corpus_state state join mark m on m.generation_id = state.current_generation_id
+        cross join normalized where state.id = 'uspto' and ${predicate}`,
       values,
     },
     items: {
@@ -89,16 +91,19 @@ export function buildMultiSearchQueries(input: MultiSearchInput) {
           array(
             select distinct classification.international_code
             from mark_class classification
-            where classification.serial_number = m.serial_number
+            where classification.generation_id = m.generation_id
+              and classification.serial_number = m.serial_number
               and classification.international_code is not null
             order by classification.international_code
           ) as "internationalClasses",
           (select owner.party_name from mark_owner owner
-            where owner.serial_number = m.serial_number order by owner.ordinal limit 1) as owner,
+            where owner.generation_id = m.generation_id
+              and owner.serial_number = m.serial_number order by owner.ordinal limit 1) as owner,
           (select goods.text from mark_goods_services goods
-            where goods.serial_number = m.serial_number order by goods.ordinal limit 1) as "goodsServicesExcerpt"
-        from mark m cross join normalized
-        where ${predicate}
+            where goods.generation_id = m.generation_id
+              and goods.serial_number = m.serial_number order by goods.ordinal limit 1) as "goodsServicesExcerpt"
+        from corpus_state state join mark m on m.generation_id = state.current_generation_id
+        cross join normalized where state.id = 'uspto' and ${predicate}
         order by ${orderBy}
         limit ${limitParameter} offset ${offsetParameter}`,
       values: itemValues,

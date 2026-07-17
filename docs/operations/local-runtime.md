@@ -68,18 +68,15 @@ Direct `docker compose` deployment requires stable `TMTURTLE_API_PORT` and `TMTU
 
 Set `DATABASE_URL` and `POSTGRES_PASSWORD` in the ignored `.env` before starting Compose. `POSTGRES_DB` and `POSTGRES_USER` default to `tmturtle`; production must replace the example password. The API, worker, and one-shot migration all receive the configured `DATABASE_URL`.
 
-The worker also requires a rotated `USPTO_API_KEY` associated with an account authorized for ODP. Do not start the live worker with an exposed or retired key. Provider pacing stays configurable without assuming an undocumented quota:
+The worker also requires a rotated `USPTO_API_KEY` associated with an account authorized for ODP. Do not start the live worker with an exposed or retired key. Provider timeout and backoff durations remain configurable. The 10-second reconciliation cadence and eight-attempt fail-closed ceiling are private literals and cannot be relaxed through environment configuration:
 
 ```dotenv
-USPTO_DISCOVERY_INTERVAL_MS=21600000
-USPTO_SCHEDULER_POLL_MS=10000
 USPTO_REQUEST_TIMEOUT_MS=900000
 USPTO_RETRY_BASE_MS=30000
-USPTO_RETRY_MAX_ATTEMPTS=8
 USPTO_RETRY_MAX_MS=21600000
 ```
 
-One active download at a time uses the dedicated `artifact-data` volume under a content-addressed key. Terminal parse or quarantine deletes that raw object. Normal `compose:down` preserves the database and any interrupted working object.
+One active download at a time uses the dedicated `artifact-data` volume under a content-addressed key. Projection streams the ZIP entry directly and writes no extracted XML. Success or terminal failure deletes the raw ZIP immediately. Normal `compose:down` preserves the database and any interrupted working object.
 
 Authenticated website use also requires `CLERK_SECRET_KEY`, `CLERK_AUTHORIZED_PARTIES`, and `VITE_CLERK_PUBLISHABLE_KEY`. The Compose wrapper derives `CLERK_AUTHORIZED_PARTIES` from the worktree website port; direct deployments must set the public website origin explicitly. The production-shaped Compose contract refuses to render without all three values; the anonymous API readiness response remains data-free.
 
@@ -124,29 +121,13 @@ bun run compose -- ps
 bun run compose -- logs api
 ```
 
-## Corpus recovery
+## Corpus operations
 
-The authenticated operator page at `/ops/sync` is read-only. It shows current dataset state, bounded logical artifacts, every retained version through a bounded version table, publications, and rejections. The annual card reports exact first-publication parse progress out of 91; the daily card identifies daily evidence as retained-only for this policy. Use the full artifact-version UUID shown there for version-specific host commands. Recovery mutations run only inside the current checkout's worker container through the Compose wrapper:
+The authenticated operator page at `/ops/sync` is read-only. It shows the annual generation, provider lane, and bounded source artifacts with state, counts, SHA, coverage, and current error. There are no host mutation commands, reprocessing versions, quarantine workflow, compatibility reader, or second rebuild engine.
 
-```bash
-bun run sync:ops -- quarantine <artifact-version-id> --reason "<operator reason>"
-bun run sync:ops -- reprocess-artifact <artifact-version-id> --reason "<operator reason>"
-bun run sync:ops -- select-reissue <artifact-version-id> --reason "<selection reason>"
-bun run sync:ops -- recover-source-lane --confirm-all-current-alerts --reason "<recovery reason>"
-bun run sync:ops -- recover-frontier
-```
+The worker derives restart work from `corpus_generation` and `source_artifact`. Before source access it removes one unreferenced finalized ZIP, including any object left by the legacy schema cutover or a crash before retention was committed. A `downloading` artifact without a committed object becomes terminally failed and is never fetched again. Any failed member blocks later downloads for that building generation. A retained projecting ZIP restarts its rolled-back artifact transaction. Complete and failed artifacts retain no raw ZIP. Provider backoff/stop state is database-backed and intentionally requires a corrected deployment or explicit database operation designed for the concrete incident; there is no generic recovery command.
 
-`quarantine` accepts only a verified or staged version, preserves the reason and time, invalidates a selection of that version, and releases its raw working object through reconciliation. `reprocess-artifact` is the explicit parser-v4-to-v5 transition for one reviewed annual artifact-version ID before first publication. It requires terminal staged or quarantined v4 evidence, deleted raw bytes, no v5 run, no published corpus membership, and the single latest verified discovery; it resets only that version and discovery while preserving all v4 observations and rejects. Current-parser-only publication requires every selected annual member to finish v5, so invoke each reviewed ID individually; the worker still re-downloads, parses, and deletes one official artifact at a time. `select-reissue` accepts only a parsed, publication-policy-eligible version from a logical artifact with multiple retained versions. There is no raw-object replay command, bulk reprocessing command, or automatic parser-generation retry.
-
-`recover-source-lane` locks the lane, requires explicit confirmation, resolves the complete current unresolved USPTO alert set with the supplied reason, and resumes the lane. It refuses a ready lane or a stopped lane with no unresolved alert. `recover-frontier` stages and publishes the exact eligible 91-member annual policy set through the normal corpus publisher; retained daily evidence is excluded. Every command fails closed on a wrong state. There is no automated recovery or command retry loop.
-
-A full rebuild is the one-time pre-migration PRD-77 storage cutover, not a second ingestion engine:
-
-```bash
-bun run sync:rebuild
-```
-
-The wrapper stops the current checkout's worker and intentionally leaves it stopped. Under the corpus lock, the operation refuses any durable corpus state, publication, active reconciliation delivery, or post-0012 nullable object-key schema. It deletes and reports only stale `created` or `retry` reconciliation wakeups before cutover mutation. It physically truncates rebuildable canonical/source-observation relations, removes non-quarantined parse runs, preserves account/API-key/catalog metadata and durable quarantine evidence, resets discoveries for re-download, and retires the exact historical PRD-60 tracer metadata. It then keyset-scans unique catalog object keys and awaits one idempotent raw-object deletion at a time, followed by sequential finalized-key enumeration to remove any unreferenced put-before-retain orphan. Only after every database cleanup and raw unlink succeeds does it write the one-time PRD-77 cutover proof. Because the preflight runs on migration 0010 where `object_key` is still required, pointers remain until migration 0012 verifies that proof, makes the column nullable, clears the pointers, and removes the proof. A populated database without the proof fails migration; a fresh empty database does not require it. The normal migration dependency must complete before the worker starts.
+Forward migrations discard rebuildable legacy ingestion state and preserve account, Clerk identity, API key, role, and provider-lane data. Drizzle applies all pending migrations in one transaction, so the destructive cutover and new direct schema become visible together. No pre-migration cleanup script or cutover proof is required.
 
 Drizzle owns application schema migration. pg-boss owns its separate `pgboss` schema: the one-shot migration entrypoint starts pg-boss with migration enabled after Drizzle, while the production worker starts with `migrate:false` and fails closed if that schema is absent. Repeated migration is expected to be idempotent.
 

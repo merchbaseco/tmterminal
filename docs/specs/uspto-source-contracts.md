@@ -1,8 +1,7 @@
 ---
-summary: Pins official USPTO trademark source references, retained artifact provenance, fixture evidence, and blocking gaps.
+summary: Pins official USPTO annual metadata, source bytes, direct-projection evidence, and deferred daily gaps.
 read_when:
-  - changing USPTO product discovery, artifact enumeration, XML parsing, action profiles, or fixture coverage
-  - deciding whether the canonical-ingestion fixture gate has enough official source evidence
+  - changing annual discovery, artifact enumeration, XML parsing, direct projection, or fixture coverage
 ---
 
 # USPTO source contracts
@@ -11,11 +10,12 @@ Reviewed against official USPTO metadata and retained source bytes on 2026-07-17
 
 ## Official contract references
 
-- Product metadata: `GET https://api.uspto.gov/api/v1/datasets/products/TRTYRAP` and `GET https://api.uspto.gov/api/v1/datasets/products/TRTDXFAP`, with `accept: application/json` and `x-api-key`.
+- Runtime product metadata: `GET https://api.uspto.gov/api/v1/datasets/products/TRTYRAP`, with `accept: application/json` and `x-api-key`. The pinned product identifier is `TRTYRAP` and its frequency literal is `YEARLY`. Retained `TRTDXFAP` evidence informs a later daily design but is not a v1 worker input.
+- Bulk-download policy limits one API key to 20 annual downloads of the same file and one IP to five files per 10 seconds. Signed redirects expire after five seconds, so the data-origin request begins immediately and omits the API key. Runtime retries stop after eight consecutive persisted attempts. A process-interrupted download becomes terminally failed on restart rather than consuming another same-file request; any failed member blocks later generation downloads.
 - [USPTO XML resources](https://www.uspto.gov/learning-and-resources/xml-resources) names **Trademark Applications Documentation v2.3-20250813** and **Table 1 Trademark Status Codes 20250813** as the current trademark-application contracts.
 - The current [application documentation](https://api.uspto.gov/api/v1/datasets/products/files/TRTDXFAP/Trademark-Applications-Documentation-v2.3-20250813.doc) is 2,329,088 bytes with SHA-256 `96a1bcec082cad186ef3b41bb8bcb8fe970289ff0784de31c7e93e2a3780648b`. It defines raw class status `6` as Active; other raw class codes remain uninterpreted.
 - The current [status table](https://api.uspto.gov/api/v1/datasets/products/files/TRTDXFAP/Table1TrademarkStatusCodes_20250813.doc) is 154,624 bytes with SHA-256 `8d251bbd5af8e18eaf269524945bfd7b9714a2ac1600669486660fc75e5d6bf6`. Its 169 entries, updated 2023-06-20, contain 124 Live, 41 Dead, and four Indifferent codes (`000`, `622`, `715`, `970`). Search policy `uspto-trademark-status-20250813` maps Indifferent, null, and unlisted future codes to `unknown`.
-- The retained, directly retrievable official [Trademark Applications XML v2.0 documentation](https://www.uspto.gov/sites/default/files/products/TMDailyApp-Documentation-508.pdf) is 702,326 bytes with SHA-256 `db1211c23c2b8e206acbd5f87b02804d7d63ea3269c98e725296573a7b10406a`. It defines transaction date as the daily process date, documents action key `00`, defines action-key/identity order as file sequence, and defines a present `case-file-owners` group as containing all owner records. These statements prove source framing and v2.0 owner-group completeness, not annual-versus-daily authority.
+- The retained, directly retrievable official [Trademark Applications XML v2.0 documentation](https://www.uspto.gov/sites/default/files/products/TMDailyApp-Documentation-508.pdf) is 702,326 bytes with SHA-256 `db1211c23c2b8e206acbd5f87b02804d7d63ea3269c98e725296573a7b10406a`. It proves the XML framing and repeated record-group shapes used by the annual projection.
 - [USPTO ODP registration notice](https://www.uspto.gov/subscription-center/2026/register-access-usptos-open-data-portal) requires a signed-in USPTO.gov account to search and download ODP datasets beginning June 18, 2026.
 
 Authenticated `TRTYRAP` metadata returns 177 Data files: 91 members for the 1884-04-07 through 2025-12-31 generation and 86 for the generation ending 2024-12-31. The complete JSON response is retained by SHA-256. Historical 403 evidence remains retained, but it is not the current access state.
@@ -38,46 +38,31 @@ The 2025 `TRTYRAP` parts were downloaded from the `fileDownloadURI` values in th
 | `TRTDXFAP` | `apc240914.zip` | Every observed transaction date is 2024-09-14 | `NA`, `TX` | 11,012 |
 | `TRTDXFAP` | `apc240925.zip` | Every observed transaction date is 2024-09-25 | `IB`, `NA`, `TX` | 38,179 |
 
-The XML root is `trademark-applications-daily`, version `2.0`, version date `20041108`. Artifact creation timestamps, transaction-date ranges, action-group occurrences and counts, full XML hashes, and ZIP hashes are verification inputs rather than prose claims.
+The XML root is `trademark-applications-daily`, with exactly one `version-no` equal to `2.0`, version date `20041108`. Artifact creation timestamps, transaction-date ranges, action-group occurrences and counts, full XML hashes, and ZIP hashes are verification inputs rather than prose claims.
 
 The retained `apc18840407-20251231-16.zip` contains the 3,669,744-byte `<case-file>` for serial `74668071`, word mark `GUESS JEANS`, at physical and `TX` action index 1,107. Its complete element SHA-256 is `2babb5e0e252a97051e7fe4d29dea4f518c629fabf635a8f5d5c0f61245e5b93`; the committed byte-exact source range additionally preserves its 16 leading indentation bytes.
 
-The retained `apc18840407-20251231-49.zip` contains that artifact's 10,948,448-byte maximum `<case-file>` for serial `85951867`, word mark `IWATCH`, at physical and `TX` action index 67,098. Its complete element SHA-256 is `41b8ed8d589f4d2d19e9bd9fdf97f5dc6eedafceeb4881bad47b54ad2d7a4334`; the 10,948,464-byte committed source range additionally preserves its 16 leading indentation bytes. The record contains 26,496 ordered `madrid-history-event` children and no Class 025 assertion, proving that full-record validation must precede persistence selection. The official format permits variable-length repeated groups and documents no case-file ceiling. Parser v5 therefore uses an evidence-backed 16,777,216-byte operational bound while retaining a hard limit against malformed unclosed records; rejected evidence remains bounded by the limit plus one 65,536-byte input slice.
+The retained `apc18840407-20251231-49.zip` contains that artifact's 10,948,448-byte maximum `<case-file>` for serial `85951867`, word mark `IWATCH`, at physical and `TX` action index 67,098. Its complete element SHA-256 is `41b8ed8d589f4d2d19e9bd9fdf97f5dc6eedafceeb4881bad47b54ad2d7a4334`; the 10,948,464-byte committed source range additionally preserves its 16 leading indentation bytes. The record contains 26,496 `madrid-history-event` children and no Class 025 assertion. It proves the event-stream parser can validate a large physical record without projecting it.
 
-Generation dates prove membership only. They do not describe the maximum XML transaction date or establish annual-versus-daily precedence: `apc18840407-20251231-05.xml` contains 1,107 verified 2026 transaction dates, including the committed `20260128` observation, and has a verified maximum transaction date of `20260402`. The retained `-01` and `-05` parts contain 155,000 unique serials each in ascending physical XML order, with disjoint observed ranges `60000001`–`60172052` and `60926995`–`72182570`. API response order, filename suffixes, release metadata, and physical order remain provenance, not processing semantics.
+Generation dates prove membership and the activation frontier only. They do not describe the maximum XML transaction date: `apc18840407-20251231-05.xml` contains 1,107 verified 2026 transaction dates and has a verified maximum transaction date of `20260402`. Filename suffix and physical index are compact source coordinates, not chronology.
 
 ## Committed evidence
 
 Committed files include exact `<case-file>` byte ranges and the current official XML declaration plus internal DTD prolog, preserving original indentation and line endings. The manifest supplies each record's enclosing root/version, action-key occurrence, global record index, action-local record index, serial number, and expected presence semantics.
 
-Evidence currently pinned:
+Direct-projection evidence currently pinned:
 
-- Full and status-only annual `TX` shapes from the same official 2025 generation and the same retained part; they are different serials, not a claimed transition sequence
-- Sparse annual `TX` and daily `IB` shapes with independently absent mark, statement, classification, or owner groups
-- An annual `TX` observation whose transaction date is after the official generation to-date
-- Annual status-only `TX`, including missing mark/owner/classification/goods groups and a present-empty correspondent
-- Daily `IB`, `NA`, and `TX`
-- Daily `TX` revival from status 602 to 616
-- Daily `TX` publication from status 774 to 686 with the source event `PUBLISHED FOR OPPOSITION`
-- Present classification-group replacement and goods text preserving brackets, double parentheses, and asterisks
-- Registration and cancellation records with source-reported event descriptions
-- XML v2.0 owner-group replacement when the group is present and non-empty; absence remains unmentioned and present-empty returns `unsupported-semantics`
+- one authentic annual Class 025 `TX` record with mark, classes, owners, goods/services, and status history;
+- one authentic annual Class 025 `TX` record whose five-digit optional class status date normalizes to null; exactly eight-digit non-calendar dates remain invalid;
+- the authentic 10,948,448-byte annual record with no Class 025 assertion;
+- an annual record whose transaction date is after the official generation to-date;
+- strict source identity and calendar-date failures;
+- fixed 100-mark projection batches.
 
-The daily before/after fixtures prove only their named same-product transitions. No retained fixture observes the same serial and group in both `TRTYRAP` and `TRTDXFAP`, and the official metadata does not define a product winner. The safe PRD-59 contract is therefore the partial-order and semantic-confluence rule in [ADR 0002](../adr/0002-model-uspto-records-as-ordered-claims.md), not a total annual/daily order. Identical unordered claims resolve with all non-dominated observations retained as contributors; they do not manufacture a provenance conflict.
+## Annual activation policy
 
-## First publication policy
+The corpus selects exactly the 91 official `TRTYRAP` members covering 1884-04-07 through 2025-12-31. Every physical record is counted and validated. Only a non-empty `mark-identification` plus explicit `primary-code` `025` is projected. Zero-selected members remain complete members. One reconciliation handles one ZIP/XML and fixed projection batches; terminal ZIPs are deleted immediately. Exactly 91/91 complete members activate the generation and set both frontiers to 2025-12-31.
 
-The first corpus publication selects exactly the 91 official `TRTYRAP` members covering 1884-04-07 through 2025-12-31. Parser `uspto-application-xml-v5` validates and physically counts every record, while persisting an observation only for an explicit `primary-code` `025` plus non-empty `mark-identification`. Zero-selected members remain valid policy members. It excludes every `TRTDXFAP` artifact and sets `completeThroughDate` to 2025-12-31. The 91-member set is completeness metadata, never an execution batch: one exclusive reconciliation handles one streamed artifact and fixed observation batches. Daily metadata remains durable and operator-visible; supported selected observations and quarantine evidence remain durable. Terminal raw ZIPs are deleted, and later policy work re-downloads official bytes. This bootstrap is reversible and does not establish cross-product precedence or supersession.
+## Deferred daily contract
 
-## Blocking gaps
-
-The PRD-71 full-annual evidence gate is closed. The broader canonical-ingestion fixture gate remains blocked:
-
-- Current application/status DOC bytes are not retained; only the pinned search-policy/class-status facts, complete disposition digest, and document identities are executable evidence.
-- Retained production daily evidence includes documented action key `00` full records and valid sparse/status-only `TX` records that the current parser does not yet accept. Those are parser-profile gaps, not evidence that the records are invalid.
-- Retained daily artifacts still contain no numeric Official Gazette action-key fixture; action key `00` does not close that distinct evidence gap.
-- Registration and cancellation have real single-observation evidence, not retained multi-observation sequences.
-- Cross-product annual-versus-daily claim precedence is not established by retained evidence. Annual metadata to-date cannot serve as the boundary; order-sensitive overlaps remain authority conflicts and block mixed-product publication.
-- Class-absent daily updates and Class 025 add, remove, or re-add membership need a later daily-policy contract; v3 does not infer membership across records.
-
-The action-key `00` and sparse/status-only `TX` parser gaps require a distinct daily-lane follow-up after first publication. Invalid duplicate top-level containers remain quarantined. Do not derive annual order from suffixes or response position, equate metadata dates with transaction coverage, map unknown action keys, or promote event-history text into source-observation ordering.
+The v1 worker does not discover, download, parse, quarantine, retain, or publish `TRTDXFAP`. Retained daily fixtures remain research evidence only. Before daily support, define Class 025 add/remove semantics, sparse update behavior, action-key support, and annual-versus-daily precedence from official evidence. Do not infer those rules from filename, response order, generation metadata, or event text.

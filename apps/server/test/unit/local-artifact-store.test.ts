@@ -25,7 +25,6 @@ test("streams one immutable content-addressed object for unchanged bytes", async
     sha256: "8ed3f6ad685b959ead7022518e1af76cd816f8e8ec7ccdda1ed4018e8f2223f8",
   });
   expect(second).toEqual(first);
-  expect(await store.head(first.objectKey)).toEqual({ bytes: 5 });
   expect(await Bun.file(await store.openFile(first.objectKey)).text()).toBe("alpha");
   expect(await readdir(join(root, "sha256", "8e"))).toEqual([first.sha256]);
 });
@@ -37,9 +36,8 @@ test("removes one content-addressed working object idempotently", async () => {
   const stored = await store.put(new Blob(["alpha"]).stream(), 5);
 
   await store.remove(stored.objectKey);
-  expect(await store.head(stored.objectKey)).toBeNull();
   await store.remove(stored.objectKey);
-  expect(await store.head(stored.objectKey)).toBeNull();
+  await expect(store.openFile(stored.objectKey)).rejects.toThrow("ENOENT");
 });
 
 test("rejects a missing object before returning a lazy stream", async () => {
