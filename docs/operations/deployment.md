@@ -7,7 +7,7 @@ read_when:
 
 # Mac mini deployment
 
-Trademark Turtle runs from `/Users/zknicker/srv/tmturtle` as Compose project `tmturtle`. Cloudflare Tunnel terminates public TLS for `https://tmturtle.merchbase.co` and forwards that hostname to Caddy on `http://127.0.0.1:8095`. The direct API diagnostic port is `127.0.0.1:3095`. No container binds a non-loopback host port.
+Trademark Turtle runs from `/Users/zknicker/srv/tmturtle` as Compose project `tmturtle`. Cloudflare Tunnel terminates public TLS for `https://tmturtle.merchbase.co` and forwards that hostname to Caddy on `http://127.0.0.1:8095`. The direct API diagnostic port is `127.0.0.1:3095`; PostgreSQL is available on `127.0.0.1:5437` for the established Tailscale development path. No container binds a non-loopback host port.
 
 ## Deployment contract
 

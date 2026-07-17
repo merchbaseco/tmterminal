@@ -11,13 +11,5 @@ bun install --frozen-lockfile
 name = "dev"
 icon = "run"
 command = '''
-set -a
-. ./.env
-set +a
-
-web_port="$(dev-port 0)"
-api_port="$(dev-port 1)"
-export TMTURTLE_API_PORT="${api_port}"
-
-bun run --cwd apps/web dev --host 127.0.0.1 --port "${web_port}"
+bun run dev
 '''

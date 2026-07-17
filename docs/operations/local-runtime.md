@@ -41,7 +41,29 @@ The selected database must be disposable. The integration setup removes its Driz
 
 ## Runtime stack
 
-Start the production-shaped local stack and wait for service health:
+Normal product development runs the API and Vite website locally against the production PostgreSQL
+corpus on the Mac mini:
+
+```bash
+bun run dev
+```
+
+The command uses the current checkout's first two `dev-port` ports, reads the ignored `.env`, and
+rewrites only the database host and port in memory to
+`zachs-mac-mini.taila0b849.ts.net:5437`. It starts no migration or worker process. The Mac mini must
+be reachable over Tailscale. The production `DATABASE_URL` stored in `.env` remains unchanged.
+
+This is live production state. Searches, freshness, reports, and operator diagnostics read the real
+corpus. Account creation and API-key creation or revocation write production state. The command
+prints that warning at startup; use the disposable PostgreSQL integration lane for database,
+migration, or destructive work.
+
+The production database publishes PostgreSQL only on Mac mini loopback port `5437`. Colima and
+Tailscale expose the same house development path used by RankWrangler and EtsySentry; PostgreSQL is
+not bound to a public network interface.
+
+For production-shaped runtime and deployment verification, start the isolated Compose stack and
+wait for service health:
 
 ```bash
 bun run compose:up
@@ -80,21 +102,10 @@ One active download at a time uses the dedicated `artifact-data` volume under a 
 
 Authenticated website use also requires `CLERK_SECRET_KEY`, `CLERK_AUTHORIZED_PARTIES`, and `VITE_CLERK_PUBLISHABLE_KEY`. The Compose wrapper derives `CLERK_AUTHORIZED_PARTIES` from the worktree website port; direct deployments must set the public website origin explicitly. The production-shaped Compose contract refuses to render without all three values; the anonymous API readiness response remains data-free.
 
-Local browser automation uses the shared MerchBase development Clerk instance. Set `DEV_CLERK_SIGN_IN_USER_ID` and `VITE_DEV_CLERK_AUTO_SIGN_IN=true` to opt in. This opt-in is only for an API and Vite server running directly on the host; the production-shaped Compose stack does not forward it or include Vite's development client. With a host-reachable `DATABASE_URL`, start the API and website in separate terminals:
-
-```bash
-set -a
-. ./.env
-set +a
-PORT="$(dev-port 1)" bun run --cwd apps/server start
-```
-
-```bash
-set -a
-. ./.env
-set +a
-TMTURTLE_API_PORT="$(dev-port 1)" bun run --cwd apps/web dev --host 127.0.0.1 --port "$(dev-port 0)"
-```
+Local browser automation uses the shared MerchBase development Clerk instance. Set
+`DEV_CLERK_SIGN_IN_USER_ID` and `VITE_DEV_CLERK_AUTO_SIGN_IN=true` to opt in, then use `bun run dev`.
+This opt-in is only for an API and Vite server running directly on the host; the production-shaped
+Compose stack does not forward it or include Vite's development client.
 
 In Vite development only, the website requests a 60-second Clerk sign-in ticket from the local API and then establishes a normal Clerk session. The endpoint requires both an exact `127.0.0.1` Host header and an actual `127.0.0.1` peer; it is absent in production and when the server opt-in is unset. It does not bypass Clerk verification or create a fallback application credential.
 
