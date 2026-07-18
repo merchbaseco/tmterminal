@@ -57,7 +57,7 @@ const searchResult = {
     wordMark: "TURTLE MARK",
   }],
   limit: 25 as const,
-  meta: { corpusThroughDate: "2026-07-10", corpusVersion: "7" },
+  meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
   offset: 0,
   total: 1,
 };

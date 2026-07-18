@@ -3,9 +3,9 @@ import { mkdir, readdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import {
-    annualGenerationV1Artifacts,
-    annualGenerationV1MetadataSha256,
-} from '../apps/server/src/ingestion/annual-generation-v1.ts';
+    annualBaselineV1Artifacts,
+    annualBaselineV1MetadataSha256,
+} from '../apps/server/src/ingestion/annual-baseline-v1.ts';
 import {
     ACTIVE_CLASS_STATUS_CODE,
     APPLICATION_DOCUMENTATION_SOURCE,
@@ -184,14 +184,14 @@ const verifyOfficialProductMetadata = async (metadata: OfficialProductMetadata) 
         throw new Error(`Official product inventory drift: ${metadata.id}`);
     }
     if (metadata.id === 'TRTYRAP-product-metadata-2026-07-15') {
-        if (metadata.responseSha256 !== annualGenerationV1MetadataSha256) {
+        if (metadata.responseSha256 !== annualBaselineV1MetadataSha256) {
             throw new Error('Pinned annual policy metadata SHA-256 drift');
         }
         const pinnedGenerationFiles = files
             .filter((file) => file.fileDataFromDate === '1884-04-07' && file.fileDataToDate === '2025-12-31')
             .map((file) => String(file.fileName))
             .sort();
-        if (JSON.stringify(pinnedGenerationFiles) !== JSON.stringify([...annualGenerationV1Artifacts].sort())) {
+        if (JSON.stringify(pinnedGenerationFiles) !== JSON.stringify([...annualBaselineV1Artifacts].sort())) {
             throw new Error('Pinned annual policy membership drift');
         }
     }

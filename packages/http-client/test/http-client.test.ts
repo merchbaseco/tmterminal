@@ -59,7 +59,7 @@ test("derives the Multi search request and page types from the server router", a
           data: {
             items: [],
             limit: 25,
-            meta: { corpusThroughDate: "2026-07-10", corpusVersion: "7" },
+            meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
             offset: 0,
             total: 0,
           },
@@ -85,7 +85,7 @@ test("derives the Multi search request and page types from the server router", a
   expect(page).toEqual({
     items: [],
     limit: 25,
-    meta: { corpusThroughDate: "2026-07-10", corpusVersion: "7" },
+    meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
     offset: 0,
     total: 0,
   });

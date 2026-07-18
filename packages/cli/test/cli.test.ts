@@ -59,7 +59,7 @@ const searchPage = {
     },
   ],
   limit: 25,
-  meta: { corpusThroughDate: "2026-07-10", corpusVersion: "7" },
+  meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
   offset: 25,
   total: 26,
 } satisfies TmturtleRouterOutputs["marks"]["search"];
@@ -418,7 +418,7 @@ test("marks search maps the approved Multi flags and preserves the server page e
       "25",
       "--offset",
       "25",
-      "--corpus-version",
+      "--data-version",
       "7",
     ],
     dependencies({
@@ -446,7 +446,7 @@ test("marks search maps the approved Multi flags and preserves the server page e
 
   expect(inputs).toEqual([
     {
-      expectedCorpusVersion: "7",
+      expectedDataVersion: "7",
       limit: 25,
       match: "partial",
       mode: "multi",
@@ -487,7 +487,7 @@ test("marks search rejects unapproved modes and unsafe continuations before HTTP
   expect(JSON.parse(missingVersion.stderr)).toMatchObject({
     error: {
       code: "BAD_REQUEST",
-      message: "--corpus-version is required when --offset is greater than 0",
+      message: "--data-version is required when --offset is greater than 0",
     },
     ok: false,
   });
@@ -497,8 +497,8 @@ test("marks search rejects unapproved modes and unsafe continuations before HTTP
   });
 });
 
-test("marks search preserves a typed corpus conflict envelope", async () => {
-  const conflict = Object.assign(new Error("Trademark corpus changed during pagination"), {
+test("marks search preserves a typed data conflict envelope", async () => {
+  const conflict = Object.assign(new Error("Trademark data changed during pagination"), {
     data: { code: "CONFLICT" },
   });
   const result = await runCli(
@@ -526,7 +526,7 @@ test("marks search preserves a typed corpus conflict envelope", async () => {
   expect(result).toEqual({
     exitCode: 1,
     stderr:
-      '{"ok":false,"error":{"code":"CONFLICT","message":"Trademark corpus changed during pagination","details":{}}}\n',
+      '{"ok":false,"error":{"code":"CONFLICT","message":"Trademark data changed during pagination","details":{}}}\n',
     stdout: "",
   });
 });

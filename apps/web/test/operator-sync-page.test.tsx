@@ -9,6 +9,7 @@ const { cleanup, render, screen } = await import("@testing-library/react");
 const { afterEach, expect, test } = await import("bun:test");
 const { OperatorSyncPage } = await import("../src/operator-sync-page.tsx");
 type OperatorSyncApi = import("../src/operator-sync-page.tsx").OperatorSyncApi;
+const retiredDataTerms = /\b(corpus|generation)\b/i;
 
 afterEach(cleanup);
 
@@ -37,8 +38,7 @@ function api(): OperatorSyncApi {
       total: 91,
     }),
     status: async () => ({
-      generation: {
-        activeGenerationId: null,
+      annualBaseline: {
         completeArtifactCount: 1,
         expectedArtifactCount: 91,
         failedArtifactCount: 0,
@@ -48,16 +48,12 @@ function api(): OperatorSyncApi {
       summary: {
         activeState: "idle",
         completeThroughDate: null,
-        corpusVersion: 0,
+        dataVersion: 0,
         degraded: true,
         degradedSince: null,
         failedCount: 0,
-        lastSuccessfulMergeAt: null,
+        lastSuccessfulUpdateAt: null,
         pendingCount: 90,
-        publishedThroughDate: null,
-        quarantineCount: 0,
-        reissueSelectionRequiredCount: 0,
-        rejectCount: 0,
         stale: true,
         staleSince: null,
       },
@@ -65,11 +61,13 @@ function api(): OperatorSyncApi {
   };
 }
 
-test("shows the compact annual generation and artifact state", async () => {
+test("shows compact annual baseline and artifact state", async () => {
   render(<OperatorSyncPage api={api()} />);
+  expect(screen.getByRole("heading", { level: 1, name: "DATA" })).toBeTruthy();
   expect(await screen.findByText("1 of 91 complete")).toBeTruthy();
   expect(screen.getAllByText("12,345")).toHaveLength(2);
   expect(screen.getByText("apc18840407-20251231-01.zip")).toBeTruthy();
+  expect(document.body.textContent).not.toMatch(retiredDataTerms);
   expect(screen.queryByText("Artifact versions")).toBeNull();
   expect(screen.queryByText("Recent publications")).toBeNull();
 });

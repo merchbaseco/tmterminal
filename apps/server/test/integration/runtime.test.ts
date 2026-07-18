@@ -39,7 +39,34 @@ afterEach(async () => {
 });
 afterAll(() => database.end({ timeout: 1 }));
 
-describe("direct annual corpus migration", () => {
+function productionArtifact(part: number, generationId: string) {
+  const filename = `apc18840407-20251231-${String(part).padStart(2, "0")}.zip`;
+  let sha256: string | null = null;
+  let state = "pending";
+  if (part <= 25) {
+    sha256 = "a".repeat(64);
+    state = "complete";
+  }
+  if (part === 26) {
+    sha256 = "15f42e5355652e3c70a2b3e4bc8d39f411c6e90c050ae5c89ace1d2b92266738";
+    state = "projecting";
+  }
+  return {
+    download_url: `https://example.test/${filename}`,
+    expected_bytes: 1,
+    filename,
+    generation_id: generationId,
+    id: `31000000-0000-4000-8000-${String(part).padStart(12, "0")}`,
+    object_key: part === 26 ? "sha256/15/part26" : null,
+    product: "TRTYRAP",
+    sha256,
+    source_from_date: "1884-04-07",
+    source_to_date: "2025-12-31",
+    state,
+  };
+}
+
+describe("live trademark data migration", () => {
   test("preserves auth and role rows while discarding rebuildable legacy ingestion state", async () => {
     await migrateDatabase(databaseUrl, await stageMigrationPrefix(13));
     const accountId = "00000000-0000-4000-8000-000000000001";
@@ -84,7 +111,7 @@ describe("direct annual corpus migration", () => {
       from source_lane order by id
     `;
     expect(auth).toEqual({ accounts: 1, identities: 1, keys: 1, roles: 1 });
-    expect(shape).toEqual({ legacyArtifact: false, migrations: 15, tables: 14 });
+    expect(shape).toEqual({ legacyArtifact: false, migrations: 16, tables: 12 });
     expect([...lanes]).toEqual([
       {
         currentError: "temporary provider failure",
@@ -103,11 +130,10 @@ describe("direct annual corpus migration", () => {
     ]);
   }, 30_000);
 
-  test("creates the generation-scoped search schema idempotently", async () => {
+  test("creates the live search schema idempotently", async () => {
     await migrateDatabase(databaseUrl);
     await migrateDatabase(databaseUrl);
-    await database`insert into corpus_generation (id, product, from_date, to_date, expected_artifact_count) values ('30000000-0000-4000-8000-000000000001', 'TRTYRAP', '1884-04-07', '2025-12-31', 91)`;
-    await database`insert into mark (generation_id, serial_number, word_mark, status_code, normalization_version, source_product, source_filename, source_sha256, source_physical_record_index) values ('30000000-0000-4000-8000-000000000001', '99999999', ${"  Cafe\u0301  "}, '000', 'v1', 'TRTYRAP', 'annual.zip', ${"b".repeat(64)}, 1)`;
+    await database`insert into mark (serial_number, word_mark, status_code, normalization_version, source_product, source_filename, source_sha256, source_physical_record_index) values ('99999999', ${"  Cafe\u0301  "}, '000', 'v1', 'TRTYRAP', 'annual.zip', ${"b".repeat(64)}, 1)`;
     const [mark] = await database<
       Array<{ normalized: string; status: string }>
     >`select word_mark_normalized normalized, search_status status from mark`;
@@ -115,6 +141,98 @@ describe("direct annual corpus migration", () => {
       Array<{ name: string }>
     >`select indexname name from pg_indexes where schemaname = 'public' and tablename = 'mark' order by indexname`;
     expect(mark).toEqual({ normalized: "café", status: "unknown" });
-    expect(indexes.map(({ name }) => name)).toContain("mark_generation_word_mark_exact_idx");
+    expect(indexes.map(({ name }) => name)).toContain("mark_word_mark_exact_idx");
+  }, 30_000);
+
+  test("moves the exact stopped Parts 01-26 shape into live tables without losing rows or ZIP state", async () => {
+    await migrateDatabase(databaseUrl, await stageMigrationPrefix(15));
+    const generationId = "30000000-0000-4000-8000-000000000001";
+    await database`
+      insert into corpus_generation (id, product, from_date, to_date, expected_artifact_count)
+      values (${generationId}, 'TRTYRAP', '1884-04-07', '2025-12-31', 91)
+    `;
+    await database`insert into source_artifact ${database(
+      Array.from({ length: 91 }, (_, index) => productionArtifact(index + 1, generationId))
+    )}`;
+    await database`
+      insert into mark (generation_id, serial_number, word_mark, status_code, normalization_version,
+        source_product, source_filename, source_sha256, source_physical_record_index)
+      values (${generationId}, '70000001', 'PRESERVED MARK', '616', 'uspto-normalization-v1',
+        'TRTYRAP', 'apc18840407-20251231-01.zip', ${"a".repeat(64)}, 1)
+    `;
+    await database`
+      insert into mark_class (generation_id, serial_number, ordinal, international_code,
+        source_product, source_filename, source_sha256, source_physical_record_index)
+      values (${generationId}, '70000001', 1, '025', 'TRTYRAP',
+        'apc18840407-20251231-01.zip', ${"a".repeat(64)}, 1)
+    `;
+    await database`
+      insert into mark_owner (generation_id, serial_number, ordinal, entry_number, party_name,
+        source_product, source_filename, source_sha256, source_physical_record_index)
+      values (${generationId}, '70000001', 1, '1', 'PRESERVED OWNER', 'TRTYRAP',
+        'apc18840407-20251231-01.zip', ${"a".repeat(64)}, 1)
+    `;
+    await database`
+      insert into mark_goods_services (generation_id, serial_number, ordinal, type_code, text,
+        source_product, source_filename, source_sha256, source_physical_record_index)
+      values (${generationId}, '70000001', 1, 'GS0251', 'PRESERVED GOODS', 'TRTYRAP',
+        'apc18840407-20251231-01.zip', ${"a".repeat(64)}, 1)
+    `;
+    await database`
+      insert into mark_status_event (generation_id, serial_number, event_key, code, event_number,
+        source_product, source_filename, source_sha256, source_physical_record_index)
+      values (${generationId}, '70000001', ${"b".repeat(64)}, 'PRESERVED', '1', 'TRTYRAP',
+        'apc18840407-20251231-01.zip', ${"a".repeat(64)}, 1)
+    `;
+
+    await migrateDatabase(databaseUrl);
+    await migrateDatabase(databaseUrl);
+
+    const [shape] = await database<
+      Array<{
+        complete: number;
+        dataVersion: number;
+        generationColumn: boolean;
+        pending: number;
+        projecting: number;
+        retainedObject: string | null;
+      }>
+    >`
+      select
+        count(*) filter (where state = 'complete')::int complete,
+        count(*) filter (where state = 'pending')::int pending,
+        count(*) filter (where state = 'projecting')::int projecting,
+        max(object_key) filter (where filename = 'apc18840407-20251231-26.zip') as "retainedObject",
+        (select version::int from data_state where id = 'uspto') as "dataVersion",
+        exists (select 1 from information_schema.columns where table_schema = 'public'
+          and table_name = 'source_artifact' and column_name = 'generation_id') as "generationColumn"
+      from source_artifact
+    `;
+    expect(shape).toEqual({
+      complete: 25,
+      dataVersion: 1,
+      generationColumn: false,
+      pending: 65,
+      projecting: 1,
+      retainedObject: "sha256/15/part26",
+    });
+    expect(
+      await database`select serial_number from mark where serial_number = '70000001'`
+    ).toHaveLength(1);
+    expect(
+      await database`select serial_number from mark_class where serial_number = '70000001'`
+    ).toHaveLength(1);
+    expect(
+      await database`select serial_number from mark_owner where serial_number = '70000001'`
+    ).toHaveLength(1);
+    expect(
+      await database`select serial_number from mark_goods_services where serial_number = '70000001'`
+    ).toHaveLength(1);
+    expect(
+      await database`select serial_number from mark_status_event where serial_number = '70000001'`
+    ).toHaveLength(1);
+    expect([...(await database`select to_regclass('public.corpus_generation') as table`)]).toEqual([
+      { table: null },
+    ]);
   }, 30_000);
 });
