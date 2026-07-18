@@ -119,40 +119,29 @@ test("deduplicates identical status events while preserving distinct transitions
   expect(projections[0]?.statusEvents.map(({ code }) => code)).toEqual(["DOCK", "CNRT"]);
 });
 
-test("accepts authentic daily IB and NA action groups through the same stream", async () => {
+test("projects a synthetic Class 025 record under documented 00 transport framing", async () => {
   const dailyCoordinate = {
-    filename: "apc240925.zip",
+    filename: "synthetic-daily.xml",
     product: "TRTDXFAP" as const,
     sha256: "b".repeat(64),
   };
-  const dailyCases = [
-    [
-      "fixtures/uspto/records/daily-ib-72269147.xml",
-      "IB",
-      { materialChangeCount: 1, projectedMarkCount: 0 },
-    ],
-    [
-      "fixtures/uspto/records/daily-na-98763166.xml",
-      "NA",
-      { materialChangeCount: 0, projectedMarkCount: 0 },
-    ],
-  ] as const;
-  await Promise.all(
-    dailyCases.map(async ([path, actionKey, expected]) => {
-      const projections: MarkUpsertProjection[] = [];
-      const record = await readFile(path, "utf8");
-      const result = await streamTrademarkProjections({
-        coordinate: dailyCoordinate,
-        onBatch: collect(projections),
-        xml: document(record, validVersion, "trademark-applications-daily", actionKey),
-      });
-      expect(result).toMatchObject({ physicalRecordCount: 1, ...expected });
-    })
-  );
+  const record =
+    "<case-file><serial-number>12345678</serial-number><transaction-date>20260106</transaction-date><case-file-header><mark-identification>PROTOCOL TEST MARK</mark-identification><status-code>700</status-code></case-file-header><classifications><primary-code>025</primary-code><international-code>025</international-code></classifications></case-file>";
+  const projections: MarkUpsertProjection[] = [];
+  const result = await streamTrademarkProjections({
+    coordinate: dailyCoordinate,
+    onBatch: collect(projections),
+    xml: document(record, validVersion, "trademark-applications-daily", "00"),
+  });
+
+  expect(result).toEqual({ materialChangeCount: 1, physicalRecordCount: 1, projectedMarkCount: 1 });
+  expect(projections).toEqual([
+    expect.objectContaining({ serialNumber: "12345678", wordMark: "PROTOCOL TEST MARK" }),
+  ]);
 });
 
-test("projects a later daily full record without Class 025 as a live-row removal", async () => {
-  const record = await readFile("fixtures/uspto/records/publication-after-79366581.xml", "utf8");
+test("projects an authentic NA record without Class 025 as a removal", async () => {
+  const record = await readFile("fixtures/uspto/records/daily-na-98763166.xml", "utf8");
   const decisions: TrademarkProjection[] = [];
   const result = await streamTrademarkProjections({
     coordinate: {
@@ -164,12 +153,12 @@ test("projects a later daily full record without Class 025 as a live-row removal
       decisions.push(...batch);
       return Promise.resolve(batch.length);
     },
-    xml: document(record),
+    xml: document(record, validVersion, "trademark-applications-daily", "NA"),
   });
 
   expect(result).toEqual({ materialChangeCount: 1, physicalRecordCount: 1, projectedMarkCount: 0 });
   expect(decisions).toEqual([
-    expect.objectContaining({ kind: "remove", serialNumber: "79366581" }),
+    expect.objectContaining({ kind: "remove", serialNumber: "98763166" }),
   ]);
 });
 

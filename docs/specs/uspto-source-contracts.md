@@ -16,6 +16,7 @@ Reviewed against official USPTO metadata and retained source bytes on 2026-07-17
 - The current [application documentation](https://api.uspto.gov/api/v1/datasets/products/files/TRTDXFAP/Trademark-Applications-Documentation-v2.3-20250813.doc) is 2,329,088 bytes with SHA-256 `96a1bcec082cad186ef3b41bb8bcb8fe970289ff0784de31c7e93e2a3780648b`. It defines raw class status `6` as Active; other raw class codes remain uninterpreted.
 - The current [status table](https://api.uspto.gov/api/v1/datasets/products/files/TRTDXFAP/Table1TrademarkStatusCodes_20250813.doc) is 154,624 bytes with SHA-256 `8d251bbd5af8e18eaf269524945bfd7b9714a2ac1600669486660fc75e5d6bf6`. Its 169 entries, updated 2023-06-20, contain 124 Live, 41 Dead, and four Indifferent codes (`000`, `622`, `715`, `970`). Search policy `uspto-trademark-status-20250813` maps Indifferent, null, and unlisted future codes to `unknown`.
 - The retained, directly retrievable official [Trademark Applications XML v2.0 documentation](https://www.uspto.gov/sites/default/files/products/TMDailyApp-Documentation-508.pdf) is 702,326 bytes with SHA-256 `db1211c23c2b8e206acbd5f87b02804d7d63ea3269c98e725296573a7b10406a`. It proves the XML framing and repeated record-group shapes used by the annual projection.
+- The official [Trademark Applications Daily XML v2 documentation](https://www.uspto.gov/sites/default/files/products/applications-documentation.pdf) defines action key `00` as **Published for Opposition** and uses action key plus serial or registration identity for file ordering. Action keys are transport grouping metadata; each `case-file` carries the projected product data.
 - [USPTO ODP registration notice](https://www.uspto.gov/subscription-center/2026/register-access-usptos-open-data-portal) requires a signed-in USPTO.gov account to search and download ODP datasets beginning June 18, 2026.
 
 Authenticated `TRTYRAP` metadata returns 177 Data files: 91 members for the 1884-04-07 through 2025-12-31 baseline and 86 for the set ending 2024-12-31. The complete JSON response is retained by SHA-256. Historical 403 evidence remains retained, but it is not the current access state.
@@ -55,6 +56,8 @@ The 2025 `TRTYRAP` parts were downloaded from the `fileDownloadURI` values in th
 | `TRTDXFAP` | `apc240914.zip` | Every observed transaction date is 2024-09-14 | `NA`, `TX` | 11,012 |
 | `TRTDXFAP` | `apc240925.zip` | Every observed transaction date is 2024-09-25 | `IB`, `NA`, `TX` | 38,179 |
 
+The retained daily artifacts contain authentic `IB`, `NA`, and `TX` groups but no numeric Official Gazette action group. Official documentation is the evidence for `00`; an explicitly synthetic protocol-level parser test proves that transport group is not interpreted as product semantics. The fixture manifest keeps the missing authentic numeric-action evidence explicit.
+
 The XML root is `trademark-applications-daily`, with exactly one `version-no` equal to `2.0`, version date `20041108`. Artifact creation timestamps, transaction-date ranges, action-group occurrences and counts, full XML hashes, and ZIP hashes are verification inputs rather than prose claims.
 
 The retained `apc18840407-20251231-16.zip` contains the 3,669,744-byte `<case-file>` for serial `74668071`, word mark `GUESS JEANS`, at physical and `TX` action index 1,107. Its complete element SHA-256 is `2babb5e0e252a97051e7fe4d29dea4f518c629fabf635a8f5d5c0f61245e5b93`; the committed byte-exact source range additionally preserves its 16 leading indentation bytes.
@@ -73,7 +76,7 @@ Direct-projection evidence currently pinned:
 - one authentic annual Class 025 `TX` record whose five-digit optional class status date normalizes to null; exactly eight-digit non-calendar dates remain invalid;
 - the authentic 10,948,448-byte annual record with no Class 025 assertion;
 - an annual record whose transaction date is after the official baseline to-date;
-- authentic daily `IB`, `NA`, and `TX` records, including sparse shapes;
+- authentic daily records from `IB`, `NA`, and `TX` source groups, including sparse shapes and NA removal, plus synthetic protocol coverage for documented group `00`;
 - an authentic two-file daily sequence that replaces Class 025 child collections;
 - an authentic later daily full record whose replacement omits Class 025;
 - strict source identity and calendar-date failures;
@@ -83,6 +86,6 @@ Direct-projection evidence currently pinned:
 
 The annual baseline selects exactly the 91 official `TRTYRAP` members covering 1884-04-07 through 2025-12-31. Every physical record is counted and validated. A non-empty `mark-identification` plus explicit `primary-code` `025` projects directly into the live tables. Zero-selected files still complete. Every successful artifact is immediately queryable; 91/91 completion advances the freshness frontier but performs no activation.
 
-Daily continuation uses the same parser and transaction. Supported action keys are the exact retained `IB`, `NA`, and `TX` shapes. Sparse records without a word mark cannot replace live state. A complete later record with a word mark and classifications replaces an older Class 025 record; omission of Class 025 removes that live serial. Source transaction date prevents an older competing record from overwriting newer state.
+Daily continuation uses the same parser and transaction. Action keys preserve source grouping and ordering but do not control record projection. Sparse records without a word mark cannot replace live state. A complete later record with a word mark and classifications replaces an older Class 025 record; omission of Class 025 removes that live serial regardless of action group. Source transaction date prevents an older competing record from overwriting newer state.
 
 One reconciliation handles one ZIP/XML with fixed projection batches and bounded status-event statements. Replay deletes only rows still owned by that product and filename before reapplying the artifact. Terminal ZIPs are deleted immediately.
