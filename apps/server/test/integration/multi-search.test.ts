@@ -94,11 +94,15 @@ beforeAll(async () => {
   await repository.replace(mark("11000009", "PUNCTALPHA PUNCTBETA"));
   await repository.replace(mark("11000010", "PUNCTALPHA"));
   await repository.replace(mark("11000011", "PUNCTBETA"));
-  await repository.replace(
-    mark("50000001", "FILED REPORT MARK", {
+  await repository.replace({
+    ...mark("50000001", "FILED REPORT MARK", {
       filingDate: reportWindow.from,
-    })
-  );
+    }),
+    goodsServices: [
+      { text: "Color is not claimed as a feature of the mark.", typeCode: "CC0000" },
+      { text: "shirts and sweatshirts", typeCode: "GS0251" },
+    ],
+  });
   await repository.replace(
     mark("50000002", "REGISTERED REPORT MARK", {
       registrationDate: reportWindow.to,
@@ -319,6 +323,7 @@ test("report presets use milestone dates and the current opposition status", asy
     total: 28,
   });
   expect(filed.json().result.data.items[0]).toMatchObject({ serialNumber: "50000001" });
+  expect(filed.json().result.data.items[0]?.goodsServicesExcerpt).toBe("shirts and sweatshirts");
   expect(registered.json().result.data).toMatchObject({
     items: [{ serialNumber: "50000002" }],
     total: 1,
@@ -431,6 +436,7 @@ test("Multi normalizes one literal Unicode query and keeps exact and partial ind
   expect(exact.json().result.data).toMatchObject({
     items: [{ match: "exact", serialNumber: "10000002", wordMark: "Cafe\u0301" }],
     limit: 25,
+    liveMatchCounts: { exact: 1, partial: 0 },
     meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
     offset: 0,
     total: 1,
@@ -450,6 +456,13 @@ test("Multi normalizes one literal Unicode query and keeps exact and partial ind
     ["10000001", "partial"],
     ["10000003", "partial"],
   ]);
+});
+
+test("Multi result excerpts prefer goods statements over source color claims", async () => {
+  const response = await search({ match: "exact", mode: "multi", query: "FILED REPORT MARK" });
+
+  expect(response.statusCode).toBe(200);
+  expect(response.json().result.data.items[0]?.goodsServicesExcerpt).toBe("shirts and sweatshirts");
 });
 
 test("Multi lowercases compatibility characters after NFKC", async () => {

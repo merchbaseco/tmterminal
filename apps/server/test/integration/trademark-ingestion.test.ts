@@ -146,6 +146,7 @@ test("an empty database returns empty data instead of an availability error", as
   ).toEqual({
     items: [],
     limit: 25,
+    liveMatchCounts: { exact: 0, partial: 0 },
     meta: { dataThroughDate: null, dataVersion: "0" },
     offset: 0,
     total: 0,

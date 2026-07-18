@@ -3,6 +3,7 @@ import { expect, test } from "bun:test";
 import {
   ACTIVE_CLASS_STATUS_CODE,
   APPLICATION_DOCUMENTATION_SOURCE,
+  markStatusForCode,
   STATUS_POLICY_ENTRIES,
   STATUS_POLICY_SOURCE,
   STATUS_POLICY_VERSION,
@@ -26,6 +27,14 @@ test("pins the complete official 2025 status policy", () => {
   expect(STATUS_POLICY_ENTRIES.filter((entry) => entry.status === "live")).toHaveLength(124);
   expect(STATUS_POLICY_ENTRIES.filter((entry) => entry.status === "dead")).toHaveLength(41);
   expect(STATUS_POLICY_ENTRIES.filter((entry) => entry.status === "unknown")).toHaveLength(4);
+});
+
+test("derives the customer-facing mark disposition from a source status code", () => {
+  expect(markStatusForCode("616")).toBe("live");
+  expect(markStatusForCode("626")).toBe("dead");
+  expect(markStatusForCode("000")).toBe("unknown");
+  expect(markStatusForCode("999")).toBe("unknown");
+  expect(markStatusForCode(null)).toBe("unknown");
 });
 
 test("preserves representative and indifferent policy entries without losing 000 identity", () => {

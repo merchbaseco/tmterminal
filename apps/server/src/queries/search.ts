@@ -106,7 +106,13 @@ export function buildSearchQueries(input: SearchInput) {
   return {
     count: {
       text: `with ${match.normalized}
-        select count(*)::int as total
+        select count(*)::int as total,
+          count(*) filter (
+            where m.search_status = 'live' and ${match.kind} = 'exact'
+          )::int as "liveExact",
+          count(*) filter (
+            where m.search_status = 'live' and ${match.kind} = 'partial'
+          )::int as "livePartial"
         from mark m ${match.join} where ${predicate}`,
       values,
     },
@@ -131,7 +137,14 @@ export function buildSearchQueries(input: SearchInput) {
           (select owner.party_name from mark_owner owner
             where owner.serial_number = m.serial_number order by owner.ordinal limit 1) as owner,
           (select goods.text from mark_goods_services goods
-            where goods.serial_number = m.serial_number order by goods.ordinal limit 1) as "goodsServicesExcerpt"
+            where goods.serial_number = m.serial_number
+            order by case
+              when goods.type_code like 'GS025%' then 0
+              when goods.type_code like 'GS%' then 1
+              when goods.type_code like 'CC%' then 3
+              else 2
+            end, goods.ordinal
+            limit 1) as "goodsServicesExcerpt"
         from mark m ${match.join} where ${predicate}
         order by ${orderBy}
         limit ${limitParameter} offset ${offsetParameter}`,
@@ -155,7 +168,9 @@ export function searchMarks(database: postgres.Sql, input: SearchInput): Promise
     }
 
     const queries = buildSearchQueries(input);
-    const [count] = await transaction.unsafe<Array<{ total: number }>>(
+    const [count] = await transaction.unsafe<
+      Array<{ liveExact: number; livePartial: number; total: number }>
+    >(
       queries.count.text,
       queries.count.values
     );
@@ -170,6 +185,7 @@ export function searchMarks(database: postgres.Sql, input: SearchInput): Promise
     return {
       items,
       limit: input.limit,
+      liveMatchCounts: { exact: count.liveExact, partial: count.livePartial },
       meta: {
         dataThroughDate: state.completeThroughDate,
         dataVersion: state.dataVersion,

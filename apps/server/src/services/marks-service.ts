@@ -4,6 +4,7 @@ import { legalDisclaimer, type MarkDetail, type MarksService } from "../api/cont
 import type { ProjectedMark } from "../ingestion/mark-types.ts";
 import { createMarkRepository } from "../queries/mark-repository.ts";
 import { searchMarks } from "../queries/search.ts";
+import { markStatusForCode } from "../search/status-policy.ts";
 
 export function createMarksService(database: postgres.Sql): MarksService {
   const repository = createMarkRepository(database);
@@ -13,6 +14,7 @@ export function createMarksService(database: postgres.Sql): MarksService {
     return {
       ...mark,
       legalDisclaimer,
+      mark: { ...mark.mark, status: markStatusForCode(mark.mark.statusCode) },
       provenance: { contributors, versions },
     };
   }

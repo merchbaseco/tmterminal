@@ -1,4 +1,5 @@
 import type { ProjectedMark, SourceContributor } from "../ingestion/mark-types.ts";
+import type { MarkStatus } from "../search/status-policy.ts";
 
 export const legalDisclaimer =
   "Trademark data is informational, not legal advice. Verify critical decisions with the USPTO or qualified counsel.";
@@ -23,8 +24,9 @@ export interface AccountService {
   revokeApiKey: (id: string) => Promise<PublicApiKey | null>;
 }
 
-export type MarkDetail = Omit<ProjectedMark, "contributors" | "kind" | "versions"> & {
+export type MarkDetail = Omit<ProjectedMark, "contributors" | "kind" | "mark" | "versions"> & {
   legalDisclaimer: typeof legalDisclaimer;
+  mark: ProjectedMark["mark"] & { status: MarkStatus };
   provenance: {
     contributors: SourceContributor[];
     versions: ProjectedMark["versions"];
@@ -64,6 +66,10 @@ export interface SearchPage {
     wordMark: string;
   }>;
   limit: 25;
+  liveMatchCounts: {
+    exact: number;
+    partial: number;
+  };
   meta: {
     dataThroughDate: string | null;
     dataVersion: string;
@@ -92,7 +98,7 @@ export interface ReportInput {
   window?: "previous-week";
 }
 
-export interface ReportPage extends Omit<SearchPage, "items"> {
+export interface ReportPage extends Omit<SearchPage, "items" | "liveMatchCounts"> {
   from: string | null;
   items: Omit<SearchPage["items"][number], "match">[];
   to: string | null;

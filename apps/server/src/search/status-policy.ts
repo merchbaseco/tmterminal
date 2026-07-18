@@ -17,7 +17,7 @@ export const APPLICATION_DOCUMENTATION_SOURCE = {
 
 export const ACTIVE_CLASS_STATUS_CODE = "6";
 
-type MarkStatus = "live" | "dead" | "unknown";
+export type MarkStatus = "live" | "dead" | "unknown";
 
 const policyRows = [
   ["000", "unknown"],
@@ -193,10 +193,16 @@ const policyRows = [
 
 export const STATUS_POLICY_ENTRIES = policyRows.map(([code, status]) => ({ code, status }));
 
+const statusByCode = new Map<string, MarkStatus>(policyRows);
+
+export function markStatusForCode(statusCode: string | null): MarkStatus {
+  return statusCode ? (statusByCode.get(statusCode) ?? "unknown") : "unknown";
+}
+
 const statusPolicyBranches = policyRows
   .map(([code, status]) => `when '${code}' then '${status}'`)
   .join(" ");
 
 export const markSearchStatusSql = sql.raw(
-  `case status_code ${statusPolicyBranches} else 'unknown' end`,
+  `case status_code ${statusPolicyBranches} else 'unknown' end`
 );

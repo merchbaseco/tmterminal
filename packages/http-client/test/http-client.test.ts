@@ -59,6 +59,7 @@ test("derives every search mode and page type from the server router", async () 
           data: {
             items: [],
             limit: 25,
+            liveMatchCounts: { exact: 0, partial: 0 },
             meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
             offset: 0,
             total: 0,
@@ -95,6 +96,7 @@ test("derives every search mode and page type from the server router", async () 
   expect(page).toEqual({
     items: [],
     limit: 25,
+    liveMatchCounts: { exact: 0, partial: 0 },
     meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
     offset: 0,
     total: 0,

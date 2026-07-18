@@ -19,7 +19,10 @@ export function previousWeekRange(today = new Date()) {
   return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
 }
 
-function reportQueries(input: ReportInput, range: ReturnType<typeof previousWeekRange> | null) {
+export function buildReportQueries(
+  input: ReportInput,
+  range: ReturnType<typeof previousWeekRange> | null
+) {
   const values: QueryValue[] = [];
   const parameter = (value: QueryValue) => {
     values.push(value);
@@ -83,7 +86,14 @@ function reportQueries(input: ReportInput, range: ReturnType<typeof previousWeek
           (select owner.party_name from mark_owner owner
             where owner.serial_number = m.serial_number order by owner.ordinal limit 1) as owner,
           (select goods.text from mark_goods_services goods
-            where goods.serial_number = m.serial_number order by goods.ordinal limit 1) as "goodsServicesExcerpt"
+            where goods.serial_number = m.serial_number
+            order by case
+              when goods.type_code like 'GS025%' then 0
+              when goods.type_code like 'GS%' then 1
+              when goods.type_code like 'CC%' then 3
+              else 2
+            end, goods.ordinal
+            limit 1) as "goodsServicesExcerpt"
         from mark m where ${predicate}
         order by m.source_transaction_date ${direction} nulls last, m.serial_number
         limit ${limitParameter} offset ${offsetParameter}`,
@@ -118,7 +128,7 @@ export function runReport(
     ) {
       throw new DataVersionConflictError("Report window changed during pagination");
     }
-    const queries = reportQueries(input, range);
+    const queries = buildReportQueries(input, range);
     const [count] = await transaction.unsafe<Array<{ total: number }>>(
       queries.count.text,
       queries.count.values
