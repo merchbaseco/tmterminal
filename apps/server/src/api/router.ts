@@ -1,7 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { CorpusUnavailableError } from "../queries/corpus-errors.ts";
-import { CorpusVersionConflictError } from "../queries/multi-search.ts";
+import { DataVersionConflictError } from "../queries/multi-search.ts";
 import type {
   AccountService,
   AuthenticatedAccount,
@@ -40,13 +39,6 @@ const operatorPageInput = z.object({
   offset: z.number().int().min(0).default(0),
 });
 
-function throwCorpusUnavailable(error: unknown): never {
-  if (error instanceof CorpusUnavailableError) {
-    throw new TRPCError({ cause: error, code: "SERVICE_UNAVAILABLE", message: error.message });
-  }
-  throw error;
-}
-
 const accountRouter = t.router({
   "api-keys": t.router({
     create: clerkProcedure
@@ -68,9 +60,7 @@ const marksRouter = t.router({
   get: t.procedure
     .input(z.object({ serialNumber: z.string().regex(/^\d{8}$/) }))
     .query(async ({ ctx, input }) => {
-      const mark = await ctx.marks
-        .getBySerialNumber(input.serialNumber)
-        .catch(throwCorpusUnavailable);
+      const mark = await ctx.marks.getBySerialNumber(input.serialNumber);
       if (!mark) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Trademark not found" });
       }
@@ -79,9 +69,7 @@ const marksRouter = t.router({
   "get-by-registration": t.procedure
     .input(z.object({ registrationNumber: z.string().regex(/^\d{7}$/) }))
     .query(async ({ ctx, input }) => {
-      const mark = await ctx.marks
-        .getByRegistrationNumber(input.registrationNumber)
-        .catch(throwCorpusUnavailable);
+      const mark = await ctx.marks.getByRegistrationNumber(input.registrationNumber);
       if (!mark) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Trademark not found" });
       }
@@ -91,12 +79,9 @@ const marksRouter = t.router({
     try {
       return await ctx.marks.search(input);
     } catch (error) {
-      if (error instanceof CorpusVersionConflictError) {
+      if (error instanceof DataVersionConflictError) {
         // biome-ignore lint/style/useErrorCause: TRPCError receives the original cause in its options.
         throw new TRPCError({ cause: error, code: "CONFLICT", message: error.message });
-      }
-      if (error instanceof CorpusUnavailableError) {
-        throwCorpusUnavailable(error);
       }
       throw error;
     }

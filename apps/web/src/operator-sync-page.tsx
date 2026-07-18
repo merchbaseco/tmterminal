@@ -102,9 +102,9 @@ export function OperatorSyncPage({ api }: { api: OperatorSyncApi }) {
       <header className="ops-heading">
         <div>
           <p className="eyebrow">Operations / sync</p>
-          <h1>CORPUS</h1>
+          <h1>DATA</h1>
         </div>
-        <p className="ops-intro">Direct annual corpus generation state.</p>
+        <p className="ops-intro">Perpetual USPTO source and live-data state.</p>
       </header>
       {error === "load" ? (
         <p className="error-message" role="alert">
@@ -113,7 +113,7 @@ export function OperatorSyncPage({ api }: { api: OperatorSyncApi }) {
       ) : null}
       {status || error ? null : <p className="empty-row">Loading durable sync state…</p>}
       {status ? (
-        <section aria-label="Annual generation status" className="dataset-grid">
+        <section aria-label="Annual baseline status" className="dataset-grid">
           <article className="dataset-summary">
             <header>
               <p>Annual archive</p>
@@ -126,29 +126,29 @@ export function OperatorSyncPage({ api }: { api: OperatorSyncApi }) {
               <div>
                 <dt>Artifacts</dt>
                 <dd>
-                  {status.generation.completeArtifactCount} of{" "}
-                  {status.generation.expectedArtifactCount} complete
+                  {status.annualBaseline.completeArtifactCount} of{" "}
+                  {status.annualBaseline.expectedArtifactCount} complete
                 </dd>
               </div>
               <div>
                 <dt>Projected marks</dt>
-                <dd>{count(status.generation.projectedMarkCount)}</dd>
+                <dd>{count(status.annualBaseline.projectedMarkCount)}</dd>
               </div>
               <div>
                 <dt>Failed artifacts</dt>
-                <dd>{status.generation.failedArtifactCount}</dd>
+                <dd>{status.annualBaseline.failedArtifactCount}</dd>
               </div>
               <div>
                 <dt>Complete frontier</dt>
                 <dd>{date(status.summary.completeThroughDate)}</dd>
               </div>
               <div>
-                <dt>Corpus version</dt>
-                <dd>{status.summary.corpusVersion}</dd>
+                <dt>Data version</dt>
+                <dd>{status.summary.dataVersion}</dd>
               </div>
               <div>
-                <dt>Last activation</dt>
-                <dd>{timestamp(status.summary.lastSuccessfulMergeAt)}</dd>
+                <dt>Last update</dt>
+                <dd>{timestamp(status.summary.lastSuccessfulUpdateAt)}</dd>
               </div>
               <div>
                 <dt>Provider</dt>

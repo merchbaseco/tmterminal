@@ -32,7 +32,7 @@ export type MarkDetail = Omit<ProjectedMark, "contributors" | "kind" | "versions
 };
 
 export interface MultiSearchInput {
-  expectedCorpusVersion?: string;
+  expectedDataVersion?: string;
   limit: 25;
   match: "exact" | "partial" | "both";
   mode: "multi";
@@ -60,8 +60,8 @@ export interface MultiSearchPage {
   }>;
   limit: 25;
   meta: {
-    corpusThroughDate: string;
-    corpusVersion: string;
+    dataThroughDate: string | null;
+    dataVersion: string;
   };
   offset: number;
   total: number;
@@ -74,26 +74,14 @@ export interface MarksService {
 }
 
 export interface SyncStatus {
-  activeState:
-    | "backoff"
-    | "downloading"
-    | "failed"
-    | "idle"
-    | "operator-action-required"
-    | "parsing"
-    | "publishing"
-    | "stopped";
+  activeState: "backoff" | "downloading" | "failed" | "idle" | "parsing" | "stopped";
   completeThroughDate: string | null;
-  corpusVersion: number;
+  dataVersion: number;
   degraded: boolean;
   degradedSince: string | null;
   failedCount: number;
-  lastSuccessfulMergeAt: string | null;
+  lastSuccessfulUpdateAt: string | null;
   pendingCount: number;
-  publishedThroughDate: string | null;
-  quarantineCount: number;
-  reissueSelectionRequiredCount: number;
-  rejectCount: number;
   stale: boolean;
   staleSince: string | null;
 }
@@ -116,7 +104,7 @@ export interface OperatorArtifact {
   currentError: string | null;
   filename: string;
   physicalRecordCount: number;
-  product: "TRTYRAP";
+  product: "TRTDXFAP" | "TRTYRAP";
   projectedMarkCount: number;
   sha256: string | null;
   sourceFromDate: string;
@@ -131,8 +119,7 @@ export interface OperatorPageInput {
 }
 
 export interface OperatorSyncStatus {
-  generation: {
-    activeGenerationId: string | null;
+  annualBaseline: {
     completeArtifactCount: number;
     expectedArtifactCount: number;
     failedArtifactCount: number;

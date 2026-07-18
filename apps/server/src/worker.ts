@@ -1,8 +1,8 @@
 import { createDatabaseClient } from "./db/client.ts";
-import { createAnnualCorpusIngestion } from "./ingestion/annual-corpus.ts";
 import { createIngestionScheduler } from "./ingestion/ingestion-scheduler.ts";
 import { createLocalArtifactStore } from "./ingestion/local-artifact-store.ts";
 import { createOdpSourceCatalog } from "./ingestion/odp-source-catalog.ts";
+import { createTrademarkIngestion } from "./ingestion/trademark-ingestion.ts";
 import { extractZipXml } from "./ingestion/zip-artifact-xml.ts";
 import { createSyncService } from "./services/sync-service.ts";
 import { isWorkerReady } from "./worker-readiness.ts";
@@ -34,7 +34,7 @@ const artifactStore = createLocalArtifactStore(
     stagingMaxAgeMs: requestTimeoutMs * 2,
   }
 );
-const ingestion = createAnnualCorpusIngestion({
+const ingestion = createTrademarkIngestion({
   artifactStore,
   database,
   extractXml: extractZipXml,

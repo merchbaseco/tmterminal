@@ -1,7 +1,7 @@
 import type postgres from "postgres";
 
 import type { OperatorSyncService } from "../api/contracts.ts";
-import { readAnnualCorpusStatus } from "../ingestion/annual-corpus.ts";
+import { readTrademarkIngestionStatus } from "../ingestion/trademark-ingestion.ts";
 import { readOperatorArtifacts } from "../queries/operator-sync-repository.ts";
 import { syncStatusFromFacts } from "./sync-service.ts";
 
@@ -27,14 +27,13 @@ export function createOperatorSyncService(database: postgres.Sql): OperatorSyncS
       });
     },
     async status() {
-      const facts = await readAnnualCorpusStatus(database);
+      const facts = await readTrademarkIngestionStatus(database);
       return {
-        generation: {
-          activeGenerationId: facts.activeGenerationId,
-          completeArtifactCount: facts.completeArtifactCount,
+        annualBaseline: {
+          completeArtifactCount: facts.annualCompleteArtifactCount,
           expectedArtifactCount: facts.expectedArtifactCount,
           failedArtifactCount: facts.failedArtifactCount,
-          projectedMarkCount: facts.projectedMarkCount,
+          projectedMarkCount: facts.annualProjectedMarkCount,
         },
         provider: {
           currentError: facts.lane.currentError,

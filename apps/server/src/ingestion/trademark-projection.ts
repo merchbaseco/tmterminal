@@ -8,21 +8,23 @@ const serialNumber = /^\d{8}$/;
 const zeroes = /^0+$/;
 const registrationNumber = /^\d{1,7}$/;
 const batchSize = 100;
-const annualRoot = "trademark-applications-daily";
-const annualVersion = "2.0";
-const annualVersionDate = "20041108";
+const documentRoot = "trademark-applications-daily";
+const sourceVersion = "2.0";
+const sourceVersionDate = "20041108";
 const maxRootPrefixBytes = 64 * 1024;
 const rootElement = /^<([A-Za-z_][\w.:-]*)(?=[\s/>])/;
 const rootWhitespace = /^\s*/;
 
+export type SourceProduct = "TRTDXFAP" | "TRTYRAP";
+
 interface SourceCoordinate {
   filename: string;
   physicalRecordIndex: number;
-  product: "TRTYRAP";
+  product: SourceProduct;
   sha256: string;
 }
 
-export interface AnnualMarkProjection {
+export interface MarkUpsertProjection {
   classes: Array<{
     internationalCode: string | null;
     statusCode: string | null;
@@ -50,18 +52,30 @@ export interface AnnualMarkProjection {
   wordMark: string;
 }
 
-interface AnnualProjectionResult {
+export interface MarkRemovalProjection {
+  coordinate: SourceCoordinate;
+  kind: "remove";
+  serialNumber: string;
+  sourceTransactionDate: string | null;
+}
+
+export type TrademarkProjection =
+  | (MarkUpsertProjection & { kind: "upsert" })
+  | MarkRemovalProjection;
+
+interface TrademarkProjectionResult {
+  materialChangeCount: number;
   physicalRecordCount: number;
   projectedMarkCount: number;
 }
 
-export function streamAnnualProjections(options: {
+export function streamTrademarkProjections(options: {
   coordinate: Omit<SourceCoordinate, "physicalRecordIndex">;
-  onBatch: (batch: AnnualMarkProjection[]) => Promise<void>;
+  onBatch: (batch: TrademarkProjection[]) => Promise<number>;
   xml: Readable;
-}): Promise<AnnualProjectionResult> {
+}): Promise<TrademarkProjectionResult> {
   return new Promise((resolve, reject) => {
-    const validatedXml = validateAnnualRoot(options.xml);
+    const validatedXml = validateTrademarkRoot(options.xml);
     const parser = flow(validatedXml, {
       lowercase: true,
       normalize: false,
@@ -75,7 +89,8 @@ export function streamAnnualProjections(options: {
     let physicalRecordCount = 0;
     let projectedMarkCount = 0;
     let failed = false;
-    let pending: AnnualMarkProjection[] = [];
+    let materialChangeCount = 0;
+    let pending: TrademarkProjection[] = [];
     let versionCount = 0;
     let versionDateCount = 0;
     let writes = Promise.resolve();
@@ -97,8 +112,40 @@ export function streamAnnualProjections(options: {
       const batch = pending;
       pending = [];
       parser.pause();
-      writes = writes.then(() => options.onBatch(batch)).then(() => parser.resume());
+      writes = writes
+        .then(() => options.onBatch(batch))
+        .then((changes) => {
+          materialChangeCount += changes;
+          parser.resume();
+        });
       writes.catch(fail);
+    };
+    const projectCaseFile = (value: unknown) => {
+      physicalRecordCount += 1;
+      assertDocumentVersion(versionCount, versionDateCount, " before records");
+      if (!supportedActionKey(options.coordinate.product, actionKey)) {
+        throw new Error(
+          `Unsupported ${options.coordinate.product} action key: ${actionKey ?? "missing"}`
+        );
+      }
+      const projection = projectRecord(
+        value,
+        {
+          ...options.coordinate,
+          physicalRecordIndex: physicalRecordCount,
+        },
+        actionKey
+      );
+      if (!projection) {
+        return;
+      }
+      if (projection.kind === "upsert") {
+        projectedMarkCount += 1;
+      }
+      pending.push(projection);
+      if (pending.length >= batchSize) {
+        flush();
+      }
     };
 
     parser.on("tag:version-no", (value) => {
@@ -107,7 +154,7 @@ export function streamAnnualProjections(options: {
         fail(new Error("version-no must occur exactly once"));
         return;
       }
-      if (scalar(value, "version-no") !== annualVersion) {
+      if (scalar(value, "version-no") !== sourceVersion) {
         fail(new Error("Unsupported USPTO XML version"));
       }
     });
@@ -117,7 +164,7 @@ export function streamAnnualProjections(options: {
         fail(new Error("version-date must occur exactly once"));
         return;
       }
-      if (scalar(value, "version-date") !== annualVersionDate) {
+      if (scalar(value, "version-date") !== sourceVersionDate) {
         fail(new Error("Unsupported USPTO XML version date"));
       }
     });
@@ -129,27 +176,11 @@ export function streamAnnualProjections(options: {
         return;
       }
       try {
-        physicalRecordCount += 1;
-        assertDocumentVersion(versionCount, versionDateCount, " before records");
-        if (actionKey !== "TX") {
-          throw new Error(`Unsupported annual action key: ${actionKey ?? "missing"}`);
-        }
-        const projection = projectRecord(value, {
-          ...options.coordinate,
-          physicalRecordIndex: physicalRecordCount,
-        });
-        if (!projection) {
-          return;
-        }
-        projectedMarkCount += 1;
-        pending.push(projection);
-        if (pending.length >= batchSize) {
-          flush();
-        }
+        projectCaseFile(value);
       } catch (error) {
         fail(
           new Error(
-            `Annual record ${physicalRecordCount} is invalid: ${error instanceof Error ? error.message : String(error)}`
+            `Trademark record ${physicalRecordCount} is invalid: ${error instanceof Error ? error.message : String(error)}`
           )
         );
       }
@@ -171,7 +202,7 @@ export function streamAnnualProjections(options: {
       writes
         .then(() => {
           if (!failed) {
-            resolve({ physicalRecordCount, projectedMarkCount });
+            resolve({ materialChangeCount, physicalRecordCount, projectedMarkCount });
           }
         })
         .catch(fail);
@@ -179,12 +210,12 @@ export function streamAnnualProjections(options: {
   });
 }
 
-function validateAnnualRoot(xml: Readable) {
+function validateTrademarkRoot(xml: Readable) {
   let prefix = Buffer.alloc(0);
   let validated = false;
   const validator = new Transform({
     flush(callback) {
-      callback(validated ? undefined : new Error(`Annual XML root must be ${annualRoot}`));
+      callback(validated ? undefined : new Error(`Trademark XML root must be ${documentRoot}`));
     },
     transform(chunk: Buffer, _encoding, callback) {
       if (validated) {
@@ -196,15 +227,15 @@ function validateAnnualRoot(xml: Readable) {
       const root = rootElementName(inspected.toString("utf8"));
       if (root === null) {
         if (chunk.length > remaining || inspected.length >= maxRootPrefixBytes) {
-          callback(new Error(`Annual XML root must occur within ${maxRootPrefixBytes} bytes`));
+          callback(new Error(`Trademark XML root must occur within ${maxRootPrefixBytes} bytes`));
           return;
         }
         prefix = inspected;
         callback();
         return;
       }
-      if (root !== annualRoot) {
-        callback(new Error(`Annual XML root must be ${annualRoot}`));
+      if (root !== documentRoot) {
+        callback(new Error(`Trademark XML root must be ${documentRoot}`));
         return;
       }
       validated = true;
@@ -297,7 +328,11 @@ function internalCommentEnd(prefix: string, offset: number): number | null {
   return end < 0 ? null : end + 3;
 }
 
-function projectRecord(value: unknown, coordinate: SourceCoordinate): AnnualMarkProjection | null {
+function projectRecord(
+  value: unknown,
+  coordinate: SourceCoordinate,
+  actionKey: string
+): TrademarkProjection | null {
   const record = object(value, "case-file");
   const serial = scalar(record["serial-number"], "serial-number");
   if (!serialNumber.test(serial)) {
@@ -310,12 +345,25 @@ function projectRecord(value: unknown, coordinate: SourceCoordinate): AnnualMark
   const header = headers[0] as Record<string, unknown>;
   const wordMark = optionalScalar(header["mark-identification"], "mark-identification")?.trim();
   const classes = objects(record.classifications);
-  if (
-    !(
-      wordMark &&
-      classes.some((item) => optionalScalar(item["primary-code"], "primary-code")?.trim() === "025")
-    )
-  ) {
+  const sourceTransactionDate = parseDate(
+    optionalScalar(record["transaction-date"], "transaction-date"),
+    "transaction-date"
+  );
+  if (!wordMark) {
+    return null;
+  }
+  const selected = classes.some(
+    (item) => optionalScalar(item["primary-code"], "primary-code")?.trim() === "025"
+  );
+  if (!selected) {
+    if (coordinate.product === "TRTDXFAP" && actionKey !== "NA" && classes.length > 0) {
+      return {
+        coordinate,
+        kind: "remove",
+        serialNumber: serial,
+        sourceTransactionDate,
+      };
+    }
     return null;
   }
   const projectedClasses = classes.flatMap((item) => {
@@ -358,6 +406,7 @@ function projectRecord(value: unknown, coordinate: SourceCoordinate): AnnualMark
     coordinate,
     filingDate: parseDate(optionalScalar(header["filing-date"], "filing-date"), "filing-date"),
     goodsServices,
+    kind: "upsert",
     markDrawingCode: optionalScalar(header["mark-drawing-code"], "mark-drawing-code"),
     owners,
     registrationDate: parseDate(
@@ -368,15 +417,19 @@ function projectRecord(value: unknown, coordinate: SourceCoordinate): AnnualMark
       optionalScalar(record["registration-number"], "registration-number")
     ),
     serialNumber: serial,
-    sourceTransactionDate: parseDate(
-      optionalScalar(record["transaction-date"], "transaction-date"),
-      "transaction-date"
-    ),
+    sourceTransactionDate,
     statusCode: optionalScalar(header["status-code"], "status-code"),
     statusDate: parseDate(optionalScalar(header["status-date"], "status-date"), "status-date"),
     statusEvents: [...statusEvents.values()],
     wordMark,
   };
+}
+
+function supportedActionKey(product: SourceProduct, actionKey: string | null): actionKey is string {
+  if (product === "TRTYRAP") {
+    return actionKey === "TX";
+  }
+  return actionKey === "IB" || actionKey === "NA" || actionKey === "TX";
 }
 
 function object(value: unknown, name: string) {
