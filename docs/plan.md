@@ -37,7 +37,7 @@ This plan was researched against:
 - Match listing text against live marks
 - Inspect the newest trademark activity
 - Run filed, registered, and opposition reports
-- Inspect corpus freshness and ingestion health
+- Inspect trademark-data freshness and ingestion health
 - Create and revoke API keys
 
 ### Non-goals
@@ -117,7 +117,7 @@ Key contract:
 - Resolve account/context from the key before executing a procedure
 - Keep revoked rows for audit and coalesce approximate last-used updates
 
-One request selects exactly one credential. Supplying both Clerk and API-key credentials is invalid; a failed credential never falls through to another mechanism. Account key management requires Clerk. Safe corpus reads accept Clerk or API-key identity. Detailed ingestion diagnostics require a database-backed operator role.
+One request selects exactly one credential. Supplying both Clerk and API-key credentials is invalid; a failed credential never falls through to another mechanism. Account key management requires Clerk. Trademark-data reads accept Clerk or API-key identity. Detailed ingestion diagnostics require a database-backed operator role.
 
 Authenticated website users create and revoke their own keys. The host-side command remains available for bootstrap and recovery:
 
@@ -136,18 +136,16 @@ Client credentials:
 
 ## USPTO sources and freshness
 
-Primary source: USPTO Open Data Portal annual full-text trademark XML without images (`TRTYRAP`).
+Sources: USPTO Open Data Portal annual and daily full-text trademark XML without images (`TRTYRAP` and `TRTDXFAP`).
 
 - Product discovery: `https://api.uspto.gov/api/v1/datasets/products/<product>`
 - Authentication: `x-api-key`
 
-Daily `TRTDXFAP` processing is outside the v1 runtime and requires a later update-semantics decision.
-
 Freshness contract:
 
-> The public corpus-through date is the contiguous authoritative date through which every required USPTO artifact is successfully published.
+> The public data-through date is the contiguous source date through which every required USPTO artifact is complete.
 
-Trademark Turtle separately records the newest published source date, complete-through date, last successful merge time, and query-visible corpus version. A gap or changed upstream artifact can leave published data ahead of the complete frontier; callers see the degraded state rather than a false current date.
+Trademark Turtle records the complete-through date, last successful update time, and query-visible data version. Rows committed after the complete frontier remain live; a gap makes sync status degraded but never hides available data.
 
 The worker coordinates discovery and downloads globally per USPTO credential. USPTO limits one API key to 20 annual downloads of the same file and one IP to five files per 10 seconds; signed redirect URLs expire after five seconds. Trademark Turtle processes one artifact at a time on a fixed 10-second cadence, follows an accepted redirect immediately without forwarding the API key, and stops after eight consecutive persisted attempts. Retryable responses use persisted capped exponential backoff with jitter and honor provider retry headers when present. Authentication, permanent request errors, parser failures, and unresolved artifact identity changes stop without redownloading the artifact.
 
@@ -160,29 +158,29 @@ Authoritative references:
 
 ## Ingestion module
 
-`docs/ingestion.md` is the normative annual-source, artifact-lifecycle, direct-projection, activation, and freshness contract.
+`docs/ingestion.md` is the normative source, artifact-lifecycle, live-projection, replay, and freshness contract.
 
 The ingestion module exposes two operations—reconcile the next database-derived action and read truthful status—while hiding USPTO, ZIP, XML, and projection details. Its invariants are:
 
-- Serial number is mark identity; nonzero registration number is a unique secondary identity inside a generation.
-- The exact pinned 91-member annual set is one generation. Metadata dates establish membership and the public frontier, not record transaction bounds.
+- Serial number is global mark identity; nonzero registration number is a unique secondary identity.
+- The exact pinned 91-member annual set establishes the baseline. Metadata dates establish membership and the public frontier, not record transaction bounds.
 - One compact artifact row owns each product/filename/SHA, coverage, state, counts, current error, and transient ZIP pointer.
 - Exactly one ZIP/XML is streamed at a time. No extracted XML is written. Selected marks are projected in fixed batches.
 - Raw ZIPs are deleted immediately after success or terminal failure.
 - Every projected mark/class/owner/goods/status-event row carries compact source coordinates.
-- Building generations are invisible. Exactly 91/91 complete members activate through one `corpus_state` pointer flip, version increment, and corpus event.
-- A dead or cancelled mark is a state transition, not a row deletion.
+- Every committed artifact updates the live tables immediately. There is no hidden build or activation pointer.
+- Daily records upsert newer Class 025 state or remove a mark when a later complete record no longer asserts Class 025.
 - Unknown values remain raw/unknown instead of being guessed.
 
-The stored and programmatic corpus is Class 025 only. The parser validates and physically counts every source record, then projects only records with explicit `primary-code` `025` and a non-empty `mark-identification`. A valid artifact with zero selected marks remains a complete generation member.
+Stored and programmatic trademark data is Class 025 only. The parser validates and physically counts every source record, then projects records with explicit `primary-code` `025` and a non-empty `mark-identification`. A valid artifact with zero selected marks still completes successfully.
 
-The first corpus pins exactly the 91 officially enumerated members covering 1884-04-07 through 2025-12-31. Activation sets both frontiers to 2025-12-31. The worker does not discover, download, parse, quarantine, or publish daily files.
+The annual baseline pins exactly the 91 officially enumerated members covering 1884-04-07 through 2025-12-31. After those complete, the same worker discovers calendar-contiguous daily files and continues forever.
 
 ## Database map
 
-### Corpus
+### Trademark data
 
-- `mark`: generation-scoped identity and presentation keyed by serial number
+- `mark`: live identity and presentation keyed by serial number
 - `mark_class`: projected International Class state per mark
 - `mark_owner`: current normalized owner group
 - `mark_goods_services`: source-reported goods/services text and type per mark
@@ -201,10 +199,8 @@ Required indexes:
 ### Ingestion
 
 - `source_lane`
-- `corpus_generation`
 - `source_artifact`
-- `corpus_state`
-- `corpus_event`
+- `data_state`
 - pg-boss job execution tables
 
 ### Auth and events
@@ -214,7 +210,7 @@ Required indexes:
 - `api_key`
 - `role_assignment`
 
-Account data and keys are not re-derivable and receive backup priority. Generation state, projected rows, and source coordinates are rebuildable but expensive and quota-sensitive, so database backup covers them; raw artifacts are not backup state.
+Account data and keys are not re-derivable and receive backup priority. Projected rows, source artifacts, and coordinates are rebuildable but expensive and quota-sensitive, so database backup covers them; raw artifacts are not backup state.
 
 ## Canonical HTTP interface
 
@@ -231,15 +227,15 @@ One public tRPC router defines customer capabilities. The website, HTTP client, 
   - Sorts: relevance, newest activity, oldest activity
   - Source transaction date defines activity; status date remains a separate field
   - Server-side filter, deterministic sort, count, limit, and offset; every order ends with serial number
-  - Continuation requests include expected corpus version and fail with `CONFLICT` after query-visible corpus change
-  - Output: `{ items, total, limit, offset, meta: { corpusThroughDate, corpusVersion } }`
+  - Continuation requests include expected data version and fail with `CONFLICT` after query-visible data changes
+  - Output: `{ items, total, limit, offset, meta: { dataThroughDate, dataVersion } }`
 - `marks.get`
   - Exact serial number only
 - `marks.get-by-registration`
   - Exact registration number only
 - `marks.match-text`
   - Server-owned live word-mark candidate generation and Unicode-aware span detection
-  - Explicit type filters within the Class 025 corpus, all overlapping matches, stable UTF-16 offsets, and no silent truncation
+  - Explicit type filters within Class 025 data, all overlapping matches, stable UTF-16 offsets, and no silent truncation
 - `marks.latest`
   - Recent source transaction activity with stable pagination
 
@@ -249,16 +245,16 @@ One public tRPC router defines customer capabilities. The website, HTTP client, 
   - Discriminated queryless result view generated from typed constraints
   - Filed and registered use dedicated milestone dates for previous Monday through Sunday
   - Published for opposition means the current versioned USPTO status semantic, not every historical publication and not a legal-open-window guarantee
-  - Filters: live/dead, mark type, registration state within the Class 025 corpus
+  - Filters: live/dead, mark type, registration state within Class 025 data
   - Server-side sort, count, limit, and offset
-  - Same corpus envelope as `marks.search`; date-window reports return resolved `from` and `to`
+  - Same data envelope as `marks.search`; date-window reports return resolved `from` and `to`
 
 ### Sync
 
 - `sync.status`
-  - Published/complete frontier, last successful merge, corpus version, active state, pending/failed/reject counts, and staleness
+  - Complete frontier, last successful update, data version, active state, pending/failed counts, and staleness
 
-External realtime subscriptions are deferred in v1. Cross-process worker completion remains database-backed through durable corpus events plus PostgreSQL notification.
+External realtime subscriptions are deferred in v1. Material artifact commits update the monotonic `data_state` version used by continuation checks and cache invalidation.
 
 ### Operator
 
@@ -327,7 +323,7 @@ Package: `@tmturtle/cli`. Executable: `tt`.
 
 ## MerchBase integration
 
-Trademark Turtle is a sibling service with a stable typed interface. It owns USPTO data and returns typed authentication, availability, and corpus-state errors. MerchBase owns its adapter, local preferences, upload policy, fallback behavior, migration, and cutover acceptance. Those concerns live in a separate MerchBase integration plan and do not shape Trademark Turtle's service internals.
+Trademark Turtle is a sibling service with a stable typed interface. It owns USPTO data and returns typed authentication, validation, and data-version errors. MerchBase owns its adapter, local preferences, upload policy, fallback behavior, migration, and cutover acceptance. Those concerns live in a separate MerchBase integration plan and do not shape Trademark Turtle's service internals.
 
 ## Deployment
 
@@ -353,7 +349,7 @@ bun run compose:up
 bun run compose:smoke
 ```
 
-Compose waits for PostgreSQL, applies Drizzle migrations once, and starts the API and worker after migration succeeds. The anonymous `/api/health` endpoint reports process/database readiness with no corpus fields. Caddy serves the website shell and proxies `/api`; the API process never owns worker schedules. See [Local runtime operations](operations/local-runtime.md) for local startup and [Mac mini deployment](operations/deployment.md) for production verification and rollback.
+Compose waits for PostgreSQL, applies Drizzle migrations once, and starts the API and worker after migration succeeds. The anonymous `/api/health` endpoint reports process/database readiness with no trademark-data fields. Caddy serves the website shell and proxies `/api`; the API process never owns worker schedules. See [Local runtime operations](operations/local-runtime.md) for local startup and [Mac mini deployment](operations/deployment.md) for production verification and rollback.
 
 Deployment follows the house pattern:
 
@@ -362,15 +358,15 @@ Deployment follows the house pattern:
 3. Configure stable `TMTURTLE_WEB_PORT` and `TMTURTLE_API_PORT` values in the deployment environment
 4. `docker compose build`
 5. `docker compose up -d`
-6. Verify migration, API/database readiness, worker registration, and corpus state
+6. Verify migration, API/database readiness, worker registration, and sync state
 
 Operations:
 
 - `/api/health` for process and database readiness only
-- Nightly PostgreSQL backup covering account, generation, projected corpus, and corpus state
+- Nightly PostgreSQL backup covering accounts, live trademark data, artifacts, and data state
 - Compact artifact checksum/source-coordinate inventory with terminal raw-object deletion
 - Disk-pressure alert for database and artifact volumes
-- Complete-frontier staleness and activation-gap alerts
+- Complete-frontier staleness and artifact-gap alerts
 - Provider-access, artifact failure, stale-frontier, disk, and backup-age alerts
 - Runbooks for key rotation, restore, and exact-SHA deployment
 
@@ -379,7 +375,7 @@ Operations:
 - Byte-exact real USPTO fixtures with source manifests and action-key context
 - Full annual Class 025 record plus the authentic maximum unselected annual record
 - Fixed projection batches, malformed-record failure, restart, idempotency, and immediate ZIP cleanup tests
-- Exact 91-member discovery, 90/91 invisibility, atomic activation, source-coordinate, and corpus-version tests
+- Exact annual/daily discovery, partial-data visibility, atomic artifact replay, source-coordinate, and data-version tests
 - PostgreSQL integration tests for search/filter/sort/count/pagination
 - Unicode normalization, wildcard escaping, Split punctuation, overlap, and span-offset tests
 - Query-plan checks for exact B-tree and trigram index use
@@ -417,23 +413,23 @@ Acceptance: Compose starts cleanly; a Clerk-authenticated website user creates a
 
 Acceptance:
 
-> The exact retained record projects consistently through every test seam without becoming startup or corpus data.
+> The exact retained record projects consistently through every test seam without becoming startup data.
 
-### Phase 2: durable corpus ingestion
+### Phase 2: durable live-data ingestion
 
-- Generation and compact source-artifact state
+- Compact source-artifact and data-version state
 - Provider-aware downloads, checksums, transient raw artifacts, and immediate terminal cleanup
 - `unzipper` plus `xml-flow` streaming direct projection in fixed batches
-- Exact 91-member annual activation from officially enumerated membership
-- Generation isolation, freshness frontiers, one provider lane, durable corpus events, observability, backup, and recovery
+- Exact 91-member annual baseline followed by daily continuation
+- Artifact-scoped replay, live visibility, freshness frontier, one provider lane, observability, backup, and recovery
 
-Acceptance: 90/91 is invisible; 91/91 activates atomically; repeated activation is a no-op; restarts resume one retained ZIP without exposing a partial corpus.
+Acceptance: every successful artifact is immediately queryable; replay is atomic and idempotent; restarts resume one retained ZIP without another provider download.
 
 ### Phase 3: search and text matching
 
 - Discriminated Multi, Split, and Wildcard modes
-- Status/type/registration filters within the Class 025 corpus
-- Server-side sort/count/offset pagination with corpus-version conflict protection
+- Status/type/registration filters within Class 025 data
+- Server-side sort/count/offset pagination with data-version conflict protection
 - Website search, generic reports, inline infinite scroll, and mark detail
 - Trigram and exact indexes
 - `marks.match-text` and `marks.latest`
@@ -444,9 +440,9 @@ Acceptance: search and matching satisfy the public contract at production-scale 
 ### Phase 4: package release and operations
 
 - Publish exact-pinned HTTP client and CLI versions
-- Deploy the full annual corpus runtime
+- Deploy the annual-baseline and daily-continuation runtime
 - Verify backup/restore and exact-SHA deployment
-- Exercise provider-access failure and corpus-unavailable errors
+- Exercise provider-access and terminal artifact failures
 
 Acceptance: the deployed service re-downloads one official artifact at a time, preserves account state, reports truthful freshness, and serves the published client/CLI contracts.
 
@@ -455,12 +451,12 @@ Acceptance: the deployed service re-downloads one official artifact at a time, p
 - Thin authenticated website included in v1
 - Shared MerchBase Clerk session for browser access; API keys for client and CLI access
 - Website self-service API keys with host-side bootstrap and recovery
-- Stored, website, API, HTTP-client, and CLI corpus fixed to International Class 025 in v1
-- Live, dead, and unknown mark states within that corpus
-- Direct annual corpus generations; no source-observation, claim, contributor, publication-candidate, or reprocessing graph
-- Annual generation membership is distinct from record transaction coverage
-- First publication is the exact 91-member annual generation through 2025-12-31; daily processing is deferred
-- Public complete frontier distinct from newest published source date
+- Stored, website, API, HTTP-client, and CLI data fixed to International Class 025 in v1
+- Live, dead, and unknown mark states within that data
+- Direct perpetual live projection; no source-observation, claim, contributor, publication-candidate, generation, or reprocessing graph
+- Annual baseline membership is distinct from record transaction coverage
+- Exact 91-member baseline through 2025-12-31 followed by daily continuation
+- Public complete frontier distinct from rows already available in the live tables
 - Private operator diagnostics and database-backed operator roles
 - No external realtime subscription in v1
 - Dedicated single worker/scheduler in v1

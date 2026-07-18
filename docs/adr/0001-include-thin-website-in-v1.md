@@ -7,4 +7,4 @@ read_when:
 
 # Include a thin authenticated website in v1
 
-Trademark Turtle includes a private Vite/React website in v1 instead of remaining headless. Direct search, reports, mark detail, corpus freshness, and API-key self-service justify the additional Clerk and deployment surface; stock COSS UI components and the narrow contract in `docs/website.md` keep that surface small and prevent it from becoming a marketing site or custom dashboard framework.
+Trademark Turtle includes a private Vite/React website in v1 instead of remaining headless. Direct search, reports, mark detail, data freshness, and API-key self-service justify the additional Clerk and deployment surface; stock COSS UI components and the narrow contract in `docs/website.md` keep that surface small and prevent it from becoming a marketing site or custom dashboard framework.

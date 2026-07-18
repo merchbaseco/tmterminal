@@ -7,7 +7,7 @@ read_when:
 
 # Trademark Turtle website
 
-The v1 website is a thin authenticated client for trademark search, reports, mark detail, API-key management, and corpus freshness. It is not a marketing site or a general-purpose dashboard.
+The v1 website is a thin authenticated client for trademark search, reports, mark detail, API-key management, and data freshness. It is not a marketing site or a general-purpose dashboard.
 
 ## Product surface
 
@@ -16,7 +16,7 @@ The v1 website is a thin authenticated client for trademark search, reports, mar
 - Stable mark-detail routes
 - Parameterized reports
 - API-key creation and revocation
-- Corpus freshness popover
+- Data freshness popover
 
 Signed-out visitors see the search composition. Submitting starts Clerk sign-in, preserves the query, and executes it after authentication. No data route is anonymous.
 
@@ -30,7 +30,7 @@ Signed-out visitors see the search composition. Submitting starts Clerk sign-in,
 /settings/api-keys                     API-key management
 ```
 
-The top navigation contains Search, a Reports preset menu, API Keys, the corpus-through date, appearance, and the Clerk user menu. There is no sidebar.
+The top navigation contains Search, a Reports preset menu, API Keys, the data-through date, appearance, and the Clerk user menu. There is no sidebar.
 
 ## Visual system
 
@@ -60,7 +60,7 @@ Modes:
 
 Multi is the default mode. Wildcard validation happens before the request.
 
-The stored corpus and every programmatic interface are fixed to International Class 025 in v1, so the website does not show or send a class filter. Status filters use the canonical whole-mark disposition within that corpus. International Classes remain visible source facts on result and detail views.
+Stored data and every programmatic interface are fixed to International Class 025 in v1, so the website does not show or send a class filter. Status filters use the canonical whole-mark disposition. International Classes remain visible source facts on result and detail views.
 
 Visible filters mirror TMhunt:
 
@@ -130,9 +130,9 @@ Previous week means Monday through Sunday. Filed and registered reports use thei
 
 The API Keys page lists name, suffix, creation time, last-used time, and status. Creation asks only for a name, shows the raw `ttk_...` token exactly once, and requires explicit acknowledgement that it was saved. Revocation lives in the row menu.
 
-The corpus-through date is the contiguous complete frontier. It opens a COSS popover with the newest published date, last successful merge, current sync state, pending/failed/reject counts, and staleness. The popover rereads status when opened; it does not poll.
+The data-through date is the contiguous complete frontier. It opens a COSS popover with the last successful update, current sync state, pending/failed counts, data version, and staleness. The popover rereads status when opened; it does not poll. Available rows remain searchable while the annual baseline or daily continuation is incomplete.
 
-Operators with the server-enforced database role also receive a top-bar link to `/ops/sync`. That read-only route shows the annual generation summary, provider lane, and bounded server-paginated source artifacts with state, counts, compact SHA, coverage, and current error. It has no mutation controls and is not available to ordinary authenticated customers or API keys.
+Operators with the server-enforced database role also receive a top-bar link to `/ops/sync`. That read-only route shows annual baseline progress, provider lane, and bounded server-paginated source artifacts with state, counts, compact SHA, coverage, and current error. It has no mutation controls and is not available to ordinary authenticated customers or API keys.
 
 ## States and responsiveness
 
@@ -140,7 +140,7 @@ Operators with the server-enforced database role also receive a top-bar link to 
 - Loading more: one inline spinner row
 - Empty: `No matching marks` and Clear filters
 - Validation: inline beneath the search field
-- Corpus conflict: explicit alert and Run search again action; never reset or mix pages silently
+- Data-version conflict: explicit alert and Run search again action; never reset or mix pages silently
 - Service unavailable: full-width alert; never present stale results as current
 
 Desktop composition is primary. Mobile keeps the same information architecture: fluid masthead, stacked search action, compact filter drawer, wrapped result metadata, and unchanged top-level routes.

@@ -42,7 +42,7 @@ The selected database must be disposable. The integration setup removes its Driz
 ## Runtime stack
 
 Normal product development runs the API and Vite website locally against the production PostgreSQL
-corpus on the Mac mini:
+trademark data on the Mac mini:
 
 ```bash
 bun run dev
@@ -54,7 +54,7 @@ rewrites only the database host and port in memory to
 be reachable over Tailscale. The production `DATABASE_URL` stored in `.env` remains unchanged.
 
 This is live production state. Searches, freshness, reports, and operator diagnostics read the real
-corpus. Account creation and API-key creation or revocation write production state. The command
+data. Account creation and API-key creation or revocation write production state. The command
 prints that warning at startup; use the disposable PostgreSQL integration lane for database,
 migration, or destructive work.
 
@@ -123,7 +123,7 @@ Healthy readiness returns only:
 {"status":"ready"}
 ```
 
-When PostgreSQL is unavailable it returns HTTP `503` and `{"status":"unavailable"}`. Readiness is anonymous by design and exposes no corpus data. Every account and mark procedure requires a verified Clerk session or Trademark Turtle API key.
+When PostgreSQL is unavailable it returns HTTP `503` and `{"status":"unavailable"}`. Readiness is anonymous by design and exposes no trademark data. Every account and mark procedure requires a verified Clerk session or Trademark Turtle API key.
 
 Use the same wrapper for follow-up Compose commands so they reconstruct the checkout's project name and ports:
 
@@ -132,13 +132,13 @@ bun run compose -- ps
 bun run compose -- logs api
 ```
 
-## Corpus operations
+## Ingestion operations
 
-The authenticated operator page at `/ops/sync` is read-only. It shows the annual generation, provider lane, and bounded source artifacts with state, counts, SHA, coverage, and current error. There are no host mutation commands, reprocessing versions, quarantine workflow, compatibility reader, or second rebuild engine.
+The authenticated operator page at `/ops/sync` is read-only. It shows annual baseline progress, provider lane, and bounded annual/daily source artifacts with state, counts, SHA, coverage, and current error. There are no host mutation commands, reprocessing versions, quarantine workflow, compatibility reader, or second rebuild engine.
 
-The worker derives restart work from `corpus_generation` and `source_artifact`. Before source access it removes one unreferenced finalized ZIP, including any object left by the legacy schema cutover or a crash before retention was committed. A `downloading` artifact without a committed object becomes terminally failed and is never fetched again. Any failed member blocks later downloads for that building generation. A retained projecting ZIP restarts its rolled-back artifact transaction. Complete and failed artifacts retain no raw ZIP. Provider backoff/stop state is database-backed and intentionally requires a corrected deployment or explicit database operation designed for the concrete incident; there is no generic recovery command.
+The worker derives restart work from `source_artifact`. Before source access it removes one unreferenced finalized ZIP, including any object left by a crash before retention was committed. A `downloading` artifact without a committed object becomes terminally failed and is never fetched again. Any failed artifact blocks later downloads. A retained projecting ZIP restarts its rolled-back artifact transaction and replaces only rows still owned by that product and filename. Complete and failed artifacts retain no raw ZIP. Provider backoff/stop state is database-backed and intentionally requires a corrected deployment or explicit database operation designed for the concrete incident; there is no generic recovery command.
 
-Forward migrations discard rebuildable legacy ingestion state and preserve account, Clerk identity, API key, role, and provider-lane data. Drizzle applies all pending migrations in one transaction, so the destructive cutover and new direct schema become visible together. No pre-migration cleanup script or cutover proof is required.
+The live-data migration preserves the exact deployed annual progress, retained projecting ZIP, projected marks and children, source artifacts, provider lane, accounts, Clerk identities, API keys, and roles while removing generation keys and pointers. Drizzle applies it in one transaction. No compatibility schema or pre-migration cleanup script exists.
 
 Drizzle owns application schema migration. pg-boss owns its separate `pgboss` schema: the one-shot migration entrypoint starts pg-boss with migration enabled after Drizzle, while the production worker starts with `migrate:false` and fails closed if that schema is absent. Repeated migration is expected to be idempotent.
 
