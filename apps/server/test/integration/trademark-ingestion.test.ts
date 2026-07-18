@@ -465,6 +465,37 @@ test("restart resumes one projecting artifact and removes its ZIP after commit",
   expect((await ingestion().status()).dataVersion).toBe(1);
 });
 
+test("ingests and exactly matches a normalized word mark beyond B-tree tuple limits", async () => {
+  const wordMark = `LONG ${"X".repeat(5000)}`;
+  await seedArtifact(1, "projecting", "sha256/object");
+  const record = validRecord.replace("GUESS JEANS", wordMark);
+
+  expect(
+    await ingestion(() => Promise.resolve(Readable.from([sourceDocument(record)]))).reconcile()
+  ).toMatchObject({ action: "projected", materialChangeCount: 1, projectedMarkCount: 1 });
+  const [stored] = await database<Array<{ normalizedBytes: number }>>`
+    select octet_length(word_mark_normalized)::int as "normalizedBytes" from mark
+  `;
+  expect(stored?.normalizedBytes).toBeGreaterThan(3720);
+
+  const page = await createMarksService(database).search({
+    limit: 25,
+    match: "exact",
+    mode: "multi",
+    offset: 0,
+    query: wordMark,
+    registered: "all",
+    sort: "relevance",
+    status: "all",
+    type: "all",
+  });
+  expect(page).toMatchObject({
+    items: [{ match: "exact", serialNumber: "74668071", wordMark }],
+    total: 1,
+  });
+  expect(removed).toEqual(["sha256/object"]);
+});
+
 test("daily records update and remove live Class 025 identities immediately", async () => {
   const before = await readFile("fixtures/uspto/records/publication-before-79366581.xml", "utf8");
   const after = await readFile("fixtures/uspto/records/publication-after-79366581.xml", "utf8");

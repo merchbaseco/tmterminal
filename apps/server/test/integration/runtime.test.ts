@@ -111,7 +111,7 @@ describe("live trademark data migration", () => {
       from source_lane order by id
     `;
     expect(auth).toEqual({ accounts: 1, identities: 1, keys: 1, roles: 1 });
-    expect(shape).toEqual({ legacyArtifact: false, migrations: 16, tables: 12 });
+    expect(shape).toEqual({ legacyArtifact: false, migrations: 17, tables: 12 });
     expect([...lanes]).toEqual([
       {
         currentError: "temporary provider failure",
@@ -137,11 +137,22 @@ describe("live trademark data migration", () => {
     const [mark] = await database<
       Array<{ normalized: string; status: string }>
     >`select word_mark_normalized normalized, search_status status from mark`;
-    const indexes = await database<
-      Array<{ name: string }>
-    >`select indexname name from pg_indexes where schemaname = 'public' and tablename = 'mark' order by indexname`;
+    const indexes = await database<Array<{ method: string; name: string }>>`
+      select index_class.relname as name, access_method.amname as method
+      from pg_index index
+      join pg_class index_class on index_class.oid = index.indexrelid
+      join pg_class table_class on table_class.oid = index.indrelid
+      join pg_am access_method on access_method.oid = index_class.relam
+      where table_class.relname = 'mark'
+      order by index_class.relname
+    `;
     expect(mark).toEqual({ normalized: "café", status: "unknown" });
-    expect(indexes.map(({ name }) => name)).toContain("mark_word_mark_exact_idx");
+    expect([...indexes]).toEqual(
+      expect.arrayContaining([
+        { method: "hash", name: "mark_live_word_mark_exact_idx" },
+        { method: "hash", name: "mark_word_mark_exact_idx" },
+      ])
+    );
   }, 30_000);
 
   test("moves the exact stopped Parts 01-26 shape into live tables without losing rows or ZIP state", async () => {
