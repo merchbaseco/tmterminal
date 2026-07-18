@@ -1,14 +1,13 @@
 import type postgres from "postgres";
 
 import type { MultiSearchInput, MultiSearchPage } from "../api/contracts.ts";
-import { CorpusUnavailableError } from "./corpus-errors.ts";
 
-interface CorpusState {
+interface DataState {
   completeThroughDate: string | null;
-  corpusVersion: string;
+  dataVersion: string;
 }
 
-export class CorpusVersionConflictError extends Error {}
+export class DataVersionConflictError extends Error {}
 
 type QueryValue = number | string;
 
@@ -73,8 +72,7 @@ export function buildMultiSearchQueries(input: MultiSearchInput) {
     count: {
       text: `with ${normalizedQuery}
         select count(*)::int as total
-        from corpus_state state join mark m on m.generation_id = state.current_generation_id
-        cross join normalized where state.id = 'uspto' and ${predicate}`,
+        from mark m cross join normalized where ${predicate}`,
       values,
     },
     items: {
@@ -91,19 +89,15 @@ export function buildMultiSearchQueries(input: MultiSearchInput) {
           array(
             select distinct classification.international_code
             from mark_class classification
-            where classification.generation_id = m.generation_id
-              and classification.serial_number = m.serial_number
+            where classification.serial_number = m.serial_number
               and classification.international_code is not null
             order by classification.international_code
           ) as "internationalClasses",
           (select owner.party_name from mark_owner owner
-            where owner.generation_id = m.generation_id
-              and owner.serial_number = m.serial_number order by owner.ordinal limit 1) as owner,
+            where owner.serial_number = m.serial_number order by owner.ordinal limit 1) as owner,
           (select goods.text from mark_goods_services goods
-            where goods.generation_id = m.generation_id
-              and goods.serial_number = m.serial_number order by goods.ordinal limit 1) as "goodsServicesExcerpt"
-        from corpus_state state join mark m on m.generation_id = state.current_generation_id
-        cross join normalized where state.id = 'uspto' and ${predicate}
+            where goods.serial_number = m.serial_number order by goods.ordinal limit 1) as "goodsServicesExcerpt"
+        from mark m cross join normalized where ${predicate}
         order by ${orderBy}
         limit ${limitParameter} offset ${offsetParameter}`,
       values: itemValues,
@@ -116,15 +110,16 @@ export function searchMulti(
   input: MultiSearchInput
 ): Promise<MultiSearchPage> {
   return database.begin("isolation level repeatable read read only", async (transaction) => {
-    const [state] = await transaction<CorpusState[]>`
-      select complete_through_date::text as "completeThroughDate", corpus_version::text as "corpusVersion"
-      from corpus_state where id = 'uspto'
+    const [state] = await transaction<DataState[]>`
+      select state.complete_through_date::text as "completeThroughDate",
+        coalesce(state.version, 0)::text as "dataVersion"
+      from (select 1) anchor left join data_state state on state.id = 'uspto'
     `;
-    if (!state?.completeThroughDate) {
-      throw new CorpusUnavailableError("Trademark corpus is unavailable");
+    if (!state) {
+      throw new Error("Trademark data state is unavailable");
     }
-    if (input.expectedCorpusVersion && input.expectedCorpusVersion !== state.corpusVersion) {
-      throw new CorpusVersionConflictError("Trademark corpus changed during pagination");
+    if (input.expectedDataVersion && input.expectedDataVersion !== state.dataVersion) {
+      throw new DataVersionConflictError("Trademark data changed during pagination");
     }
 
     const queries = buildMultiSearchQueries(input);
@@ -144,8 +139,8 @@ export function searchMulti(
       items,
       limit: input.limit,
       meta: {
-        corpusThroughDate: state.completeThroughDate,
-        corpusVersion: state.corpusVersion,
+        dataThroughDate: state.completeThroughDate,
+        dataVersion: state.dataVersion,
       },
       offset: input.offset,
       total: count.total,

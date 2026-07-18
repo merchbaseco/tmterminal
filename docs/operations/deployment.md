@@ -27,11 +27,11 @@ Startup is ordered:
 2. Back up PostgreSQL and record the exact deployed and candidate SHAs.
 3. Fast-forward the clean production checkout to the reviewed merge SHA.
 4. Build images labeled with that exact SHA.
-5. Start PostgreSQL and run the one-shot Drizzle migrator. Its single transaction discards rebuildable legacy ingestion state, preserves auth/role/provider-lane data, and creates the direct annual schema atomically.
+5. Start PostgreSQL and run the one-shot Drizzle migrator. Its single transaction preserves live projected rows, all 91 annual artifacts, retained Part 26, provider state, accounts, identities, keys, and roles while removing generation keys and pointers.
 6. Start API and Caddy; verify database/API/web readiness and auth/search behavior while the worker remains stopped.
-7. Start the worker only after explicit deployment authorization. Its first database-derived action removes any unreferenced legacy ZIP before source access. Verify that cleanup, one annual reconciliation, and truthful `/ops/sync` state.
+7. Start the worker only after explicit deployment authorization. Its first database-derived action resumes retained Part 26 without another provider download. Verify one atomic live update, ZIP cleanup, and truthful `/ops/sync` state.
 
-There is no pre-merge cutover script, data translation, compatibility view, dual write, or rollback across the schema cutover. Production has no query-visible marks; legacy ingestion state is rebuildable. If migration or acceptance fails, leave the worker stopped and deploy a corrected post-cutover revision against the restored backup.
+There is no pre-merge cutover script, compatibility view, dual write, or embedded rollback across the schema cutover. The one forward migration is deliberately pinned to the exact sole-build production shape. If migration or acceptance fails, leave the worker stopped and deploy a corrected revision against the restored backup.
 
 The ignored production `.env` is mastered at `/Users/zknicker/srv/tmturtle/.env`, copied into the detached candidate without echoing values, and kept at mode `0600`. Required secret-bearing names are `DATABASE_URL`, `POSTGRES_PASSWORD`, `CLERK_SECRET_KEY`, and `USPTO_API_KEY`; `VITE_CLERK_PUBLISHABLE_KEY` supplies the approved shared MerchBase Clerk frontend configuration. Production sets `CLERK_AUTHORIZED_PARTIES` to exactly `https://tmturtle.merchbase.co`.
 
@@ -41,7 +41,7 @@ PostgreSQL and the transient artifact working directory use named volumes. API, 
 
 `scripts/deployment-smoke` is the external readiness and capacity hook. Worker readiness begins only after the current process completes its first scheduler reconciliation; its startup grace matches the existing 15-minute provider request bound, persisted backoff remains valid, and a stopped lane fails smoke. The hook also fails when either the PostgreSQL or artifact volume filesystem has less than 20 GiB free, migration failed, another long-running service is unhealthy, a bounded loopback or public HTTPS probe fails, or image labels do not match the deployed revision.
 
-The anonymous readiness response is exactly `{"status":"ready"}` and contains no corpus data. Readiness does not claim corpus availability. The worker owns a fixed 10-second cadence, serial downloads, persisted backoff, and a non-configurable eight-attempt ceiling. The authenticated sync contracts report durable corpus state; the operator page reports the annual generation, provider lane, and compact artifact state.
+The anonymous readiness response is exactly `{"status":"ready"}` and contains no trademark data. Readiness does not claim data completeness. The worker owns a fixed 10-second cadence, serial downloads, persisted backoff, and a non-configurable eight-attempt ceiling. Authenticated sync reports freshness and durable ingestion state; the operator page reports annual baseline progress, provider lane, and compact artifact state.
 
 For an explicit smoke or post-restart check:
 

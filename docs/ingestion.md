@@ -1,32 +1,33 @@
 ---
-summary: Defines direct annual corpus generations, transient artifact handling, atomic activation, and corpus freshness.
+summary: Defines perpetual live USPTO ingestion, transient artifact handling, replay, and data freshness.
 read_when:
-  - changing USPTO discovery, downloads, parsing, projection, publication, or freshness
-  - changing corpus generation isolation, source coordinates, replay, or status derivation
+  - changing USPTO discovery, downloads, parsing, projection, replay, or freshness
+  - changing source coordinates, live-data updates, daily continuation, or status derivation
 ---
 
 # USPTO ingestion
 
-Trademark Turtle builds one generation-scoped Class 025 corpus directly from the pinned USPTO annual archive. Callers see only the active generation. Source mechanics stay behind one ingestion module interface:
+PostgreSQL is Trademark Turtle's perpetual product state. Annual and daily USPTO files are transport batches, not query-visible datasets. Every committed batch updates the same live Class 025 tables and is immediately searchable. Partial and empty databases remain valid query states.
+
+One deep ingestion module owns two operations:
 
 - reconcile the next database-derived unit of work;
-- read truthful build and corpus status.
+- read truthful ingestion and freshness status.
 
-The module hides discovery, download, ZIP/XML streaming, validation, batching, projection, cleanup, and activation. PostgreSQL is durable state. The USPTO client is the true-external adapter.
+The module hides discovery, download, ZIP/XML streaming, validation, projection, replay, cleanup, and provider policy. The USPTO catalog is the true-external adapter.
 
-## Annual source contract
+## Source contracts
 
-- `TRTYRAP` is the only v1 worker source. Its official ODP product frequency is `YEARLY`.
-- The baseline is the exact 91-member generation covering 1884-04-07 through 2025-12-31 from retained metadata response SHA-256 `48e2760d6c87175969373199aa914d06e3208d6db2345a8f1647edec329ccdd5`.
-- Coverage dates prove generation membership and the public frontier. They do not bound record transaction dates.
-- Parts form snapshot partitions. Filename suffix and physical order are source coordinates, not cross-record precedence.
-- `TRTDXFAP` daily files are neither downloaded nor parsed by this pipeline. Daily update semantics require a later product decision.
+- `TRTYRAP` has official frequency `YEARLY`. The baseline is the exact 91-member set covering 1884-04-07 through 2025-12-31 from retained metadata response SHA-256 `48e2760d6c87175969373199aa914d06e3208d6db2345a8f1647edec329ccdd5`.
+- `TRTDXFAP` has official frequency `DAILY`. Daily continuation initially starts after 2025-12-31, then requires the day after durable `completeThroughDate` with filename `apcYYMMDD.zip`. Discovery accepts retained overlap and rolled catalogs, succeeds when no newer member exists, and fails on a gap in the forward sequence.
+- Coverage dates establish batch membership and the contiguous freshness frontier. They do not bound record transaction dates.
+- Filename and physical record index are compact source coordinates, not cross-record precedence.
 
 ## Durable state
 
-One `corpus_generation` row owns a build. One `source_artifact` row per generation member stores product, filename, downloaded SHA-256, coverage, state, byte/record/mark counts, current error, and a transient object pointer. The one `source_lane` row stores only provider status, next eligibility, failure count, and a safe current error.
+One `source_artifact` row per product and filename stores the catalog URL, expected bytes, downloaded SHA-256, coverage, lifecycle state, counts, current error, and transient object pointer. The one `source_lane` row stores provider status, next eligibility, consecutive failure count, and a safe current error. `data_state` stores only the contiguous complete-through date, last successful update time, and monotonic data version.
 
-Projected tables are generation-scoped:
+The live projection is:
 
 - `mark`
 - `mark_class`
@@ -34,59 +35,52 @@ Projected tables are generation-scoped:
 - `mark_goods_services`
 - `mark_status_event`
 
-Every projected row carries product, filename, SHA-256, and physical record index. There is no source-observation, claim, contributor, publication-candidate, parser-generation, version-selection, attempt-history, or diagnostic graph.
+Every projected row carries product, filename, SHA-256, and physical record index. There is no source-observation, claim, contributor, publication-candidate, generation, attempt-history, or diagnostic graph.
 
-## Reconciliation
+## Reconciliation and provider policy
 
-One pg-boss queue wakes reconciliation on startup and a bounded schedule. A transaction-scoped advisory lock reserves build transitions and serializes activation. Each delivery performs one database-derived action:
+One pg-boss queue wakes reconciliation on startup and a fixed 10-second schedule. A transaction-scoped advisory lock serializes artifact lifecycle changes. Each delivery performs one database-derived action:
 
-1. clean one unreferenced or terminal raw ZIP;
-2. activate an exact complete generation;
-3. resume/project a downloaded member;
-4. discover the pinned generation;
-5. download the next pending member;
-6. report idle or provider backoff/stop.
+1. remove one unreferenced or terminal raw ZIP;
+2. resume one retained projecting artifact;
+3. surface a terminal artifact or provider failure;
+4. download the next pending artifact;
+5. discover the annual baseline or daily continuation;
+6. report idle or provider backoff.
 
-A process interruption before ZIP retention makes that artifact terminally failed on restart; it is never downloaded again. Any finalized but uncommitted ZIP is removed first as an orphan. One failed member blocks every later download in that building generation because 91/91 activation is no longer reachable. A completed artifact is never projected again. A projecting artifact resumes from its retained ZIP; its prior transaction has rolled back, so projection restarts cleanly for that source filename.
+A process interruption before ZIP retention makes that artifact terminally failed on restart; it is never downloaded again. Any finalized but uncommitted ZIP is removed first as an orphan. A failed artifact blocks later downloads so the worker cannot waste provider allowance while unhealthy. A projecting artifact resumes from its retained ZIP; its prior database transaction rolled back, so replay starts cleanly for that product and filename.
 
-All provider access uses `USPTO_API_KEY`. Authentication, authorization, contract, and permanent HTTP failures stop the lane. Timeouts, throttling, integrity failures, and server errors use persisted capped exponential backoff with jitter. Eight consecutive attempts is the private fail-closed ceiling; it cannot be raised by configuration, survives restarts, and stops before the provider's 20-download annual same-file limit. The fixed 10-second scheduler and serial artifact flow stay below the provider's five-files-per-10-seconds IP limit. No job-owned workflow chain or second retry loop exists.
+All provider access uses `USPTO_API_KEY`. Authentication, authorization, source-contract, and permanent HTTP failures stop the lane. Timeouts, throttling, interrupted bodies, and server errors use persisted capped exponential backoff with jitter. Eight consecutive attempts is the private fail-closed ceiling and cannot be configured upward. The serial flow stays below five files per 10 seconds per IP. An accepted signed redirect is fetched immediately and never receives the API key.
 
 ## Streaming projection
 
 Exactly one ZIP is retained at a time. The worker hashes and writes the download once, opens the sole XML entry with `unzipper`, and streams `case-file` events with `xml-flow`. It never buffers an artifact or writes extracted XML.
 
-Every XML document must use the `trademark-applications-daily` root and declare exactly one `version-no` equal to `2.0` and one `version-date` equal to `20041108` before records. Every physical record must be well-formed and have an eight-digit serial identity. The parser counts and validates all records, including unselected records. A record is selected only when it has a non-empty word mark and explicit `primary-code` `025` evidence.
+Every document must use root `trademark-applications-daily`, exactly one `version-no` `2.0`, and exactly one `version-date` `20041108` before records. Every physical record must be well formed and have an eight-digit serial identity. A record is selected only with a non-empty word mark and explicit `primary-code` `025` evidence. Sparse daily records without enough projection data are ignored; a later complete daily record that no longer asserts Class 025 removes the live row.
 
-Selected records project directly in fixed 100-mark batches. Missing, zero, and malformed-width optional dates become null; exactly eight-digit non-calendar dates remain invalid. Nonzero registration numbers normalize to seven digits. Status, normalization, mark-type, and Class 025 search policies remain server-owned and fixture-backed.
+Selected records project in fixed 100-record batches. Expanded status events use statements of at most 250 rows inside the artifact transaction. Missing, zero, and malformed-width optional dates become null; exactly eight-digit non-calendar dates remain invalid. Nonzero registration numbers normalize to seven digits. Repeated source status events collapse by their exact event fingerprint while distinct transitions remain.
 
-The authentic 10,948,448-byte part-49 record is valid but not selected because it has no Class 025 assertion. Memory is bounded by the current `xml-flow` record, one fixed projection batch, ZIP stream buffers, and database-client buffers.
+For an upsert, serial number is global identity. A newer source transaction replaces the mark and its child collections; an older, equal, or undated competing record cannot overwrite it. A dated record may supersede stored state whose transaction date is unknown. Replaying one artifact first removes only live rows still owned by that product and filename, then reapplies its bytes. Rows already superseded by another artifact survive replay.
 
-Artifact projection is one database transaction. Success commits all rows and terminal counts, then removes the ZIP immediately. Parse/validation failure rolls back all rows, stores one clear artifact error, and removes the ZIP immediately. A failed unlink remains a cleanup target and blocks later work.
+Artifact projection is one database transaction. Success commits all row changes, terminal artifact counts, freshness, and at most one data-version increment, then removes the ZIP immediately. Parse or validation failure rolls back all row changes, records one clear artifact error, and removes the ZIP immediately.
 
-## Atomic visibility and freshness
+## Query visibility and freshness
 
-A building generation is invisible. Customer reads join `mark` rows through `corpus_state.current_generation_id`; exact lookup, Multi search, filtering, sorting, count, and pagination all use that same pointer.
+All rows in the live mark tables are always queryable. Search, exact lookup, text matching, and reports never join through an availability pointer. No baseline-progress state can return `SERVICE_UNAVAILABLE`; an empty database returns empty search results and missing exact identities return `NOT_FOUND`.
 
-Activation requires exactly 91 total artifacts, all 91 complete, and a nonzero Class 025 corpus. One transaction:
+`data_state.version` increments once for each successfully committed artifact that materially changes live rows. Paged callers may pin it and receive `CONFLICT` if live data changes between pages. `completeThroughDate` remains null until the 91 annual members complete, then advances through the contiguous completed daily frontier. `lastSuccessfulUpdateAt` advances on every successful artifact, including a valid zero-selected batch.
 
-1. takes the corpus/build advisory lock;
-2. marks the generation active;
-3. points `corpus_state` at it;
-4. sets `publishedThroughDate` and `completeThroughDate` to 2025-12-31;
-5. increments `corpusVersion` once;
-6. inserts one durable corpus event and sends a PostgreSQL wake-up notification.
-
-At 90/91, after any failure, or after process restart, the pointer is unchanged. Repeating activation is a no-op. Continuation queries retain corpus-version conflict behavior.
+Sync status reports baseline progress, pending and failed artifacts, provider state, freshness, and the data version. It describes currentness; it never controls data access.
 
 ## Migration and recovery
 
-Landed migration history is immutable. The forward cutover migrations run in the migrator's single transaction: first discard rebuildable legacy ingestion/canonical tables, then create the direct-generation schema. Account, Clerk identity, API key, role, and provider-lane rows survive.
+Landed migration history is immutable. The forward migration accepts the one deployed production shape only: one unfinished annual baseline with 91 artifacts, Parts 01–25 complete, Part 26 projecting with its retained object, and the remaining parts pending. It removes generation keys and pointers while preserving every artifact, projected row, provider lane, account, Clerk identity, API key, and role assignment. The corrected worker resumes Part 26 without another provider download.
 
-Raw ZIPs are not backup state. Operational rollback uses the normal PostgreSQL backup plus a known Git revision; no compatibility schema, dual write, legacy reader, fallback pipeline, or embedded rollback path exists.
+Raw ZIPs are not backup state. Operational rollback uses the normal PostgreSQL backup plus a known Git revision; no compatibility schema, dual write, fallback reader, or generic reprocessing API exists.
 
 ## Verification
 
-- Byte-exact annual fixtures prove selected Class 025 and unselected part-49 records.
-- Module tests cover exact discovery, fixed batches, cleanup, terminal error, restart, and idempotency.
-- Real PostgreSQL tests cover auth-preserving migration, generation isolation, 90/91 invisibility, exact 91/91 activation, corpus events, exact lookup, Multi search, and corpus-version conflicts.
-- Production-shaped verification uses an isolated Compose project. The live production worker remains stopped until authorized deployment.
+- Byte-exact annual and daily fixtures carry source and action context.
+- Parser tests cover Class 025 selection, sparse daily actions, removal, malformed optional dates, repeated class codes, and bounded status events.
+- Real PostgreSQL tests cover partial-data visibility, artifact-scoped replay, newer-record precedence, data-version conflicts, restart, provider limits, cleanup, and the exact deployed migration shape.
+- Production-shaped verification uses an isolated Compose project and retained source bytes. Live production is not a verification target.

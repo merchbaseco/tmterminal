@@ -1,8 +1,8 @@
-export const annualGenerationV1MetadataSha256 =
+export const annualBaselineV1MetadataSha256 =
   "48e2760d6c87175969373199aa914d06e3208d6db2345a8f1647edec329ccdd5";
 
 // Exact logical-artifact membership from the retained metadata response above. Array order is representation only.
-export const annualGenerationV1Artifacts = [
+export const annualBaselineV1Artifacts = [
   "apc18840407-20251231-01.zip",
   "apc18840407-20251231-02.zip",
   "apc18840407-20251231-03.zip",

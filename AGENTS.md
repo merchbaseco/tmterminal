@@ -21,9 +21,10 @@
 - Every data procedure requires either a Clerk session or an API key. There are no anonymous data routes in v1.
 - Exact serial and registration numbers are identities. Never treat them as fuzzy search terms.
 - Apply filtering and sorting on the server before pagination and count.
-- Corpus state is database-backed. Worker completion must be observable across processes.
-- The v1 corpus is a direct projection of the exact pinned annual generation. Daily update semantics are deferred.
-- Public corpus-through date is the contiguous complete frontier, not the newest downloaded or published artifact.
+- Source-artifact and data state are database-backed. Worker completion must be observable across processes.
+- USPTO artifacts update perpetual live Class 025 tables transactionally; ingestion progress never gates reads.
+- The exact pinned annual baseline is followed by calendar-contiguous daily updates.
+- Public data-through date is the contiguous complete frontier, not the newest downloaded artifact.
 
 ## Code shape
 
@@ -68,7 +69,7 @@
   avoid tests whose primary assertion is that a spy was called.
 - Ordered provider, transaction, and ingestion loops stay sequential when the contract requires it;
   do not parallelize them merely to satisfy a lint rule.
-- Operational failures must identify the operation and relevant generation or artifact. Avoid
+- Operational failures must identify the operation and relevant artifact. Avoid
   heartbeat, retry, and per-row log noise.
 
 ## PRD closeout
@@ -88,7 +89,7 @@ Before any PRD commit, PR, merge, or closeout:
 ## Verification
 
 - Parser changes require byte-exact real XML fixtures with source/action context.
-- Ingestion changes require restart, idempotency, cleanup, source-coordinate, generation-isolation, and atomic-activation coverage.
+- Ingestion changes require restart, idempotency, cleanup, source-coordinate, artifact-replay, live-visibility, and transaction coverage.
 - Search changes require filter, sort, count, pagination, and index-use coverage.
 - Client and CLI changes require contract generation/build plus JSON-envelope tests.
 - Website changes require focused automated checks plus the `app-feature-verification` happy and adjacent paths.

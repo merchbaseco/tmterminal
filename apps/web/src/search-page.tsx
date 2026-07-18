@@ -11,7 +11,7 @@ type RouterOutputs = inferRouterOutputs<AppRouter>;
 type SearchInput = RouterInputs["marks"]["search"];
 type SearchPageResult = RouterOutputs["marks"]["search"];
 interface SearchPageParam {
-  expectedCorpusVersion?: string;
+  expectedDataVersion?: string;
   offset: number;
 }
 
@@ -91,7 +91,7 @@ function requestFor(state: SearchState) {
 
 function searchErrorMessage(conflict: boolean, replacementFailure: boolean) {
   if (conflict) {
-    return "The trademark corpus changed. Run the search again before continuing.";
+    return "Trademark data changed. Run the search again before continuing.";
   }
   if (replacementFailure) {
     return "New search could not be loaded. Previous results are still shown.";
@@ -160,16 +160,16 @@ export function SearchPage({
     getNextPageParam: (lastPage, pages) => {
       const offset = pages.reduce((sum, page) => sum + page.items.length, 0);
       return offset < lastPage.total
-        ? { expectedCorpusVersion: pages[0]?.meta.corpusVersion, offset }
+        ? { expectedDataVersion: pages[0]?.meta.dataVersion, offset }
         : undefined;
     },
-    initialPageParam: { expectedCorpusVersion: undefined as string | undefined, offset: 0 },
+    initialPageParam: { expectedDataVersion: undefined as string | undefined, offset: 0 },
     placeholderData: () => sourceData,
     queryFn: ({ pageParam }) =>
       api.search({
         ...request,
-        ...(pageParam.expectedCorpusVersion
-          ? { expectedCorpusVersion: pageParam.expectedCorpusVersion }
+        ...(pageParam.expectedDataVersion
+          ? { expectedDataVersion: pageParam.expectedDataVersion }
           : {}),
         offset: pageParam.offset,
       }),
@@ -393,7 +393,11 @@ export function SearchPage({
             <p>
               {total} {total === 1 ? "result" : "results"}
             </p>
-            <p>Corpus through {data.pages[0]?.meta.corpusThroughDate}</p>
+            <p>
+              {data.pages[0]?.meta.dataThroughDate
+                ? `Data through ${data.pages[0].meta.dataThroughDate}`
+                : "Baseline sync in progress"}
+            </p>
           </div>
           <div
             className="search-results-viewport"

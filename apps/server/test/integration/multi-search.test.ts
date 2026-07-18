@@ -6,7 +6,7 @@ import { migrateDatabase } from "../../src/db/migrate.ts";
 import type { ProjectedMark } from "../../src/ingestion/mark-types.ts";
 import { buildMultiSearchQueries } from "../../src/queries/multi-search.ts";
 import { resetTestDatabase } from "./test-database.ts";
-import { createTestMarkRepository, testGenerationId } from "./test-mark-repository.ts";
+import { createTestMarkRepository } from "./test-mark-repository.ts";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 if (!databaseUrl) {
@@ -104,7 +104,6 @@ beforeAll(async () => {
   await database`
     insert into mark ${database(
       Array.from({ length: 27 }, (_, index) => ({
-        generation_id: testGenerationId,
         mark_drawing_code: "4",
         normalization_version: "uspto-normalization-v1",
         registration_number: String(2_000_001 + index),
@@ -120,9 +119,9 @@ beforeAll(async () => {
     )}
   `;
   await database`
-    insert into mark_class (generation_id, serial_number, ordinal, international_code, status_code, status_date,
+    insert into mark_class (serial_number, ordinal, international_code, status_code, status_date,
       source_product, source_filename, source_sha256, source_physical_record_index)
-    select generation_id, serial_number, 1, '025', '6', '2026-07-10',
+    select serial_number, 1, '025', '6', '2026-07-10',
       source_product, source_filename, source_sha256, source_physical_record_index
     from mark where word_mark like 'PAGINATION %'
   `;
@@ -140,8 +139,9 @@ beforeAll(async () => {
   );
   await repository.replace(mark("20000031", "PAGINATION UNREGISTERED"));
   await database`
-    insert into corpus_state (id, current_generation_id, complete_through_date, published_through_date, corpus_version)
-    values ('uspto', ${testGenerationId}, '2026-07-10', '2026-07-10', 7)
+    update data_state
+    set complete_through_date = '2026-07-10', version = 7
+    where id = 'uspto'
   `;
   server = await buildServer({
     databaseUrl,
@@ -191,7 +191,7 @@ test("Multi normalizes one literal Unicode query and keeps exact and partial ind
   expect(exact.json().result.data).toMatchObject({
     items: [{ match: "exact", serialNumber: "10000002", wordMark: "Cafe\u0301" }],
     limit: 25,
-    meta: { corpusThroughDate: "2026-07-10", corpusVersion: "7" },
+    meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
     offset: 0,
     total: 1,
   });
@@ -222,29 +222,7 @@ test("Multi lowercases compatibility characters after NFKC", async () => {
   });
 });
 
-test("exact lookups distinguish an unavailable corpus from an absent identity", async () => {
-  await database`update corpus_state set current_generation_id = null where id = 'uspto'`;
-  try {
-    const unavailableSerial = await server.inject({
-      headers: { authorization: "Bearer clerk-session" },
-      method: "GET",
-      url: `/api/trpc/marks.get?input=${encodeURIComponent(JSON.stringify({ serialNumber: "99999999" }))}`,
-    });
-    const unavailableRegistration = await server.inject({
-      headers: { authorization: "Bearer clerk-session" },
-      method: "GET",
-      url: `/api/trpc/marks.get-by-registration?input=${encodeURIComponent(JSON.stringify({ registrationNumber: "9999999" }))}`,
-    });
-    expect(unavailableSerial.statusCode).toBe(503);
-    expect(unavailableSerial.json().error.data.code).toBe("SERVICE_UNAVAILABLE");
-    expect(unavailableRegistration.statusCode).toBe(503);
-    expect(unavailableRegistration.json().error.data.code).toBe("SERVICE_UNAVAILABLE");
-  } finally {
-    await database`
-      update corpus_state set current_generation_id = ${testGenerationId} where id = 'uspto'
-    `;
-  }
-
+test("exact lookups return not found when an identity is absent", async () => {
   const absentSerial = await server.inject({
     headers: { authorization: "Bearer clerk-session" },
     method: "GET",
@@ -289,7 +267,7 @@ test("activity sorts use source transaction date and serial-number tie-breakers"
   ).toEqual(["10000004", "10000005", "10000006"]);
 });
 
-test("continuations are fixed at 25 items and reject a changed corpus version", async () => {
+test("continuations are fixed at 25 items and reject a changed data version", async () => {
   const filters = { registered: "yes", status: "live", type: "text" };
   const first = await search({ ...filters, mode: "multi", query: "pagination" });
   const missingVersion = await search({
@@ -300,20 +278,20 @@ test("continuations are fixed at 25 items and reject a changed corpus version", 
   });
   const second = await search({
     ...filters,
-    expectedCorpusVersion: "7",
+    expectedDataVersion: "7",
     mode: "multi",
     offset: 25,
     query: "pagination",
   });
-  await database`update corpus_state set corpus_version = 8 where id = 'uspto'`;
+  await database`update data_state set version = 8 where id = 'uspto'`;
   const conflict = await search({
     ...filters,
-    expectedCorpusVersion: "7",
+    expectedDataVersion: "7",
     mode: "multi",
     offset: 25,
     query: "pagination",
   });
-  await database`update corpus_state set corpus_version = 7 where id = 'uspto'`;
+  await database`update data_state set version = 7 where id = 'uspto'`;
 
   expect(first.json().result.data).toMatchObject({ limit: 25, offset: 0, total: 27 });
   expect(first.json().result.data.items).toHaveLength(25);
@@ -324,11 +302,11 @@ test("continuations are fixed at 25 items and reject a changed corpus version", 
   expect(conflict.statusCode).toBe(409);
   expect(conflict.json().error).toMatchObject({
     data: { code: "CONFLICT" },
-    message: "Trademark corpus changed during pagination",
+    message: "Trademark data changed during pagination",
   });
 });
 
-test("status and type filters apply within the Class 025 corpus", async () => {
+test("status and type filters apply to live Class 025 data", async () => {
   const live = await search({
     mode: "multi",
     query: "policy",
@@ -409,14 +387,14 @@ test("rejects the retired class-filter input", async () => {
 test("representative-scale exact and partial plans use general and live indexes", async () => {
   await database`
     insert into mark (
-      generation_id, serial_number,
+      serial_number,
       word_mark,
       status_code,
       source_transaction_date,
       normalization_version, source_product, source_filename, source_sha256, source_physical_record_index
     )
     select
-      ${testGenerationId}, '4' || lpad(value::text, 7, '0'),
+      '4' || lpad(value::text, 7, '0'),
       'PLAN NEEDLE ' || lpad(value::text, 6, '0'),
       case when value % 10 = 0 then '616' else '626' end,
       '2026-07-10',
@@ -457,8 +435,8 @@ test("representative-scale exact and partial plans use general and live indexes"
     status: "live",
   });
 
-  expect(generalExact).toContain("mark_generation_word_mark_exact_idx");
+  expect(generalExact).toContain("mark_word_mark_exact_idx");
   expect(generalPartial).toContain("mark_word_mark_normalized_trgm_idx");
-  expect(liveExact).toContain("mark_live_generation_word_mark_exact_idx");
+  expect(liveExact).toContain("mark_live_word_mark_exact_idx");
   expect(livePartial).toContain("mark_live_word_mark_normalized_trgm_idx");
 }, 60_000);

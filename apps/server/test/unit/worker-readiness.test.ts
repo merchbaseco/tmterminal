@@ -6,7 +6,6 @@ test("worker readiness accepts persisted provider backoff", () => {
   expect(isWorkerReady("backoff")).toBe(true);
 });
 
-test.each(["failed", "operator-action-required", "stopped"] as const)(
-  "worker readiness rejects %s sync state",
-  (state) => expect(isWorkerReady(state)).toBe(false),
+test.each(["failed", "stopped"] as const)("worker readiness rejects %s sync state", (state) =>
+  expect(isWorkerReady(state)).toBe(false)
 );

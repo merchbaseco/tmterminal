@@ -172,11 +172,11 @@ function applySearchOption(options: SearchOptions, flag: string, value: string) 
       options.offset = parsed;
       return;
     }
-    case "--corpus-version":
+    case "--data-version":
       if (!digitsPattern.test(value)) {
-        throw new BadRequestError("--corpus-version must contain only digits");
+        throw new BadRequestError("--data-version must contain only digits");
       }
-      options.expectedCorpusVersion = value;
+      options.expectedDataVersion = value;
       return;
     default:
       throw new BadRequestError(`Unknown search option ${flag}`);
@@ -212,8 +212,8 @@ function parseMultiSearch(args: string[]): SearchInput {
     applySearchOption(options, flag, value);
   }
 
-  if ((options.offset ?? 0) > 0 && !options.expectedCorpusVersion) {
-    throw new BadRequestError("--corpus-version is required when --offset is greater than 0");
+  if ((options.offset ?? 0) > 0 && !options.expectedDataVersion) {
+    throw new BadRequestError("--data-version is required when --offset is greater than 0");
   }
 
   return {

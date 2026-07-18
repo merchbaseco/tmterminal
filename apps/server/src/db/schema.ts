@@ -5,7 +5,6 @@ import {
   foreignKey,
   index,
   integer,
-  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -19,7 +18,6 @@ import {
 import { markSearchStatusSql } from "../search/status-policy.ts";
 
 export const sourceLaneStatus = pgEnum("source_lane_status", ["ready", "backoff", "stopped"]);
-export const corpusGenerationState = pgEnum("corpus_generation_state", ["building", "active"]);
 export const sourceArtifactState = pgEnum("source_artifact_state", [
   "pending",
   "downloading",
@@ -84,27 +82,6 @@ export const sourceLane = pgTable("source_lane", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const corpusGeneration = pgTable(
-  "corpus_generation",
-  {
-    activatedAt: timestamp("activated_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    expectedArtifactCount: integer("expected_artifact_count").notNull(),
-    fromDate: date("from_date").notNull(),
-    id: uuid("id").primaryKey(),
-    product: text("product").notNull(),
-    state: corpusGenerationState("state").notNull().default("building"),
-    toDate: date("to_date").notNull(),
-  },
-  (table) => [
-    uniqueIndex("corpus_generation_product_dates_unique").on(
-      table.product,
-      table.fromDate,
-      table.toDate
-    ),
-  ]
-);
-
 export const sourceArtifact = pgTable(
   "source_artifact",
   {
@@ -114,9 +91,6 @@ export const sourceArtifact = pgTable(
     downloadUrl: text("download_url").notNull(),
     expectedBytes: bigint("expected_bytes", { mode: "number" }).notNull(),
     filename: text("filename").notNull(),
-    generationId: uuid("generation_id")
-      .notNull()
-      .references(() => corpusGeneration.id, { onDelete: "cascade" }),
     id: uuid("id").primaryKey(),
     objectKey: text("object_key"),
     physicalRecordCount: integer("physical_record_count").notNull().default(0),
@@ -129,20 +103,8 @@ export const sourceArtifact = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("source_artifact_generation_filename_unique").on(
-      table.generationId,
-      table.filename
-    ),
-    uniqueIndex("source_artifact_product_filename_sha_unique").on(
-      table.product,
-      table.filename,
-      table.sha256
-    ),
-    index("source_artifact_generation_state_idx").on(
-      table.generationId,
-      table.state,
-      table.filename
-    ),
+    uniqueIndex("source_artifact_product_filename_unique").on(table.product, table.filename),
+    index("source_artifact_state_filename_idx").on(table.state, table.filename),
   ]
 );
 
@@ -150,9 +112,6 @@ export const mark = pgTable(
   "mark",
   {
     filingDate: date("filing_date"),
-    generationId: uuid("generation_id")
-      .notNull()
-      .references(() => corpusGeneration.id, { onDelete: "cascade" }),
     markDrawingCode: text("mark_drawing_code"),
     normalizationVersion: text("normalization_version").notNull(),
     registrationDate: date("registration_date"),
@@ -172,17 +131,17 @@ export const mark = pgTable(
     ),
   },
   (table) => [
-    primaryKey({ columns: [table.generationId, table.serialNumber] }),
-    uniqueIndex("mark_generation_registration_number_unique")
-      .on(table.generationId, table.registrationNumber)
+    primaryKey({ columns: [table.serialNumber] }),
+    uniqueIndex("mark_registration_number_unique")
+      .on(table.registrationNumber)
       .where(sql`${table.registrationNumber} is not null`),
-    index("mark_generation_word_mark_exact_idx").on(table.generationId, table.wordMarkNormalized),
+    index("mark_word_mark_exact_idx").on(table.wordMarkNormalized),
     index("mark_word_mark_normalized_trgm_idx").using(
       "gin",
       sql`${table.wordMarkNormalized} gin_trgm_ops`
     ),
-    index("mark_live_generation_word_mark_exact_idx")
-      .on(table.generationId, table.wordMarkNormalized)
+    index("mark_live_word_mark_exact_idx")
+      .on(table.wordMarkNormalized)
       .where(sql`${table.searchStatus} = 'live'`),
     index("mark_live_word_mark_normalized_trgm_idx")
       .using("gin", sql`${table.wordMarkNormalized} gin_trgm_ops`)
@@ -193,7 +152,6 @@ export const mark = pgTable(
 export const markClass = pgTable(
   "mark_class",
   {
-    generationId: uuid("generation_id").notNull(),
     internationalCode: text("international_code"),
     ordinal: integer("ordinal").notNull(),
     serialNumber: text("serial_number").notNull(),
@@ -205,10 +163,10 @@ export const markClass = pgTable(
     statusDate: date("status_date"),
   },
   (table) => [
-    primaryKey({ columns: [table.generationId, table.serialNumber, table.ordinal] }),
+    primaryKey({ columns: [table.serialNumber, table.ordinal] }),
     foreignKey({
-      columns: [table.generationId, table.serialNumber],
-      foreignColumns: [mark.generationId, mark.serialNumber],
+      columns: [table.serialNumber],
+      foreignColumns: [mark.serialNumber],
     }).onDelete("cascade"),
   ]
 );
@@ -217,7 +175,6 @@ export const markOwner = pgTable(
   "mark_owner",
   {
     entryNumber: text("entry_number"),
-    generationId: uuid("generation_id").notNull(),
     ordinal: integer("ordinal").notNull(),
     partyName: text("party_name"),
     partyType: text("party_type"),
@@ -228,10 +185,10 @@ export const markOwner = pgTable(
     sourceSha256: varchar("source_sha256", { length: 64 }).notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.generationId, table.serialNumber, table.ordinal] }),
+    primaryKey({ columns: [table.serialNumber, table.ordinal] }),
     foreignKey({
-      columns: [table.generationId, table.serialNumber],
-      foreignColumns: [mark.generationId, mark.serialNumber],
+      columns: [table.serialNumber],
+      foreignColumns: [mark.serialNumber],
     }).onDelete("cascade"),
   ]
 );
@@ -239,7 +196,6 @@ export const markOwner = pgTable(
 export const markGoodsServices = pgTable(
   "mark_goods_services",
   {
-    generationId: uuid("generation_id").notNull(),
     ordinal: integer("ordinal").notNull(),
     serialNumber: text("serial_number").notNull(),
     sourceFilename: text("source_filename").notNull(),
@@ -250,10 +206,10 @@ export const markGoodsServices = pgTable(
     typeCode: text("type_code"),
   },
   (table) => [
-    primaryKey({ columns: [table.generationId, table.serialNumber, table.ordinal] }),
+    primaryKey({ columns: [table.serialNumber, table.ordinal] }),
     foreignKey({
-      columns: [table.generationId, table.serialNumber],
-      foreignColumns: [mark.generationId, mark.serialNumber],
+      columns: [table.serialNumber],
+      foreignColumns: [mark.serialNumber],
     }).onDelete("cascade"),
   ]
 );
@@ -266,7 +222,6 @@ export const markStatusEvent = pgTable(
     eventDate: date("event_date"),
     eventKey: varchar("event_key", { length: 64 }).notNull(),
     eventNumber: text("event_number"),
-    generationId: uuid("generation_id").notNull(),
     serialNumber: text("serial_number").notNull(),
     sourceFilename: text("source_filename").notNull(),
     sourcePhysicalRecordIndex: integer("source_physical_record_index").notNull(),
@@ -275,34 +230,17 @@ export const markStatusEvent = pgTable(
     type: text("type"),
   },
   (table) => [
-    primaryKey({ columns: [table.generationId, table.serialNumber, table.eventKey] }),
+    primaryKey({ columns: [table.serialNumber, table.eventKey] }),
     foreignKey({
-      columns: [table.generationId, table.serialNumber],
-      foreignColumns: [mark.generationId, mark.serialNumber],
+      columns: [table.serialNumber],
+      foreignColumns: [mark.serialNumber],
     }).onDelete("cascade"),
   ]
 );
 
-export const corpusState = pgTable("corpus_state", {
+export const dataState = pgTable("data_state", {
   completeThroughDate: date("complete_through_date"),
-  corpusVersion: bigint("corpus_version", { mode: "number" }).notNull().default(0),
-  currentGenerationId: uuid("current_generation_id").references(() => corpusGeneration.id),
   id: text("id").primaryKey(),
-  lastSuccessfulMergeAt: timestamp("last_successful_merge_at", { withTimezone: true }),
-  publishedThroughDate: date("published_through_date"),
+  lastSuccessfulUpdateAt: timestamp("last_successful_update_at", { withTimezone: true }),
+  version: bigint("version", { mode: "number" }).notNull().default(0),
 });
-
-export const corpusEvent = pgTable(
-  "corpus_event",
-  {
-    corpusVersion: bigint("corpus_version", { mode: "number" }).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    generationId: uuid("generation_id")
-      .notNull()
-      .references(() => corpusGeneration.id),
-    id: uuid("id").primaryKey(),
-    kind: text("kind").notNull(),
-    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
-  },
-  (table) => [uniqueIndex("corpus_event_generation_kind_unique").on(table.generationId, table.kind)]
-);

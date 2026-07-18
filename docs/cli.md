@@ -7,7 +7,7 @@ read_when:
 
 # Trademark Turtle CLI
 
-`tt` is the JSON-first automation client for Trademark Turtle. Every network command maps to one API-key-authorized procedure. The CLI searches the Class 025 corpus; v1 has no class selector or all-class programmatic lane.
+`tt` is the JSON-first automation client for Trademark Turtle. Every network command maps to one API-key-authorized procedure. The CLI searches live Class 025 data; v1 has no class selector or all-class programmatic lane.
 
 ## Contract
 
@@ -46,12 +46,12 @@ Keychain entries are bound to normalized origin. An invalid selected credential 
 ## Commands
 
 ```text
-tt marks search <query> [--mode multi|split|wildcard] [--match both|exact|partial] [--status live|dead] [--type design|typeset|text|other] [--registered yes|no] [--sort relevance|newest-activity|oldest-activity] [--limit 25] [--offset 0] [--corpus-version <version>]
+tt marks search <query> [--mode multi|split|wildcard] [--match both|exact|partial] [--status live|dead] [--type design|typeset|text|other] [--registered yes|no] [--sort relevance|newest-activity|oldest-activity] [--limit 25] [--offset 0] [--data-version <version>]
 tt marks get <serial-number>
 tt marks get-by-registration <registration-number>
 tt marks match --text <text> [--type design|typeset|text|other]
 tt marks match --stdin [--type design|typeset|text|other]
-tt marks latest [--limit 25] [--offset 0] [--corpus-version <version>]
+tt marks latest [--limit 25] [--offset 0] [--data-version <version>]
 
 tt reports run --event filed --window previous-week [filters and page options]
 tt reports run --event registered --window previous-week [filters and page options]
@@ -91,12 +91,12 @@ Paged responses preserve the server envelope:
   "limit": 25,
   "offset": 0,
   "meta": {
-    "corpusThroughDate": "2026-07-13",
-    "corpusVersion": "123"
+    "dataThroughDate": "2026-07-13",
+    "dataVersion": "123"
   }
 }
 ```
 
-Every sort ends with serial number as a stable tie-breaker. Continuation requests pass `--corpus-version`; a changed corpus returns `CONFLICT` instead of silently duplicating or skipping results.
+Every sort ends with serial number as a stable tie-breaker. Continuation requests pass `--data-version`; changed live data returns `CONFLICT` instead of silently duplicating or skipping results.
 
 External streaming is not part of the v1 CLI.

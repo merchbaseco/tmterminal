@@ -1,5 +1,4 @@
 import { PgBoss } from "pg-boss";
-import postgres from "postgres";
 
 export const reconcileQueue = "ingestion-reconcile";
 const heartbeatSeconds = 60;
@@ -23,8 +22,6 @@ export function createIngestionScheduler(options: {
     connectionString: options.databaseUrl,
     migrate: false,
   });
-  const listener = postgres(options.databaseUrl, { max: 1, prepare: false });
-  let corpusEvents: Awaited<ReturnType<typeof listener.listen>> | null = null;
   let started = false;
   let firstReconciliationSettled = false;
   let resolveFirstReconciliation!: (outcome: { ok: boolean }) => void;
@@ -58,13 +55,6 @@ export function createIngestionScheduler(options: {
         }
       });
       await boss.schedule(reconcileQueue, reconciliationCron, {}, reconcileQueueOptions);
-      corpusEvents = await listener.listen("corpus_events", () =>
-        boss.send(reconcileQueue, { reason: "corpus-event" }).catch((error: unknown) => {
-          (options.onError ?? console.error)(
-            error instanceof Error ? error : new Error(String(error))
-          );
-        })
-      );
       await boss.send(reconcileQueue, { reason: "process-start" });
       started = true;
     },
@@ -72,9 +62,6 @@ export function createIngestionScheduler(options: {
       if (!started) {
         return;
       }
-      await corpusEvents?.unlisten();
-      corpusEvents = null;
-      await listener.end({ timeout: 1 });
       await boss.stop({ close: true, graceful: true, timeout: 30_000 });
       started = false;
     },

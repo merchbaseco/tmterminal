@@ -112,7 +112,7 @@ function resultPage(offset: number, count: number, total: number): SearchPageRes
       wordMark: `TURTLE MARK ${offset + index + 1}`,
     })),
     limit: 25,
-    meta: { corpusThroughDate: "2026-07-10", corpusVersion: "7" },
+    meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
     offset,
     total,
   };
@@ -291,7 +291,7 @@ test("normalizes whitespace-only and double-disabled direct URL state", async ()
   );
 });
 
-test("infinite pagination pins corpus version and keeps the list virtualized", async () => {
+test("infinite pagination pins data version and keeps the list virtualized", async () => {
   const inputs: Parameters<SearchApi["search"]>[0][] = [];
   const api: SearchApi = {
     search: (input) => {
@@ -311,7 +311,7 @@ test("infinite pagination pins corpus version and keeps the list virtualized", a
   );
 
   await waitFor(() => expect(inputs).toHaveLength(2));
-  expect(inputs[1]).toMatchObject({ expectedCorpusVersion: "7", limit: 25, offset: 25 });
+  expect(inputs[1]).toMatchObject({ expectedDataVersion: "7", limit: 25, offset: 25 });
 });
 
 test("renders loading, empty, server error, and typed continuation conflict without fallback", async () => {
@@ -354,7 +354,7 @@ test("renders loading, empty, server error, and typed continuation conflict with
   expect(intersectionCallback).toBeUndefined();
   cleanup();
 
-  const conflict = Object.assign(new Error("Trademark corpus changed during pagination"), {
+  const conflict = Object.assign(new Error("Trademark data changed during pagination"), {
     data: { code: "CONFLICT" },
   });
   const conflictInputs: Parameters<SearchApi["search"]>[0][] = [];
@@ -372,7 +372,7 @@ test("renders loading, empty, server error, and typed continuation conflict with
     )
   );
   expect((await screen.findByRole("alert")).textContent).toBe(
-    "The trademark corpus changed. Run the search again before continuing."
+    "Trademark data changed. Run the search again before continuing."
   );
   expect(screen.getAllByTestId("search-result-row").length).toBeGreaterThan(0);
   expect(intersectionCallback).toBeUndefined();

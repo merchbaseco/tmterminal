@@ -1,7 +1,10 @@
 import type postgres from "postgres";
 
 import type { SyncService, SyncStatus } from "../api/contracts.ts";
-import { type AnnualCorpusStatus, readAnnualCorpusStatus } from "../ingestion/annual-corpus.ts";
+import {
+  readTrademarkIngestionStatus,
+  type TrademarkIngestionStatus,
+} from "../ingestion/trademark-ingestion.ts";
 
 const stalenessGraceDays = 3;
 
@@ -14,7 +17,7 @@ function staleSince(completeThroughDate: string | null) {
   return value.toISOString();
 }
 
-export function syncStatusFromFacts(facts: AnnualCorpusStatus): SyncStatus {
+export function syncStatusFromFacts(facts: TrademarkIngestionStatus): SyncStatus {
   let activeState: SyncStatus["activeState"] = "idle";
   if (facts.lane.status === "backoff") {
     activeState = "backoff";
@@ -49,7 +52,7 @@ export function syncStatusFromFacts(facts: AnnualCorpusStatus): SyncStatus {
   return {
     activeState,
     completeThroughDate: facts.completeThroughDate,
-    corpusVersion: facts.corpusVersion,
+    dataVersion: facts.dataVersion,
     degraded:
       stale ||
       failedCount > 0 ||
@@ -57,12 +60,8 @@ export function syncStatusFromFacts(facts: AnnualCorpusStatus): SyncStatus {
       facts.lane.status === "backoff",
     degradedSince,
     failedCount,
-    lastSuccessfulMergeAt: facts.lastSuccessfulMergeAt?.toISOString() ?? null,
+    lastSuccessfulUpdateAt: facts.lastSuccessfulUpdateAt?.toISOString() ?? null,
     pendingCount: facts.pendingArtifactCount,
-    publishedThroughDate: facts.publishedThroughDate,
-    quarantineCount: 0,
-    reissueSelectionRequiredCount: 0,
-    rejectCount: 0,
     stale,
     staleSince: stale ? staleAt : null,
   };
@@ -71,7 +70,7 @@ export function syncStatusFromFacts(facts: AnnualCorpusStatus): SyncStatus {
 export function createSyncService(database: postgres.Sql): SyncService {
   return {
     async status() {
-      return syncStatusFromFacts(await readAnnualCorpusStatus(database));
+      return syncStatusFromFacts(await readTrademarkIngestionStatus(database));
     },
   };
 }

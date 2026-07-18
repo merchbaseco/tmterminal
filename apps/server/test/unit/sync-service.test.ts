@@ -1,14 +1,14 @@
 import { expect, test } from "bun:test";
 
-import type { AnnualCorpusStatus } from "../../src/ingestion/annual-corpus.ts";
+import type { TrademarkIngestionStatus } from "../../src/ingestion/trademark-ingestion.ts";
 import { syncStatusFromFacts } from "../../src/services/sync-service.ts";
 
-const healthy: AnnualCorpusStatus = {
-  activeGenerationId: "70000000-0000-4000-8000-000000000001",
-  completeArtifactCount: 91,
+const healthy: TrademarkIngestionStatus = {
+  annualCompleteArtifactCount: 91,
+  annualProjectedMarkCount: 1,
   completeThroughDate: "2099-01-01",
-  corpusVersion: 1,
   currentArtifact: null,
+  dataVersion: 1,
   expectedArtifactCount: 91,
   failedArtifactCount: 0,
   failedArtifactUpdatedAt: null,
@@ -19,17 +19,14 @@ const healthy: AnnualCorpusStatus = {
     status: "ready",
     updatedAt: new Date("2026-01-03T00:00:00Z"),
   },
-  lastSuccessfulMergeAt: new Date("2026-01-01T00:00:00Z"),
+  lastSuccessfulUpdateAt: new Date("2026-01-01T00:00:00Z"),
   pendingArtifactCount: 0,
-  projectedMarkCount: 1,
-  publishedThroughDate: "2099-01-01",
 };
 
 test("healthy status has no future degradation timestamp", () => {
   expect(syncStatusFromFacts(healthy)).toMatchObject({
     degraded: false,
     degradedSince: null,
-    rejectCount: 0,
     stale: false,
     staleSince: null,
   });
@@ -56,7 +53,6 @@ test("artifact failure uses its own timestamp without creating rejects", () => {
     degraded: true,
     degradedSince: "2026-01-02T00:00:00.000Z",
     failedCount: 1,
-    rejectCount: 0,
   });
 });
 
