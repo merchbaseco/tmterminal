@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { AppRouter } from "../../server/src/api/router.ts";
 import { MarkResultContent } from "./mark-result-content.tsx";
+import { SearchOptionSelect } from "./search-option-select.tsx";
 import { trpcErrorCode } from "./trpc-error-code.ts";
 
 type RouterInputs = inferRouterInputs<AppRouter>;
@@ -31,7 +32,28 @@ interface SearchState {
   type: "all" | "design" | "typeset" | "text";
 }
 
-const matchLabels = { exact: "Exact match", partial: "Partial match" } as const;
+const matchLabels = { exact: "", partial: "Partial" } as const;
+const registeredOptions = [
+  { label: "All", value: "all" },
+  { label: "Yes", value: "yes" },
+  { label: "No", value: "no" },
+] as const;
+const sortOptions = [
+  { label: "Relevance", value: "relevance" },
+  { label: "Newest activity", value: "newest-activity" },
+  { label: "Oldest activity", value: "oldest-activity" },
+] as const;
+const statusOptions = [
+  { label: "All", value: "all" },
+  { label: "Live", value: "live" },
+  { label: "Dead", value: "dead" },
+] as const;
+const typeOptions = [
+  { label: "All", value: "all" },
+  { label: "Design", value: "design" },
+  { label: "Typeset", value: "typeset" },
+  { label: "Text", value: "text" },
+] as const;
 
 function readSearchState(search: string): SearchState {
   const parameters = new URLSearchParams(search);
@@ -186,7 +208,7 @@ export function SearchPage({
   const items = data?.pages.flatMap((page) => page.items) ?? [];
   const virtualizer = useWindowVirtualizer({
     count: items.length,
-    estimateSize: () => 168,
+    estimateSize: () => 64,
     getItemKey: (index) => items[index]?.serialNumber ?? index,
     initialRect: { height: 640, width: 1200 },
     overscan: 3,
@@ -252,132 +274,120 @@ export function SearchPage({
 
   return (
     <main className={state.query ? "search-shell search-shell-results" : "search-shell"}>
-      <header className="search-heading">
-        <p className="eyebrow">United States trademarks / Class 025</p>
-        <h1>
-          TRADEMARK
-          <br />
-          TURTLE
-        </h1>
-      </header>
-
-      {/* biome-ignore lint/performance/noJsxPropsBind: The local submit handler reads this page's draft query. */}
-      <form className="search-form" onSubmit={submit}>
-        <label className="sr-only" htmlFor="trademark-search">
-          Search trademarks
-        </label>
-        <Input
-          id="trademark-search"
-          maxLength={200}
-          // biome-ignore lint/performance/noJsxPropsBind: This local input directly owns the draft query.
-          onChange={(event) => setDraftQuery(event.target.value)}
-          placeholder="Search a word mark"
-          required
-          size="lg"
-          type="search"
-          value={draftQuery}
-        />
-        <Button size="xl" type="submit">
-          Search
-        </Button>
-      </form>
-
-      <Button
-        aria-controls="search-options"
-        aria-expanded={filtersOpen}
-        className="search-filter-toggle"
-        // biome-ignore lint/performance/noJsxPropsBind: This mobile disclosure owns one local boolean.
-        onClick={() => setFiltersOpen((open) => !open)}
-        variant="outline"
-      >
-        Filters and sort
-      </Button>
-      <section
-        aria-label="Search options"
-        className={filtersOpen ? "search-options search-options-open" : "search-options"}
-        id="search-options"
-      >
-        <fieldset>
-          <legend>Match</legend>
-          <label>
-            <input
-              checked={state.exact}
-              disabled={state.exact && !state.partial}
-              // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
-              onChange={(event) => updateState({ exact: event.target.checked })}
-              type="checkbox"
-            />
-            Exact
-          </label>
-          <label>
-            <input
-              checked={state.partial}
-              disabled={state.partial && !state.exact}
-              // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
-              onChange={(event) => updateState({ partial: event.target.checked })}
-              type="checkbox"
-            />
-            Partial
-          </label>
-        </fieldset>
-        <label>
-          Status
-          <select
-            // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
-            onChange={(event) =>
-              updateState({ status: event.target.value as SearchState["status"] })
-            }
-            value={state.status}
-          >
-            <option value="all">All</option>
-            <option value="live">Live</option>
-            <option value="dead">Dead</option>
-          </select>
-        </label>
-        <label>
-          Type
-          <select
-            // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
-            onChange={(event) => updateState({ type: event.target.value as SearchState["type"] })}
-            value={state.type}
-          >
-            <option value="all">All</option>
-            <option value="design">Design</option>
-            <option value="typeset">Typeset</option>
-            <option value="text">Text</option>
-          </select>
-        </label>
-        <label>
-          Registered
-          <select
-            // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
-            onChange={(event) =>
-              updateState({ registered: event.target.value as SearchState["registered"] })
-            }
-            value={state.registered}
-          >
-            <option value="all">All</option>
-            <option value="yes">Yes</option>
-            <option value="no">No</option>
-          </select>
-        </label>
-        <label>
-          Sort
-          <select
-            // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
-            onChange={(event) => updateState({ sort: event.target.value as SearchState["sort"] })}
-            value={state.sort}
-          >
-            <option value="relevance">Relevance</option>
-            <option value="newest-activity">Newest activity</option>
-            <option value="oldest-activity">Oldest activity</option>
-          </select>
-        </label>
-      </section>
-
-      {state.query ? null : (
-        <p className="search-prompt">Search live and dead Class 025 word marks.</p>
+      {state.query ? (
+        <h1 className="sr-only">Trademark search results for “{state.query}”</h1>
+      ) : (
+        <header className="search-heading">
+          <p className="eyebrow">United States trademarks / Class 025</p>
+          <h1>
+            TRADEMARK
+            <br />
+            TURTLE
+          </h1>
+        </header>
       )}
+
+      <div className="search-controls">
+        {/* biome-ignore lint/performance/noJsxPropsBind: The local submit handler reads this page's draft query. */}
+        <form className="search-form" onSubmit={submit}>
+          <label className="sr-only" htmlFor="trademark-search">
+            Search trademarks
+          </label>
+          <Input
+            id="trademark-search"
+            maxLength={200}
+            name="query"
+            // biome-ignore lint/performance/noJsxPropsBind: This local input directly owns the draft query.
+            onChange={(event) => setDraftQuery(event.target.value)}
+            placeholder="Search a word mark"
+            required
+            size="lg"
+            type="search"
+            value={draftQuery}
+          />
+          <Button size="xl" type="submit">
+            Search
+          </Button>
+        </form>
+
+        <Button
+          aria-controls="search-options"
+          aria-expanded={filtersOpen}
+          className="search-filter-toggle"
+          // biome-ignore lint/performance/noJsxPropsBind: This mobile disclosure owns one local boolean.
+          onClick={() => setFiltersOpen((open) => !open)}
+          variant="outline"
+        >
+          Filters and sort
+        </Button>
+        <section
+          aria-label="Search options"
+          className={filtersOpen ? "search-options search-options-open" : "search-options"}
+          id="search-options"
+        >
+          {/* biome-ignore lint/a11y/useSemanticElements: A native fieldset legend sits off-grid and breaks the shared filter baseline. */}
+          <div aria-labelledby="search-match-label" className="search-match-options" role="group">
+            <span className="search-option-caption" id="search-match-label">
+              Match
+            </span>
+            <label>
+              <input
+                checked={state.exact}
+                disabled={state.exact && !state.partial}
+                name="exact"
+                // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
+                onChange={(event) => updateState({ exact: event.target.checked })}
+                type="checkbox"
+              />
+              Exact
+            </label>
+            <label>
+              <input
+                checked={state.partial}
+                disabled={state.partial && !state.exact}
+                name="partial"
+                // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
+                onChange={(event) => updateState({ partial: event.target.checked })}
+                type="checkbox"
+              />
+              Partial
+            </label>
+          </div>
+          <SearchOptionSelect
+            label="Status"
+            name="status"
+            // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
+            onValueChange={(status) => updateState({ status })}
+            options={statusOptions}
+            value={state.status}
+          />
+          <SearchOptionSelect
+            label="Type"
+            name="type"
+            // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
+            onValueChange={(type) => updateState({ type })}
+            options={typeOptions}
+            value={state.type}
+          />
+          <SearchOptionSelect
+            label="Registered"
+            name="registered"
+            // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
+            onValueChange={(registered) => updateState({ registered })}
+            options={registeredOptions}
+            value={state.registered}
+          />
+          <SearchOptionSelect
+            label="Sort"
+            name="sort"
+            // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
+            onValueChange={(sort) => updateState({ sort })}
+            options={sortOptions}
+            value={state.sort}
+          />
+        </section>
+      </div>
+
       {query.isPending && state.query ? (
         <p className="search-message">Searching Class 025…</p>
       ) : null}
@@ -422,8 +432,12 @@ export function SearchPage({
       {data && total > 0 && (!query.error || conflict || replacementFailure) ? (
         <section aria-label="Search results" className="search-results">
           <div className="results-rule">
-            <p>
-              {total} {total === 1 ? "result" : "results"}
+            <p className="results-summary">
+              <span>
+                {total} {total === 1 ? "result" : "results"}
+              </span>
+              <span>{data.pages[0]?.liveMatchCounts.exact ?? 0} live exact</span>
+              <span>{data.pages[0]?.liveMatchCounts.partial ?? 0} live partial</span>
             </p>
             <p>
               {data.pages[0]?.meta.dataThroughDate
@@ -432,7 +446,8 @@ export function SearchPage({
             </p>
           </div>
           <div className="search-results-list" key={restorationKey}>
-            <div
+            <ol
+              aria-label="Trademark results"
               className="search-results-size"
               ref={resultsRef}
               style={{ height: virtualizer.getTotalSize() }}
@@ -443,7 +458,9 @@ export function SearchPage({
                   return null;
                 }
                 return (
-                  <article
+                  <li
+                    aria-posinset={virtualRow.index + 1}
+                    aria-setsize={total}
                     className="search-result-row"
                     data-index={virtualRow.index}
                     data-testid="search-result-row"
@@ -458,7 +475,7 @@ export function SearchPage({
                       item={item}
                       onOpen={onOpenMark}
                     />
-                  </article>
+                  </li>
                 );
               })}
               <div
@@ -469,7 +486,7 @@ export function SearchPage({
                   transform: `translateY(${Math.max(virtualizer.getTotalSize() - 1, 0)}px)`,
                 }}
               />
-            </div>
+            </ol>
           </div>
           {query.isFetchingNextPage ? (
             <p className="search-message">Loading more results…</p>

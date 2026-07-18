@@ -10,13 +10,15 @@ HTMLElement.prototype.getBoundingClientRect = function () {
     return new DOMRect(0, 0, 1200, 640);
   }
   if (this.dataset.testid === "search-result-row") {
-    return new DOMRect(0, 0, 1200, 188);
+    return new DOMRect(0, 0, 1200, 64);
   }
   return getBoundingClientRect.call(this);
 };
 
 const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
-const { act, cleanup, fireEvent, render, screen, waitFor } = await import("@testing-library/react");
+const { act, cleanup, fireEvent, render, screen, waitFor, within } = await import(
+  "@testing-library/react"
+);
 const { afterEach, beforeEach, expect, test, vi } = await import("bun:test");
 const { useState } = await import("react");
 const { SearchPage } = await import("../src/search-page.tsx");
@@ -24,7 +26,7 @@ type SearchApi = import("../src/search-page.tsx").SearchApi;
 type SearchPageResult = Awaited<ReturnType<SearchApi["search"]>>;
 
 const markLinkPattern = /TURTLE MARK/;
-const serialIdentityPattern = /Serial 70000001/;
+const firstMarkAccessibleNamePattern = /TURTLE MARK 1, Live, serial number 70000001/;
 const noop = () => undefined;
 
 function required<T>(value: T | null | undefined, message: string): T {
@@ -72,7 +74,7 @@ class TestResizeObserver implements ResizeObserver {
     this.active = false;
   }
   observe(target: Element) {
-    const blockSize = (target as HTMLElement).dataset.testid === "search-result-row" ? 188 : 640;
+    const blockSize = (target as HTMLElement).dataset.testid === "search-result-row" ? 64 : 640;
     queueMicrotask(() => {
       // biome-ignore lint/suspicious/noUnnecessaryConditions: disconnect can run before this queued callback.
       if (!this.active) {
@@ -113,6 +115,10 @@ function resultPage(offset: number, count: number, total: number): SearchPageRes
       wordMark: `TURTLE MARK ${offset + index + 1}`,
     })),
     limit: 25,
+    liveMatchCounts: {
+      exact: total > 0 ? 1 : 0,
+      partial: Math.max(total - 1, 0),
+    },
     meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
     offset,
     total,
@@ -185,6 +191,7 @@ test("URL state drives exact-only, partial-only, both, and server filters", asyn
   );
 
   await screen.findByText("No matching marks");
+  expect(screen.getByRole("group", { name: "Match" })).toBeTruthy();
   expect(inputs[0]).toEqual({
     limit: 25,
     match: "exact",
@@ -230,11 +237,27 @@ test("search controls and result facts use customer-facing language", async () =
   renderSearch({ search: () => Promise.resolve(resultPage(0, 1, 1)) });
 
   expect(screen.getByPlaceholderText("Search a word mark")).toBeTruthy();
-  await screen.findByRole("link", { name: "TURTLE MARK 1" });
-  expect(screen.getByText("Exact match")).toBeTruthy();
+  await screen.findByRole("link", { name: firstMarkAccessibleNamePattern });
+  expect(
+    screen.getByRole("heading", { name: "Trademark search results for “turtle”" })
+  ).toBeTruthy();
+  expect(screen.getByText("1 live exact")).toBeTruthy();
+  expect(screen.getByText("0 live partial")).toBeTruthy();
+  expect(screen.queryByText("Exact match")).toBeNull();
   expect(screen.getAllByText("Live").length).toBeGreaterThan(0);
-  expect(screen.getByText("Text mark")).toBeTruthy();
-  expect(screen.getByText(serialIdentityPattern)).toBeTruthy();
+  const row = screen.getByTestId("search-result-row");
+  expect(within(row).getByText("Text")).toBeTruthy();
+  expect(within(row).queryByText("IC 025")).toBeNull();
+  expect(within(row).queryByText("SN 70000001")).toBeNull();
+  expect(within(row).queryByText("shirts and sweatshirts")).toBeNull();
+  expect(row.querySelector(".result-status")).toBeNull();
+  expect(row.querySelector(".result-meta .status-chip.status-live")).toBeTruthy();
+  expect(row.querySelector(".result-main")).toBeTruthy();
+  expect(row.querySelector(".result-meta")).toBeTruthy();
+  expect(screen.getByRole("list", { name: "Trademark results" })).toBeTruthy();
+  expect(screen.getByRole("listitem")).toBe(row);
+  expect(row.getAttribute("aria-posinset")).toBe("1");
+  expect(row.getAttribute("aria-setsize")).toBe("1");
 });
 
 test("a failed replacement search keeps the previous successful results", async () => {
@@ -252,7 +275,7 @@ test("a failed replacement search keeps the previous successful results", async 
     },
   };
   renderSearch(api);
-  expect(await screen.findByRole("link", { name: "TURTLE MARK 1" })).toBeTruthy();
+  expect(await screen.findByRole("link", { name: firstMarkAccessibleNamePattern })).toBeTruthy();
 
   fireEvent.change(screen.getByRole("searchbox", { name: "Search trademarks" }), {
     target: { value: "replacement" },
@@ -260,7 +283,7 @@ test("a failed replacement search keeps the previous successful results", async 
   fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
   await waitFor(() => expect(rejectReplacement).toBeDefined());
-  expect(screen.getByRole("link", { name: "TURTLE MARK 1" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: firstMarkAccessibleNamePattern })).toBeTruthy();
   await act(() =>
     intersectionCallback?.(
       [{ isIntersecting: true } as IntersectionObserverEntry],
@@ -278,7 +301,7 @@ test("a failed replacement search keeps the previous successful results", async 
   expect((await screen.findByRole("alert")).textContent).toBe(
     "New search could not be loaded. Previous results are still shown."
   );
-  expect(screen.getByRole("link", { name: "TURTLE MARK 1" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: firstMarkAccessibleNamePattern })).toBeTruthy();
   expect(screen.getByText("26 results")).toBeTruthy();
 });
 
@@ -291,7 +314,7 @@ test("normalizes whitespace-only and double-disabled direct URL state", async ()
     },
   };
   const whitespace = renderSearch(api, "?q=+++&mode=multi&exact=false&partial=false");
-  expect(screen.getByText("Search live and dead Class 025 word marks.")).toBeTruthy();
+  expect(screen.getByRole("searchbox", { name: "Search trademarks" })).toBeTruthy();
   expect(inputs).toHaveLength(0);
   whitespace.view.unmount();
 
@@ -565,9 +588,15 @@ test("a new URL-owned search entry starts at the top of the document", async () 
   await waitFor(() => expect(inputs).toHaveLength(2));
   documentScroll = 420;
 
-  fireEvent.change(screen.getByLabelText("Status"), { target: { value: "dead" } });
+  fireEvent.click(screen.getByRole("button", { name: "Status: All" }));
+  fireEvent.click(await screen.findByRole("menuitemradio", { name: "Dead" }));
 
   await screen.findByText("1 result");
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Status: Dead" }).getAttribute("aria-expanded")).toBe(
+      "false"
+    )
+  );
   await waitFor(() => expect(window.scrollY).toBe(0));
   expect(inputs.at(-1)).toMatchObject({ offset: 0, status: "dead" });
 });

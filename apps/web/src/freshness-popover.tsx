@@ -46,13 +46,6 @@ function statusLabel(status: SyncStatus) {
   return labels[status.activeState];
 }
 
-function freshnessTriggerLabel(status: SyncStatus | undefined) {
-  if (status?.completeThroughDate) {
-    return `Corpus through ${date(status.completeThroughDate)}`;
-  }
-  return status ? "Corpus syncing" : "Corpus freshness";
-}
-
 export function FreshnessPopover({ api }: { api: FreshnessApi }) {
   const {
     data: status,
@@ -76,7 +69,7 @@ export function FreshnessPopover({ api }: { api: FreshnessApi }) {
   return (
     <Popover onOpenChange={refreshOnOpen}>
       <PopoverTrigger render={<Button size="sm" variant="ghost" />}>
-        {freshnessTriggerLabel(status)}
+        Corpus freshness
       </PopoverTrigger>
       <PopoverPopup align="end" className="w-80">
         <div className="grid gap-4">

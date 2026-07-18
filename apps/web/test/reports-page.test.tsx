@@ -9,6 +9,7 @@ const { cleanup, fireEvent, render, screen, waitFor } = await import("@testing-l
 const { afterEach, expect, test } = await import("bun:test");
 const { ReportsPage } = await import("../src/reports-page.tsx");
 type ReportsApi = import("../src/reports-page.tsx").ReportsApi;
+const weeklyTurtleLinkPattern = /WEEKLY TURTLE/;
 
 afterEach(cleanup);
 
@@ -72,7 +73,7 @@ test("filed preset renders its resolved week and reuses customer mark rows", asy
 
   expect(await screen.findByRole("heading", { name: "FILED" })).toBeTruthy();
   expect(screen.getByText("Jul 6–12, 2026")).toBeTruthy();
-  expect(screen.getByRole("link", { name: "WEEKLY TURTLE" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: weeklyTurtleLinkPattern })).toBeTruthy();
   expect(screen.getByText("Filed previous week")).toBeTruthy();
   expect(screen.getByText(legalDisclaimerPattern)).toBeTruthy();
   expect(inputs[0]).toMatchObject({ event: "filed", offset: 0, window: "previous-week" });
@@ -115,7 +116,7 @@ test("pins the resolved week and recovers from a continuation conflict", async (
   await waitFor(() => expect(navigations).toHaveLength(2));
   view.rerenderReports(new URL(navigations[1] ?? "", "https://example.test").search);
   await waitFor(() => expect(inputs.at(-1)?.offset ?? 0).toBe(0));
-  expect(await screen.findByRole("link", { name: "WEEKLY TURTLE" })).toBeTruthy();
+  expect(await screen.findByRole("link", { name: weeklyTurtleLinkPattern })).toBeTruthy();
 });
 
 test("keeps report type and page identity in the generated URL", async () => {
@@ -132,9 +133,7 @@ test("keeps report type and page identity in the generated URL", async () => {
     (href) => navigations.push(href)
   );
 
-  expect(((await screen.findByRole("combobox", { name: "Type" })) as HTMLSelectElement).value).toBe(
-    "other"
-  );
+  expect(await screen.findByRole("button", { name: "Type: Other" })).toBeTruthy();
   expect(inputs[0]?.type).toBe("other");
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
   await waitFor(() => expect(navigations).toHaveLength(1));
@@ -164,7 +163,8 @@ test("report filters generate a URL without changing the preset constraint", asy
   );
   await screen.findByRole("heading", { name: "REGISTERED" });
 
-  fireEvent.change(screen.getByLabelText("Status"), { target: { value: "live" } });
+  fireEvent.click(screen.getByRole("button", { name: "Status: All" }));
+  fireEvent.click(await screen.findByRole("menuitemradio", { name: "Live" }));
 
   await waitFor(() => expect(navigations).toHaveLength(1));
   const url = new URL(navigations[0] ?? "", "https://example.test");
@@ -240,7 +240,7 @@ test("hides cached report data after a failed refresh", async () => {
     },
     "?event=filed&window=previous-week"
   );
-  expect(await screen.findByRole("link", { name: "WEEKLY TURTLE" })).toBeTruthy();
+  expect(await screen.findByRole("link", { name: weeklyTurtleLinkPattern })).toBeTruthy();
 
   await view.queryClient.invalidateQueries({ queryKey: ["reports.run"] });
 

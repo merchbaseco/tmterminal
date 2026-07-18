@@ -45,7 +45,7 @@ test("shows ambient corpus coverage and refreshes when the popover opens", async
     },
   });
 
-  const trigger = await screen.findByRole("button", { name: "Corpus through Jan 1, 2026" });
+  const trigger = await screen.findByRole("button", { name: "Corpus freshness" });
   expect(reads).toBe(1);
   fireEvent.click(trigger);
 
@@ -70,7 +70,7 @@ test("describes ongoing corpus synchronization without queue progress", async ()
       }),
   });
 
-  const trigger = await screen.findByRole("button", { name: "Corpus syncing" });
+  const trigger = await screen.findByRole("button", { name: "Corpus freshness" });
   fireEvent.click(trigger);
 
   expect(await screen.findByText("Syncing — processing source data")).toBeTruthy();
@@ -94,7 +94,7 @@ test("shows the stale boundary from the typed freshness contract", async () => {
       }),
   });
 
-  const trigger = await screen.findByRole("button", { name: "Corpus through Dec 28, 2025" });
+  const trigger = await screen.findByRole("button", { name: "Corpus freshness" });
   fireEvent.click(trigger);
   expect(await screen.findByText("Stale since Jan 1, 2026")).toBeTruthy();
 });

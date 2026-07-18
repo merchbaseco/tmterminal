@@ -4,6 +4,7 @@ import { useCallback, useLayoutEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import type { AppRouter } from "../../server/src/api/router.ts";
 import { MarkResultContent } from "./mark-result-content.tsx";
+import { SearchOptionSelect } from "./search-option-select.tsx";
 import { trpcErrorCode } from "./trpc-error-code.ts";
 
 type ReportInput = inferRouterInputs<AppRouter>["reports"]["run"];
@@ -44,6 +45,27 @@ const reportLabels: Record<ReportEvent, { context: string; eyebrow: string; head
 };
 const dataVersionPattern = /^\d+$/;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+const registeredOptions = [
+  { label: "All", value: "all" },
+  { label: "Yes", value: "yes" },
+  { label: "No", value: "no" },
+] as const;
+const sortOptions = [
+  { label: "Newest activity", value: "newest-activity" },
+  { label: "Oldest activity", value: "oldest-activity" },
+] as const;
+const statusOptions = [
+  { label: "All", value: "all" },
+  { label: "Live", value: "live" },
+  { label: "Dead", value: "dead" },
+] as const;
+const typeOptions = [
+  { label: "All", value: "all" },
+  { label: "Design", value: "design" },
+  { label: "Typeset", value: "typeset" },
+  { label: "Text", value: "text" },
+  { label: "Other", value: "other" },
+] as const;
 
 function readState(search: string): ReportState {
   const parameters = new URLSearchParams(search);
@@ -219,57 +241,38 @@ export function ReportsPage({
         </p>
       </header>
       <section aria-label="Report filters" className="search-options report-options">
-        <label>
-          Status
-          <select
-            // biome-ignore lint/performance/noJsxPropsBind: Each report filter directly updates URL-owned state.
-            onChange={(event) => update({ status: event.target.value as ReportState["status"] })}
-            value={state.status}
-          >
-            <option value="all">All</option>
-            <option value="live">Live</option>
-            <option value="dead">Dead</option>
-          </select>
-        </label>
-        <label>
-          Type
-          <select
-            // biome-ignore lint/performance/noJsxPropsBind: Each report filter directly updates URL-owned state.
-            onChange={(event) => update({ type: event.target.value as ReportState["type"] })}
-            value={state.type}
-          >
-            <option value="all">All</option>
-            <option value="design">Design</option>
-            <option value="typeset">Typeset</option>
-            <option value="text">Text</option>
-            <option value="other">Other</option>
-          </select>
-        </label>
-        <label>
-          Registered
-          <select
-            // biome-ignore lint/performance/noJsxPropsBind: Each report filter directly updates URL-owned state.
-            onChange={(event) =>
-              update({ registered: event.target.value as ReportState["registered"] })
-            }
-            value={state.registered}
-          >
-            <option value="all">All</option>
-            <option value="yes">Yes</option>
-            <option value="no">No</option>
-          </select>
-        </label>
-        <label>
-          Sort
-          <select
-            // biome-ignore lint/performance/noJsxPropsBind: Each report filter directly updates URL-owned state.
-            onChange={(event) => update({ sort: event.target.value as ReportState["sort"] })}
-            value={state.sort}
-          >
-            <option value="newest-activity">Newest activity</option>
-            <option value="oldest-activity">Oldest activity</option>
-          </select>
-        </label>
+        <SearchOptionSelect
+          label="Status"
+          name="status"
+          // biome-ignore lint/performance/noJsxPropsBind: Each report filter directly updates URL-owned state.
+          onValueChange={(status) => update({ status })}
+          options={statusOptions}
+          value={state.status}
+        />
+        <SearchOptionSelect
+          label="Type"
+          name="type"
+          // biome-ignore lint/performance/noJsxPropsBind: Each report filter directly updates URL-owned state.
+          onValueChange={(type) => update({ type })}
+          options={typeOptions}
+          value={state.type}
+        />
+        <SearchOptionSelect
+          label="Registered"
+          name="registered"
+          // biome-ignore lint/performance/noJsxPropsBind: Each report filter directly updates URL-owned state.
+          onValueChange={(registered) => update({ registered })}
+          options={registeredOptions}
+          value={state.registered}
+        />
+        <SearchOptionSelect
+          label="Sort"
+          name="sort"
+          // biome-ignore lint/performance/noJsxPropsBind: Each report filter directly updates URL-owned state.
+          onValueChange={(sort) => update({ sort })}
+          options={sortOptions}
+          value={state.sort}
+        />
       </section>
       {report.isPending ? <p className="search-message">Generating report…</p> : null}
       {report.isError ? (

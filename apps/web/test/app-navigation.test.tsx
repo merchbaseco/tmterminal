@@ -14,7 +14,7 @@ HTMLElement.prototype.getBoundingClientRect = function () {
     return new DOMRect(0, 0, 1200, 640);
   }
   if (this.dataset.testid === "search-result-row") {
-    return new DOMRect(0, 0, 1200, 188);
+    return new DOMRect(0, 0, 1200, 64);
   }
   return getBoundingClientRect.call(this);
 };
@@ -28,7 +28,7 @@ class TestResizeObserver implements ResizeObserver {
     this.callback = undefined;
   }
   observe(target: Element) {
-    const blockSize = (target as HTMLElement).dataset.testid === "search-result-row" ? 188 : 640;
+    const blockSize = (target as HTMLElement).dataset.testid === "search-result-row" ? 64 : 640;
     queueMicrotask(() => {
       if (!this.callback) {
         return;
@@ -64,6 +64,9 @@ let signInModalOpens = 0;
 let scrollOffset = 0;
 const searchInputs: unknown[] = [];
 let searchHandler: (input: { query: string }) => Promise<typeof searchResult>;
+const destinationMarkLinkPattern = /DESTINATION B/;
+const sourceMarkLinkPattern = /SOURCE A/;
+const turtleMarkLinkPattern = /TURTLE MARK, Live, serial number 70000001/;
 
 Object.defineProperty(window, "scrollY", {
   configurable: true,
@@ -89,6 +92,7 @@ const searchItem = {
 const searchResult = {
   items: [searchItem],
   limit: 25 as const,
+  liveMatchCounts: { exact: 1, partial: 0 },
   meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
   offset: 0,
   total: 1,
@@ -105,6 +109,7 @@ const mark = {
     registrationNumber: "7000001",
     serialNumber: "70000001",
     sourceTransactionDate: "2026-07-10",
+    status: "live" as const,
     statusCode: "700",
     statusDate: "2026-07-09",
     wordMark: "TURTLE MARK",
@@ -337,7 +342,7 @@ test("direct mark entry sends Back to results to search", async () => {
   fireEvent.click(screen.getByRole("link", { name: "← Back to results" }));
 
   await waitFor(() => expect(window.location.pathname).toBe("/search"));
-  expect(screen.getByText("Search live and dead Class 025 word marks.")).toBeTruthy();
+  expect(screen.getByRole("searchbox", { name: "Search trademarks" })).toBeTruthy();
 });
 
 test("search detail Back returns to the app-stored search entry", async () => {
@@ -349,7 +354,7 @@ test("search detail Back returns to the app-stored search entry", async () => {
   );
   render(<App />);
 
-  const resultLink = await screen.findByRole("link", { name: "TURTLE MARK" });
+  const resultLink = await screen.findByRole("link", { name: turtleMarkLinkPattern });
   fireEvent.click(resultLink);
   await waitFor(() => expect(window.location.pathname).toBe("/marks/70000001"));
   await screen.findByRole("heading", { name: "TURTLE MARK" });
@@ -358,7 +363,7 @@ test("search detail Back returns to the app-stored search entry", async () => {
 
   await waitFor(() => expect(window.location.pathname).toBe("/search"));
   expect(new URLSearchParams(window.location.search).get("q")).toBe("turtle");
-  expect(await screen.findByRole("link", { name: "TURTLE MARK" })).toBeTruthy();
+  expect(await screen.findByRole("link", { name: turtleMarkLinkPattern })).toBeTruthy();
   expect(searchInputs).toHaveLength(1);
 });
 
@@ -373,7 +378,7 @@ test("Reports presets navigate to the generated result route", async () => {
   await waitFor(() => expect(window.location.pathname).toBe("/reports"));
   expect(new URLSearchParams(window.location.search).get("event")).toBe("filed");
   expect(await screen.findByRole("heading", { name: "FILED" })).toBeTruthy();
-  expect(screen.getByRole("link", { name: "TURTLE MARK" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: turtleMarkLinkPattern })).toBeTruthy();
 });
 
 test("report detail Back restores the generated page and document scroll", async () => {
@@ -386,7 +391,7 @@ test("report detail Back restores the generated page and document scroll", async
   );
   render(<App />);
 
-  const reportMark = await screen.findByRole("link", { name: "TURTLE MARK" });
+  const reportMark = await screen.findByRole("link", { name: turtleMarkLinkPattern });
   scrollOffset = 420;
   fireEvent.click(reportMark);
   await waitFor(() => expect(window.location.pathname).toBe("/marks/70000001"));
@@ -415,7 +420,7 @@ test("leaving a failed replacement clears retained results and the next failure 
   );
   render(<App />);
 
-  expect(await screen.findByRole("link", { name: "TURTLE MARK" })).toBeTruthy();
+  expect(await screen.findByRole("link", { name: turtleMarkLinkPattern })).toBeTruthy();
   fireEvent.change(screen.getByRole("searchbox", { name: "Search trademarks" }), {
     target: { value: "replacement" },
   });
@@ -423,12 +428,12 @@ test("leaving a failed replacement clears retained results and the next failure 
   expect((await screen.findByRole("alert")).textContent).toBe(
     "New search could not be loaded. Previous results are still shown."
   );
-  expect(screen.getByRole("link", { name: "TURTLE MARK" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: turtleMarkLinkPattern })).toBeTruthy();
 
   fireEvent.click(screen.getByRole("link", { name: "Trademark Turtle" }));
   await waitFor(() => expect(window.location.search).toBe(""));
-  expect(screen.getByText("Search live and dead Class 025 word marks.")).toBeTruthy();
-  expect(screen.queryByRole("link", { name: "TURTLE MARK" })).toBeNull();
+  expect(screen.getByRole("searchbox", { name: "Search trademarks" })).toBeTruthy();
+  expect(screen.queryByRole("link", { name: turtleMarkLinkPattern })).toBeNull();
   expect(screen.queryByRole("alert")).toBeNull();
 
   fireEvent.change(screen.getByRole("searchbox", { name: "Search trademarks" }), {
@@ -438,7 +443,7 @@ test("leaving a failed replacement clears retained results and the next failure 
   expect((await screen.findByRole("alert")).textContent).toBe(
     "Search is temporarily unavailable. Check Corpus freshness and try again."
   );
-  expect(screen.queryByRole("link", { name: "TURTLE MARK" })).toBeNull();
+  expect(screen.queryByRole("link", { name: turtleMarkLinkPattern })).toBeNull();
 });
 
 test("a failed replacement keeps its source results through detail and Back", async () => {
@@ -458,7 +463,7 @@ test("a failed replacement keeps its source results through detail and Back", as
   );
   render(<App />);
 
-  expect(await screen.findByRole("link", { name: "TURTLE MARK" })).toBeTruthy();
+  expect(await screen.findByRole("link", { name: turtleMarkLinkPattern })).toBeTruthy();
   fireEvent.change(screen.getByRole("searchbox", { name: "Search trademarks" }), {
     target: { value: "replacement" },
   });
@@ -467,7 +472,7 @@ test("a failed replacement keeps its source results through detail and Back", as
     "New search could not be loaded. Previous results are still shown."
   );
 
-  fireEvent.click(screen.getByRole("link", { name: "TURTLE MARK" }));
+  fireEvent.click(screen.getByRole("link", { name: turtleMarkLinkPattern }));
   await screen.findByRole("heading", { name: "TURTLE MARK" });
   fireEvent.click(screen.getByRole("link", { name: "← Back to results" }));
 
@@ -476,7 +481,7 @@ test("a failed replacement keeps its source results through detail and Back", as
   expect((await screen.findByRole("alert")).textContent).toBe(
     "New search could not be loaded. Previous results are still shown."
   );
-  expect(screen.getByRole("link", { name: "TURTLE MARK" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: turtleMarkLinkPattern })).toBeTruthy();
 });
 
 test("a successful replacement cannot revive its source during a failed same-query reset", async () => {
@@ -508,12 +513,12 @@ test("a successful replacement cannot revive its source during a failed same-que
   );
   render(<App />);
 
-  expect(await screen.findByRole("link", { name: "SOURCE A" })).toBeTruthy();
+  expect(await screen.findByRole("link", { name: sourceMarkLinkPattern })).toBeTruthy();
   fireEvent.change(screen.getByRole("searchbox", { name: "Search trademarks" }), {
     target: { value: "replacement" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Search" }));
-  expect(await screen.findByRole("link", { name: "DESTINATION B" })).toBeTruthy();
+  expect(await screen.findByRole("link", { name: destinationMarkLinkPattern })).toBeTruthy();
   expect(screen.queryByRole("link", { name: "SOURCE A" })).toBeNull();
 
   fireEvent.click(screen.getByRole("button", { name: "Search" }));

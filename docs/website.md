@@ -30,7 +30,7 @@ Signed-out visitors see the search composition. Submitting starts Clerk sign-in,
 /settings/api-keys                     API-key management
 ```
 
-The top navigation contains Search, a Reports preset menu, API Keys, the data-through date, appearance, and the Clerk user menu. There is no sidebar.
+The top navigation contains Search, a Reports preset menu, API Keys, the Corpus freshness popover, appearance, and the Clerk user menu. There is no sidebar. Result and report rules carry their snapshot-specific data-through date.
 
 ## Visual system
 
@@ -48,7 +48,7 @@ The composition borrows Cassette's oversized typographic scale and sparse utilit
 
 ## Search
 
-The masthead reads `TRADEMARK TURTLE` across the viewport. One large single-query field and explicit Search action dominate the page.
+The empty search page is the brand state: the `TRADEMARK TURTLE` masthead and one large single-query field with an explicit Search action occupy one desktop viewport without redundant explanatory copy. The legal disclaimer stays at the viewport bottom when content is short. Once a query is active, the masthead collapses completely and the page becomes a compact search instrument.
 
 Query or mode edits wait for Search or Enter. Filter and sort changes refetch immediately. Editing does not replace current results until the next search succeeds.
 
@@ -71,6 +71,8 @@ Visible filters mirror TMhunt:
 - Registered: All, Yes, No
 - Preset: Set to Live & Text
 
+Each filter cell is the complete dropdown trigger: label, current value, and chevron share one hit target. Dropdown menus use the same flat background, square corners, hairline rules, uppercase utility type, and chartreuse selected state as the results interface.
+
 Sorts:
 
 - Relevance: exact matches first, then partial matches by relevance
@@ -87,16 +89,13 @@ Search URLs encode the query, mode, exact/partial selection, filters, and sort. 
 
 ## Results
 
-Results render directly below search controls as full-width typographic rows, not a card or table container. Each row includes:
+Results render directly below sticky search controls as dense, full-width typographic rows, not a card or table container. A 1440 × 900 desktop viewport exposes at least nine complete rows. Each entire row opens its stable mark-detail link and scans in this order:
 
-- Word mark
-- Exact or partial match kind
-- Live/dead status
-- International Classes
-- Owner
-- One-line goods/services excerpt
-- Serial and registration numbers
-- Status date
+- Word mark on one shared left edge; Partial is labeled while exact matches remain unlabelled
+- Owner and concise mark type beneath it; International Classes appear only when the mark includes a class outside the default Class 025 scope
+- Canonical disposition at the far right: chartreuse filled label for Live, muted outlined label for Dead, with status date beneath it
+
+The results rule exposes total results plus live exact and live partial counts so the seller can read the primary go/no-go signal before scanning rows. Goods statements, serial numbers, and registration numbers belong to mark detail; omitting them from results keeps the ranked list scannable.
 
 Use one ranked list. TanStack Query `useInfiniteQuery` owns 25-item offset pages; TanStack Virtual renders the growing list. Do not use TanStack Table for the editorial row layout. Preserve loaded pages and scroll position when returning from mark detail.
 
@@ -105,14 +104,15 @@ Use one ranked list. TanStack Query `useInfiniteQuery` owns 25-item offset pages
 `/marks/:serial-number` is a stable, shareable route. It is one scrolling document with no tabs or cards:
 
 - Back to results
-- Word mark and status
-- Identity numbers and dates
-- Owner
-- International Classes and goods/services
-- Status history
+- Word mark, plain-language disposition, status date, and raw USPTO status code
+- International Classes, drawing code, and readable goods/services copy constrained to about 68 characters per line
+- One compact four-column Record grid containing the lead owner, normalized additional owner records, identity numbers, dates, drawing code, and classes
+- Status history as reported by USPTO
 - USPTO source and provenance
 
-Status history contains distinct source-reported status transitions. Repeated observations are provenance, not duplicate user-visible events.
+Goods/services follow the mark heading because they answer the seller's primary review question. This block shows `GS` statements only when any exist, orders Class 025 statements first, and falls back to other source statements only for records without `GS` data. Record metadata follows as a compact reference grid; it must not visually overpower the mark or goods copy. Mobile keeps the same order and renders Record facts two-up.
+
+Status history contains distinct source-reported status transitions. It is not necessarily the source of the current canonical disposition, so no history row is labeled current or latest. Repeated observations are provenance, not duplicate user-visible events.
 
 ## Reports
 
@@ -132,7 +132,7 @@ Previous week means Monday through Sunday. Filed and registered reports use thei
 
 The API Keys page lists name, suffix, creation time, last-used time, and status. Creation asks only for a name, shows the raw `ttk_...` token exactly once, and requires explicit acknowledgement that it was saved. Revocation lives in the row menu.
 
-The top bar shows `Corpus syncing` before searchable coverage exists and the contiguous corpus-through date afterward. Its COSS popover shows plain-language synchronization status, searchable coverage, the last successful update, and staleness. It reads once on mount, rereads when opened, and does not poll. Queue position, failed-artifact details, and provider diagnostics remain operator-only.
+The top bar consistently labels the entry point `Corpus freshness`. Its COSS popover shows plain-language synchronization status, searchable coverage, the last successful update, and staleness. It reads once on mount, rereads when opened, and does not poll. Queue position, failed-artifact details, and provider diagnostics remain operator-only.
 
 Operators with the server-enforced database role also receive a top-bar link to `/ops/sync`. That read-only route presents corpus synchronization as a continuous system: processed marks and source records, corpus coverage, last activity, current health, and USPTO connectivity. An always-visible source-ordered file table carries state, counts, coverage, timestamps, and errors with bounded stable pagination. A compact system-details table carries corpus, provider, and subordinate identifier facts. The route has no mutation controls, queue-progress framing, drawers, or access for ordinary authenticated customers and API keys.
 
