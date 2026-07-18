@@ -88,7 +88,6 @@ Target stack, following current MerchBase Core and BidBeacon conventions:
 - Fastify and tRPC
 - Zod schemas
 - Drizzle ORM and PostgreSQL
-- pg-boss for scheduled and background work
 - PostgreSQL-backed cross-process events
 - Vite, React, and React Router
 - TanStack Query and TanStack Virtual
@@ -201,7 +200,6 @@ Required indexes:
 - `source_lane`
 - `source_artifact`
 - `data_state`
-- pg-boss job execution tables
 
 ### Auth and events
 
@@ -333,7 +331,7 @@ Mac mini Docker Compose topology:
 - One-shot migration command that completes before API and worker start
 - One-shot database migration before API and worker startup
 - `tmturtle-core`: Fastify/tRPC API and anonymous readiness endpoint; no jobs or schedules
-- `tmturtle-worker`: same image, pg-boss reconciliation/scheduling entrypoint
+- `tmturtle-worker`: same image, non-overlapping reconciliation loop
 - Caddy: serves the built website at `tmturtle.merchbase.co` and proxies `/api`
 - Artifact working volume for one streamed USPTO ZIP
 
@@ -459,7 +457,7 @@ Acceptance: the deployed service re-downloads one official artifact at a time, p
 - Public complete frontier distinct from rows already available in the live tables
 - Private operator diagnostics and database-backed operator roles
 - No external realtime subscription in v1
-- Dedicated single worker/scheduler in v1
+- Dedicated single worker loop in v1
 - Private server and website apps; published client and CLI only
 - `tt` executable
 - `tmturtle.merchbase.co` initial host

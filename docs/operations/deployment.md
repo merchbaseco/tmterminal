@@ -39,9 +39,9 @@ PostgreSQL and the transient artifact working directory use named volumes. API, 
 
 ## Verification and monitoring hook
 
-`scripts/deployment-smoke` is the external readiness and capacity hook. Worker readiness begins only after the current process completes its first scheduler reconciliation; its startup grace matches the existing 15-minute provider request bound, persisted backoff remains valid, and a stopped lane fails smoke. The hook also fails when either the PostgreSQL or artifact volume filesystem has less than 20 GiB free, migration failed, another long-running service is unhealthy, a bounded loopback or public HTTPS probe fails, or image labels do not match the deployed revision.
+`scripts/deployment-smoke` is the external readiness and capacity hook. Worker readiness begins only after the current process completes its first reconciliation; its startup grace matches the existing 15-minute provider request bound, persisted backoff remains valid, and a stopped lane fails smoke. The hook also fails when either the PostgreSQL or artifact volume filesystem has less than 20 GiB free, migration failed, another long-running service is unhealthy, a bounded loopback or public HTTPS probe fails, or image labels do not match the deployed revision.
 
-The anonymous readiness response is exactly `{"status":"ready"}` and contains no trademark data. Readiness does not claim data completeness. The worker owns a fixed 10-second cadence, serial downloads, persisted backoff, and a non-configurable eight-attempt ceiling. Authenticated sync reports freshness and durable ingestion state; the operator page reports annual baseline progress, provider lane, and compact artifact state.
+The anonymous readiness response is exactly `{"status":"ready"}` and contains no trademark data. Readiness does not claim data completeness. The worker reconciles immediately on startup and waits a fixed 10 seconds after each completion; it also owns serial downloads, persisted backoff, and a non-configurable eight-attempt ceiling. Authenticated sync reports freshness and durable ingestion state; the operator page reports annual baseline progress, provider lane, and compact artifact state.
 
 For an explicit smoke or post-restart check:
 
