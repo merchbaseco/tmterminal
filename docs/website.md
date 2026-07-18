@@ -56,7 +56,9 @@ Modes:
 
 - Multi: exact and partial toggles, both enabled by default
 - Split: exact matches for every adjacent Unicode word-token combination; punctuation separates words
-- Wildcard: `*` represents zero or more characters across the whole mark
+- Wildcard: `*` represents zero or more characters across the whole mark; patterns containing `*`
+  require at least three consecutive literal Unicode word characters, while `%`, `_`, and `\` remain
+  literal
 
 Multi is the default mode. Wildcard validation happens before the request.
 

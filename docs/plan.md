@@ -221,6 +221,7 @@ One public tRPC router defines customer capabilities. The website, HTTP client, 
   - Multi exact and partial are literal normalized equality/contains semantics
   - Split searches exact matches for all adjacent Unicode word-token combinations; punctuation separates tokens
   - Wildcard uses `*` for zero or more characters across the whole normalized mark; other SQL wildcard characters remain literal
+  - Wildcard queries without `*` use normalized exact matching; patterns with `*` require a literal run of at least three Unicode word characters so supported plans remain trigram-indexed
   - Filters: live/dead, mark type, registration state
   - Sorts: relevance, newest activity, oldest activity
   - Source transaction date defines activity; status date remains a separate field

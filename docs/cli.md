@@ -60,7 +60,10 @@ tt reports run --event published-for-opposition [filters and page options]
 tt sync status
 ```
 
-`--match` is valid only for Multi. Split and Wildcard reject it. `--text` and `--stdin` are mutually exclusive.
+`--match` is valid only for Multi. Split and Wildcard reject it before HTTP. Split requires at
+least one Unicode word token. Wildcard queries without `*` are exact whole-mark searches; patterns
+with `*` require at least three consecutive literal Unicode word characters. `%`, `_`, and `\` remain
+literal. `--text` and `--stdin` are mutually exclusive.
 
 Annual artifact state and provider diagnostics remain read-only operator capabilities outside the published CLI.
 
