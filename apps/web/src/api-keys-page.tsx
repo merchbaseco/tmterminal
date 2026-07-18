@@ -1,6 +1,6 @@
 import type { inferRouterOutputs } from "@trpc/server";
 import { EllipsisIcon } from "lucide-react";
-import { type FormEvent, useEffect, useState } from "react";
+import { type ChangeEvent, type FormEvent, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,11 +21,39 @@ type RouterOutputs = inferRouterOutputs<AppRouter>;
 type ApiKey = RouterOutputs["account"]["api-keys"]["list"][number];
 type CreatedApiKey = RouterOutputs["account"]["api-keys"]["create"];
 
-export type AccountApi = {
-  create(name: string): Promise<CreatedApiKey>;
-  list(): Promise<ApiKey[]>;
-  revoke(id: string): Promise<ApiKey>;
-};
+export interface AccountApi {
+  create: (name: string) => Promise<CreatedApiKey>;
+  list: () => Promise<ApiKey[]>;
+  revoke: (id: string) => Promise<ApiKey>;
+}
+
+interface ApiKeyActionsProps {
+  id: string;
+  name: string;
+  onRevoke: (id: string) => Promise<void>;
+}
+
+function ApiKeyActions({ id, name, onRevoke }: ApiKeyActionsProps) {
+  const revoke = useCallback(() => {
+    onRevoke(id);
+  }, [id, onRevoke]);
+
+  return (
+    <Menu>
+      <MenuTrigger
+        aria-label={`Actions for ${name}`}
+        render={<Button size="icon" variant="ghost" />}
+      >
+        <EllipsisIcon />
+      </MenuTrigger>
+      <MenuPopup align="end">
+        <MenuItem onClick={revoke} variant="destructive">
+          Revoke
+        </MenuItem>
+      </MenuPopup>
+    </Menu>
+  );
+}
 
 function formatDate(value: string | null) {
   if (!value) {
@@ -45,7 +73,7 @@ export function ApiKeysPage({ api }: { api: AccountApi }) {
 
   useEffect(() => {
     let active = true;
-    void api
+    api
       .list()
       .then((listed) => {
         if (active) {
@@ -67,36 +95,63 @@ export function ApiKeysPage({ api }: { api: AccountApi }) {
     };
   }, [api]);
 
-  async function createKey(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setCreating(true);
-    setError(null);
-    try {
-      const created = await api.create(name);
-      setKeys((current) => [created.key, ...current]);
-      setIssuedToken(created.token);
-      setName("");
-    } catch {
-      setError("API key could not be created.");
-    } finally {
-      setCreating(false);
-    }
-  }
+  const createKey = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      setCreating(true);
+      setError(null);
+      try {
+        const created = await api.create(name);
+        setKeys((current) => [created.key, ...current]);
+        setIssuedToken(created.token);
+        setName("");
+      } catch {
+        setError("API key could not be created.");
+      } finally {
+        setCreating(false);
+      }
+    },
+    [api, name]
+  );
 
-  async function revokeKey(id: string) {
-    setError(null);
-    try {
-      const revoked = await api.revoke(id);
-      setKeys((current) => current.map((key) => (key.id === id ? revoked : key)));
-    } catch {
-      setError("API key could not be revoked.");
-    }
-  }
+  const revokeKey = useCallback(
+    async (id: string) => {
+      setError(null);
+      try {
+        const revoked = await api.revoke(id);
+        setKeys((current) => current.map((key) => (key.id === id ? revoked : key)));
+      } catch {
+        setError("API key could not be revoked.");
+      }
+    },
+    [api]
+  );
 
-  function acknowledgeToken() {
+  const acknowledgeToken = useCallback(() => {
     setIssuedToken(null);
     setCreateOpen(false);
-  }
+  }, []);
+
+  const changeName = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    setName(event.target.value);
+  }, []);
+
+  const copyIssuedToken = useCallback(() => {
+    if (issuedToken) {
+      navigator.clipboard
+        .writeText(issuedToken)
+        .catch(() => setError("API key could not be copied."));
+    }
+  }, [issuedToken]);
+
+  const changeCreateOpen = useCallback(
+    (open: boolean) => {
+      if (!(issuedToken || creating)) {
+        setCreateOpen(open);
+      }
+    },
+    [creating, issuedToken]
+  );
 
   return (
     <main className="mx-auto min-h-[calc(100vh-3.75rem)] max-w-[100rem] px-[clamp(1rem,3vw,3rem)] py-[clamp(2rem,5vw,5.5rem)]">
@@ -118,14 +173,7 @@ export function ApiKeysPage({ api }: { api: AccountApi }) {
         <p className="m-0 font-[650] text-[0.72rem] uppercase tracking-[0.12em]">
           {keys.length} total
         </p>
-        <Dialog
-          onOpenChange={(open) => {
-            if (!(issuedToken || creating)) {
-              setCreateOpen(open);
-            }
-          }}
-          open={createOpen}
-        >
+        <Dialog onOpenChange={changeCreateOpen} open={createOpen}>
           <DialogTrigger render={<Button />}>Create API key</DialogTrigger>
           <DialogPopup showCloseButton={!(issuedToken || creating)}>
             {issuedToken ? (
@@ -138,17 +186,14 @@ export function ApiKeysPage({ api }: { api: AccountApi }) {
                 </DialogHeader>
                 <DialogPanel>
                   <code
-                    className="block wrap-anywhere select-all bg-muted p-4 font-sans"
+                    className="wrap-anywhere block select-all bg-muted p-4 font-sans"
                     data-testid="issued-token"
                   >
                     {issuedToken}
                   </code>
                 </DialogPanel>
                 <DialogFooter>
-                  <Button
-                    onClick={() => void navigator.clipboard.writeText(issuedToken)}
-                    variant="outline"
-                  >
+                  <Button onClick={copyIssuedToken} variant="outline">
                     Copy
                   </Button>
                   <Button onClick={acknowledgeToken}>I saved this key</Button>
@@ -166,7 +211,7 @@ export function ApiKeysPage({ api }: { api: AccountApi }) {
                     <Input
                       autoComplete="off"
                       maxLength={80}
-                      onChange={(event) => setName(event.target.value)}
+                      onChange={changeName}
                       required
                       value={name}
                     />
@@ -218,19 +263,7 @@ export function ApiKeysPage({ api }: { api: AccountApi }) {
               </div>
             </dl>
             {key.status === "active" ? (
-              <Menu>
-                <MenuTrigger
-                  aria-label={`Actions for ${key.name}`}
-                  render={<Button size="icon" variant="ghost" />}
-                >
-                  <EllipsisIcon />
-                </MenuTrigger>
-                <MenuPopup align="end">
-                  <MenuItem onClick={() => void revokeKey(key.id)} variant="destructive">
-                    Revoke
-                  </MenuItem>
-                </MenuPopup>
-              </Menu>
+              <ApiKeyActions id={key.id} name={key.name} onRevoke={revokeKey} />
             ) : (
               <span aria-hidden="true" />
             )}
