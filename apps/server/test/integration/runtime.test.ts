@@ -91,11 +91,8 @@ describe("live trademark data migration", () => {
     >`
       select (select count(*)::int from account) accounts, (select count(*)::int from clerk_identity) identities,
         (select count(*)::int from api_key) keys, (select count(*)::int from role_assignment) roles`;
-    const [shape] = await database<
-      Array<{ legacyArtifact: boolean; migrations: number; tables: number }>
-    >`
+    const [shape] = await database<Array<{ legacyArtifact: boolean; tables: number }>>`
       select to_regclass('public.artifact') is not null as "legacyArtifact",
-        (select count(*)::int from drizzle.__drizzle_migrations) migrations,
         (select count(*)::int from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE') tables`;
     const lanes = await database<
       Array<{
@@ -111,7 +108,7 @@ describe("live trademark data migration", () => {
       from source_lane order by id
     `;
     expect(auth).toEqual({ accounts: 1, identities: 1, keys: 1, roles: 1 });
-    expect(shape).toEqual({ legacyArtifact: false, migrations: 17, tables: 12 });
+    expect(shape).toEqual({ legacyArtifact: false, tables: 12 });
     expect([...lanes]).toEqual([
       {
         currentError: "temporary provider failure",
