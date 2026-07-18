@@ -15,7 +15,6 @@
     "@trpc/server": "11.18.0",
     "drizzle-orm": "0.45.2",
     "fastify": "5.10.0",
-    "pg-boss": "12.26.0",
     "postgres": "3.4.9",
     "unzipper": "0.12.5",
     "xml-flow": "1.0.4",
