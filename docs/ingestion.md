@@ -39,7 +39,7 @@ Every projected row carries product, filename, SHA-256, and physical record inde
 
 ## Reconciliation and provider policy
 
-One pg-boss queue wakes reconciliation on startup and a fixed 10-second schedule. A transaction-scoped advisory lock serializes artifact lifecycle changes. Each delivery performs one database-derived action:
+The single worker reconciles immediately on startup, then waits a fixed 10 seconds after each reconciliation completes before starting the next. The process-local loop never overlaps or accumulates delayed work; a transaction-scoped advisory lock still serializes artifact lifecycle changes at the database. Each reconciliation performs one database-derived action:
 
 1. remove one unreferenced or terminal raw ZIP;
 2. resume one retained projecting artifact;

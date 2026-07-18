@@ -143,7 +143,7 @@ The worker derives restart work from `source_artifact`. Before source access it 
 
 The live-data migration preserves the exact deployed annual progress, retained projecting ZIP, projected marks and children, source artifacts, provider lane, accounts, Clerk identities, API keys, and roles while removing generation keys and pointers. Drizzle applies it in one transaction. No compatibility schema or pre-migration cleanup script exists.
 
-Drizzle owns application schema migration. pg-boss owns its separate `pgboss` schema: the one-shot migration entrypoint starts pg-boss with migration enabled after Drizzle, while the production worker starts with `migrate:false` and fails closed if that schema is absent. Repeated migration is expected to be idempotent.
+Drizzle owns application schema migration. Worker timing is process-local and creates no queue tables. Repeated migration is expected to be idempotent.
 
 Production deployment, public HTTPS verification, monitoring hooks, and rollback are defined in [Mac mini deployment](deployment.md).
 

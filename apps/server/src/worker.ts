@@ -49,7 +49,6 @@ const ingestion = createTrademarkIngestion({
   }),
 });
 const scheduler = createIngestionScheduler({
-  databaseUrl,
   onError: (error) => console.error("Ingestion scheduler error", error),
   reconcile: () => ingestion.reconcile(),
 });
