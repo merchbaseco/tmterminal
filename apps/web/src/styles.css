@@ -744,7 +744,10 @@ h1 {
 }
 
 .stage-failed,
-.stage-stopped {
+.stage-stopped,
+.stage-rejected,
+.stage-quarantined,
+.stage-operator-action-required {
   color: var(--destructive-foreground);
 }
 
