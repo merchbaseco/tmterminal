@@ -135,13 +135,13 @@ export const mark = pgTable(
     uniqueIndex("mark_registration_number_unique")
       .on(table.registrationNumber)
       .where(sql`${table.registrationNumber} is not null`),
-    index("mark_word_mark_exact_idx").on(table.wordMarkNormalized),
+    index("mark_word_mark_exact_idx").using("hash", table.wordMarkNormalized),
     index("mark_word_mark_normalized_trgm_idx").using(
       "gin",
       sql`${table.wordMarkNormalized} gin_trgm_ops`
     ),
     index("mark_live_word_mark_exact_idx")
-      .on(table.wordMarkNormalized)
+      .using("hash", table.wordMarkNormalized)
       .where(sql`${table.searchStatus} = 'live'`),
     index("mark_live_word_mark_normalized_trgm_idx")
       .using("gin", sql`${table.wordMarkNormalized} gin_trgm_ops`)
