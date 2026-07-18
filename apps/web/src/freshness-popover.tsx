@@ -1,5 +1,6 @@
+import { useQuery } from "@tanstack/react-query";
 import type { inferRouterOutputs } from "@trpc/server";
-import { useCallback, useRef, useState } from "react";
+import { useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverPopup, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
 import type { AppRouter } from "../../server/src/api/router.ts";
@@ -28,93 +29,84 @@ function timestamp(value: string | null) {
   );
 }
 
-function freshness(status: SyncStatus) {
-  if (!status.stale) {
-    return "Current";
+function statusLabel(status: SyncStatus) {
+  if (status.completeThroughDate && status.stale) {
+    return status.staleSince
+      ? `Stale since ${date(status.staleSince.slice(0, 10))}`
+      : "Update delayed";
   }
-  return status.staleSince
-    ? `Stale since ${date(status.staleSince.slice(0, 10))}`
-    : "Baseline sync in progress";
+  const labels: Record<SyncStatus["activeState"], string> = {
+    backoff: "Sync paused — retrying source access",
+    downloading: "Syncing — downloading source data",
+    failed: "Update needs operator attention",
+    idle: status.completeThroughDate ? "Up to date" : "Sync active",
+    parsing: "Syncing — processing source data",
+    stopped: "Update needs operator attention",
+  };
+  return labels[status.activeState];
+}
+
+function freshnessTriggerLabel(status: SyncStatus | undefined) {
+  if (status?.completeThroughDate) {
+    return `Corpus through ${date(status.completeThroughDate)}`;
+  }
+  return status ? "Corpus syncing" : "Corpus freshness";
 }
 
 export function FreshnessPopover({ api }: { api: FreshnessApi }) {
-  const [status, setStatus] = useState<SyncStatus | null>(null);
-  const [failed, setFailed] = useState(false);
-  const request = useRef(0);
-  const handleOpenChange = useCallback(
+  const {
+    data: status,
+    isError,
+    isPending,
+    refetch,
+  } = useQuery({
+    queryFn: api.status,
+    queryKey: ["sync.status"],
+    staleTime: 5 * 60 * 1000,
+  });
+  const refreshOnOpen = useCallback(
     (open: boolean) => {
-      if (!open) {
-        return;
+      if (open) {
+        refetch();
       }
-      request.current += 1;
-      const currentRequest = request.current;
-      setFailed(false);
-      api
-        .status()
-        .then((nextStatus) => {
-          if (request.current === currentRequest) {
-            setStatus(nextStatus);
-          }
-        })
-        .catch(() => {
-          if (request.current === currentRequest) {
-            setFailed(true);
-          }
-        });
     },
-    [api]
+    [refetch]
   );
 
   return (
-    <Popover onOpenChange={handleOpenChange}>
+    <Popover onOpenChange={refreshOnOpen}>
       <PopoverTrigger render={<Button size="sm" variant="ghost" />}>
-        {status?.completeThroughDate
-          ? `Data through ${date(status.completeThroughDate)}`
-          : "Data freshness"}
+        {freshnessTriggerLabel(status)}
       </PopoverTrigger>
       <PopoverPopup align="end" className="w-80">
         <div className="grid gap-4">
           <div className="grid gap-1">
-            <PopoverTitle>Data freshness</PopoverTitle>
+            <PopoverTitle>Corpus freshness</PopoverTitle>
             <p className="text-base text-muted-foreground sm:text-sm">
-              Search stays available while source coverage advances.
+              Contiguous searchable coverage, not the newest downloaded file.
             </p>
           </div>
-          {failed ? (
+          {isError ? (
             <p className="text-base text-destructive-foreground sm:text-sm" role="alert">
               Freshness could not be loaded.
             </p>
           ) : null}
-          {failed || status ? null : (
+          {isPending ? (
             <p className="text-base text-muted-foreground sm:text-sm">Loading freshness…</p>
-          )}
+          ) : null}
           {status ? (
             <dl className="freshness-facts tabular-nums">
+              <div>
+                <dt>Status</dt>
+                <dd>{statusLabel(status)}</dd>
+              </div>
               <div>
                 <dt>Complete through</dt>
                 <dd>{date(status.completeThroughDate)}</dd>
               </div>
               <div>
-                <dt>Data version</dt>
-                <dd>{status.dataVersion}</dd>
-              </div>
-              <div>
                 <dt>Last update</dt>
                 <dd>{timestamp(status.lastSuccessfulUpdateAt)}</dd>
-              </div>
-              <div>
-                <dt>Current state</dt>
-                <dd>{status.activeState}</dd>
-              </div>
-              <div>
-                <dt>Freshness</dt>
-                <dd>{freshness(status)}</dd>
-              </div>
-              <div>
-                <dt>Outstanding</dt>
-                <dd>
-                  {status.pendingCount} pending · {status.failedCount} failed
-                </dd>
               </div>
             </dl>
           ) : null}

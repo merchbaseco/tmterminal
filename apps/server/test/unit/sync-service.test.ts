@@ -41,7 +41,7 @@ test("staleness begins at the public stale threshold", () => {
   });
 });
 
-test("artifact failure uses its own timestamp without creating rejects", () => {
+test("artifact failure uses its own timestamp", () => {
   expect(
     syncStatusFromFacts({
       ...healthy,
@@ -64,7 +64,6 @@ test("provider backoff and stop use the lane transition timestamp", () => {
     activeState: "backoff",
     degraded: true,
     degradedSince: updatedAt.toISOString(),
-    failedCount: 0,
   });
   expect(
     syncStatusFromFacts({ ...healthy, lane: { ...healthy.lane, status: "stopped", updatedAt } })
@@ -72,6 +71,5 @@ test("provider backoff and stop use the lane transition timestamp", () => {
     activeState: "stopped",
     degraded: true,
     degradedSince: updatedAt.toISOString(),
-    failedCount: 1,
   });
 });

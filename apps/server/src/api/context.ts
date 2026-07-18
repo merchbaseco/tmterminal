@@ -8,24 +8,31 @@ import { authenticateApiKey } from "../queries/api-key-repository.ts";
 import { createAccountService } from "../services/account-service.ts";
 import { createMarksService } from "../services/marks-service.ts";
 import { createOperatorSyncService } from "../services/operator-sync-service.ts";
+import { createReportsService } from "../services/reports-service.ts";
 import { createSyncService } from "../services/sync-service.ts";
 import type { AuthenticatedAccount } from "./contracts.ts";
 import type { AppContext } from "./router.ts";
 
-type CreateContextOptions = {
+interface CreateContextOptions {
   authorization?: string;
   cookie?: string;
   database: postgres.Sql;
+  devOperatorClerkUserId?: string;
   verifyClerkToken: VerifyClerkToken;
-};
+}
 
-async function context(database: postgres.Sql, auth: AuthenticatedAccount): Promise<AppContext> {
+function context(
+  database: postgres.Sql,
+  auth: AuthenticatedAccount,
+  operator: boolean
+): AppContext {
   return {
     account: createAccountService(database, auth.accountId),
     auth,
     marks: createMarksService(database),
-    operator: auth.credential.type === "clerk" && await accountIsOperator(database, auth.accountId),
+    operator,
     operatorSync: createOperatorSyncService(database),
+    reports: createReportsService(database),
     sync: createSyncService(database),
   };
 }
@@ -34,15 +41,21 @@ export async function createAppContext({
   authorization,
   cookie,
   database,
+  devOperatorClerkUserId,
   verifyClerkToken,
 }: CreateContextOptions): Promise<AppContext> {
-  let selected;
+  let selected: ReturnType<typeof selectCredential>;
 
   try {
     selected = selectCredential({ authorization, cookie });
   } catch (error) {
     if (error instanceof CredentialSelectionError) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "Select exactly one credential" });
+      // biome-ignore lint/style/useErrorCause: TRPCError receives the original cause in its options.
+      throw new TRPCError({
+        cause: error,
+        code: "BAD_REQUEST",
+        message: "Select exactly one credential",
+      });
     }
     throw error;
   }
@@ -56,10 +69,14 @@ export async function createAppContext({
     if (!key) {
       throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid credential" });
     }
-    return await context(database, {
-      accountId: key.accountId,
-      credential: { type: "api-key", keyId: key.keyId, suffix: key.suffix },
-    });
+    return context(
+      database,
+      {
+        accountId: key.accountId,
+        credential: { keyId: key.keyId, suffix: key.suffix, type: "api-key" },
+      },
+      false
+    );
   }
 
   const clerkUserId = await verifyClerkToken(selected.token);
@@ -67,8 +84,10 @@ export async function createAppContext({
     throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid credential" });
   }
 
-  return await context(database, {
-    accountId: await resolveClerkAccount(database, clerkUserId),
-    credential: { type: "clerk" },
-  });
+  const accountId = await resolveClerkAccount(database, clerkUserId);
+  return context(
+    database,
+    { accountId, credential: { type: "clerk" } },
+    clerkUserId === devOperatorClerkUserId || (await accountIsOperator(database, accountId))
+  );
 }

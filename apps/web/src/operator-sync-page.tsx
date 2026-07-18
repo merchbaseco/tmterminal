@@ -2,6 +2,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { AppRouter } from "../../server/src/api/router.ts";
+import { trpcErrorCode } from "./trpc-error-code.ts";
 
 type Outputs = inferRouterOutputs<AppRouter>["ops"]["sync"];
 interface PageInput {
@@ -27,17 +28,75 @@ const date = (value: string | null) =>
       )
     : "—";
 const count = (value: number) => new Intl.NumberFormat().format(value);
-function isForbidden(error: unknown) {
-  return Boolean(
-    error &&
-      typeof error === "object" &&
-      "data" in error &&
-      error.data &&
-      typeof error.data === "object" &&
-      "code" in error.data &&
-      error.data.code === "FORBIDDEN"
-  );
+const providerLabels = { backoff: "Paused", ready: "Ready", stopped: "Stopped" } as const;
+
+function relativeTimestamp(value: string) {
+  const seconds = Math.round((Date.parse(value) - Date.now()) / 1000);
+  const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+  if (Math.abs(seconds) < 60) {
+    return formatter.format(seconds, "second");
+  }
+  const minutes = Math.round(seconds / 60);
+  if (Math.abs(minutes) < 60) {
+    return formatter.format(minutes, "minute");
+  }
+  const hours = Math.round(minutes / 60);
+  if (Math.abs(hours) < 24) {
+    return formatter.format(hours, "hour");
+  }
+  return formatter.format(Math.round(hours / 24), "day");
 }
+
+function syncStatusCopy(status: Outputs["status"]) {
+  if (status.summary.activeState === "failed") {
+    return {
+      description: "A source file failed to process.",
+      headline: "Corpus sync needs attention.",
+    };
+  }
+  if (requiresOperator(status.summary.activeState)) {
+    return {
+      description: status.provider.currentError ?? "USPTO access needs operator attention.",
+      headline: "Corpus sync needs attention.",
+    };
+  }
+  if (status.summary.activeState === "backoff") {
+    return {
+      description: status.provider.nextEligibleAt
+        ? `Retry scheduled for ${timestamp(status.provider.nextEligibleAt)}.`
+        : "The next retry starts automatically.",
+      headline: "Corpus sync paused.",
+    };
+  }
+  if (status.summary.stale || status.summary.degraded) {
+    return {
+      description: status.summary.completeThroughDate
+        ? `Complete trademark data currently runs through ${date(status.summary.completeThroughDate)}.`
+        : "A complete trademark update is not available yet.",
+      headline: "Corpus sync is delayed.",
+    };
+  }
+  return {
+    description: "Trademark Turtle continuously processes USPTO trademark data.",
+    headline: "Corpus sync active.",
+  };
+}
+
+function optionalCopy(status: Outputs["status"] | null) {
+  return status ? syncStatusCopy(status) : null;
+}
+
+function requiresOperator(activeState: Outputs["status"]["summary"]["activeState"]) {
+  return activeState === "stopped";
+}
+
+const artifactStateLabels: Record<Outputs["artifacts"]["items"][number]["state"], string> = {
+  complete: "Complete",
+  downloading: "Downloading",
+  failed: "Failed",
+  pending: "Waiting",
+  projecting: "Processing",
+};
 
 export function OperatorSyncPage({ api }: { api: OperatorSyncApi }) {
   const [status, setStatus] = useState<Outputs["status"] | null>(null);
@@ -58,7 +117,7 @@ export function OperatorSyncPage({ api }: { api: OperatorSyncApi }) {
       })
       .catch((cause: unknown) => {
         if (active) {
-          setError(isForbidden(cause) ? "forbidden" : "load");
+          setError(trpcErrorCode(cause) === "FORBIDDEN" ? "forbidden" : "load");
         }
       });
     return () => {
@@ -97,97 +156,78 @@ export function OperatorSyncPage({ api }: { api: OperatorSyncApi }) {
       </main>
     );
   }
+  const copy = optionalCopy(status);
   return (
     <main aria-busy={!(status || error)} className="ops-shell">
-      <header className="ops-heading">
-        <div>
-          <p className="eyebrow">Operations / sync</p>
-          <h1>DATA</h1>
-        </div>
-        <p className="ops-intro">Perpetual USPTO source and live-data state.</p>
-      </header>
+      <p className="eyebrow">Operations / sync</p>
       {error === "load" ? (
         <p className="error-message" role="alert">
           Sync operations could not be loaded.
         </p>
       ) : null}
-      {status || error ? null : <p className="empty-row">Loading durable sync state…</p>}
-      {status ? (
-        <section aria-label="Annual baseline status" className="dataset-grid">
-          <article className="dataset-summary">
-            <header>
-              <p>Annual archive</p>
-              <h2>TRTYRAP</h2>
-            </header>
-            <p className={`stage-label stage-${status.summary.activeState}`}>
-              {status.summary.activeState}
-            </p>
-            <dl className="dataset-facts tabular-nums">
-              <div>
-                <dt>Artifacts</dt>
-                <dd>
-                  {status.annualBaseline.completeArtifactCount} of{" "}
-                  {status.annualBaseline.expectedArtifactCount} complete
-                </dd>
+      {status || error ? null : <p className="empty-row">Loading sync status…</p>}
+      {status && copy ? (
+        <>
+          <header className={`ops-status stage-${status.summary.activeState}`}>
+            <h1>{copy.headline}</h1>
+            <p className="ops-status-description">{copy.description}</p>
+          </header>
+          <section aria-label="Corpus sync status" className="ops-summary">
+            <dl className="ops-stats tabular-nums">
+              <div className="ops-stat">
+                <dt>Marks processed</dt>
+                <dd>{count(status.source.projectedMarkCount)}</dd>
               </div>
-              <div>
-                <dt>Projected marks</dt>
-                <dd>{count(status.annualBaseline.projectedMarkCount)}</dd>
+              <div className="ops-stat">
+                <dt>Source records processed</dt>
+                <dd>{count(status.source.physicalRecordCount)}</dd>
               </div>
-              <div>
-                <dt>Failed artifacts</dt>
-                <dd>{status.annualBaseline.failedArtifactCount}</dd>
-              </div>
-              <div>
-                <dt>Complete frontier</dt>
+              <div className="ops-stat">
+                <dt>Complete through</dt>
                 <dd>{date(status.summary.completeThroughDate)}</dd>
               </div>
-              <div>
-                <dt>Data version</dt>
-                <dd>{status.summary.dataVersion}</dd>
+              <div className="ops-stat">
+                <dt>Last activity</dt>
+                <dd>
+                  {status.source.lastActivityAt ? (
+                    <time
+                      dateTime={status.source.lastActivityAt}
+                      title={timestamp(status.source.lastActivityAt)}
+                    >
+                      {relativeTimestamp(status.source.lastActivityAt)}
+                    </time>
+                  ) : (
+                    "—"
+                  )}
+                </dd>
               </div>
-              <div>
-                <dt>Last update</dt>
-                <dd>{timestamp(status.summary.lastSuccessfulUpdateAt)}</dd>
+              <div className="ops-stat">
+                <dt>Sync issues</dt>
+                <dd>{status.annualBaseline.failedArtifactCount}</dd>
               </div>
-              <div>
-                <dt>Provider</dt>
-                <dd>{status.provider.status}</dd>
-              </div>
-              <div>
-                <dt>Provider failures</dt>
-                <dd>{status.provider.failureCount}</dd>
-              </div>
-              <div>
-                <dt>Next eligible</dt>
-                <dd>{timestamp(status.provider.nextEligibleAt)}</dd>
-              </div>
-              <div>
-                <dt>Current error</dt>
-                <dd>{status.provider.currentError ?? "—"}</dd>
+              <div className="ops-stat">
+                <dt>USPTO connection</dt>
+                <dd>{providerLabels[status.provider.status]}</dd>
               </div>
             </dl>
-          </article>
-        </section>
+          </section>
+        </>
       ) : null}
       {artifacts ? (
-        <section className="ops-section">
+        <section className="ops-table-section">
           <div className="ops-section-heading">
-            <div>
-              <p className="eyebrow">Bounded source state</p>
-              <h2>Annual artifacts</h2>
-            </div>
-            <p>{artifacts.total} total</p>
+            <h2>Source files</h2>
+            <p>{artifacts.total} files · read-only</p>
           </div>
           <div className="ops-table-scroll">
             <div>
-              <table>
+              <table aria-label="Source files">
                 <thead>
                   <tr>
-                    <th>Artifact</th>
+                    <th>File</th>
                     <th>State</th>
-                    <th>Records</th>
-                    <th>Marks</th>
+                    <th className="numeric-column">Records</th>
+                    <th className="numeric-column">Marks</th>
                     <th>Coverage</th>
                     <th>Updated</th>
                     <th>Error</th>
@@ -198,16 +238,34 @@ export function OperatorSyncPage({ api }: { api: OperatorSyncApi }) {
                     <tr key={artifact.artifactId}>
                       <td>
                         <strong>{artifact.filename}</strong>
-                        <code>{artifact.sha256?.slice(0, 12) ?? "not downloaded"}</code>
+                        {artifact.sha256 ? <code>{artifact.sha256.slice(0, 12)}</code> : null}
                       </td>
-                      <td>{artifact.state}</td>
-                      <td className="tabular-nums">{count(artifact.physicalRecordCount)}</td>
-                      <td className="tabular-nums">{count(artifact.projectedMarkCount)}</td>
+                      <td>
+                        <span className={`artifact-state state-${artifact.state}`}>
+                          <span aria-hidden="true" />
+                          {artifactStateLabels[artifact.state]}
+                        </span>
+                      </td>
+                      <td className="numeric-column tabular-nums">
+                        {count(artifact.physicalRecordCount)}
+                      </td>
+                      <td className="numeric-column tabular-nums">
+                        {count(artifact.projectedMarkCount)}
+                      </td>
                       <td>
                         {date(artifact.sourceFromDate)} — {date(artifact.sourceToDate)}
                       </td>
-                      <td>{timestamp(artifact.updatedAt)}</td>
-                      <td>{artifact.currentError ?? "—"}</td>
+                      <td>
+                        <time dateTime={artifact.updatedAt} title={timestamp(artifact.updatedAt)}>
+                          {relativeTimestamp(artifact.updatedAt)}
+                        </time>
+                      </td>
+                      <td
+                        className={artifact.currentError ? "artifact-error" : undefined}
+                        title={artifact.currentError ?? undefined}
+                      >
+                        {artifact.currentError ?? "—"}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -216,7 +274,7 @@ export function OperatorSyncPage({ api }: { api: OperatorSyncApi }) {
           </div>
           {pageError ? (
             <p className="error-message" role="alert">
-              Artifact page could not be loaded; the previous page remains shown.
+              Source-file page could not be loaded; the previous page remains shown.
             </p>
           ) : null}
           <Pagination
@@ -227,7 +285,63 @@ export function OperatorSyncPage({ api }: { api: OperatorSyncApi }) {
           />
         </section>
       ) : null}
+      {status ? <SystemDetails status={status} /> : null}
     </main>
+  );
+}
+
+function SystemDetails({ status }: { status: Outputs["status"] }) {
+  return (
+    <section className="ops-table-section ops-system-details">
+      <div className="ops-section-heading">
+        <h2>System details</h2>
+        <p>Corpus and provider state</p>
+      </div>
+      <table aria-label="System details" className="ops-facts-table tabular-nums">
+        <tbody>
+          <tr>
+            <th scope="row">Source system</th>
+            <td>USPTO trademark XML</td>
+          </tr>
+          <tr>
+            <th scope="row">Data version</th>
+            <td>{status.summary.dataVersion}</td>
+          </tr>
+          {status.summary.completeThroughDate ? (
+            <tr>
+              <th scope="row">Complete through</th>
+              <td>{date(status.summary.completeThroughDate)}</td>
+            </tr>
+          ) : null}
+          {status.summary.lastSuccessfulUpdateAt ? (
+            <tr>
+              <th scope="row">Last update</th>
+              <td>{timestamp(status.summary.lastSuccessfulUpdateAt)}</td>
+            </tr>
+          ) : null}
+          <tr>
+            <th scope="row">Provider status</th>
+            <td>{providerLabels[status.provider.status]}</td>
+          </tr>
+          <tr>
+            <th scope="row">Provider failures</th>
+            <td>{status.provider.failureCount}</td>
+          </tr>
+          {status.provider.nextEligibleAt ? (
+            <tr>
+              <th scope="row">Next retry</th>
+              <td>{timestamp(status.provider.nextEligibleAt)}</td>
+            </tr>
+          ) : null}
+          {status.provider.currentError ? (
+            <tr>
+              <th scope="row">Provider error</th>
+              <td className="artifact-error">{status.provider.currentError}</td>
+            </tr>
+          ) : null}
+        </tbody>
+      </table>
+    </section>
   );
 }
 

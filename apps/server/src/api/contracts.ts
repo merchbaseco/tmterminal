@@ -73,6 +73,30 @@ export interface MarksService {
   search: (input: MultiSearchInput) => Promise<MultiSearchPage>;
 }
 
+export interface ReportInput {
+  event: "filed" | "published-for-opposition" | "registered";
+  expectedDataVersion?: string;
+  expectedFrom?: string;
+  expectedTo?: string;
+  limit: 25;
+  offset: number;
+  registered: "all" | "yes" | "no";
+  sort: "newest-activity" | "oldest-activity";
+  status: "all" | "live" | "dead";
+  type: "all" | "design" | "typeset" | "text" | "other";
+  window?: "previous-week";
+}
+
+export interface ReportPage extends Omit<MultiSearchPage, "items"> {
+  from: string | null;
+  items: Omit<MultiSearchPage["items"][number], "match">[];
+  to: string | null;
+}
+
+export interface ReportsService {
+  run: (input: ReportInput) => Promise<ReportPage>;
+}
+
 export interface SyncStatus {
   activeState: "backoff" | "downloading" | "failed" | "idle" | "parsing" | "stopped";
   completeThroughDate: string | null;
@@ -130,6 +154,11 @@ export interface OperatorSyncStatus {
     failureCount: number;
     nextEligibleAt: string | null;
     status: "backoff" | "ready" | "stopped";
+  };
+  source: {
+    lastActivityAt: string | null;
+    physicalRecordCount: number;
+    projectedMarkCount: number;
   };
   summary: SyncStatus;
 }

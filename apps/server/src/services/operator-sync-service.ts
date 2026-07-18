@@ -2,8 +2,14 @@ import type postgres from "postgres";
 
 import type { OperatorSyncService } from "../api/contracts.ts";
 import { readTrademarkIngestionStatus } from "../ingestion/trademark-ingestion.ts";
-import { readOperatorArtifacts } from "../queries/operator-sync-repository.ts";
+import {
+  readOperatorArtifacts,
+  readOperatorSourceSummary,
+} from "../queries/operator-sync-repository.ts";
 import { syncStatusFromFacts } from "./sync-service.ts";
+
+const safeError = (value: string | null) =>
+  value?.replace(/https?:\/\/\S+/g, "[url]").slice(0, 500) ?? null;
 
 export function createOperatorSyncService(database: postgres.Sql): OperatorSyncService {
   return {
@@ -16,8 +22,7 @@ export function createOperatorSyncService(database: postgres.Sql): OperatorSyncS
             ...item,
             bytes: item.bytes === null ? null : Number(item.bytes),
             completedAt: item.completedAt?.toISOString() ?? null,
-            currentError:
-              item.currentError?.replace(/https?:\/\/\S+/g, "[url]").slice(0, 500) ?? null,
+            currentError: safeError(item.currentError),
             updatedAt: item.updatedAt.toISOString(),
           })),
           limit: input.limit,
@@ -27,7 +32,10 @@ export function createOperatorSyncService(database: postgres.Sql): OperatorSyncS
       });
     },
     async status() {
-      const facts = await readTrademarkIngestionStatus(database);
+      const [facts, source] = await Promise.all([
+        readTrademarkIngestionStatus(database),
+        readOperatorSourceSummary(database),
+      ]);
       return {
         annualBaseline: {
           completeArtifactCount: facts.annualCompleteArtifactCount,
@@ -40,6 +48,11 @@ export function createOperatorSyncService(database: postgres.Sql): OperatorSyncS
           failureCount: facts.lane.failureCount,
           nextEligibleAt: facts.lane.nextEligibleAt?.toISOString() ?? null,
           status: facts.lane.status,
+        },
+        source: {
+          lastActivityAt: source.lastActivityAt?.toISOString() ?? null,
+          physicalRecordCount: Number(source.physicalRecordCount),
+          projectedMarkCount: Number(source.projectedMarkCount),
         },
         summary: syncStatusFromFacts(facts),
       };

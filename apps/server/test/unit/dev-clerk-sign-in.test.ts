@@ -1,9 +1,29 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import type postgres from "postgres";
 
+import { createAppContext } from "../../src/api/context.ts";
 import { buildServer } from "../../src/api/server.ts";
 
+test("the configured local sign-in identity receives operator access", async () => {
+  const accountId = "3a4fd52d-32e6-41b4-a470-68e4eaeaf423";
+  const transaction = async (strings: TemplateStringsArray) =>
+    strings.join("").includes("from clerk_identity") ? [{ accountId }] : [];
+  const database = Object.assign(async () => [], {
+    begin: async (run: (sql: typeof transaction) => Promise<unknown>) => run(transaction),
+  }) as unknown as postgres.Sql;
+
+  const context = await createAppContext({
+    authorization: "Bearer clerk-session",
+    database,
+    devOperatorClerkUserId: "user_dev",
+    verifyClerkToken: () => Promise.resolve("user_dev"),
+  });
+
+  expect(context.operator).toBe(true);
+});
+
 describe("POST /api/dev/clerk-sign-in-token", () => {
-  const servers: Array<Awaited<ReturnType<typeof buildServer>>> = [];
+  const servers: Awaited<ReturnType<typeof buildServer>>[] = [];
   const databaseUrl = "postgres://postgres:postgres@127.0.0.1:1/tmturtle";
 
   afterEach(async () => {
@@ -15,9 +35,9 @@ describe("POST /api/dev/clerk-sign-in-token", () => {
     const server = await buildServer({
       databaseUrl,
       devClerkSignIn: {
-        createToken: async (userId, expiresInSeconds) => {
+        createToken: (userId, expiresInSeconds) => {
           calls.push({ expiresInSeconds, userId });
-          return "short-lived-ticket";
+          return Promise.resolve("short-lived-ticket");
         },
         userId: "user_dev",
       },
@@ -46,9 +66,9 @@ describe("POST /api/dev/clerk-sign-in-token", () => {
     const server = await buildServer({
       databaseUrl,
       devClerkSignIn: {
-        createToken: async () => {
+        createToken: () => {
           called = true;
-          return "unused-ticket";
+          return Promise.resolve("unused-ticket");
         },
         userId: "user_dev",
       },
@@ -73,9 +93,9 @@ describe("POST /api/dev/clerk-sign-in-token", () => {
     const server = await buildServer({
       databaseUrl,
       devClerkSignIn: {
-        createToken: async () => {
+        createToken: () => {
           called = true;
-          return "unused-ticket";
+          return Promise.resolve("unused-ticket");
         },
         userId: "user_dev",
       },
@@ -117,7 +137,7 @@ describe("POST /api/dev/clerk-sign-in-token", () => {
     const server = await buildServer({
       databaseUrl,
       devClerkSignIn: {
-        createToken: async () => "unused-ticket",
+        createToken: () => Promise.resolve("unused-ticket"),
         userId: "user_dev",
       },
       logger: false,

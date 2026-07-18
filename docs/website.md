@@ -130,9 +130,9 @@ Previous week means Monday through Sunday. Filed and registered reports use thei
 
 The API Keys page lists name, suffix, creation time, last-used time, and status. Creation asks only for a name, shows the raw `ttk_...` token exactly once, and requires explicit acknowledgement that it was saved. Revocation lives in the row menu.
 
-The data-through date is the contiguous complete frontier. It opens a COSS popover with the last successful update, current sync state, pending/failed counts, data version, and staleness. The popover rereads status when opened; it does not poll. Available rows remain searchable while the annual baseline or daily continuation is incomplete.
+The top bar shows `Corpus syncing` before searchable coverage exists and the contiguous corpus-through date afterward. Its COSS popover shows plain-language synchronization status, searchable coverage, the last successful update, and staleness. It reads once on mount, rereads when opened, and does not poll. Queue position, failed-artifact details, and provider diagnostics remain operator-only.
 
-Operators with the server-enforced database role also receive a top-bar link to `/ops/sync`. That read-only route shows annual baseline progress, provider lane, and bounded server-paginated source artifacts with state, counts, compact SHA, coverage, and current error. It has no mutation controls and is not available to ordinary authenticated customers or API keys.
+Operators with the server-enforced database role also receive a top-bar link to `/ops/sync`. That read-only route presents corpus synchronization as a continuous system: processed marks and source records, corpus coverage, last activity, current health, and USPTO connectivity. An always-visible source-ordered file table carries state, counts, coverage, timestamps, and errors with bounded stable pagination. A compact system-details table carries corpus, provider, and subordinate identifier facts. The route has no mutation controls, queue-progress framing, drawers, or access for ordinary authenticated customers and API keys.
 
 ## States and responsiveness
 

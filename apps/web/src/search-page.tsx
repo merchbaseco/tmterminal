@@ -1,10 +1,12 @@
 import { type InfiniteData, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
 import { type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { AppRouter } from "../../server/src/api/router.ts";
+import { MarkResultContent } from "./mark-result-content.tsx";
+import { trpcErrorCode } from "./trpc-error-code.ts";
 
 type RouterInputs = inferRouterInputs<AppRouter>;
 type RouterOutputs = inferRouterOutputs<AppRouter>;
@@ -28,6 +30,8 @@ interface SearchState {
   status: "all" | "live" | "dead";
   type: "all" | "design" | "typeset" | "text";
 }
+
+const matchLabels = { exact: "Exact match", partial: "Partial match" } as const;
 
 function readSearchState(search: string): SearchState {
   const parameters = new URLSearchParams(search);
@@ -62,13 +66,6 @@ function searchHref(state: SearchState) {
   return `/search?${parameters.toString()}`;
 }
 
-function errorCode(error: Error | null) {
-  if (!(error && "data" in error && error.data) || typeof error.data !== "object") {
-    return null;
-  }
-  return "code" in error.data && typeof error.data.code === "string" ? error.data.code : null;
-}
-
 function matchFor(state: SearchState): "exact" | "partial" | "both" {
   if (state.exact && state.partial) {
     return "both";
@@ -89,12 +86,15 @@ function requestFor(state: SearchState) {
   };
 }
 
-function searchErrorMessage(conflict: boolean, replacementFailure: boolean) {
+function searchErrorMessage(code: string | null, conflict: boolean, replacementFailure: boolean) {
   if (conflict) {
     return "Trademark data changed. Run the search again before continuing.";
   }
   if (replacementFailure) {
     return "New search could not be loaded. Previous results are still shown.";
+  }
+  if (code === "SERVICE_UNAVAILABLE" || code === "UPSTREAM_UNAVAILABLE") {
+    return "Search is temporarily unavailable. Check Corpus freshness and try again.";
   }
   return "Search could not be loaded.";
 }
@@ -119,8 +119,9 @@ export function SearchPage({
 }) {
   const state = useMemo(() => readSearchState(search), [search]);
   const [draftQuery, setDraftQuery] = useState(state.query);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const queryClient = useQueryClient();
-  const viewportRef = useRef<HTMLDivElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const restoredEntry = useRef<string | null>(null);
 
@@ -142,7 +143,7 @@ export function SearchPage({
   const sourceQueryState = sourceQueryKey ? queryClient.getQueryState(sourceQueryKey) : undefined;
   const sourceError = sourceQueryState?.error instanceof Error ? sourceQueryState.error : null;
   const sourceData =
-    sourceQueryKey && (!sourceError || errorCode(sourceError) === "CONFLICT")
+    sourceQueryKey && (!sourceError || trpcErrorCode(sourceError) === "CONFLICT")
       ? queryClient.getQueryData<InfiniteData<SearchPageResult, SearchPageParam>>(sourceQueryKey)
       : undefined;
   const destinationData =
@@ -176,30 +177,30 @@ export function SearchPage({
     queryKey,
     staleTime: Number.POSITIVE_INFINITY,
   });
-  const conflict = errorCode(query.error) === "CONFLICT";
+  const conflict = trpcErrorCode(query.error) === "CONFLICT";
   const replacementFailure = Boolean(query.error && sourceData && !destinationData && !conflict);
+  const expectedUnavailable =
+    !(conflict || replacementFailure) &&
+    ["SERVICE_UNAVAILABLE", "UPSTREAM_UNAVAILABLE"].includes(trpcErrorCode(query.error) ?? "");
   const data = query.data ?? (replacementFailure ? sourceData : undefined);
   const items = data?.pages.flatMap((page) => page.items) ?? [];
-  const virtualizer = useVirtualizer({
+  const virtualizer = useWindowVirtualizer({
     count: items.length,
-    estimateSize: () => 188,
+    estimateSize: () => 168,
     getItemKey: (index) => items[index]?.serialNumber ?? index,
-    getScrollElement: () => viewportRef.current,
     initialRect: { height: 640, width: 1200 },
     overscan: 3,
+    scrollMargin: resultsRef.current?.offsetTop ?? 0,
     useFlushSync: false,
   });
 
   useLayoutEffect(() => {
-    if (restoredEntry.current === restorationKey || !data || !viewportRef.current) {
+    if (restoredEntry.current === restorationKey || !data) {
       return;
     }
     restoredEntry.current = restorationKey;
-    if (restoreScrollOffset > 0) {
-      virtualizer.scrollToOffset(restoreScrollOffset);
-    }
-    viewportRef.current.scrollTop = restoreScrollOffset;
-  }, [data, restorationKey, restoreScrollOffset, virtualizer]);
+    window.scrollTo(0, restoreScrollOffset);
+  }, [data, restorationKey, restoreScrollOffset]);
 
   useEffect(() => {
     if (replacementSourceSearch && query.data?.pages[0]?.offset === 0 && !query.isPlaceholderData) {
@@ -209,8 +210,7 @@ export function SearchPage({
 
   useEffect(() => {
     const target = loadMoreRef.current;
-    const root = viewportRef.current;
-    if (!(target && root && query.hasNextPage) || query.error) {
+    if (!(target && query.hasNextPage) || query.error) {
       return;
     }
     const observer = new IntersectionObserver(
@@ -219,7 +219,7 @@ export function SearchPage({
           query.fetchNextPage();
         }
       },
-      { root, rootMargin: "500px 0px" }
+      { rootMargin: "500px 0px" }
     );
     observer.observe(target);
     return () => observer.disconnect();
@@ -251,7 +251,7 @@ export function SearchPage({
   const total = data?.pages[0]?.total ?? 0;
 
   return (
-    <main className="search-shell">
+    <main className={state.query ? "search-shell search-shell-results" : "search-shell"}>
       <header className="search-heading">
         <p className="eyebrow">United States trademarks / Class 025</p>
         <h1>
@@ -271,7 +271,7 @@ export function SearchPage({
           maxLength={200}
           // biome-ignore lint/performance/noJsxPropsBind: This local input directly owns the draft query.
           onChange={(event) => setDraftQuery(event.target.value)}
-          placeholder="One literal mark query"
+          placeholder="Search a word mark"
           required
           size="lg"
           type="search"
@@ -282,7 +282,21 @@ export function SearchPage({
         </Button>
       </form>
 
-      <section aria-label="Search options" className="search-options">
+      <Button
+        aria-controls="search-options"
+        aria-expanded={filtersOpen}
+        className="search-filter-toggle"
+        // biome-ignore lint/performance/noJsxPropsBind: This mobile disclosure owns one local boolean.
+        onClick={() => setFiltersOpen((open) => !open)}
+        variant="outline"
+      >
+        Filters and sort
+      </Button>
+      <section
+        aria-label="Search options"
+        className={filtersOpen ? "search-options search-options-open" : "search-options"}
+        id="search-options"
+      >
         <fieldset>
           <legend>Match</legend>
           <label>
@@ -362,15 +376,15 @@ export function SearchPage({
       </section>
 
       {state.query ? null : (
-        <p className="search-prompt">Enter one mark query to search Class 025 records.</p>
+        <p className="search-prompt">Search live and dead Class 025 word marks.</p>
       )}
       {query.isPending && state.query ? (
         <p className="search-message">Searching Class 025…</p>
       ) : null}
       {query.error ? (
         <div className="search-error">
-          <p className="error-message" role="alert">
-            {searchErrorMessage(conflict, replacementFailure)}
+          <p className={expectedUnavailable ? "search-unavailable" : "error-message"} role="alert">
+            {searchErrorMessage(trpcErrorCode(query.error), conflict, replacementFailure)}
           </p>
           {conflict ? (
             <Button
@@ -384,7 +398,25 @@ export function SearchPage({
         </div>
       ) : null}
       {data && !query.error && total === 0 ? (
-        <p className="search-message">No Class 025 marks match this search.</p>
+        <div className="search-empty">
+          <p>No matching marks</p>
+          <Button
+            // biome-ignore lint/performance/noJsxPropsBind: The empty state clears this page's URL-owned filters.
+            onClick={() =>
+              updateState({
+                exact: true,
+                partial: true,
+                registered: "all",
+                sort: "relevance",
+                status: "all",
+                type: "all",
+              })
+            }
+            variant="outline"
+          >
+            Clear filters
+          </Button>
+        </div>
       ) : null}
 
       {data && total > 0 && (!query.error || conflict || replacementFailure) ? (
@@ -396,16 +428,15 @@ export function SearchPage({
             <p>
               {data.pages[0]?.meta.dataThroughDate
                 ? `Data through ${data.pages[0].meta.dataThroughDate}`
-                : "Baseline sync in progress"}
+                : "Data sync active"}
             </p>
           </div>
-          <div
-            className="search-results-viewport"
-            data-testid="search-results-viewport"
-            key={restorationKey}
-            ref={viewportRef}
-          >
-            <div className="search-results-size" style={{ height: virtualizer.getTotalSize() }}>
+          <div className="search-results-list" key={restorationKey}>
+            <div
+              className="search-results-size"
+              ref={resultsRef}
+              style={{ height: virtualizer.getTotalSize() }}
+            >
               {virtualizer.getVirtualItems().map((virtualRow) => {
                 const item = items[virtualRow.index];
                 if (!item) {
@@ -418,44 +449,15 @@ export function SearchPage({
                     data-testid="search-result-row"
                     key={item.serialNumber}
                     ref={virtualizer.measureElement}
-                    style={{ transform: `translateY(${virtualRow.start}px)` }}
+                    style={{
+                      transform: `translateY(${virtualRow.start - virtualizer.options.scrollMargin}px)`,
+                    }}
                   >
-                    <a
-                      href={`/marks/${item.serialNumber}`}
-                      // biome-ignore lint/performance/noJsxPropsBind: Each result link closes over its serial number and scroll position.
-                      onClick={(event) => {
-                        if (
-                          event.button !== 0 ||
-                          event.metaKey ||
-                          event.ctrlKey ||
-                          event.shiftKey ||
-                          event.altKey
-                        ) {
-                          return;
-                        }
-                        event.preventDefault();
-                        onOpenMark(item.serialNumber, viewportRef.current?.scrollTop ?? 0);
-                      }}
-                    >
-                      {item.wordMark}
-                    </a>
-                    <div className="result-facts">
-                      <span>{item.match}</span>
-                      <span>{item.status}</span>
-                      <span>IC {item.internationalClasses.join(", ")}</span>
-                      <span>{item.type}</span>
-                    </div>
-                    <p>{item.owner ?? "Owner unavailable"}</p>
-                    <p className="result-goods">
-                      {item.goodsServicesExcerpt ?? "Goods/services unavailable"}
-                    </p>
-                    <p className="result-identities tabular-nums">
-                      Serial {item.serialNumber}
-                      {item.registrationNumber
-                        ? ` · Registration ${item.registrationNumber}`
-                        : " · Not registered"}
-                      {item.statusDate ? ` · Status ${item.statusDate}` : ""}
-                    </p>
+                    <MarkResultContent
+                      contextLabel={matchLabels[item.match]}
+                      item={item}
+                      onOpen={onOpenMark}
+                    />
                   </article>
                 );
               })}

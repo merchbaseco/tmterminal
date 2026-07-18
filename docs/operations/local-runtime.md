@@ -108,6 +108,9 @@ This opt-in is only for an API and Vite server running directly on the host; the
 Compose stack does not forward it or include Vite's development client.
 
 In Vite development only, the website requests a 60-second Clerk sign-in ticket from the local API and then establishes a normal Clerk session. The endpoint requires both an exact `127.0.0.1` Host header and an actual `127.0.0.1` peer; it is absent in production and when the server opt-in is unset. It does not bypass Clerk verification or create a fallback application credential.
+The exact configured development identity also receives read-only operator-page access so local UI
+work can inspect the production corpus without changing production role assignments. Production
+continues to require the database-backed operator role.
 
 Bootstrap or recover a host-managed caller directly against the service database:
 
@@ -134,7 +137,7 @@ bun run compose -- logs api
 
 ## Ingestion operations
 
-The authenticated operator page at `/ops/sync` is read-only. It shows annual baseline progress, provider lane, and bounded annual/daily source artifacts with state, counts, SHA, coverage, and current error. There are no host mutation commands, reprocessing versions, quarantine workflow, compatibility reader, or second rebuild engine.
+The authenticated operator page at `/ops/sync` is read-only. It presents synchronization as continuous work: processed marks and source records, corpus coverage, latest activity, provider health, and bounded source artifacts with state, counts, SHA, coverage, and current error. There are no host mutation commands, queue-progress framing, reprocessing versions, quarantine workflow, compatibility reader, or second rebuild engine.
 
 The worker derives restart work from `source_artifact`. Before source access it removes one unreferenced finalized ZIP, including any object left by a crash before retention was committed. A `downloading` artifact without a committed object becomes terminally failed and is never fetched again. Any failed artifact blocks later downloads. A retained projecting ZIP restarts its rolled-back artifact transaction and replaces only rows still owned by that product and filename. Complete and failed artifacts retain no raw ZIP. Provider backoff/stop state is database-backed and intentionally requires a corrected deployment or explicit database operation designed for the concrete incident; there is no generic recovery command.
 

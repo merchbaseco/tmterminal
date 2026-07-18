@@ -13,12 +13,15 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Menu, MenuLinkItem, MenuPopup, MenuTrigger } from "@/components/ui/menu";
 import type { AppRouter } from "../../server/src/api/router.ts";
 import { type AccountApi, ApiKeysPage } from "./api-keys-page.tsx";
+import { AppearanceMenu } from "./appearance-menu.tsx";
 import { DevAutoSignIn } from "./dev-auto-sign-in.tsx";
 import { type FreshnessApi, FreshnessPopover } from "./freshness-popover.tsx";
 import { type MarkApi, MarkDetailPage } from "./mark-detail-page.tsx";
 import { type OperatorSyncApi, OperatorSyncPage } from "./operator-sync-page.tsx";
+import { type ReportsApi, ReportsPage } from "./reports-page.tsx";
 import { type SearchApi, SearchPage } from "./search-page.tsx";
 
 interface BrowserLocation {
@@ -103,6 +106,10 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
     }),
     [client]
   );
+  const reportsApi = useMemo<ReportsApi>(
+    () => ({ run: (input) => client.reports.run.query(input) }),
+    [client]
+  );
   const operatorApi = useMemo<OperatorSyncApi>(
     () => ({
       artifacts: (input) => client.ops.sync.artifacts.query(input),
@@ -158,16 +165,27 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
   }, [location.pathname, location.search, location.state]);
 
   const markRoute = location.pathname.match(markPath);
+  const restoreScrollOffset =
+    typeof location.state.searchScrollOffset === "number" ? location.state.searchScrollOffset : 0;
   let page: ReactNode;
   if (markRoute?.[1]) {
     page = <MarkDetailPage api={markApi} onBack={handleMarkBack} serialNumber={markRoute[1]} />;
+  } else if (location.pathname === "/reports") {
+    page = (
+      <ReportsPage
+        api={reportsApi}
+        key={location.search}
+        onNavigate={handleSearchNavigate}
+        onOpenMark={handleOpenMark}
+        restoreScrollOffset={restoreScrollOffset}
+        search={location.search}
+      />
+    );
   } else if (location.pathname === "/ops/sync") {
     page = <OperatorSyncPage api={operatorApi} />;
   } else if (location.pathname === "/settings/api-keys") {
     page = <ApiKeysPage api={accountApi} />;
   } else {
-    const restoreScrollOffset =
-      typeof location.state.searchScrollOffset === "number" ? location.state.searchScrollOffset : 0;
     const replacementSourceSearch =
       typeof location.state.searchReplacementSource === "string"
         ? location.state.searchReplacementSource
@@ -213,28 +231,51 @@ function TopBar({
       <a className="wordmark" href="/search" onClick={navigate}>
         Trademark Turtle
       </a>
-      <nav aria-label="Primary">
-        <Show when="signed-in">
+      <Show when="signed-in">
+        <nav aria-label="Primary">
           <a href="/search" onClick={navigate}>
             Search
           </a>
+          <Menu>
+            <MenuTrigger render={<Button size="sm" variant="ghost" />}>Reports</MenuTrigger>
+            <MenuPopup align="start">
+              <MenuLinkItem href="/reports?event=filed&window=previous-week" onClick={navigate}>
+                Filed previous week
+              </MenuLinkItem>
+              <MenuLinkItem
+                href="/reports?event=registered&window=previous-week"
+                onClick={navigate}
+              >
+                Registered previous week
+              </MenuLinkItem>
+              <MenuLinkItem href="/reports?event=published-for-opposition" onClick={navigate}>
+                Published for opposition
+              </MenuLinkItem>
+            </MenuPopup>
+          </Menu>
           <a href="/settings/api-keys" onClick={navigate}>
             API Keys
           </a>
           {operator ? (
             <a href="/ops/sync" onClick={navigate}>
-              Sync ops
+              Operations
             </a>
           ) : null}
           {freshnessApi ? <FreshnessPopover api={freshnessApi} /> : null}
+        </nav>
+        <div className="top-bar-actions">
+          <AppearanceMenu />
           <UserButton />
-        </Show>
-        <Show when="signed-out">
+        </div>
+      </Show>
+      <Show when="signed-out">
+        <div className="top-bar-actions">
           <SignInButton mode="modal">
             <Button>Sign in</Button>
           </SignInButton>
-        </Show>
-      </nav>
+          <AppearanceMenu />
+        </div>
+      </Show>
     </header>
   );
 }
@@ -278,7 +319,7 @@ function SignedOutSearch({ search }: { search: string }) {
         <br />
         TURTLE
       </h1>
-      <p>Compose one literal query. Sign in with your MerchBase account to run it.</p>
+      <p>Sign in with your MerchBase account to run your search.</p>
       <form className="search-form signed-out-search" onSubmit={handleSubmit}>
         <label className="sr-only" htmlFor="signed-out-search">
           Search trademarks
@@ -287,7 +328,7 @@ function SignedOutSearch({ search }: { search: string }) {
           id="signed-out-search"
           maxLength={200}
           onChange={handleChange}
-          placeholder="One literal mark query"
+          placeholder="Search a word mark"
           required
           size="lg"
           type="search"

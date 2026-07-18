@@ -24,6 +24,7 @@ type SearchApi = import("../src/search-page.tsx").SearchApi;
 type SearchPageResult = Awaited<ReturnType<SearchApi["search"]>>;
 
 const markLinkPattern = /TURTLE MARK/;
+const serialIdentityPattern = /Serial 70000001/;
 const noop = () => undefined;
 
 function required<T>(value: T | null | undefined, message: string): T {
@@ -183,7 +184,7 @@ test("URL state drives exact-only, partial-only, both, and server filters", asyn
     "?q=turtle&mode=multi&exact=true&partial=false&status=dead&type=design&registered=yes&sort=oldest-activity"
   );
 
-  await screen.findByText("No Class 025 marks match this search.");
+  await screen.findByText("No matching marks");
   expect(inputs[0]).toEqual({
     limit: 25,
     match: "exact",
@@ -214,7 +215,7 @@ test("submitting a draft query updates the URL-owned request", async () => {
     },
   };
   renderSearch(api);
-  await screen.findByText("No Class 025 marks match this search.");
+  await screen.findByText("No matching marks");
 
   fireEvent.change(screen.getByRole("searchbox", { name: "Search trademarks" }), {
     target: { value: "new literal % query" },
@@ -223,6 +224,17 @@ test("submitting a draft query updates the URL-owned request", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
   await waitFor(() => expect(queries).toEqual(["turtle", "new literal % query"]));
+});
+
+test("search controls and result facts use customer-facing language", async () => {
+  renderSearch({ search: () => Promise.resolve(resultPage(0, 1, 1)) });
+
+  expect(screen.getByPlaceholderText("Search a word mark")).toBeTruthy();
+  await screen.findByRole("link", { name: "TURTLE MARK 1" });
+  expect(screen.getByText("Exact match")).toBeTruthy();
+  expect(screen.getAllByText("Live").length).toBeGreaterThan(0);
+  expect(screen.getByText("Text mark")).toBeTruthy();
+  expect(screen.getByText(serialIdentityPattern)).toBeTruthy();
 });
 
 test("a failed replacement search keeps the previous successful results", async () => {
@@ -279,19 +291,45 @@ test("normalizes whitespace-only and double-disabled direct URL state", async ()
     },
   };
   const whitespace = renderSearch(api, "?q=+++&mode=multi&exact=false&partial=false");
-  expect(screen.getByText("Enter one mark query to search Class 025 records.")).toBeTruthy();
+  expect(screen.getByText("Search live and dead Class 025 word marks.")).toBeTruthy();
   expect(inputs).toHaveLength(0);
   whitespace.view.unmount();
 
   renderSearch(api, "?q=turtle&mode=multi&exact=false&partial=false");
-  await screen.findByText("No Class 025 marks match this search.");
+  await screen.findByText("No matching marks");
   expect(inputs[0]?.match).toBe("partial");
   expect((screen.getByRole("checkbox", { name: "Partial" }) as HTMLInputElement).checked).toBe(
     true
   );
 });
 
-test("infinite pagination pins data version and keeps the list virtualized", async () => {
+test("an empty filtered search can clear filters without changing the query", async () => {
+  const inputs: Parameters<SearchApi["search"]>[0][] = [];
+  renderSearch(
+    {
+      search: (input) => {
+        inputs.push(input);
+        return Promise.resolve(resultPage(0, 0, 0));
+      },
+    },
+    "?q=turtle&mode=multi&exact=true&partial=true&status=dead&type=design&registered=no&sort=oldest-activity"
+  );
+
+  await screen.findByText("No matching marks");
+  fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+
+  await waitFor(() =>
+    expect(inputs.at(-1)).toMatchObject({
+      query: "turtle",
+      registered: "all",
+      sort: "relevance",
+      status: "all",
+      type: "all",
+    })
+  );
+});
+
+test("infinite pagination pins data version and keeps the document list virtualized", async () => {
   const inputs: Parameters<SearchApi["search"]>[0][] = [];
   const api: SearchApi = {
     search: (input) => {
@@ -303,6 +341,7 @@ test("infinite pagination pins data version and keeps the list virtualized", asy
 
   await screen.findByText("26 results");
   expect(screen.getAllByTestId("search-result-row").length).toBeLessThan(25);
+  expect(screen.queryByTestId("search-results-viewport")).toBeNull();
   await act(() =>
     intersectionCallback?.(
       [{ isIntersecting: true } as IntersectionObserverEntry],
@@ -325,7 +364,7 @@ test("renders loading, empty, server error, and typed continuation conflict with
   const loading = renderSearch(loadingApi);
   expect(screen.getByText("Searching Class 025…")).toBeTruthy();
   resolveFirst?.(resultPage(0, 0, 0));
-  expect(await screen.findByText("No Class 025 marks match this search.")).toBeTruthy();
+  expect(await screen.findByText("No matching marks")).toBeTruthy();
   loading.view.unmount();
 
   const serverError = Object.assign(new Error("database unavailable"), {
@@ -335,6 +374,17 @@ test("renders loading, empty, server error, and typed continuation conflict with
     search: () => Promise.reject(serverError),
   });
   expect((await screen.findByRole("alert")).textContent).toBe("Search could not be loaded.");
+  cleanup();
+
+  const corpusBuilding = Object.assign(new Error("corpus unavailable"), {
+    data: { code: "SERVICE_UNAVAILABLE" },
+  });
+  renderSearch({
+    search: () => Promise.reject(corpusBuilding),
+  });
+  expect((await screen.findByRole("alert")).textContent).toBe(
+    "Search is temporarily unavailable. Check Corpus freshness and try again."
+  );
   cleanup();
 
   renderSearch({
@@ -416,9 +466,17 @@ test("a stale replacement transition cannot expose results after a continuation 
   expect(inputs.at(-1)).toMatchObject({ offset: 25, query: "replacement" });
 });
 
-test("the query cache and browser-entry offset restore two loaded pages and scroll after detail", async () => {
+test("the query cache and browser entry restore loaded pages and document scroll after detail", async () => {
   let calls = 0;
+  let documentScroll = 0;
   const opened: [string, number][] = [];
+  Object.defineProperty(window, "scrollY", {
+    configurable: true,
+    get: () => documentScroll,
+  });
+  window.scrollTo = ((_x: number, y: number) => {
+    documentScroll = y;
+  }) as typeof window.scrollTo;
   const api: SearchApi = {
     search: (input) => {
       calls += 1;
@@ -448,8 +506,7 @@ test("the query cache and browser-entry offset restore two loaded pages and scro
     )
   );
   await waitFor(() => expect(calls).toBe(2));
-  const viewport = screen.getByTestId("search-results-viewport");
-  viewport.scrollTop = 420;
+  documentScroll = 420;
   const link = required(
     screen.getAllByRole("link", { name: markLinkPattern })[0],
     "expected first mark link"
@@ -460,6 +517,7 @@ test("the query cache and browser-entry offset restore two loaded pages and scro
   expect(opened).toEqual([["70000001", 420]]);
   vi.useFakeTimers();
   first.unmount();
+  documentScroll = 0;
   await act(() => vi.advanceTimersByTime(5 * 60 * 1000 + 1));
   vi.useRealTimers();
 
@@ -469,14 +527,22 @@ test("the query cache and browser-entry offset restore two loaded pages and scro
     </QueryClientProvider>
   );
   await screen.findByText("26 results");
-  await waitFor(() => expect(screen.getByTestId("search-results-viewport").scrollTop).toBe(420));
+  await waitFor(() => expect(window.scrollY).toBe(420));
   const cached = queryClient.getQueryCache().findAll({ queryKey: ["marks.search"] })[0]?.state
     .data as { pages: unknown[] } | undefined;
   expect(cached?.pages).toHaveLength(2);
   expect(calls).toBe(2);
 });
 
-test("a new URL-owned search entry starts at its stored top offset", async () => {
+test("a new URL-owned search entry starts at the top of the document", async () => {
+  let documentScroll = 0;
+  Object.defineProperty(window, "scrollY", {
+    configurable: true,
+    get: () => documentScroll,
+  });
+  window.scrollTo = ((_x: number, y: number) => {
+    documentScroll = y;
+  }) as typeof window.scrollTo;
   const inputs: Parameters<SearchApi["search"]>[0][] = [];
   const api: SearchApi = {
     search: (input) => {
@@ -497,12 +563,11 @@ test("a new URL-owned search entry starts at its stored top offset", async () =>
     )
   );
   await waitFor(() => expect(inputs).toHaveLength(2));
-  const viewport = screen.getByTestId("search-results-viewport");
-  viewport.scrollTop = 420;
+  documentScroll = 420;
 
   fireEvent.change(screen.getByLabelText("Status"), { target: { value: "dead" } });
 
   await screen.findByText("1 result");
-  await waitFor(() => expect(screen.getByTestId("search-results-viewport").scrollTop).toBe(0));
+  await waitFor(() => expect(window.scrollY).toBe(0));
   expect(inputs.at(-1)).toMatchObject({ offset: 0, status: "dead" });
 });

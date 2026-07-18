@@ -5,6 +5,7 @@ import { buildServer } from "../../src/api/server.ts";
 import { migrateDatabase } from "../../src/db/migrate.ts";
 import type { ProjectedMark } from "../../src/ingestion/mark-types.ts";
 import { buildMultiSearchQueries } from "../../src/queries/multi-search.ts";
+import { runReport } from "../../src/queries/reports.ts";
 import { resetTestDatabase } from "./test-database.ts";
 import { createTestMarkRepository } from "./test-mark-repository.ts";
 
@@ -15,6 +16,17 @@ if (!databaseUrl) {
 
 const database = postgres(databaseUrl, { max: 2, prepare: false });
 let server: Awaited<ReturnType<typeof buildServer>>;
+
+function previousWeek(today = new Date()) {
+  const current = new Date(
+    Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())
+  );
+  const day = current.getUTCDay() || 7;
+  current.setUTCDate(current.getUTCDate() - day - 6);
+  const from = current.toISOString().slice(0, 10);
+  current.setUTCDate(current.getUTCDate() + 6);
+  return { from, to: current.toISOString().slice(0, 10) };
+}
 
 function mark(
   serialNumber: string,
@@ -53,6 +65,7 @@ beforeAll(async () => {
   await resetTestDatabase(database);
   await migrateDatabase(databaseUrl);
   const repository = createTestMarkRepository(database);
+  const reportWindow = previousWeek();
   await repository.replace(mark("10000001", "Caf\u00e9 Society"));
   await repository.replace(mark("10000002", "Cafe\u0301"));
   await repository.replace(mark("10000003", "THE CAF\u00c9 SOCIETY CLUB", { statusCode: "626" }));
@@ -70,6 +83,48 @@ beforeAll(async () => {
   await repository.replace(mark("10000011", "PATH\\MARK SYMBOL"));
   await repository.replace(mark("10000012", "PATHXMARK SYMBOL"));
   await repository.replace(mark("10000013", "ᴬ"));
+  await repository.replace(
+    mark("50000001", "FILED REPORT MARK", {
+      filingDate: reportWindow.from,
+    })
+  );
+  await repository.replace(
+    mark("50000002", "REGISTERED REPORT MARK", {
+      registrationDate: reportWindow.to,
+      registrationNumber: "4000002",
+    })
+  );
+  await repository.replace(
+    mark("50000003", "OPPOSITION REPORT MARK", {
+      statusCode: "686",
+    })
+  );
+  await repository.replace(
+    mark("50000004", "FILTERED FILED REPORT MARK", {
+      filingDate: reportWindow.to,
+      markDrawingCode: "2",
+      registrationNumber: "5000004",
+      sourceTransactionDate: "2026-07-08",
+      statusCode: "626",
+    })
+  );
+  await database`
+    insert into mark ${database(
+      Array.from({ length: 26 }, (_, index) => ({
+        filing_date: reportWindow.from,
+        mark_drawing_code: "4",
+        normalization_version: "uspto-normalization-v1",
+        serial_number: String(51_000_001 + index),
+        source_filename: "test.zip",
+        source_physical_record_index: index + 1,
+        source_product: "TRTYRAP",
+        source_sha256: "a".repeat(64),
+        source_transaction_date: "2026-07-09",
+        status_code: "616",
+        word_mark: `REPORT PAGE ${index + 1}`,
+      }))
+    )}
+  `;
   await repository.replace(
     mark("30000001", "POLICY ACTIVE 25", {
       markDrawingCode: "4",
@@ -143,8 +198,20 @@ beforeAll(async () => {
     set complete_through_date = '2026-07-10', version = 7
     where id = 'uspto'
   `;
+  await database`
+    insert into source_artifact (
+      id, product, filename, download_url, expected_bytes, source_from_date, source_to_date, updated_at
+    ) values
+      ('81000000-0000-4000-8000-000000000001', 'TEST', 'source-part-01.zip',
+        'https://example.test/01.zip', 1, '2026-01-01', '2026-01-01', '2026-07-18T03:00:00Z'),
+      ('81000000-0000-4000-8000-000000000002', 'TEST', 'source-part-02.zip',
+        'https://example.test/02.zip', 1, '2026-01-02', '2026-01-02', '2026-07-18T02:00:00Z'),
+      ('81000000-0000-4000-8000-000000000003', 'TEST', 'source-part-03.zip',
+        'https://example.test/03.zip', 1, '2026-01-03', '2026-01-03', '2026-07-18T01:00:00Z')
+  `;
   server = await buildServer({
     databaseUrl,
+    devClerkSignIn: { createToken: async () => "unused", userId: "user_prd65" },
     logger: false,
     verifyClerkToken: async (token) => (token === "clerk-session" ? "user_prd65" : null),
   });
@@ -162,6 +229,144 @@ function search(input: Record<string, unknown>, authorization = "Bearer clerk-se
     url: `/api/trpc/marks.search?input=${encodeURIComponent(JSON.stringify(input))}`,
   });
 }
+
+function report(input: Record<string, unknown>) {
+  return server.inject({
+    headers: { authorization: "Bearer clerk-session" },
+    method: "GET",
+    url: `/api/trpc/reports.run?input=${encodeURIComponent(JSON.stringify(input))}`,
+  });
+}
+
+function operatorArtifacts(input: Record<string, unknown>) {
+  return server.inject({
+    headers: { authorization: "Bearer clerk-session" },
+    method: "GET",
+    url: `/api/trpc/ops.sync.artifacts?input=${encodeURIComponent(JSON.stringify(input))}`,
+  });
+}
+
+test("operator artifact pagination keeps immutable source order", async () => {
+  const first = await operatorArtifacts({ limit: 2, offset: 0 });
+  await database`
+    update source_artifact set updated_at = '2026-07-18T04:00:00Z'
+    where filename = 'source-part-01.zip'
+  `;
+  await database`
+    insert into source_artifact (
+      id, product, filename, download_url, expected_bytes, source_from_date, source_to_date
+    ) values (
+      '81000000-0000-4000-8000-000000000004', 'TEST', 'source-part-04.zip',
+      'https://example.test/04.zip', 1, '2026-01-04', '2026-01-04'
+    )
+  `;
+  const second = await operatorArtifacts({ limit: 2, offset: 2 });
+
+  expect(first.statusCode).toBe(200);
+  expect(first.json().result.data.items.map((item: { filename: string }) => item.filename)).toEqual(
+    ["source-part-01.zip", "source-part-02.zip"]
+  );
+  expect(
+    second.json().result.data.items.map((item: { filename: string }) => item.filename)
+  ).toEqual(["source-part-03.zip", "source-part-04.zip"]);
+});
+
+test("report presets use milestone dates and the current opposition status", async () => {
+  const window = previousWeek();
+  const filed = await report({ event: "filed", window: "previous-week" });
+  const registered = await report({ event: "registered", window: "previous-week" });
+  const opposition = await report({ event: "published-for-opposition" });
+
+  expect(filed.statusCode).toBe(200);
+  expect(filed.json().result.data).toMatchObject({
+    from: window.from,
+    to: window.to,
+    total: 28,
+  });
+  expect(filed.json().result.data.items[0]).toMatchObject({ serialNumber: "50000001" });
+  expect(registered.json().result.data).toMatchObject({
+    items: [{ serialNumber: "50000002" }],
+    total: 1,
+  });
+  expect(opposition.json().result.data).toMatchObject({
+    from: null,
+    items: [{ serialNumber: "50000003" }],
+    to: null,
+    total: 1,
+  });
+});
+
+test("reports filter, count, paginate, and pin the data version", async () => {
+  const preset = {
+    event: "filed",
+    registered: "no",
+    status: "live",
+    type: "text",
+    window: "previous-week",
+  };
+  const first = await report(preset);
+  const { from, to } = first.json().result.data;
+  const missingVersion = await report({ ...preset, offset: 25 });
+  const missingWindow = await report({ ...preset, expectedDataVersion: "7", offset: 25 });
+  const second = await report({
+    ...preset,
+    expectedDataVersion: "7",
+    expectedFrom: from,
+    expectedTo: to,
+    offset: 25,
+  });
+  const filtered = await report({
+    event: "filed",
+    registered: "yes",
+    status: "dead",
+    type: "design",
+    window: "previous-week",
+  });
+  await database`update data_state set version = 8 where id = 'uspto'`;
+  const conflict = await report({
+    ...preset,
+    expectedDataVersion: "7",
+    expectedFrom: from,
+    expectedTo: to,
+    offset: 25,
+  });
+  await database`update data_state set version = 7 where id = 'uspto'`;
+
+  expect(first.json().result.data).toMatchObject({ limit: 25, offset: 0, total: 27 });
+  expect(first.json().result.data.items).toHaveLength(25);
+  expect(missingVersion.statusCode).toBe(400);
+  expect(missingWindow.statusCode).toBe(400);
+  expect(second.json().result.data).toMatchObject({ offset: 25, total: 27 });
+  expect(second.json().result.data.items).toHaveLength(2);
+  expect(filtered.json().result.data).toMatchObject({
+    items: [{ serialNumber: "50000004" }],
+    total: 1,
+  });
+  expect(conflict.statusCode).toBe(409);
+  expect(conflict.json().error.data.code).toBe("CONFLICT");
+});
+
+test("pinned report pages reject a previous-week boundary change", async () => {
+  await expect(
+    runReport(
+      database,
+      {
+        event: "filed",
+        expectedDataVersion: "7",
+        expectedFrom: "2026-06-29",
+        expectedTo: "2026-07-05",
+        limit: 25,
+        offset: 0,
+        registered: "all",
+        sort: "newest-activity",
+        status: "all",
+        type: "all",
+        window: "previous-week",
+      },
+      new Date("2026-07-13T00:00:00Z")
+    )
+  ).rejects.toThrow("Report window changed during pagination");
+});
 
 test("Multi returns the same page through Clerk and API-key credentials", async () => {
   const created = await server.inject({

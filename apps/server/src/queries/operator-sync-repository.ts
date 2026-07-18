@@ -24,3 +24,22 @@ export async function readOperatorArtifacts(
   `;
   return { items, total: count?.total ?? 0 };
 }
+
+interface OperatorSourceSummaryRow {
+  lastActivityAt: Date | null;
+  physicalRecordCount: string;
+  projectedMarkCount: string;
+}
+
+export async function readOperatorSourceSummary(database: postgres.Sql) {
+  const [summary] = await database<OperatorSourceSummaryRow[]>`
+    select max(updated_at) as "lastActivityAt",
+      coalesce(sum(physical_record_count) filter (where state = 'complete'), 0)::text as "physicalRecordCount",
+      coalesce(sum(projected_mark_count) filter (where state = 'complete'), 0)::text as "projectedMarkCount"
+    from source_artifact
+  `;
+  if (!summary) {
+    throw new Error("Operator source summary is unavailable");
+  }
+  return summary;
+}

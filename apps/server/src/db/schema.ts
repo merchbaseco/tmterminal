@@ -136,6 +136,13 @@ export const mark = pgTable(
       .on(table.registrationNumber)
       .where(sql`${table.registrationNumber} is not null`),
     index("mark_word_mark_exact_idx").using("hash", table.wordMarkNormalized),
+    index("mark_filing_date_idx").on(table.filingDate, table.serialNumber),
+    index("mark_registration_date_idx").on(table.registrationDate, table.serialNumber),
+    index("mark_status_activity_idx").on(
+      table.statusCode,
+      table.sourceTransactionDate,
+      table.serialNumber
+    ),
     index("mark_word_mark_normalized_trgm_idx").using(
       "gin",
       sql`${table.wordMarkNormalized} gin_trgm_ops`

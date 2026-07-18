@@ -3,21 +3,31 @@ import Fastify, { type FastifyRequest, type FastifyServerOptions } from "fastify
 
 import { createClerkVerifier, type VerifyClerkToken } from "../auth/clerk-verifier.ts";
 import { createDatabaseClient } from "../db/client.ts";
+import { createAppContext } from "./context.ts";
 import {
   configuredDevClerkSignIn,
   type DevClerkSignIn,
   registerDevClerkSignIn,
 } from "./dev-clerk-sign-in.ts";
-import { createAppContext } from "./context.ts";
 import { appRouter } from "./router.ts";
 
-type BuildServerOptions = {
+interface BuildServerOptions {
   databaseUrl: string;
   devClerkSignIn?: DevClerkSignIn | null;
   logger?: FastifyServerOptions["logger"];
   nodeEnv?: string;
   verifyClerkToken?: VerifyClerkToken;
-};
+}
+
+function resolveDevClerkSignIn(
+  nodeEnv: string | undefined,
+  configured: DevClerkSignIn | null | undefined
+) {
+  if (nodeEnv === "production") {
+    return null;
+  }
+  return configured === undefined ? configuredDevClerkSignIn() : configured;
+}
 
 function configuredClerkVerifier() {
   const authorizedParties = process.env.CLERK_AUTHORIZED_PARTIES?.split(",")
@@ -39,12 +49,7 @@ export async function buildServer({
 }: BuildServerOptions) {
   const database = createDatabaseClient(databaseUrl);
   const server = Fastify({ logger });
-  const resolvedDevClerkSignIn =
-    nodeEnv === "production"
-      ? null
-      : devClerkSignIn === undefined
-        ? configuredDevClerkSignIn()
-        : devClerkSignIn;
+  const resolvedDevClerkSignIn = resolveDevClerkSignIn(nodeEnv, devClerkSignIn);
 
   registerDevClerkSignIn(server, resolvedDevClerkSignIn);
 
@@ -65,6 +70,7 @@ export async function buildServer({
           authorization: req.headers.authorization,
           cookie: req.headers.cookie,
           database,
+          devOperatorClerkUserId: resolvedDevClerkSignIn?.userId,
           verifyClerkToken,
         }),
       router: appRouter,

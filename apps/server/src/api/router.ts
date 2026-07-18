@@ -6,9 +6,11 @@ import type {
   AuthenticatedAccount,
   MarksService,
   OperatorSyncService,
+  ReportsService,
   SyncService,
 } from "./contracts.ts";
 import { multiSearchInputSchema } from "./multi-search-input.ts";
+import { reportInputSchema } from "./report-input.ts";
 
 export interface AppContext {
   account: AccountService;
@@ -16,6 +18,7 @@ export interface AppContext {
   marks: MarksService;
   operator: boolean;
   operatorSync: OperatorSyncService;
+  reports: ReportsService;
   sync: SyncService;
 }
 
@@ -92,9 +95,24 @@ const syncRouter = t.router({
   status: t.procedure.query(({ ctx }) => ctx.sync.status()),
 });
 
+const reportsRouter = t.router({
+  run: t.procedure.input(reportInputSchema).query(async ({ ctx, input }) => {
+    try {
+      return await ctx.reports.run(input);
+    } catch (error) {
+      if (error instanceof DataVersionConflictError) {
+        // biome-ignore lint/style/useErrorCause: TRPCError receives the original cause in its options.
+        throw new TRPCError({ cause: error, code: "CONFLICT", message: error.message });
+      }
+      throw error;
+    }
+  }),
+});
+
 export const authenticatedClientRouter = t.router({
   account: accountRouter,
   marks: marksRouter,
+  reports: reportsRouter,
   sync: syncRouter,
 });
 
@@ -109,6 +127,7 @@ export const appRouter = t.router({
       status: operatorProcedure.query(({ ctx }) => ctx.operatorSync.status()),
     }),
   }),
+  reports: reportsRouter,
   sync: syncRouter,
   viewer: t.router({
     role: clerkProcedure.query(({ ctx }) => ({ operator: ctx.operator })),
