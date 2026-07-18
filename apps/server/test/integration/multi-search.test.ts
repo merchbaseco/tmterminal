@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import postgres from "postgres";
-import { multiSearchInputSchema } from "../../src/api/multi-search-input.ts";
+import { searchInputSchema } from "../../src/api/search-input.ts";
 import { buildServer } from "../../src/api/server.ts";
 import { migrateDatabase } from "../../src/db/migrate.ts";
 import type { ProjectedMark } from "../../src/ingestion/mark-types.ts";
-import { buildMultiSearchQueries } from "../../src/queries/multi-search.ts";
 import { runReport } from "../../src/queries/reports.ts";
+import { buildSearchQueries } from "../../src/queries/search.ts";
 import { resetTestDatabase } from "./test-database.ts";
 import { createTestMarkRepository } from "./test-mark-repository.ts";
 
@@ -83,6 +83,17 @@ beforeAll(async () => {
   await repository.replace(mark("10000011", "PATH\\MARK SYMBOL"));
   await repository.replace(mark("10000012", "PATHXMARK SYMBOL"));
   await repository.replace(mark("10000013", "ᴬ"));
+  await repository.replace(mark("11000001", "Naïve 東京 Club"));
+  await repository.replace(mark("11000002", "Naïve 東京"));
+  await repository.replace(mark("11000003", "東京 Club"));
+  await repository.replace(mark("11000004", "Naïve"));
+  await repository.replace(mark("11000005", "東京"));
+  await repository.replace(mark("11000006", "Club"));
+  await repository.replace(mark("11000007", "Naïve Club"));
+  await repository.replace(mark("11000008", "Naïve"));
+  await repository.replace(mark("11000009", "PUNCTALPHA PUNCTBETA"));
+  await repository.replace(mark("11000010", "PUNCTALPHA"));
+  await repository.replace(mark("11000011", "PUNCTBETA"));
   await repository.replace(
     mark("50000001", "FILED REPORT MARK", {
       filingDate: reportWindow.from,
@@ -179,6 +190,30 @@ beforeAll(async () => {
     select serial_number, 1, '025', '6', '2026-07-10',
       source_product, source_filename, source_sha256, source_physical_record_index
     from mark where word_mark like 'PAGINATION %'
+  `;
+  await database`
+    insert into mark ${database(
+      Array.from({ length: 27 }, (_, index) => ({
+        mark_drawing_code: "4",
+        normalization_version: "uspto-normalization-v1",
+        registration_number: String(6_000_001 + index),
+        serial_number: String(22_000_001 + index),
+        source_filename: "test.zip",
+        source_physical_record_index: index + 1,
+        source_product: "TRTYRAP",
+        source_sha256: "a".repeat(64),
+        source_transaction_date: "2026-07-10",
+        status_code: "616",
+        word_mark: "SPLIT PAGE",
+      }))
+    )}
+  `;
+  await database`
+    insert into mark_class (serial_number, ordinal, international_code, status_code, status_date,
+      source_product, source_filename, source_sha256, source_physical_record_index)
+    select serial_number, 1, '025', '6', '2026-07-10',
+      source_product, source_filename, source_sha256, source_physical_record_index
+    from mark where word_mark = 'SPLIT PAGE'
   `;
   await repository.replace(
     mark("20000028", "PAGINATION WRONG STATUS", {
@@ -427,6 +462,139 @@ test("Multi lowercases compatibility characters after NFKC", async () => {
   });
 });
 
+test("Split searches every adjacent Unicode word-token combination in stable relevance order", async () => {
+  const response = await search({ mode: "split", query: "  NAI\u0308VE—東京, club  " });
+
+  expect(response.statusCode).toBe(200);
+  expect(response.json().result.data).toMatchObject({
+    items: [
+      { match: "exact", serialNumber: "11000001" },
+      { match: "exact", serialNumber: "11000002" },
+      { match: "exact", serialNumber: "11000003" },
+      { match: "exact", serialNumber: "11000004" },
+      { match: "exact", serialNumber: "11000008" },
+      { match: "exact", serialNumber: "11000005" },
+      { match: "exact", serialNumber: "11000006" },
+    ],
+    meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
+    total: 7,
+  });
+  expect(
+    response.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber)
+  ).not.toContain("11000007");
+});
+
+test("Split rejects punctuation-only queries and Multi-only match selection", async () => {
+  const punctuation = await search({ mode: "split", query: "—!?" });
+  const match = await search({ match: "exact", mode: "split", query: "turtle club" });
+
+  expect(punctuation.statusCode).toBe(400);
+  expect(punctuation.json().error.data.code).toBe("BAD_REQUEST");
+  expect(match.statusCode).toBe(400);
+  expect(match.json().error.data.code).toBe("BAD_REQUEST");
+});
+
+test("Split treats retained word punctuation as token separators", async () => {
+  const responses = await Promise.all(
+    ["punctalpha.punctbeta", "punctalpha_punctbeta", "punctalpha'punctbeta"].map((query) =>
+      search({ mode: "split", query })
+    )
+  );
+
+  for (const response of responses) {
+    expect(response.statusCode).toBe(200);
+    expect(
+      response.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber)
+    ).toEqual(["11000009", "11000010", "11000011"]);
+  }
+});
+
+test("Wildcard matches the whole normalized mark and treats SQL pattern characters literally", async () => {
+  const whole = await search({ mode: "wildcard", query: "turtle" });
+  const zeroOrMore = await search({ mode: "wildcard", query: "turtle*club" });
+  const percent = await search({ mode: "wildcard", query: "*50% symbol" });
+  const underscore = await search({ mode: "wildcard", query: "a_b symbol*" });
+  const backslash = await search({ mode: "wildcard", query: "path\\mark*" });
+
+  expect(
+    whole.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber)
+  ).toEqual(["10000004"]);
+  expect(
+    zeroOrMore.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber)
+  ).toEqual(["10000005"]);
+  expect(
+    percent.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber)
+  ).toEqual(["10000007"]);
+  expect(
+    underscore.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber)
+  ).toEqual(["10000009"]);
+  expect(
+    backslash.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber)
+  ).toEqual(["10000011"]);
+});
+
+test("Wildcard rejects unindexed degenerate patterns and Multi-only match selection", async () => {
+  const onlyStars = await search({ mode: "wildcard", query: "***" });
+  const shortRuns = await search({ mode: "wildcard", query: "*a*b*" });
+  const sqlMetacharactersOnly = await search({ mode: "wildcard", query: "%_\\*" });
+  const match = await search({ match: "partial", mode: "wildcard", query: "turtle*" });
+
+  expect(onlyStars.statusCode).toBe(400);
+  expect(onlyStars.json().error.data.code).toBe("BAD_REQUEST");
+  expect(shortRuns.statusCode).toBe(400);
+  expect(shortRuns.json().error.data.code).toBe("BAD_REQUEST");
+  expect(sqlMetacharactersOnly.statusCode).toBe(400);
+  expect(sqlMetacharactersOnly.json().error.data.code).toBe("BAD_REQUEST");
+  expect(match.statusCode).toBe(400);
+  expect(match.json().error.data.code).toBe("BAD_REQUEST");
+});
+
+test("Split and Wildcard preserve filters, count, and pinned 25-item pagination", async () => {
+  const filters = { registered: "yes", status: "live", type: "text" };
+  const pages = await Promise.all(
+    [
+      { mode: "split", query: "split page" },
+      { mode: "wildcard", query: "split*" },
+    ].map((input) =>
+      Promise.all([
+        search({ ...filters, ...input }),
+        search({
+          ...filters,
+          ...input,
+          expectedDataVersion: "7",
+          offset: 25,
+        }),
+      ])
+    )
+  );
+
+  for (const [first, second] of pages) {
+    expect(first.statusCode).toBe(200);
+    expect(first.json().result.data).toMatchObject({ limit: 25, offset: 0, total: 27 });
+    expect(first.json().result.data.items).toHaveLength(25);
+    expect(second.statusCode).toBe(200);
+    expect(second.json().result.data).toMatchObject({ offset: 25, total: 27 });
+    expect(second.json().result.data.items).toHaveLength(2);
+  }
+});
+
+test("search modes never interpret exact identity fields as word-mark matches", async () => {
+  const inputs = [
+    { mode: "multi", query: "10000004" },
+    { mode: "split", query: "10000004" },
+    { mode: "wildcard", query: "10000004" },
+    { mode: "multi", query: "3000001" },
+    { mode: "split", query: "3000001" },
+    { mode: "wildcard", query: "3000001" },
+  ];
+
+  const responses = await Promise.all(inputs.map((input) => search(input)));
+  for (const response of responses) {
+    expect(response.statusCode).toBe(200);
+    expect(response.json().result.data).toMatchObject({ items: [], total: 0 });
+  }
+});
+
 test("exact lookups return not found when an identity is absent", async () => {
   const absentSerial = await server.inject({
     headers: { authorization: "Bearer clerk-session" },
@@ -589,7 +757,7 @@ test("rejects the retired class-filter input", async () => {
   expect(response.json().error.data.code).toBe("BAD_REQUEST");
 });
 
-test("representative-scale exact and partial plans use general and live indexes", async () => {
+test("representative-scale search modes use exact and trigram indexes", async () => {
   await database`
     insert into mark (
       serial_number,
@@ -609,7 +777,7 @@ test("representative-scale exact and partial plans use general and live indexes"
   await database.unsafe("vacuum analyze mark");
 
   async function indexPlan(input: unknown) {
-    const query = buildMultiSearchQueries(multiSearchInputSchema.parse(input));
+    const query = buildSearchQueries(searchInputSchema.parse(input));
     const plan = await database.unsafe(
       `explain (format json) ${query.items.text}`,
       query.items.values
@@ -639,9 +807,19 @@ test("representative-scale exact and partial plans use general and live indexes"
     query: "needle 042400",
     status: "live",
   });
+  const split = await indexPlan({
+    mode: "split",
+    query: "plan needle 042421",
+  });
+  const wildcard = await indexPlan({
+    mode: "wildcard",
+    query: "plan*042421",
+  });
 
   expect(generalExact).toContain("mark_word_mark_exact_idx");
   expect(generalPartial).toContain("mark_word_mark_normalized_trgm_idx");
   expect(liveExact).toContain("mark_live_word_mark_exact_idx");
   expect(livePartial).toContain("mark_live_word_mark_normalized_trgm_idx");
+  expect(split).toContain("mark_word_mark_exact_idx");
+  expect(wildcard).toContain("mark_word_mark_normalized_trgm_idx");
 }, 60_000);

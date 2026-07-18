@@ -1,6 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { DataVersionConflictError } from "../queries/multi-search.ts";
+import { DataVersionConflictError } from "../queries/search.ts";
 import type {
   AccountService,
   AuthenticatedAccount,
@@ -9,8 +9,8 @@ import type {
   ReportsService,
   SyncService,
 } from "./contracts.ts";
-import { multiSearchInputSchema } from "./multi-search-input.ts";
 import { reportInputSchema } from "./report-input.ts";
+import { searchInputSchema } from "./search-input.ts";
 
 export interface AppContext {
   account: AccountService;
@@ -78,7 +78,7 @@ const marksRouter = t.router({
       }
       return mark;
     }),
-  search: t.procedure.input(multiSearchInputSchema).query(async ({ ctx, input }) => {
+  search: t.procedure.input(searchInputSchema).query(async ({ ctx, input }) => {
     try {
       return await ctx.marks.search(input);
     } catch (error) {

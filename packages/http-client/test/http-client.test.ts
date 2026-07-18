@@ -49,7 +49,7 @@ test("calls the typed marks router with the configured API key", async () => {
   expect(authorizations).toEqual(["Bearer ttk_test_secret"]);
 });
 
-test("derives the Multi search request and page types from the server router", async () => {
+test("derives every search mode and page type from the server router", async () => {
   const requests: URL[] = [];
   server = Bun.serve({
     fetch(request) {
@@ -69,18 +69,28 @@ test("derives the Multi search request and page types from the server router", a
     hostname: "127.0.0.1",
     port: 0,
   });
-  const input: TmturtleRouterInputs["marks"]["search"] = {
+  const multi: TmturtleRouterInputs["marks"]["search"] = {
     match: "both",
     mode: "multi",
     query: "turtle",
     status: "live",
+  };
+  const split: TmturtleRouterInputs["marks"]["search"] = {
+    mode: "split",
+    query: "turtle club",
+  };
+  const wildcard: TmturtleRouterInputs["marks"]["search"] = {
+    mode: "wildcard",
+    query: "turtle*",
   };
   const client = createTmturtleClient({
     apiKey: "ttk_test_secret",
     baseUrl: `http://127.0.0.1:${server.port}`,
   });
 
-  const page: TmturtleRouterOutputs["marks"]["search"] = await client.marks.search.query(input);
+  const page: TmturtleRouterOutputs["marks"]["search"] = await client.marks.search.query(multi);
+  await client.marks.search.query(split);
+  await client.marks.search.query(wildcard);
 
   expect(page).toEqual({
     items: [],
@@ -89,6 +99,14 @@ test("derives the Multi search request and page types from the server router", a
     offset: 0,
     total: 0,
   });
-  expect(requests[0]?.pathname).toBe("/api/trpc/marks.search");
-  expect(JSON.parse(requests[0]?.searchParams.get("input") ?? "{}")).toEqual(input);
+  expect(requests.map((request) => request.pathname)).toEqual([
+    "/api/trpc/marks.search",
+    "/api/trpc/marks.search",
+    "/api/trpc/marks.search",
+  ]);
+  expect(requests.map((request) => JSON.parse(request.searchParams.get("input") ?? "{}"))).toEqual([
+    multi,
+    split,
+    wildcard,
+  ]);
 });

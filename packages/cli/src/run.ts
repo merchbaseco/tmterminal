@@ -5,6 +5,7 @@ const tokenPattern =
   /^ttk_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_[A-Za-z0-9_-]{43}$/;
 const digitsPattern = /^\d+$/;
 const serialNumberPattern = /^\d{8}$/;
+const unicodeWordCharacter = /[\p{Letter}\p{Mark}\p{Number}]/u;
 
 export interface Keychain {
   clear: (origin: string) => Promise<void>;
@@ -120,7 +121,11 @@ function remoteFailure(error: unknown) {
 }
 
 type SearchInput = TmturtleRouterInputs["marks"]["search"];
-type SearchOptions = Omit<SearchInput, "limit" | "mode" | "query">;
+type MultiSearchInput = Extract<SearchInput, { mode: "multi" }>;
+type SearchOptions = Omit<MultiSearchInput, "limit" | "match" | "mode" | "query"> & {
+  match?: MultiSearchInput["match"];
+  mode: SearchInput["mode"];
+};
 
 function searchOptionValue<const Value extends string>(
   flag: string,
@@ -136,9 +141,7 @@ function searchOptionValue<const Value extends string>(
 function applySearchOption(options: SearchOptions, flag: string, value: string) {
   switch (flag) {
     case "--mode":
-      if (value !== "multi") {
-        throw new BadRequestError("Only Multi search is available");
-      }
+      options.mode = searchOptionValue(flag, value, ["multi", "split", "wildcard"]);
       return;
     case "--match":
       options.match = searchOptionValue(flag, value, ["both", "exact", "partial"]);
@@ -183,7 +186,32 @@ function applySearchOption(options: SearchOptions, flag: string, value: string) 
   }
 }
 
-function parseMultiSearch(args: string[]): SearchInput {
+function validateSearchOptions(query: string, options: SearchOptions) {
+  if ((options.offset ?? 0) > 0 && !options.expectedDataVersion) {
+    throw new BadRequestError("--data-version is required when --offset is greater than 0");
+  }
+  if (options.mode !== "multi" && options.match) {
+    throw new BadRequestError("--match is valid only for Multi search");
+  }
+  const normalizedQuery = query.trim().normalize("NFKC");
+  if (options.mode === "split" && !unicodeWordCharacter.test(normalizedQuery)) {
+    throw new BadRequestError("Split search requires at least one word token");
+  }
+  if (options.mode !== "wildcard" || !normalizedQuery.includes("*")) {
+    return;
+  }
+  const longestLiteralWordRun = normalizedQuery
+    .split("*")
+    .flatMap((part) => part.match(/[\p{Letter}\p{Mark}\p{Number}]+/gu) ?? [])
+    .reduce((longest, part) => Math.max(longest, Array.from(part).length), 0);
+  if (longestLiteralWordRun < 3) {
+    throw new BadRequestError(
+      "Wildcard patterns must contain at least three consecutive literal word characters"
+    );
+  }
+}
+
+function parseSearch(args: string[]): SearchInput {
   const [, , query] = args;
   if (!query || query.startsWith("--") || query.trim().length === 0 || query.trim().length > 200) {
     throw new BadRequestError("Usage: tt marks search <query> [options]");
@@ -191,7 +219,7 @@ function parseMultiSearch(args: string[]): SearchInput {
 
   const seen = new Set<string>();
   const options: SearchOptions = {
-    match: "both",
+    mode: "multi",
     offset: 0,
     registered: "all",
     sort: "relevance",
@@ -212,14 +240,17 @@ function parseMultiSearch(args: string[]): SearchInput {
     applySearchOption(options, flag, value);
   }
 
-  if ((options.offset ?? 0) > 0 && !options.expectedDataVersion) {
-    throw new BadRequestError("--data-version is required when --offset is greater than 0");
+  validateSearchOptions(query, options);
+
+  const { match, mode, ...common } = options;
+  if (mode === "multi") {
+    return { ...common, limit: 25, match: match ?? "both", mode, query };
   }
 
   return {
-    ...options,
+    ...common,
     limit: 25,
-    mode: "multi",
+    mode,
     query,
   };
 }
@@ -282,7 +313,7 @@ async function runMarksCommand(args: string[], dependencies: CliDependencies) {
     return success(await client.marks.get.query({ serialNumber }));
   }
   if (args[1] === "search") {
-    const input = parseMultiSearch(args);
+    const input = parseSearch(args);
     const origin = configuredOrigin(dependencies);
     const selected = await credential(dependencies, origin);
     const client = dependencies.createClient({ apiKey: selected.token, baseUrl: origin });

@@ -466,9 +466,94 @@ test("marks search maps the approved Multi flags and preserves the server page e
   });
 });
 
-test("marks search rejects unapproved modes and unsafe continuations before HTTP", async () => {
+test("marks search sends Split and Wildcard without Multi-only match selection", async () => {
+  const inputs: unknown[] = [];
+  const createClient = () => ({
+    account: { me: { query: unexpected("account.me") } },
+    marks: {
+      get: { query: unexpected("marks.get") },
+      search: {
+        query: (input: unknown) => {
+          inputs.push(input);
+          return Promise.resolve(searchPage);
+        },
+      },
+    },
+  });
+
   const split = await runCli(
-    ["marks", "search", "turtle", "--mode", "split"],
+    ["marks", "search", "turtle club", "--mode", "split"],
+    dependencies({ createClient, env: { TMTURTLE_API_KEY: token } })
+  );
+  const numericSplit = await runCli(
+    ["marks", "search", "10000004", "--mode", "split"],
+    dependencies({ createClient, env: { TMTURTLE_API_KEY: token } })
+  );
+  const wildcard = await runCli(
+    ["marks", "search", "turtle*", "--mode", "wildcard"],
+    dependencies({ createClient, env: { TMTURTLE_API_KEY: token } })
+  );
+
+  expect(split.exitCode).toBe(0);
+  expect(numericSplit.exitCode).toBe(0);
+  expect(wildcard.exitCode).toBe(0);
+  expect(inputs).toEqual([
+    {
+      limit: 25,
+      mode: "split",
+      offset: 0,
+      query: "turtle club",
+      registered: "all",
+      sort: "relevance",
+      status: "all",
+      type: "all",
+    },
+    {
+      limit: 25,
+      mode: "split",
+      offset: 0,
+      query: "10000004",
+      registered: "all",
+      sort: "relevance",
+      status: "all",
+      type: "all",
+    },
+    {
+      limit: 25,
+      mode: "wildcard",
+      offset: 0,
+      query: "turtle*",
+      registered: "all",
+      sort: "relevance",
+      status: "all",
+      type: "all",
+    },
+  ]);
+});
+
+test("marks search rejects mode-specific options and unsafe continuations before HTTP", async () => {
+  const splitMatch = await runCli(
+    ["marks", "search", "turtle", "--mode", "split", "--match", "exact"],
+    dependencies({ env: { TMTURTLE_API_KEY: token } })
+  );
+  const wildcardMatch = await runCli(
+    ["marks", "search", "turtle*", "--match", "partial", "--mode", "wildcard"],
+    dependencies({ env: { TMTURTLE_API_KEY: token } })
+  );
+  const unsafeWildcard = await runCli(
+    ["marks", "search", "*a*b*", "--mode", "wildcard"],
+    dependencies({ env: { TMTURTLE_API_KEY: token } })
+  );
+  const normalizedUnsafeWildcard = await runCli(
+    ["marks", "search", "＊＊＊", "--mode", "wildcard"],
+    dependencies({ env: { TMTURTLE_API_KEY: token } })
+  );
+  const sqlMetacharactersOnly = await runCli(
+    ["marks", "search", "%_\\*", "--mode", "wildcard"],
+    dependencies({ env: { TMTURTLE_API_KEY: token } })
+  );
+  const punctuationSplit = await runCli(
+    ["marks", "search", "—!?", "--mode", "split"],
     dependencies({ env: { TMTURTLE_API_KEY: token } })
   );
   const missingVersion = await runCli(
@@ -480,8 +565,37 @@ test("marks search rejects unapproved modes and unsafe continuations before HTTP
     dependencies({ env: { TMTURTLE_API_KEY: token } })
   );
 
-  expect(JSON.parse(split.stderr)).toMatchObject({
-    error: { code: "BAD_REQUEST", message: "Only Multi search is available" },
+  expect(JSON.parse(splitMatch.stderr)).toMatchObject({
+    error: { code: "BAD_REQUEST", message: "--match is valid only for Multi search" },
+    ok: false,
+  });
+  expect(JSON.parse(wildcardMatch.stderr)).toMatchObject({
+    error: { code: "BAD_REQUEST", message: "--match is valid only for Multi search" },
+    ok: false,
+  });
+  expect(JSON.parse(unsafeWildcard.stderr)).toMatchObject({
+    error: {
+      code: "BAD_REQUEST",
+      message: "Wildcard patterns must contain at least three consecutive literal word characters",
+    },
+    ok: false,
+  });
+  expect(JSON.parse(normalizedUnsafeWildcard.stderr)).toMatchObject({
+    error: {
+      code: "BAD_REQUEST",
+      message: "Wildcard patterns must contain at least three consecutive literal word characters",
+    },
+    ok: false,
+  });
+  expect(JSON.parse(sqlMetacharactersOnly.stderr)).toMatchObject({
+    error: {
+      code: "BAD_REQUEST",
+      message: "Wildcard patterns must contain at least three consecutive literal word characters",
+    },
+    ok: false,
+  });
+  expect(JSON.parse(punctuationSplit.stderr)).toMatchObject({
+    error: { code: "BAD_REQUEST", message: "Split search requires at least one word token" },
     ok: false,
   });
   expect(JSON.parse(missingVersion.stderr)).toMatchObject({
