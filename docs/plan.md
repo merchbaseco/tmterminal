@@ -192,7 +192,7 @@ Required indexes:
 
 - Unique B-tree registration-number index where registration number is non-null
 - `pg_trgm` GIN index for contains search
-- B-tree normalized exact word-mark index
+- Hash normalized exact word-mark index
 - Partial live-mark indexes for common match paths
 - Source activity, filing, registration, publication, status, and class indexes
 
@@ -378,7 +378,7 @@ Operations:
 - Exact annual/daily discovery, partial-data visibility, atomic artifact replay, source-coordinate, and data-version tests
 - PostgreSQL integration tests for search/filter/sort/count/pagination
 - Unicode normalization, wildcard escaping, Split punctuation, overlap, and span-offset tests
-- Query-plan checks for exact B-tree and trigram index use
+- Query-plan checks for exact hash and trigram index use
 - Auth hash, timing path, cross-account ownership, multiple-key, coalesced last-used, and revocation tests
 - Clerk-session and API-key authentication parity tests
 - Generated client contract/build tests
