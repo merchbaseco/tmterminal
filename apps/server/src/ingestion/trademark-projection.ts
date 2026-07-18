@@ -85,7 +85,6 @@ export function streamTrademarkProjections(options: {
       trim: true,
       useArrays: flow.ALWAYS,
     }) as ReturnType<typeof flow> & { pause: () => void; resume: () => void };
-    let actionKey: string | null = null;
     let physicalRecordCount = 0;
     let projectedMarkCount = 0;
     let failed = false;
@@ -123,19 +122,10 @@ export function streamTrademarkProjections(options: {
     const projectCaseFile = (value: unknown) => {
       physicalRecordCount += 1;
       assertDocumentVersion(versionCount, versionDateCount, " before records");
-      if (!supportedActionKey(options.coordinate.product, actionKey)) {
-        throw new Error(
-          `Unsupported ${options.coordinate.product} action key: ${actionKey ?? "missing"}`
-        );
-      }
-      const projection = projectRecord(
-        value,
-        {
-          ...options.coordinate,
-          physicalRecordIndex: physicalRecordCount,
-        },
-        actionKey
-      );
+      const projection = projectRecord(value, {
+        ...options.coordinate,
+        physicalRecordIndex: physicalRecordCount,
+      });
       if (!projection) {
         return;
       }
@@ -167,9 +157,6 @@ export function streamTrademarkProjections(options: {
       if (scalar(value, "version-date") !== sourceVersionDate) {
         fail(new Error("Unsupported USPTO XML version date"));
       }
-    });
-    parser.on("tag:action-key", (value) => {
-      actionKey = scalar(value, "action-key");
     });
     parser.on("tag:case-file", (value) => {
       if (failed) {
@@ -328,11 +315,7 @@ function internalCommentEnd(prefix: string, offset: number): number | null {
   return end < 0 ? null : end + 3;
 }
 
-function projectRecord(
-  value: unknown,
-  coordinate: SourceCoordinate,
-  actionKey: string
-): TrademarkProjection | null {
+function projectRecord(value: unknown, coordinate: SourceCoordinate): TrademarkProjection | null {
   const record = object(value, "case-file");
   const serial = scalar(record["serial-number"], "serial-number");
   if (!serialNumber.test(serial)) {
@@ -356,7 +339,7 @@ function projectRecord(
     (item) => optionalScalar(item["primary-code"], "primary-code")?.trim() === "025"
   );
   if (!selected) {
-    if (coordinate.product === "TRTDXFAP" && actionKey !== "NA" && classes.length > 0) {
+    if (coordinate.product === "TRTDXFAP" && classes.length > 0) {
       return {
         coordinate,
         kind: "remove",
@@ -423,13 +406,6 @@ function projectRecord(
     statusEvents: [...statusEvents.values()],
     wordMark,
   };
-}
-
-function supportedActionKey(product: SourceProduct, actionKey: string | null): actionKey is string {
-  if (product === "TRTYRAP") {
-    return actionKey === "TX";
-  }
-  return actionKey === "IB" || actionKey === "NA" || actionKey === "TX";
 }
 
 function object(value: unknown, name: string) {
