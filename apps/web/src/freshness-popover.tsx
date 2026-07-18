@@ -88,7 +88,7 @@ export function FreshnessPopover({ api }: { api: FreshnessApi }) {
             <p className="text-base text-muted-foreground sm:text-sm">Loading freshness…</p>
           ) : null}
           {status ? (
-            <dl className="freshness-facts tabular-nums">
+            <dl className="m-0 grid gap-0 tabular-nums [&>div]:grid [&>div]:grid-cols-[minmax(8rem,1fr)_minmax(0,1fr)] [&>div]:gap-4 [&>div]:border-border [&>div]:border-t [&>div]:py-[0.65rem] [&_dd]:m-0 [&_dd]:text-right [&_dt]:text-muted-foreground">
               <div>
                 <dt>Status</dt>
                 <dd>{statusLabel(status)}</dd>

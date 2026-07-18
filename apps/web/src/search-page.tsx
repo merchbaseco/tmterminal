@@ -4,6 +4,7 @@ import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
 import { type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import type { AppRouter } from "../../server/src/api/router.ts";
 import { MarkResultContent } from "./mark-result-content.tsx";
 import { SearchOptionSelect } from "./search-option-select.tsx";
@@ -273,13 +274,20 @@ export function SearchPage({
   const total = data?.pages[0]?.total ?? 0;
 
   return (
-    <main className={state.query ? "search-shell search-shell-results" : "search-shell"}>
+    <main
+      className={cn(
+        "mx-auto flex min-h-[calc(100dvh-3.75rem)] max-w-[120rem] flex-col px-[clamp(1rem,3vw,3rem)] pt-[clamp(2rem,4vw,4rem)]",
+        state.query && "pt-4"
+      )}
+    >
       {state.query ? (
         <h1 className="sr-only">Trademark search results for “{state.query}”</h1>
       ) : (
-        <header className="search-heading">
-          <p className="eyebrow">United States trademarks / Class 025</p>
-          <h1>
+        <header className="border-border border-b pb-[clamp(1.5rem,4vw,3rem)]">
+          <p className="mb-[0.85rem] font-[650] text-[0.72rem] uppercase tracking-[0.12em]">
+            United States trademarks / Class 025
+          </p>
+          <h1 className="m-0 max-w-[10ch] font-black text-[clamp(2.75rem,min(12.5vw,18dvh),14rem)] leading-[0.78] tracking-[-0.055em]">
             TRADEMARK
             <br />
             TURTLE
@@ -287,9 +295,15 @@ export function SearchPage({
         </header>
       )}
 
-      <div className="search-controls">
-        {/* biome-ignore lint/performance/noJsxPropsBind: The local submit handler reads this page's draft query. */}
-        <form className="search-form" onSubmit={submit}>
+      <div className={cn(state.query && "sticky top-0 z-10 bg-background")}>
+        <form
+          className={cn(
+            "grid grid-cols-[minmax(0,1fr)_auto] gap-3 px-0 pt-[clamp(1.5rem,4vw,3.5rem)] pb-5 [--search-control-height:clamp(3.5rem,7vw,5.5rem)] max-[48rem]:grid-cols-1 [&>[data-slot=button]]:h-[var(--search-control-height)] [&>[data-slot=button]]:px-[clamp(1.5rem,3vw,2.5rem)] [&>[data-slot=button]]:text-[clamp(1.125rem,1.5vw,1.4rem)] [&_[data-slot=input-control]]:h-[var(--search-control-height)] [&_[data-slot=input-control]]:rounded-[var(--radius)] [&_[data-slot=input]]:h-full [&_[data-slot=input]]:px-[clamp(1rem,2vw,1.5rem)] [&_[data-slot=input]]:py-0 [&_[data-slot=input]]:font-semibold [&_[data-slot=input]]:text-[clamp(1.25rem,3vw,2.4rem)] [&_[data-slot=input]]:leading-none [&_[data-slot=input]]:tracking-[-0.035em]",
+            state.query && "py-1 [--search-control-height:2.75rem] [&_[data-slot=input]]:text-xl"
+          )}
+          // biome-ignore lint/performance/noJsxPropsBind: The local submit handler reads this page's draft query.
+          onSubmit={submit}
+        >
           <label className="sr-only" htmlFor="trademark-search">
             Search trademarks
           </label>
@@ -313,7 +327,7 @@ export function SearchPage({
         <Button
           aria-controls="search-options"
           aria-expanded={filtersOpen}
-          className="search-filter-toggle"
+          className="mb-3 hidden w-full max-[48rem]:inline-flex"
           // biome-ignore lint/performance/noJsxPropsBind: This mobile disclosure owns one local boolean.
           onClick={() => setFiltersOpen((open) => !open)}
           variant="outline"
@@ -322,12 +336,19 @@ export function SearchPage({
         </Button>
         <section
           aria-label="Search options"
-          className={filtersOpen ? "search-options search-options-open" : "search-options"}
+          className={cn(
+            "flex flex-wrap items-end border-border border-y max-[48rem]:hidden max-[48rem]:grid-cols-2 max-[48rem]:items-stretch",
+            filtersOpen && "max-[48rem]:grid"
+          )}
           id="search-options"
         >
           {/* biome-ignore lint/a11y/useSemanticElements: A native fieldset legend sits off-grid and breaks the shared filter baseline. */}
-          <div aria-labelledby="search-match-label" className="search-match-options" role="group">
-            <span className="search-option-caption" id="search-match-label">
+          <div
+            aria-labelledby="search-match-label"
+            className="flex min-h-11 flex-nowrap items-center gap-[0.65rem] border-0 border-border border-r px-4 py-[0.45rem] font-[650] text-[0.75rem] uppercase tracking-[0.09em] max-[48rem]:col-span-full max-[48rem]:grid max-[48rem]:min-h-14 max-[48rem]:grid-cols-[auto_auto] max-[48rem]:content-start max-[48rem]:border-r-0 max-[48rem]:border-b max-[48rem]:px-4 max-[48rem]:py-3 [&_input]:accent-primary [&_label]:flex [&_label]:items-center [&_label]:gap-[0.4rem]"
+            role="group"
+          >
+            <span className="max-[48rem]:col-span-full" id="search-match-label">
               Match
             </span>
             <label>
@@ -389,11 +410,19 @@ export function SearchPage({
       </div>
 
       {query.isPending && state.query ? (
-        <p className="search-message">Searching Class 025…</p>
+        <p className="m-0 border-border border-b py-12 text-[clamp(1.2rem,2vw,1.8rem)]">
+          Searching Class 025…
+        </p>
       ) : null}
       {query.error ? (
-        <div className="search-error">
-          <p className={expectedUnavailable ? "search-unavailable" : "error-message"} role="alert">
+        <div className="flex items-center justify-between gap-4 border-border border-b">
+          <p
+            className={cn(
+              "m-0 py-8 text-destructive-foreground",
+              expectedUnavailable && "py-4 text-foreground"
+            )}
+            role="alert"
+          >
             {searchErrorMessage(trpcErrorCode(query.error), conflict, replacementFailure)}
           </p>
           {conflict ? (
@@ -408,8 +437,8 @@ export function SearchPage({
         </div>
       ) : null}
       {data && !query.error && total === 0 ? (
-        <div className="search-empty">
-          <p>No matching marks</p>
+        <div className="flex items-center justify-between border-border border-b py-12">
+          <p className="m-0 text-[clamp(1.2rem,2vw,1.8rem)]">No matching marks</p>
           <Button
             // biome-ignore lint/performance/noJsxPropsBind: The empty state clears this page's URL-owned filters.
             onClick={() =>
@@ -430,9 +459,9 @@ export function SearchPage({
       ) : null}
 
       {data && total > 0 && (!query.error || conflict || replacementFailure) ? (
-        <section aria-label="Search results" className="search-results">
-          <div className="results-rule">
-            <p className="results-summary">
+        <section aria-label="Search results">
+          <div className="flex min-h-10 items-center justify-between font-[650] text-[0.75rem] uppercase tracking-[0.09em] [&_p]:m-0">
+            <p className="flex flex-wrap gap-x-[0.6rem] gap-y-1 [&>span+span]:font-extrabold [&>span+span]:before:mr-[0.6rem] [&>span+span]:before:text-muted-foreground [&>span+span]:before:content-['·']">
               <span>
                 {total} {total === 1 ? "result" : "results"}
               </span>
@@ -445,10 +474,10 @@ export function SearchPage({
                 : "Data sync active"}
             </p>
           </div>
-          <div className="search-results-list" key={restorationKey}>
+          <div className="border-border border-y" key={restorationKey}>
             <ol
               aria-label="Trademark results"
-              className="search-results-size"
+              className="relative m-0 w-full list-none p-0"
               ref={resultsRef}
               style={{ height: virtualizer.getTotalSize() }}
             >
@@ -461,7 +490,7 @@ export function SearchPage({
                   <li
                     aria-posinset={virtualRow.index + 1}
                     aria-setsize={total}
-                    className="search-result-row"
+                    className="absolute top-0 left-0 isolate grid min-h-16 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-8 border-border border-b py-2 has-[a:hover]:bg-accent max-[48rem]:min-h-20 max-[48rem]:gap-4 max-[48rem]:py-2.5"
                     data-index={virtualRow.index}
                     data-testid="search-result-row"
                     key={item.serialNumber}
@@ -480,7 +509,7 @@ export function SearchPage({
               })}
               <div
                 aria-hidden="true"
-                className="load-more-sentinel"
+                className="absolute top-0 left-0 h-px w-full"
                 ref={loadMoreRef}
                 style={{
                   transform: `translateY(${Math.max(virtualizer.getTotalSize() - 1, 0)}px)`,
@@ -489,11 +518,13 @@ export function SearchPage({
             </ol>
           </div>
           {query.isFetchingNextPage ? (
-            <p className="search-message">Loading more results…</p>
+            <p className="m-0 border-border border-b py-12 text-[clamp(1.2rem,2vw,1.8rem)]">
+              Loading more results…
+            </p>
           ) : null}
         </section>
       ) : null}
-      <footer className="legal-disclaimer">
+      <footer className="mt-auto border-border border-t py-8 text-muted-foreground">
         Trademark data is informational, not legal advice. Verify critical decisions with the USPTO
         or qualified counsel.
       </footer>

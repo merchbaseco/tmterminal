@@ -227,12 +227,19 @@ function TopBar({
   }, []);
 
   return (
-    <header className="top-bar">
-      <a className="wordmark" href="/search" onClick={navigate}>
+    <header className="grid min-h-[3.75rem] grid-cols-[1fr_auto_auto] items-center border-border border-b px-[clamp(1rem,3vw,3rem)] py-3 max-[48rem]:grid-cols-[1fr_auto] max-[48rem]:gap-y-1">
+      <a
+        className="whitespace-nowrap font-extrabold text-[0.82rem] text-inherit uppercase leading-none tracking-[-0.02em] no-underline"
+        href="/search"
+        onClick={navigate}
+      >
         Trademark Turtle
       </a>
       <Show when="signed-in">
-        <nav aria-label="Primary">
+        <nav
+          aria-label="Primary"
+          className="flex items-center gap-3.5 text-[0.8125rem] max-[48rem]:col-span-full max-[48rem]:row-start-2 max-[48rem]:w-full max-[48rem]:justify-start max-[48rem]:gap-x-4 max-[48rem]:gap-y-1 max-[48rem]:overflow-x-auto [&_a:hover]:underline [&_a:hover]:underline-offset-[0.3em] [&_a]:text-inherit [&_a]:no-underline max-[48rem]:[&_a]:inline-flex max-[48rem]:[&_a]:min-h-11 max-[48rem]:[&_a]:shrink-0 max-[48rem]:[&_a]:items-center max-[48rem]:[&_button]:inline-flex max-[48rem]:[&_button]:min-h-11 max-[48rem]:[&_button]:shrink-0 max-[48rem]:[&_button]:items-center"
+        >
           <a href="/search" onClick={navigate}>
             Search
           </a>
@@ -263,13 +270,13 @@ function TopBar({
           ) : null}
           {freshnessApi ? <FreshnessPopover api={freshnessApi} /> : null}
         </nav>
-        <div className="top-bar-actions">
+        <div className="ml-3.5 flex items-center gap-2 max-[48rem]:col-start-2 max-[48rem]:row-start-1 max-[48rem]:ml-2">
           <AppearanceMenu />
           <UserButton />
         </div>
       </Show>
       <Show when="signed-out">
-        <div className="top-bar-actions">
+        <div className="ml-3.5 flex items-center gap-2 max-[48rem]:col-start-2 max-[48rem]:row-start-1 max-[48rem]:ml-2">
           <SignInButton mode="modal">
             <Button>Sign in</Button>
           </SignInButton>
@@ -312,15 +319,22 @@ function SignedOutSearch({ search }: { search: string }) {
   );
 
   return (
-    <main className="signed-out-shell">
-      <p className="eyebrow">Private trademark search / Class 025</p>
-      <h1>
+    <main className="mx-auto grid min-h-[calc(100vh-3.75rem)] max-w-[100rem] content-center gap-8 px-[clamp(1rem,3vw,3rem)] py-[clamp(2rem,5vw,5.5rem)]">
+      <p className="mb-[0.85rem] font-[650] text-[0.72rem] uppercase tracking-[0.12em]">
+        Private trademark search / Class 025
+      </p>
+      <h1 className="m-0 font-black text-[clamp(2.75rem,12.5vw,14rem)] leading-[0.78] tracking-[-0.055em]">
         TRADEMARK
         <br />
         TURTLE
       </h1>
-      <p>Sign in with your MerchBase account to run your search.</p>
-      <form className="search-form signed-out-search" onSubmit={handleSubmit}>
+      <p className="m-0 max-w-[30rem] text-[1.2rem]">
+        Sign in with your MerchBase account to run your search.
+      </p>
+      <form
+        className="grid max-w-[70rem] grid-cols-[minmax(0,1fr)_auto] gap-3 p-0 [--search-control-height:clamp(3.5rem,7vw,5.5rem)] max-[48rem]:grid-cols-1 [&>[data-slot=button]]:h-[var(--search-control-height)] [&>[data-slot=button]]:px-[clamp(1.5rem,3vw,2.5rem)] [&>[data-slot=button]]:text-[clamp(1.125rem,1.5vw,1.4rem)] [&_[data-slot=input-control]]:h-[var(--search-control-height)] [&_[data-slot=input-control]]:rounded-[var(--radius)] [&_[data-slot=input]]:h-full [&_[data-slot=input]]:px-[clamp(1rem,2vw,1.5rem)] [&_[data-slot=input]]:py-0 [&_[data-slot=input]]:font-semibold [&_[data-slot=input]]:text-[clamp(1.25rem,3vw,2.4rem)] [&_[data-slot=input]]:leading-none [&_[data-slot=input]]:tracking-[-0.035em]"
+        onSubmit={handleSubmit}
+      >
         <label className="sr-only" htmlFor="signed-out-search">
           Search trademarks
         </label>

@@ -3,7 +3,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { App } from "./app.tsx";
-import "./styles.css";
+import "./globals.css";
 
 const root = document.querySelector<HTMLDivElement>("#root");
 const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
@@ -21,5 +21,5 @@ createRoot(root).render(
     <ClerkProvider publishableKey={publishableKey}>
       <App />
     </ClerkProvider>
-  </StrictMode>,
+  </StrictMode>
 );

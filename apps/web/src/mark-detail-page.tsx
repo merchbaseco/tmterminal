@@ -1,5 +1,6 @@
 import type { inferRouterOutputs } from "@trpc/server";
 import { type MouseEvent, useCallback, useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 
 import type { AppRouter } from "../../server/src/api/router.ts";
 
@@ -9,6 +10,11 @@ const statusLabels = {
   dead: "Dead",
   live: "Live",
   unknown: "Status unavailable",
+} as const;
+const statusChipClasses = {
+  dead: "text-muted-foreground",
+  live: "border-primary bg-primary text-primary-foreground",
+  unknown: "border-dashed text-muted-foreground",
 } as const;
 const ownerNameSeparators = /[^\p{L}\p{N}]+/gu;
 
@@ -88,8 +94,12 @@ export function MarkDetailPage({
 
   if (error) {
     return (
-      <main className="mark-detail-shell">
-        <a className="back-link" href="/search" onClick={handleBack}>
+      <main className="isolate mx-auto flex min-h-[calc(100dvh-3.75rem)] max-w-[100rem] flex-col px-[clamp(1rem,3vw,3rem)] pt-[clamp(2rem,5vw,5.5rem)]">
+        <a
+          className="text-inherit underline decoration-border underline-offset-[0.3em]"
+          href="/search"
+          onClick={handleBack}
+        >
           ← Back to results
         </a>
         <p role="alert">
@@ -101,7 +111,10 @@ export function MarkDetailPage({
 
   if (!mark) {
     return (
-      <main aria-busy="true" className="mark-detail-shell">
+      <main
+        aria-busy="true"
+        className="isolate mx-auto flex min-h-[calc(100dvh-3.75rem)] max-w-[100rem] flex-col px-[clamp(1rem,3vw,3rem)] pt-[clamp(2rem,5vw,5.5rem)]"
+      >
         <p>Loading trademark…</p>
       </main>
     );
@@ -114,19 +127,33 @@ export function MarkDetailPage({
   );
 
   return (
-    <main className="mark-detail-shell">
-      <a className="back-link" href="/search" onClick={handleBack}>
+    <main className="isolate mx-auto flex min-h-[calc(100dvh-3.75rem)] max-w-[100rem] flex-col px-[clamp(1rem,3vw,3rem)] pt-[clamp(2rem,5vw,5.5rem)]">
+      <a
+        className="text-inherit underline decoration-border underline-offset-[0.3em]"
+        href="/search"
+        onClick={handleBack}
+      >
         ← Back to results
       </a>
 
-      <header className="mark-heading">
+      <header className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-8 py-[clamp(1.5rem,4vw,3rem)] pb-[clamp(2rem,4vw,3rem)] max-[48rem]:grid-cols-1">
         <div>
-          <p className="eyebrow">United States trademark record</p>
-          <h1>{mark.mark.wordMark ?? "Untitled mark"}</h1>
+          <p className="mb-[0.85rem] font-[650] text-[0.72rem] uppercase tracking-[0.12em]">
+            United States trademark record
+          </p>
+          <h1 className="wrap-anywhere m-0 font-black text-[clamp(3.25rem,7vw,6rem)] leading-[0.78] tracking-[-0.055em]">
+            {mark.mark.wordMark ?? "Untitled mark"}
+          </h1>
         </div>
-        <div className="mark-status">
-          <p className="mark-status-disposition">
-            <strong className={`status-chip status-${mark.mark.status}`}>
+        <div className="grid min-w-52 gap-[0.4rem] border-border border-l py-3 pl-4 text-[0.75rem] max-[48rem]:min-w-0 max-[48rem]:border-t max-[48rem]:border-l-0 max-[48rem]:pl-0 [&>p:not(:first-child)]:text-muted-foreground [&_p]:m-0">
+          <p className="flex items-center">
+            <strong
+              className={cn(
+                "inline-flex min-h-6 items-center rounded-[2px] border border-current px-[0.45rem] py-[0.15rem] font-bold text-[0.7rem] uppercase leading-none tracking-[0.08em]",
+                statusChipClasses[mark.mark.status]
+              )}
+              data-status={mark.mark.status}
+            >
               {statusLabels[mark.mark.status]}
             </strong>
           </p>
@@ -135,14 +162,24 @@ export function MarkDetailPage({
               ? `Status date ${mark.mark.statusDate}`
               : "Status date unavailable"}
           </p>
-          <p className="status-code">USPTO status {mark.mark.statusCode ?? "unknown"}</p>
+          <p className="font-[650] text-[0.75rem] uppercase tracking-[0.08em]">
+            USPTO status {mark.mark.statusCode ?? "unknown"}
+          </p>
         </div>
       </header>
 
-      <section aria-labelledby="goods-heading" className="detail-section goods-section">
-        <div className="goods-heading">
-          <h2 id="goods-heading">Goods/services</h2>
-          <p className="goods-meta tabular-nums">
+      <section
+        aria-labelledby="goods-heading"
+        className="grid grid-cols-[minmax(12rem,1fr)_minmax(0,3fr)] gap-[clamp(1.5rem,4vw,3rem)] border-border border-t py-[clamp(1.5rem,3vw,2.25rem)] max-[48rem]:grid-cols-1"
+      >
+        <div className="grid content-start gap-[0.65rem]">
+          <h2
+            className="m-0 font-[650] text-[0.78rem] uppercase tracking-[0.08em]"
+            id="goods-heading"
+          >
+            Goods/services
+          </h2>
+          <p className="m-0 font-[650] text-[0.68rem] text-muted-foreground uppercase tabular-nums tracking-[0.06em]">
             International {mark.classes.length === 1 ? "class" : "classes"}{" "}
             {mark.classes
               .map((classification) => classification.internationalCode ?? "unknown")
@@ -150,10 +187,10 @@ export function MarkDetailPage({
             · Drawing code {mark.mark.markDrawingCode ?? "unknown"}
           </p>
         </div>
-        <div className="goods-list">
+        <div className="col-start-2 grid list-none gap-2 p-0 max-[48rem]:col-start-1">
           {goodsServices.map((goods) => (
             <p
-              className="detail-copy"
+              className="m-0 max-w-[68ch] text-[1.15rem] leading-[1.55]"
               key={`${goods.typeCode ?? "goods"}-${goods.text ?? "description-unavailable"}`}
             >
               {goods.text ?? "Description unavailable"}
@@ -162,15 +199,27 @@ export function MarkDetailPage({
         </div>
       </section>
 
-      <section aria-labelledby="record-heading" className="record-section">
-        <h2 id="record-heading">Record</h2>
-        <dl className="record-facts tabular-nums">
+      <section
+        aria-labelledby="record-heading"
+        className="border-border border-t py-[clamp(1.25rem,2.5vw,1.75rem)]"
+      >
+        <h2
+          className="mt-0 mb-3 font-[650] text-[0.78rem] uppercase tracking-[0.08em]"
+          id="record-heading"
+        >
+          Record
+        </h2>
+        <dl className="[&_dd]:wrap-anywhere m-0 grid grid-cols-4 border-border border-t border-l tabular-nums max-[48rem]:grid-cols-2 [&>div]:grid [&>div]:min-h-[4.5rem] [&>div]:content-start [&>div]:gap-[0.4rem] [&>div]:border-border [&>div]:border-r [&>div]:border-b [&>div]:px-3 [&>div]:py-[0.65rem] [&_dd:not(.record-owner)]:whitespace-nowrap [&_dd]:m-0 [&_dd]:text-[0.9rem] [&_dd]:text-muted-foreground [&_dt]:font-[650] [&_dt]:text-[0.68rem] [&_dt]:text-muted-foreground [&_dt]:uppercase [&_dt]:tracking-[0.06em]">
           <div>
             <dt>Owner</dt>
-            <dd className="record-owner">
-              <strong>{ownerNames[0] ?? "Unknown owner"}</strong>
+            <dd className="record-owner grid gap-1">
+              <strong className="text-[0.95rem] text-foreground">
+                {ownerNames[0] ?? "Unknown owner"}
+              </strong>
               {ownerNames.length > 1 ? (
-                <span>Also recorded as {ownerNames.slice(1).join(" · ")}</span>
+                <span className="text-[0.8rem]">
+                  Also recorded as {ownerNames.slice(1).join(" · ")}
+                </span>
               ) : null}
             </dd>
           </div>
@@ -209,12 +258,23 @@ export function MarkDetailPage({
         </dl>
       </section>
 
-      <section aria-labelledby="history-heading" className="detail-section">
-        <h2 id="history-heading">Status history as reported by USPTO</h2>
+      <section
+        aria-labelledby="history-heading"
+        className="grid grid-cols-[minmax(12rem,1fr)_minmax(0,3fr)] gap-[clamp(1.5rem,4vw,3rem)] border-border border-t py-[clamp(1.5rem,3vw,2.25rem)] max-[48rem]:grid-cols-1"
+      >
+        <h2
+          className="m-0 font-[650] text-[0.78rem] uppercase tracking-[0.08em]"
+          id="history-heading"
+        >
+          Status history as reported by USPTO
+        </h2>
         {statusEvents.length === 0 ? (
           <p>No source-reported status events in this materialization.</p>
         ) : (
-          <ol aria-label="Status history as reported by USPTO" className="status-history">
+          <ol
+            aria-label="Status history as reported by USPTO"
+            className="col-start-2 m-0 grid list-none p-0 max-[48rem]:col-start-1 [&_li:first-child]:border-t-0 [&_li:first-child]:pt-0 [&_li]:flex [&_li]:justify-between [&_li]:gap-4 [&_li]:border-border [&_li]:border-t [&_li]:py-4 [&_span]:shrink-0 [&_span]:whitespace-nowrap [&_span]:text-muted-foreground"
+          >
             {statusEvents.map((event) => (
               <li
                 key={`${event.code ?? "event"}-${event.date ?? "unknown"}-${event.number ?? "number-unknown"}-${event.type ?? "type-unknown"}`}
@@ -227,13 +287,21 @@ export function MarkDetailPage({
         )}
       </section>
 
-      <section aria-labelledby="provenance-heading" className="detail-section">
-        <h2 id="provenance-heading">USPTO source and provenance</h2>
-        <p>
+      <section
+        aria-labelledby="provenance-heading"
+        className="grid grid-cols-[minmax(12rem,1fr)_minmax(0,3fr)] gap-[clamp(1.5rem,4vw,3rem)] border-border border-t py-[clamp(1.5rem,3vw,2.25rem)] max-[48rem]:grid-cols-1"
+      >
+        <h2
+          className="m-0 font-[650] text-[0.78rem] uppercase tracking-[0.08em]"
+          id="provenance-heading"
+        >
+          USPTO source and provenance
+        </h2>
+        <p className="m-0">
           Canonical projection {mark.provenance.versions.projection}; source profile{" "}
           {mark.provenance.versions.sourceProfile}.
         </p>
-        <ul className="provenance-list">
+        <ul className="[&_code]:wrap-anywhere col-start-2 m-0 grid list-none p-0 max-[48rem]:col-start-1 [&_code]:text-muted-foreground [&_li:first-child]:border-t-0 [&_li:first-child]:pt-0 [&_li]:grid [&_li]:grid-cols-[minmax(10rem,1fr)_minmax(12rem,1fr)_minmax(0,2fr)_minmax(0,2fr)] [&_li]:gap-[0.35rem] [&_li]:border-border [&_li]:border-t [&_li]:py-4 max-[48rem]:[&_li]:grid-cols-1 max-[64rem]:[&_li]:grid-cols-[minmax(10rem,1fr)_minmax(0,2fr)] [&_span]:text-muted-foreground">
           {mark.provenance.contributors.map((contributor) => (
             <li
               key={`${contributor.group}-${contributor.claimPath}-${contributor.artifactVersionSha256}-${contributor.physicalRecordIndex}`}
@@ -249,7 +317,9 @@ export function MarkDetailPage({
         </ul>
       </section>
 
-      <footer className="legal-disclaimer">{mark.legalDisclaimer}</footer>
+      <footer className="mt-auto border-border border-t py-8 text-muted-foreground">
+        {mark.legalDisclaimer}
+      </footer>
     </main>
   );
 }

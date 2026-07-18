@@ -90,7 +90,7 @@ test("presents corpus synchronization as ongoing work", async () => {
   expect(screen.queryByText("Source file ledger")).toBeNull();
   expect(screen.getByText("USPTO trademark XML")).toBeTruthy();
   expect(screen.getByText("apc18840407-20251231-01.zip")).toBeTruthy();
-  expect(screen.getByText("Complete", { selector: ".artifact-state" })).toBeTruthy();
+  expect(screen.getByText("Complete", { selector: '[data-state="complete"]' })).toBeTruthy();
 });
 
 test("surfaces a synchronization issue without exposing queue position", async () => {
@@ -117,7 +117,7 @@ test("surfaces a synchronization issue without exposing queue position", async (
   render(<OperatorSyncPage api={failedApi} />);
   expect(await screen.findByText("Corpus sync needs attention.")).toBeTruthy();
   expect(screen.getByText("A source file failed to process.")).toBeTruthy();
-  expect(screen.getByText("Failed", { selector: ".artifact-state" })).toBeTruthy();
+  expect(screen.getByText("Failed", { selector: '[data-state="failed"]' })).toBeTruthy();
   expect(screen.getByText("Archive checksum did not match")).toBeTruthy();
 });
 

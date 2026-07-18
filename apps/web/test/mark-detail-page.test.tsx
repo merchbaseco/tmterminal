@@ -90,7 +90,7 @@ test("renders the retained mark as one provenance-rich detail document", async (
   expect(within(record).getByText("Drawing code")).toBeTruthy();
   expect(within(record).getByText(additionalOwnerPattern)).toBeTruthy();
   expect(goods.compareDocumentPosition(record)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-  expect(document.querySelector(".status-chip.status-dead")).toBeTruthy();
+  expect(document.querySelector('[data-status="dead"]')).toBeTruthy();
   const history = screen.getByRole("list", { name: "Status history as reported by USPTO" });
   expect(within(history).getAllByRole("listitem")[0]?.textContent).toContain("2005-10-11");
   expect(within(history).queryByText("Current")).toBeNull();

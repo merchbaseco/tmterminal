@@ -251,9 +251,9 @@ test("search controls and result facts use customer-facing language", async () =
   expect(within(row).queryByText("SN 70000001")).toBeNull();
   expect(within(row).queryByText("shirts and sweatshirts")).toBeNull();
   expect(row.querySelector(".result-status")).toBeNull();
-  expect(row.querySelector(".result-meta .status-chip.status-live")).toBeTruthy();
-  expect(row.querySelector(".result-main")).toBeTruthy();
-  expect(row.querySelector(".result-meta")).toBeTruthy();
+  expect(row.querySelector('[data-slot="result-status"][data-status="live"]')).toBeTruthy();
+  expect(row.querySelector('[data-slot="result-main"]')).toBeTruthy();
+  expect(row.querySelector('[data-slot="result-meta"]')).toBeTruthy();
   expect(screen.getByRole("list", { name: "Trademark results" })).toBeTruthy();
   expect(screen.getByRole("listitem")).toBe(row);
   expect(row.getAttribute("aria-posinset")).toBe("1");

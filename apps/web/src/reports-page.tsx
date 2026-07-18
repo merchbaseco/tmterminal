@@ -228,19 +228,26 @@ export function ReportsPage({
   }, [report.data, report.isError, restoreScrollOffset, search]);
 
   return (
-    <main className="report-shell search-shell search-shell-results">
-      <header className="report-heading ops-heading">
+    <main className="mx-auto flex min-h-[calc(100dvh-3.75rem)] max-w-[120rem] flex-col px-[clamp(1rem,3vw,3rem)] pt-4">
+      <header className="grid grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)] items-end gap-8 border-border border-b pb-[clamp(1.5rem,3vw,2.5rem)] max-[48rem]:grid-cols-1 max-[48rem]:items-start">
         <div>
-          <p className="eyebrow">{labels.eyebrow}</p>
-          <h1>{labels.heading}</h1>
+          <p className="mb-[0.85rem] font-[650] text-[0.72rem] uppercase tracking-[0.12em]">
+            {labels.eyebrow}
+          </p>
+          <h1 className="m-0 font-black text-[clamp(4.75rem,13vw,13rem)] leading-[0.78] tracking-[-0.055em]">
+            {labels.heading}
+          </h1>
         </div>
-        <p className="ops-intro">
+        <p className="m-0 max-w-[29rem] text-[clamp(1.15rem,2vw,1.7rem)] leading-[1.15]">
           {report.data && !report.isError
             ? range(report.data.from, report.data.to)
             : "Resolving report window…"}
         </p>
       </header>
-      <section aria-label="Report filters" className="search-options report-options">
+      <section
+        aria-label="Report filters"
+        className="mt-[clamp(1.5rem,4vw,3rem)] flex flex-wrap items-end border-border border-y max-[48rem]:grid max-[48rem]:grid-cols-2 max-[48rem]:items-stretch"
+      >
         <SearchOptionSelect
           label="Status"
           name="status"
@@ -274,10 +281,21 @@ export function ReportsPage({
           value={state.sort}
         />
       </section>
-      {report.isPending ? <p className="search-message">Generating report…</p> : null}
+      {report.isPending ? (
+        <p className="m-0 border-border border-b py-12 text-[clamp(1.2rem,2vw,1.8rem)]">
+          Generating report…
+        </p>
+      ) : null}
       {report.isError ? (
-        <div className="search-error">
-          <p className={corpusBuilding ? "search-message" : "error-message"} role="alert">
+        <div className="flex items-center justify-between gap-4 border-border border-b">
+          <p
+            className={
+              corpusBuilding
+                ? "m-0 py-12 text-[clamp(1.2rem,2vw,1.8rem)]"
+                : "m-0 py-8 text-destructive-foreground"
+            }
+            role="alert"
+          >
             {reportErrorMessage(conflict, corpusBuilding)}
           </p>
           {conflict ? (
@@ -288,28 +306,34 @@ export function ReportsPage({
         </div>
       ) : null}
       {report.data && !report.isError && report.data.total === 0 ? (
-        <p className="search-message">
+        <p className="m-0 border-border border-b py-12 text-[clamp(1.2rem,2vw,1.8rem)]">
           {incompleteWindowCoverage
             ? "This report window is not fully covered yet. Check Corpus freshness for current coverage."
             : "No marks in this report."}
         </p>
       ) : null}
       {report.data && !report.isError && report.data.total > 0 ? (
-        <section aria-label="Report results" className="search-results report-results">
-          <div className="results-rule">
+        <section aria-label="Report results">
+          <div className="flex min-h-10 items-center justify-between font-[650] text-[0.75rem] uppercase tracking-[0.09em] [&_p]:m-0">
             <p>
               {report.data.total} {report.data.total === 1 ? "result" : "results"}
             </p>
             <p>Data through {report.data.meta.dataThroughDate ?? "not yet available"}</p>
           </div>
-          <div className="search-results-list">
+          <div className="border-border border-y">
             {report.data.items.map((item) => (
-              <article className="search-result-row" key={item.serialNumber}>
+              <article
+                className="relative isolate grid min-h-16 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-8 border-border border-b py-2 has-[a:hover]:bg-accent max-[48rem]:min-h-20 max-[48rem]:gap-4 max-[48rem]:py-2.5"
+                key={item.serialNumber}
+              >
                 <MarkResultContent contextLabel={labels.context} item={item} onOpen={onOpenMark} />
               </article>
             ))}
           </div>
-          <nav aria-label="Report pages" className="ops-pagination">
+          <nav
+            aria-label="Report pages"
+            className="flex items-center justify-end gap-4 pt-4 [&_p]:m-0"
+          >
             <Button
               disabled={report.isFetching || page.offset === 0}
               // biome-ignore lint/performance/noJsxPropsBind: Pagination advances this report's pinned data page.
@@ -351,7 +375,7 @@ export function ReportsPage({
           </nav>
         </section>
       ) : null}
-      <footer className="legal-disclaimer">
+      <footer className="mt-auto border-border border-t py-8 text-muted-foreground">
         Trademark data is informational, not legal advice. Verify critical decisions with the USPTO
         or qualified counsel.
       </footer>
