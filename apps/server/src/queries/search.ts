@@ -170,10 +170,7 @@ export function searchMarks(database: postgres.Sql, input: SearchInput): Promise
     const queries = buildSearchQueries(input);
     const [count] = await transaction.unsafe<
       Array<{ liveExact: number; livePartial: number; total: number }>
-    >(
-      queries.count.text,
-      queries.count.values
-    );
+    >(queries.count.text, queries.count.values);
     if (!count) {
       throw new Error("Trademark search count query returned no row");
     }

@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 
-import type { MultiSearchInput, ReportInput } from "../../src/api/contracts.ts";
-import { buildMultiSearchQueries } from "../../src/queries/multi-search.ts";
+import type { ReportInput, SearchInput } from "../../src/api/contracts.ts";
 import { buildReportQueries } from "../../src/queries/reports.ts";
+import { buildSearchQueries } from "../../src/queries/search.ts";
 
 const class025Priority = "when goods.type_code like 'GS025%' then 0";
 const goodsStatementPriority = "when goods.type_code like 'GS%' then 1";
@@ -19,16 +19,16 @@ test("search count exposes live exact and partial decision signals", () => {
     sort: "relevance",
     status: "all",
     type: "all",
-  } satisfies MultiSearchInput;
+  } satisfies SearchInput;
 
-  const queries = buildMultiSearchQueries(input);
+  const queries = buildSearchQueries(input);
 
   expect(queries.count.text).toContain('as "liveExact"');
   expect(queries.count.text).toContain('as "livePartial"');
 });
 
 test("search and report excerpts prefer Class 025 goods and demote color claims", () => {
-  const search = buildMultiSearchQueries({
+  const search = buildSearchQueries({
     limit: 25,
     match: "both",
     mode: "multi",
