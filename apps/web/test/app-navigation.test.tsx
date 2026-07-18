@@ -1,34 +1,56 @@
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import type { ReactElement, ReactNode } from "react";
 
-if (!GlobalRegistrator.isRegistered) GlobalRegistrator.register({ url: "https://example.test/search" });
-if (window.location.origin === "null") window.location.href = "https://example.test/search";
+if (!GlobalRegistrator.isRegistered) {
+  GlobalRegistrator.register({ url: "https://example.test/search" });
+}
+if (window.location.origin === "null") {
+  window.location.href = "https://example.test/search";
+}
 Element.prototype.getAnimations ??= () => [];
-const getBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
+const { getBoundingClientRect } = HTMLElement.prototype;
 HTMLElement.prototype.getBoundingClientRect = function () {
-  if (this.dataset.testid === "search-results-viewport") return new DOMRect(0, 0, 1200, 640);
-  if (this.dataset.testid === "search-result-row") return new DOMRect(0, 0, 1200, 188);
+  if (this.dataset.testid === "search-results-viewport") {
+    return new DOMRect(0, 0, 1200, 640);
+  }
+  if (this.dataset.testid === "search-result-row") {
+    return new DOMRect(0, 0, 1200, 188);
+  }
   return getBoundingClientRect.call(this);
 };
 
 class TestResizeObserver implements ResizeObserver {
-  private active = true;
-  constructor(private readonly callback: ResizeObserverCallback) {}
-  disconnect() { this.active = false; }
+  private active = Boolean(true);
+  private readonly callback: ResizeObserverCallback;
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback;
+  }
+  disconnect() {
+    this.active = false;
+  }
   observe(target: Element) {
     const blockSize = (target as HTMLElement).dataset.testid === "search-result-row" ? 188 : 640;
     queueMicrotask(() => {
-      if (!this.active) return;
-      this.callback([{
-        borderBoxSize: [{ blockSize, inlineSize: 1200 }],
-        contentBoxSize: [{ blockSize, inlineSize: 1200 }],
-        contentRect: new DOMRectReadOnly(0, 0, 1200, blockSize),
-        devicePixelContentBoxSize: [],
-        target,
-      }], this);
+      if (!this.active) {
+        return;
+      }
+      this.callback(
+        [
+          {
+            borderBoxSize: [{ blockSize, inlineSize: 1200 }],
+            contentBoxSize: [{ blockSize, inlineSize: 1200 }],
+            contentRect: new DOMRectReadOnly(0, 0, 1200, blockSize),
+            devicePixelContentBoxSize: [],
+            target,
+          },
+        ],
+        this
+      );
     });
   }
-  unobserve() {}
+  unobserve() {
+    // The test layout is static after observation.
+  }
 }
 
 globalThis.ResizeObserver = TestResizeObserver;
@@ -42,30 +64,40 @@ let signInModalOpens = 0;
 const searchInputs: unknown[] = [];
 let searchHandler: (input: { query: string }) => Promise<typeof searchResult>;
 
+const firstSearchItem = {
+  goodsServicesExcerpt: "shirts",
+  internationalClasses: ["025"],
+  match: "exact" as const,
+  owner: "TURTLE GOODS LLC",
+  registrationNumber: "7000001",
+  serialNumber: "70000001",
+  sourceTransactionDate: "2026-07-10",
+  status: "live" as const,
+  statusDate: "2026-07-09",
+  type: "text" as const,
+  wordMark: "TURTLE MARK",
+};
+
 const searchResult = {
-  items: [{
-    goodsServicesExcerpt: "shirts",
-    internationalClasses: ["025"],
-    match: "exact" as const,
-    owner: "TURTLE GOODS LLC",
-    registrationNumber: "7000001",
-    serialNumber: "70000001",
-    sourceTransactionDate: "2026-07-10",
-    status: "live" as const,
-    statusDate: "2026-07-09",
-    type: "text" as const,
-    wordMark: "TURTLE MARK",
-  }],
+  items: [firstSearchItem],
   limit: 25 as const,
   meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
   offset: 0,
   total: 1,
 };
+const searchForm = () => {
+  const form = screen.getByRole("searchbox", { name: "Search trademarks" }).closest("form");
+  if (!form) {
+    throw new Error("Search form not found");
+  }
+  return form;
+};
 
 const mark = {
   classes: [{ internationalCode: "025", statusCode: "6", statusDate: "2026-07-09" }],
   goodsServices: [{ text: "shirts", typeCode: "GS0251" }],
-  legalDisclaimer: "Trademark data is informational, not legal advice. Verify critical decisions with the USPTO or qualified counsel." as const,
+  legalDisclaimer:
+    "Trademark data is informational, not legal advice. Verify critical decisions with the USPTO or qualified counsel." as const,
   mark: {
     filingDate: "2020-01-01",
     markDrawingCode: "4",
@@ -79,13 +111,15 @@ const mark = {
   },
   owners: [{ entryNumber: "1", partyName: "TURTLE GOODS LLC", partyType: "10" }],
   provenance: {
-    contributors: [{
-      artifactVersionSha256: "a".repeat(64),
-      claimPath: "case-file/case-file-header/mark-identification",
-      group: "mark-presentation" as const,
-      physicalRecordIndex: 1,
-      product: "TRTYRAP",
-    }],
+    contributors: [
+      {
+        artifactVersionSha256: "a".repeat(64),
+        claimPath: "case-file/case-file-header/mark-identification",
+        group: "mark-presentation" as const,
+        physicalRecordIndex: 1,
+        product: "TRTYRAP",
+      },
+    ],
     versions: {
       authorityPolicy: "uspto-authority-v1" as const,
       normalization: "uspto-normalization-v1" as const,
@@ -97,20 +131,26 @@ const mark = {
 };
 
 mock.module("@clerk/react", () => ({
-  Show: ({ children, when }: { children: ReactNode; when: "signed-in" | "signed-out" }) => (
-    (when === "signed-in") === signedIn ? children : null
-  ),
-  SignInButton: ({ children }: { children: ReactElement<{ onClick?: (event: MouseEvent) => void }> }) => (
+  Show: ({ children, when }: { children: ReactNode; when: "signed-in" | "signed-out" }) =>
+    (when === "signed-in") === signedIn ? children : null,
+  SignInButton: ({
+    children,
+  }: {
+    children: ReactElement<{ onClick?: (event: MouseEvent) => void }>;
+  }) =>
     cloneElement(children, {
       onClick: (event: MouseEvent) => {
         signInModalOpens += 1;
         children.props.onClick?.(event);
       },
-    })
-  ),
+    }),
   UserButton: () => null,
   useAuth: () => ({ getToken: async () => "clerk-session" }),
-  useClerk: () => ({ openSignIn: () => { signInModalOpens += 1; } }),
+  useClerk: () => ({
+    openSignIn: () => {
+      signInModalOpens += 1;
+    },
+  }),
   useSignIn: () => ({ fetchStatus: "idle", signIn: {} }),
 }));
 
@@ -118,21 +158,25 @@ mock.module("@trpc/client", () => ({
   createTRPCClient: () => ({
     account: {
       "api-keys": {
-        create: { mutate: async () => { throw new Error("not used"); } },
-        list: { query: async () => [] },
-        revoke: { mutate: async () => { throw new Error("not used"); } },
+        create: {
+          mutate: () => Promise.reject(new Error("not used")),
+        },
+        list: { query: () => Promise.resolve([]) },
+        revoke: {
+          mutate: () => Promise.reject(new Error("not used")),
+        },
       },
     },
     marks: {
-      get: { query: async () => mark },
+      get: { query: () => Promise.resolve(mark) },
       search: {
-        query: async (input: unknown) => {
+        query: (input: unknown) => {
           searchInputs.push(input);
           return searchHandler(input as { query: string });
         },
       },
     },
-    viewer: { role: { query: async () => ({ operator: false }) } },
+    viewer: { role: { query: () => Promise.resolve({ operator: false }) } },
   }),
   httpLink: () => ({}),
 }));
@@ -143,7 +187,7 @@ beforeEach(() => {
   signedIn = false;
   signInModalOpens = 0;
   searchInputs.length = 0;
-  searchHandler = async () => searchResult;
+  searchHandler = () => Promise.resolve(searchResult);
   window.history.replaceState({}, "", "/search");
 });
 
@@ -154,7 +198,7 @@ test("signed-out query composition survives modal sign-in before authenticated s
   fireEvent.change(screen.getByRole("searchbox", { name: "Search trademarks" }), {
     target: { value: "composed % query" },
   });
-  fireEvent.submit(screen.getByRole("searchbox", { name: "Search trademarks" }).closest("form")!);
+  fireEvent.submit(searchForm());
 
   expect(signInModalOpens).toBe(1);
   expect(new URLSearchParams(window.location.search).get("q")).toBe("composed % query");
@@ -171,17 +215,21 @@ test("signed-out query composition survives modal sign-in before authenticated s
 test("signed-out draft follows browser URL changes before sign-in", async () => {
   window.history.replaceState({}, "", "/search?q=first");
   const view = render(<App />);
-  expect((screen.getByRole("searchbox", { name: "Search trademarks" }) as HTMLInputElement).value).toBe("first");
+  expect(
+    (screen.getByRole("searchbox", { name: "Search trademarks" }) as HTMLInputElement).value
+  ).toBe("first");
 
   await act(() => {
     window.history.pushState({}, "", "/search?q=second");
     window.dispatchEvent(new PopStateEvent("popstate"));
   });
-  await waitFor(() => expect(
-    (screen.getByRole("searchbox", { name: "Search trademarks" }) as HTMLInputElement).value,
-  ).toBe("second"));
+  await waitFor(() =>
+    expect(
+      (screen.getByRole("searchbox", { name: "Search trademarks" }) as HTMLInputElement).value
+    ).toBe("second")
+  );
 
-  fireEvent.submit(screen.getByRole("searchbox", { name: "Search trademarks" }).closest("form")!);
+  fireEvent.submit(searchForm());
   signedIn = true;
   view.rerender(<App />);
 
@@ -194,7 +242,7 @@ test("whitespace-only signed-out Enter does not navigate or open sign-in", () =>
   fireEvent.change(screen.getByRole("searchbox", { name: "Search trademarks" }), {
     target: { value: "   " },
   });
-  fireEvent.submit(screen.getByRole("searchbox", { name: "Search trademarks" }).closest("form")!);
+  fireEvent.submit(searchForm());
 
   expect(window.location.pathname).toBe("/search");
   expect(window.location.search).toBe("");
@@ -219,7 +267,7 @@ test("search detail Back returns to the app-stored search entry", async () => {
   window.history.replaceState(
     {},
     "",
-    "/search?q=turtle&mode=multi&exact=true&partial=true&status=all&type=all&registered=all&sort=relevance",
+    "/search?q=turtle&mode=multi&exact=true&partial=true&status=all&type=all&registered=all&sort=relevance"
   );
   render(<App />);
 
@@ -238,14 +286,18 @@ test("search detail Back returns to the app-stored search entry", async () => {
 
 test("leaving a failed replacement clears retained results and the next failure is ordinary", async () => {
   signedIn = true;
-  searchHandler = async ({ query }) => {
-    if (query === "turtle") return searchResult;
-    throw Object.assign(new Error("unavailable"), { data: { code: "SERVICE_UNAVAILABLE" } });
+  searchHandler = ({ query }) => {
+    if (query === "turtle") {
+      return Promise.resolve(searchResult);
+    }
+    return Promise.reject(
+      Object.assign(new Error("unavailable"), { data: { code: "SERVICE_UNAVAILABLE" } })
+    );
   };
   window.history.replaceState(
     {},
     "",
-    "/search?q=turtle&mode=multi&exact=true&partial=true&status=all&type=all&registered=all&sort=relevance",
+    "/search?q=turtle&mode=multi&exact=true&partial=true&status=all&type=all&registered=all&sort=relevance"
   );
   render(<App />);
 
@@ -255,7 +307,7 @@ test("leaving a failed replacement clears retained results and the next failure 
   });
   fireEvent.click(screen.getByRole("button", { name: "Search" }));
   expect((await screen.findByRole("alert")).textContent).toBe(
-    "New search could not be loaded. Previous results are still shown.",
+    "New search could not be loaded. Previous results are still shown."
   );
   expect(screen.getByRole("link", { name: "TURTLE MARK" })).toBeTruthy();
 
@@ -275,14 +327,18 @@ test("leaving a failed replacement clears retained results and the next failure 
 
 test("a failed replacement keeps its source results through detail and Back", async () => {
   signedIn = true;
-  searchHandler = async ({ query }) => {
-    if (query === "turtle") return searchResult;
-    throw Object.assign(new Error("unavailable"), { data: { code: "SERVICE_UNAVAILABLE" } });
+  searchHandler = ({ query }) => {
+    if (query === "turtle") {
+      return Promise.resolve(searchResult);
+    }
+    return Promise.reject(
+      Object.assign(new Error("unavailable"), { data: { code: "SERVICE_UNAVAILABLE" } })
+    );
   };
   window.history.replaceState(
     {},
     "",
-    "/search?q=turtle&mode=multi&exact=true&partial=true&status=all&type=all&registered=all&sort=relevance",
+    "/search?q=turtle&mode=multi&exact=true&partial=true&status=all&type=all&registered=all&sort=relevance"
   );
   render(<App />);
 
@@ -292,7 +348,7 @@ test("a failed replacement keeps its source results through detail and Back", as
   });
   fireEvent.click(screen.getByRole("button", { name: "Search" }));
   expect((await screen.findByRole("alert")).textContent).toBe(
-    "New search could not be loaded. Previous results are still shown.",
+    "New search could not be loaded. Previous results are still shown."
   );
 
   fireEvent.click(screen.getByRole("link", { name: "TURTLE MARK" }));
@@ -302,7 +358,7 @@ test("a failed replacement keeps its source results through detail and Back", as
   await waitFor(() => expect(window.location.pathname).toBe("/search"));
   expect(new URLSearchParams(window.location.search).get("q")).toBe("replacement");
   expect((await screen.findByRole("alert")).textContent).toBe(
-    "New search could not be loaded. Previous results are still shown.",
+    "New search could not be loaded. Previous results are still shown."
   );
   expect(screen.getByRole("link", { name: "TURTLE MARK" })).toBeTruthy();
 });
@@ -311,26 +367,28 @@ test("a successful replacement cannot revive its source during a failed same-que
   signedIn = true;
   let replacementCalls = 0;
   let rejectReset: ((error: Error) => void) | undefined;
-  searchHandler = async ({ query }) => {
+  searchHandler = ({ query }) => {
     if (query === "turtle") {
-      return {
+      return Promise.resolve({
         ...searchResult,
-        items: [{ ...searchResult.items[0]!, wordMark: "SOURCE A" }],
-      };
+        items: [{ ...firstSearchItem, wordMark: "SOURCE A" }],
+      });
     }
     replacementCalls += 1;
     if (replacementCalls === 1) {
-      return {
+      return Promise.resolve({
         ...searchResult,
-        items: [{ ...searchResult.items[0]!, wordMark: "DESTINATION B" }],
-      };
+        items: [{ ...firstSearchItem, wordMark: "DESTINATION B" }],
+      });
     }
-    return new Promise((_, reject) => { rejectReset = reject; });
+    return new Promise((_, reject) => {
+      rejectReset = reject;
+    });
   };
   window.history.replaceState(
     {},
     "",
-    "/search?q=turtle&mode=multi&exact=true&partial=true&status=all&type=all&registered=all&sort=relevance",
+    "/search?q=turtle&mode=multi&exact=true&partial=true&status=all&type=all&registered=all&sort=relevance"
   );
   render(<App />);
 
@@ -345,9 +403,13 @@ test("a successful replacement cannot revive its source during a failed same-que
   fireEvent.click(screen.getByRole("button", { name: "Search" }));
   await waitFor(() => expect(rejectReset).toBeDefined());
   expect(screen.queryByRole("link", { name: "SOURCE A" })).toBeNull();
-  await act(async () => rejectReset?.(Object.assign(new Error("unavailable"), {
-    data: { code: "SERVICE_UNAVAILABLE" },
-  })));
+  await act(async () =>
+    rejectReset?.(
+      Object.assign(new Error("unavailable"), {
+        data: { code: "SERVICE_UNAVAILABLE" },
+      })
+    )
+  );
 
   expect((await screen.findByRole("alert")).textContent).toBe("Search could not be loaded.");
   expect(screen.queryByRole("link", { name: "SOURCE A" })).toBeNull();
