@@ -1,7 +1,7 @@
 import type postgres from "postgres";
 
 import type { ReportInput, ReportPage } from "../api/contracts.ts";
-import { DataVersionConflictError } from "./multi-search.ts";
+import { DataVersionConflictError } from "./search.ts";
 
 interface DataState {
   dataThroughDate: string | null;

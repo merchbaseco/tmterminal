@@ -31,11 +31,9 @@ export type MarkDetail = Omit<ProjectedMark, "contributors" | "kind" | "versions
   };
 };
 
-export interface MultiSearchInput {
+interface SearchInputBase {
   expectedDataVersion?: string;
   limit: 25;
-  match: "exact" | "partial" | "both";
-  mode: "multi";
   offset: number;
   query: string;
   registered: "all" | "yes" | "no";
@@ -44,7 +42,14 @@ export interface MultiSearchInput {
   type: "all" | "design" | "typeset" | "text" | "other";
 }
 
-export interface MultiSearchPage {
+export type SearchInput = SearchInputBase &
+  (
+    | { match: "exact" | "partial" | "both"; mode: "multi" }
+    | { match?: never; mode: "split" }
+    | { match?: never; mode: "wildcard" }
+  );
+
+export interface SearchPage {
   items: Array<{
     goodsServicesExcerpt: string | null;
     internationalClasses: string[];
@@ -70,7 +75,7 @@ export interface MultiSearchPage {
 export interface MarksService {
   getByRegistrationNumber: (registrationNumber: string) => Promise<MarkDetail | null>;
   getBySerialNumber: (serialNumber: string) => Promise<MarkDetail | null>;
-  search: (input: MultiSearchInput) => Promise<MultiSearchPage>;
+  search: (input: SearchInput) => Promise<SearchPage>;
 }
 
 export interface ReportInput {
@@ -87,9 +92,9 @@ export interface ReportInput {
   window?: "previous-week";
 }
 
-export interface ReportPage extends Omit<MultiSearchPage, "items"> {
+export interface ReportPage extends Omit<SearchPage, "items"> {
   from: string | null;
-  items: Omit<MultiSearchPage["items"][number], "match">[];
+  items: Omit<SearchPage["items"][number], "match">[];
   to: string | null;
 }
 

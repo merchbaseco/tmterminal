@@ -3,7 +3,7 @@ import type postgres from "postgres";
 import { legalDisclaimer, type MarkDetail, type MarksService } from "../api/contracts.ts";
 import type { ProjectedMark } from "../ingestion/mark-types.ts";
 import { createMarkRepository } from "../queries/mark-repository.ts";
-import { searchMulti } from "../queries/multi-search.ts";
+import { searchMarks } from "../queries/search.ts";
 
 export function createMarksService(database: postgres.Sql): MarksService {
   const repository = createMarkRepository(database);
@@ -26,6 +26,6 @@ export function createMarksService(database: postgres.Sql): MarksService {
       const materialization = await repository.read(serialNumber);
       return materialization ? publicMark(materialization) : null;
     },
-    search: (input) => searchMulti(database, input),
+    search: (input) => searchMarks(database, input),
   };
 }
