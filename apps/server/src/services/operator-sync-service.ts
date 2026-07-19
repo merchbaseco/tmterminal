@@ -21,8 +21,10 @@ export function createOperatorSyncService(database: postgres.Sql): OperatorSyncS
           items: page.items.map((item) => ({
             ...item,
             bytes: item.bytes === null ? null : Number(item.bytes),
-            completedAt: item.completedAt?.toISOString() ?? null,
-            currentError: safeError(item.currentError),
+            downloadError: safeError(item.downloadError),
+            downloadedAt: item.downloadedAt?.toISOString() ?? null,
+            projectionCompletedAt: item.projectionCompletedAt?.toISOString() ?? null,
+            projectionError: safeError(item.projectionError),
             updatedAt: item.updatedAt.toISOString(),
           })),
           limit: input.limit,
@@ -53,6 +55,7 @@ export function createOperatorSyncService(database: postgres.Sql): OperatorSyncS
           lastActivityAt: source.lastActivityAt?.toISOString() ?? null,
           physicalRecordCount: Number(source.physicalRecordCount),
           projectedMarkCount: Number(source.projectedMarkCount),
+          unavailableArtifactCount: facts.unavailableArtifactCount,
         },
         summary: syncStatusFromFacts(facts),
       };

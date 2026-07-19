@@ -1,5 +1,4 @@
 import type { ProjectedMark, SourceContributor } from "../ingestion/mark-types.ts";
-import type { MarkStatus } from "../search/status-policy.ts";
 
 export const legalDisclaimer =
   "Trademark data is informational, not legal advice. Verify critical decisions with the USPTO or qualified counsel.";
@@ -26,7 +25,7 @@ export interface AccountService {
 
 export type MarkDetail = Omit<ProjectedMark, "contributors" | "kind" | "mark" | "versions"> & {
   legalDisclaimer: typeof legalDisclaimer;
-  mark: ProjectedMark["mark"] & { status: MarkStatus };
+  mark: ProjectedMark["mark"] & { status: "dead" | "live" | "unknown" };
   provenance: {
     contributors: SourceContributor[];
     versions: ProjectedMark["versions"];
@@ -135,16 +134,29 @@ export interface BoundedPage<T> {
 export interface OperatorArtifact {
   artifactId: string;
   bytes: number | null;
-  completedAt: string | null;
-  currentError: string | null;
+  downloadError: string | null;
+  downloadedAt: string | null;
+  downloadResponseState: {
+    contentLength?: string;
+    contentType?: string;
+    etag?: string;
+    rateLimitReset?: string;
+    requestId?: string;
+    retryAfter?: string;
+    status: number;
+  } | null;
+  downloadState: "complete" | "downloading" | "failed" | "pending" | "unavailable";
   filename: string;
   physicalRecordCount: number;
   product: "TRTDXFAP" | "TRTYRAP";
   projectedMarkCount: number;
+  projectionCompletedAt: string | null;
+  projectionError: string | null;
+  projectionState: "complete" | "failed" | "pending" | "projecting";
+  projectionVersion: string | null;
   sha256: string | null;
   sourceFromDate: string;
   sourceToDate: string;
-  state: "complete" | "downloading" | "failed" | "pending" | "projecting";
   updatedAt: string;
 }
 
@@ -170,6 +182,7 @@ export interface OperatorSyncStatus {
     lastActivityAt: string | null;
     physicalRecordCount: number;
     projectedMarkCount: number;
+    unavailableArtifactCount: number;
   };
   summary: SyncStatus;
 }

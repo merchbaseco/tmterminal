@@ -1,11 +1,11 @@
 import { z } from "zod";
 
 import {
+  type SourceCatalog,
   SourceContractError,
   SourceHttpError,
-  SourceTransportError,
-  type SourceCatalog,
   type SourceResponseState,
+  SourceTransportError,
 } from "./source-catalog.ts";
 
 type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
@@ -21,27 +21,27 @@ const odpTimestamp = z
 const odpReleaseDate = odpTimestamp.transform((value) => value.slice(0, 10)).pipe(z.iso.date());
 
 const fileSchema = z.object({
-  fileName: z.string(),
-  fileSize: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
   fileDataFromDate: z.iso.date(),
   fileDataToDate: z.iso.date(),
-  fileTypeText: z.string(),
   fileDownloadURI: z.url(),
-  fileReleaseDate: odpReleaseDate,
   fileLastModifiedDateTime: odpTimestamp,
+  fileName: z.string(),
+  fileReleaseDate: odpReleaseDate,
+  fileSize: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  fileTypeText: z.string(),
 });
 
 const productResponseSchema = z.object({
   bulkDataProductBag: z.array(
     z.object({
-      productIdentifier: z.string(),
-      productTitleText: z.string(),
-      productFrequencyText: z.string(),
       lastModifiedDateTime: odpTimestamp,
       productFileBag: z.object({
         fileDataBag: z.array(fileSchema),
       }),
-    }),
+      productFrequencyText: z.string(),
+      productIdentifier: z.string(),
+      productTitleText: z.string(),
+    })
   ),
 });
 
@@ -58,11 +58,16 @@ function responseState(response: Response): SourceResponseState {
 
   for (const [key, header] of fields) {
     const value = response.headers.get(header);
-    if (value) state[key] = value;
+    if (value) {
+      state[key] = value;
+    }
   }
   if (!state.rateLimitReset) {
-    const value = response.headers.get("x-ratelimit-reset") ?? response.headers.get("x-rate-limit-reset");
-    if (value) state.rateLimitReset = value;
+    const value =
+      response.headers.get("x-ratelimit-reset") ?? response.headers.get("x-rate-limit-reset");
+    if (value) {
+      state.rateLimitReset = value;
+    }
   }
   return state;
 }
@@ -87,8 +92,11 @@ function transportBody(body: ReadableStream<Uint8Array>) {
     async pull(controller) {
       try {
         const chunk = await reader.read();
-        if (chunk.done) controller.close();
-        else controller.enqueue(chunk.value);
+        if (chunk.done) {
+          controller.close();
+        } else {
+          controller.enqueue(chunk.value);
+        }
       } catch (error) {
         controller.error(sourceTransportError(error) ?? error);
       }
@@ -96,7 +104,12 @@ function transportBody(body: ReadableStream<Uint8Array>) {
   });
 }
 
-async function send(fetcher: Fetch, input: string, headers: Record<string, string>, timeoutMs: number) {
+async function send(
+  fetcher: Fetch,
+  input: string,
+  headers: Record<string, string>,
+  timeoutMs: number
+) {
   let response: Response;
   try {
     response = await fetcher(input, {
@@ -106,20 +119,38 @@ async function send(fetcher: Fetch, input: string, headers: Record<string, strin
     });
   } catch (error) {
     const transportError = sourceTransportError(error);
-    if (transportError) throw transportError;
+    if (transportError) {
+      throw transportError;
+    }
     throw error;
   }
 
   return response;
 }
 
-async function request(fetcher: Fetch, input: string, apiKey: string, accept: string, timeoutMs: number) {
+async function request(
+  fetcher: Fetch,
+  input: string,
+  apiKey: string,
+  accept: string,
+  timeoutMs: number
+) {
   const response = await send(fetcher, input, { accept, "x-api-key": apiKey }, timeoutMs);
-  if (response.ok) return response;
-  throw new SourceHttpError(`USPTO ODP request failed with HTTP ${response.status}`, responseState(response));
+  if (response.ok) {
+    return response;
+  }
+  throw new SourceHttpError(
+    `USPTO ODP request failed with HTTP ${response.status}`,
+    responseState(response),
+    "catalog"
+  );
 }
 
-export function createOdpSourceCatalog(options: { apiKey: string; fetch?: Fetch; timeoutMs?: number }): SourceCatalog {
+export function createOdpSourceCatalog(options: {
+  apiKey: string;
+  fetch?: Fetch;
+  timeoutMs?: number;
+}): SourceCatalog {
   const fetcher = options.fetch ?? globalThis.fetch;
   const timeoutMs = options.timeoutMs ?? 30_000;
 
@@ -130,44 +161,54 @@ export function createOdpSourceCatalog(options: { apiKey: string; fetch?: Fetch;
         `https://api.uspto.gov/api/v1/datasets/products/${encodeURIComponent(productIdentifier)}`,
         options.apiKey,
         "application/json",
-        timeoutMs,
+        timeoutMs
       );
       let body: unknown;
       try {
         body = await response.json();
       } catch (error) {
         const transportError = sourceTransportError(error);
-        if (transportError) throw transportError;
-        throw new SourceContractError(`USPTO ODP returned invalid JSON for ${productIdentifier}`);
+        if (transportError) {
+          throw transportError;
+        }
+        throw new SourceContractError(`USPTO ODP returned invalid JSON for ${productIdentifier}`, {
+          cause: error,
+        });
       }
       const parsed = productResponseSchema.safeParse(body);
       const product = parsed.data?.bulkDataProductBag.find(
-        (candidate) => candidate.productIdentifier === productIdentifier,
+        (candidate) => candidate.productIdentifier === productIdentifier
       );
-      if (!parsed.success || !product) {
-        throw new SourceContractError(`USPTO ODP returned an invalid ${productIdentifier} product response`);
+      if (!(parsed.success && product)) {
+        throw new SourceContractError(
+          `USPTO ODP returned an invalid ${productIdentifier} product response`
+        );
       }
-      const dataFiles = product.productFileBag.fileDataBag.filter((file) => file.fileTypeText.toLowerCase() === "data");
+      const dataFiles = product.productFileBag.fileDataBag.filter(
+        (file) => file.fileTypeText.toLowerCase() === "data"
+      );
       if (dataFiles.some((file) => !odpDownloadUrl.safeParse(file.fileDownloadURI).success)) {
-        throw new SourceContractError(`USPTO ODP returned an unauthorized ${productIdentifier} download URL`);
+        throw new SourceContractError(
+          `USPTO ODP returned an unauthorized ${productIdentifier} download URL`
+        );
       }
 
       return {
-        product: {
-          identifier: product.productIdentifier,
-          title: product.productTitleText,
-          frequency: product.productFrequencyText,
-          lastModifiedAt: product.lastModifiedDateTime,
-        },
         artifacts: dataFiles.map((file) => ({
-            filename: file.fileName,
-            bytes: file.fileSize,
-            downloadUrl: file.fileDownloadURI,
-            fromDate: file.fileDataFromDate,
-            toDate: file.fileDataToDate,
-            releaseDate: file.fileReleaseDate,
-            lastModifiedAt: file.fileLastModifiedDateTime,
-          })),
+          bytes: file.fileSize,
+          downloadUrl: file.fileDownloadURI,
+          filename: file.fileName,
+          fromDate: file.fileDataFromDate,
+          lastModifiedAt: file.fileLastModifiedDateTime,
+          releaseDate: file.fileReleaseDate,
+          toDate: file.fileDataToDate,
+        })),
+        product: {
+          frequency: product.productFrequencyText,
+          identifier: product.productIdentifier,
+          lastModifiedAt: product.lastModifiedDateTime,
+          title: product.productTitleText,
+        },
         responseState: responseState(response),
       };
     },
@@ -180,31 +221,51 @@ export function createOdpSourceCatalog(options: { apiKey: string; fetch?: Fetch;
         fetcher,
         downloadUrl,
         { accept: "application/octet-stream", "x-api-key": options.apiKey },
-        timeoutMs,
+        timeoutMs
       );
       if (redirect.status !== 302) {
-        throw new SourceHttpError(`USPTO ODP download redirect failed with HTTP ${redirect.status}`, responseState(redirect));
+        throw new SourceHttpError(
+          `USPTO ODP download redirect failed with HTTP ${redirect.status}`,
+          responseState(redirect),
+          "download-redirect"
+        );
       }
       const location = redirect.headers.get("location");
-      if (!location) throw new SourceContractError("USPTO ODP data download redirect is missing a location");
+      if (!location) {
+        throw new SourceContractError("USPTO ODP data download redirect is missing a location");
+      }
       let redirectedUrl: string;
       try {
         redirectedUrl = new URL(location, downloadUrl).toString();
-      } catch {
-        throw new SourceContractError("USPTO ODP returned an invalid data download redirect");
+      } catch (error) {
+        throw new SourceContractError("USPTO ODP returned an invalid data download redirect", {
+          cause: error,
+        });
       }
       if (!odpDataDownloadUrl.safeParse(redirectedUrl).success) {
         throw new SourceContractError("USPTO ODP returned an unauthorized data download redirect");
       }
-      const response = await send(fetcher, redirectedUrl, { accept: "application/octet-stream" }, timeoutMs);
+      const response = await send(
+        fetcher,
+        redirectedUrl,
+        { accept: "application/octet-stream" },
+        timeoutMs
+      );
       if (!response.ok) {
-        throw new SourceHttpError(`USPTO ODP data download failed with HTTP ${response.status}`, responseState(response));
+        throw new SourceHttpError(
+          `USPTO ODP data download failed with HTTP ${response.status}`,
+          responseState(response),
+          "download-data"
+        );
       }
       if (!response.body) {
         throw new SourceTransportError("USPTO ODP download response had no body");
       }
       const contentLength = response.headers.get("content-length");
-      if (contentLength !== null && (!Number.isSafeInteger(Number(contentLength)) || Number(contentLength) < 0)) {
+      if (
+        contentLength !== null &&
+        (!Number.isSafeInteger(Number(contentLength)) || Number(contentLength) < 0)
+      ) {
         throw new SourceContractError("USPTO ODP download returned an invalid content-length");
       }
       return {

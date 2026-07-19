@@ -127,6 +127,27 @@
       "when": 1784388991591,
       "tag": "0017_nosy_stepford_cuckoos",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1784429064827,
+      "tag": "0018_separate_artifact_lifecycles",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1784429068800,
+      "tag": "0019_backfill_artifact_lifecycles",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1784429097205,
+      "tag": "0020_remove_coupled_artifact_state",
+      "breakpoints": true
     }
   ]
 }
