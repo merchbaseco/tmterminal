@@ -2,9 +2,13 @@ import type postgres from "postgres";
 
 import type { OperatorArtifact, OperatorPageInput } from "../api/contracts.ts";
 
-type ArtifactRow = Omit<OperatorArtifact, "bytes" | "completedAt" | "updatedAt"> & {
+type ArtifactRow = Omit<
+  OperatorArtifact,
+  "bytes" | "downloadedAt" | "projectionCompletedAt" | "updatedAt"
+> & {
   bytes: string | null;
-  completedAt: Date | null;
+  downloadedAt: Date | null;
+  projectionCompletedAt: Date | null;
   updatedAt: Date;
 };
 
@@ -16,10 +20,13 @@ export async function readOperatorArtifacts(
     Array<{ total: number }>
   >`select count(*)::int as total from source_artifact`;
   const items = await database<ArtifactRow[]>`
-    select id as "artifactId", bytes::text, completed_at as "completedAt", current_error as "currentError",
-      filename, physical_record_count as "physicalRecordCount", product,
+    select id as "artifactId", bytes::text, download_error as "downloadError",
+      download_response_state as "downloadResponseState", download_state as "downloadState",
+      downloaded_at as "downloadedAt", filename, physical_record_count as "physicalRecordCount", product,
+      projection_completed_at as "projectionCompletedAt", projection_error as "projectionError",
+      projection_state as "projectionState", projection_version as "projectionVersion",
       projected_mark_count as "projectedMarkCount", sha256, source_from_date::text as "sourceFromDate",
-      source_to_date::text as "sourceToDate", state, updated_at as "updatedAt"
+      source_to_date::text as "sourceToDate", updated_at as "updatedAt"
     from source_artifact order by filename limit ${input.limit} offset ${input.offset}
   `;
   return { items, total: count?.total ?? 0 };
@@ -34,8 +41,8 @@ interface OperatorSourceSummaryRow {
 export async function readOperatorSourceSummary(database: postgres.Sql) {
   const [summary] = await database<OperatorSourceSummaryRow[]>`
     select max(updated_at) as "lastActivityAt",
-      coalesce(sum(physical_record_count) filter (where state = 'complete'), 0)::text as "physicalRecordCount",
-      coalesce(sum(projected_mark_count) filter (where state = 'complete'), 0)::text as "projectedMarkCount"
+      coalesce(sum(physical_record_count) filter (where projection_state = 'complete'), 0)::text as "physicalRecordCount",
+      coalesce(sum(projected_mark_count) filter (where projection_state = 'complete'), 0)::text as "projectedMarkCount"
     from source_artifact
   `;
   if (!summary) {

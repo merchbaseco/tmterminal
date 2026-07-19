@@ -4,12 +4,14 @@ import type postgres from "postgres";
 import { lockIngestion } from "../queries/ingestion-lock.ts";
 import { annualBaselineV1Artifacts } from "./annual-baseline-v1.ts";
 import { ArtifactIntegrityError, type ArtifactStore } from "./artifact-store.ts";
+import { markVersions } from "./mark-types.ts";
 import {
   type DiscoveredArtifact,
   type DiscoveredProduct,
   type SourceCatalog,
   SourceContractError,
   SourceHttpError,
+  type SourceResponseState,
   SourceTransportError,
 } from "./source-catalog.ts";
 import {
@@ -25,7 +27,6 @@ const dailyProductTitle = "Trademark Full Text XML Data (No Images) – Daily Ap
 const annualBaselineFromDate = "1884-04-07";
 const annualBaselineToDate = "2025-12-31";
 const expectedAnnualArtifacts = 91;
-const normalizationVersion = "uspto-normalization-v1";
 const maxProviderAttempts = 8;
 const statusEventInsertBatchSize = 250;
 const dailyDiscoveryIntervalMs = 24 * 60 * 60 * 1000;
@@ -34,20 +35,22 @@ const interruptedDownloadError = "Download interrupted before retention";
 type Database = postgres.Sql | postgres.TransactionSql;
 
 interface ArtifactRow {
+  downloadState: "complete" | "downloading" | "failed" | "pending" | "unavailable";
   filename: string;
   id: string;
   objectKey: string | null;
   product: SourceProduct;
+  projectionState: "complete" | "failed" | "pending" | "projecting";
+  projectionVersion: string | null;
   sha256: string | null;
   sourceToDate: string;
-  state: "complete" | "downloading" | "failed" | "pending" | "projecting";
 }
 
 export interface TrademarkIngestionStatus {
   annualCompleteArtifactCount: number;
   annualProjectedMarkCount: number;
   completeThroughDate: string | null;
-  currentArtifact: { filename: string; state: ArtifactRow["state"] } | null;
+  currentArtifact: { filename: string; state: "downloading" | "projecting" } | null;
   dataVersion: number;
   expectedArtifactCount: number;
   failedArtifactCount: number;
@@ -61,6 +64,7 @@ export interface TrademarkIngestionStatus {
   };
   lastSuccessfulUpdateAt: Date | null;
   pendingArtifactCount: number;
+  unavailableArtifactCount: number;
 }
 
 export function createTrademarkIngestion(options: {
@@ -72,20 +76,6 @@ export function createTrademarkIngestion(options: {
   sourceCatalog: SourceCatalog;
 }) {
   const now = options.now ?? (() => new Date());
-
-  async function cleanupArtifact(artifact: ArtifactRow) {
-    if (!artifact.objectKey) {
-      return;
-    }
-    await options.artifactStore.remove(artifact.objectKey);
-    await options.database.begin(async (transaction) => {
-      await lockIngestion(transaction);
-      await transaction`
-        update source_artifact set object_key = null, updated_at = ${now()}
-        where id = ${artifact.id} and object_key = ${artifact.objectKey}
-      `;
-    });
-  }
 
   async function cleanupOrphanArtifact() {
     const retained = new Set(
@@ -217,15 +207,19 @@ export function createTrademarkIngestion(options: {
     return options.database.begin(async (transaction) => {
       await lockIngestion(transaction);
       const [artifact] = await transaction<ArtifactRow[]>`
-        select id, filename, product, source_to_date::text as "sourceToDate", state,
-          object_key as "objectKey", sha256
-        from source_artifact where state = 'pending'
+        select id, filename, product, source_to_date::text as "sourceToDate",
+          download_state as "downloadState", projection_state as "projectionState",
+          projection_version as "projectionVersion", object_key as "objectKey", sha256
+        from source_artifact where download_state = 'pending'
         order by source_from_date, product, filename limit 1
       `;
       if (!artifact) {
         return null;
       }
-      await transaction`update source_artifact set state = 'downloading', current_error = null, updated_at = ${now()} where id = ${artifact.id}`;
+      await transaction`
+        update source_artifact set download_state = 'downloading', download_error = null,
+          download_response_state = null, updated_at = ${now()} where id = ${artifact.id}
+      `;
       return artifact;
     });
   }
@@ -242,8 +236,10 @@ export function createTrademarkIngestion(options: {
       throw new Error(`Source artifact ${artifact.id} has an invalid expected byte count`);
     }
     let stored: Awaited<ReturnType<ArtifactStore["put"]>>;
+    let downloadResponseState: SourceResponseState;
     try {
       const download = await options.sourceCatalog.download(source.downloadUrl);
+      downloadResponseState = download.responseState;
       if (download.expectedBytes !== null && download.expectedBytes !== expectedBytes) {
         await download.body.cancel(
           "Source artifact response length changed from its catalog value"
@@ -256,8 +252,27 @@ export function createTrademarkIngestion(options: {
     } catch (error) {
       return options.database.begin(async (transaction) => {
         await lockIngestion(transaction);
+        const responseState = sourceResponseState(error);
+        if (
+          error instanceof SourceHttpError &&
+          error.phase === "download-redirect" &&
+          error.responseState.status === 429
+        ) {
+          await transaction`
+            update source_artifact set download_state = 'failed', download_error = ${safeError(error)},
+              download_response_state = ${transaction.json({ ...error.responseState })}, updated_at = ${now()}
+            where id = ${artifact.id}
+          `;
+          return {
+            action: "artifact-download-failed" as const,
+            artifactId: artifact.id,
+            filename: artifact.filename,
+            reason: safeError(error),
+          };
+        }
         await transaction`
-          update source_artifact set state = 'pending', current_error = ${safeError(error)}, updated_at = ${now()}
+          update source_artifact set download_state = 'pending', download_error = ${safeError(error)},
+            download_response_state = ${responseState ? transaction.json({ ...responseState }) : null}, updated_at = ${now()}
           where id = ${artifact.id}
         `;
         return recordProviderFailure(error, transaction);
@@ -266,9 +281,11 @@ export function createTrademarkIngestion(options: {
     await options.database.begin(async (transaction) => {
       await lockIngestion(transaction);
       await transaction`
-        update source_artifact set state = 'projecting', sha256 = ${stored.sha256}, bytes = ${stored.bytes},
-          object_key = ${stored.objectKey}, current_error = null, updated_at = ${now()}
-        where id = ${artifact.id} and state = 'downloading'
+        update source_artifact set download_state = 'complete', projection_state = 'pending',
+          sha256 = ${stored.sha256}, bytes = ${stored.bytes}, object_key = ${stored.objectKey},
+          download_error = null, download_response_state = ${transaction.json({ ...downloadResponseState })},
+          downloaded_at = ${now()}, updated_at = ${now()}
+        where id = ${artifact.id} and download_state = 'downloading'
       `;
       await markProviderSuccess(transaction);
     });
@@ -281,7 +298,7 @@ export function createTrademarkIngestion(options: {
   }
 
   async function projectArtifact(artifact: ArtifactRow) {
-    if (!(artifact.objectKey && artifact.sha256)) {
+    if (!(artifact.downloadState === "complete" && artifact.objectKey && artifact.sha256)) {
       throw new Error(`Source artifact ${artifact.id} has no retained ZIP`);
     }
     const { sha256 } = artifact;
@@ -308,15 +325,22 @@ export function createTrademarkIngestion(options: {
           throw new Error("Source artifact contains no physical records");
         }
         await transaction`
-          update source_artifact set state = 'complete', physical_record_count = ${parsed.physicalRecordCount},
-            projected_mark_count = ${parsed.projectedMarkCount}, completed_at = ${now()}, current_error = null,
+          update source_artifact set projection_state = 'complete',
+            projection_version = ${markVersions.projection},
+            physical_record_count = ${parsed.physicalRecordCount},
+            projected_mark_count = ${parsed.projectedMarkCount},
+            projection_completed_at = ${now()}, projection_error = null,
             updated_at = ${now()} where id = ${artifact.id}
         `;
         const materialChangeCount = parsed.materialChangeCount + removed.length;
         const [coverage] = await transaction<Array<{ completeThroughDate: string | null }>>`
           select case
-            when count(*) filter (where product = ${annualProduct} and state = 'complete') = ${expectedAnnualArtifacts}
-              then coalesce(max(source_to_date) filter (where product = ${dailyProduct} and state = 'complete'), ${annualBaselineToDate}::date)::text
+            when count(*) filter (where product = ${annualProduct} and projection_state = 'complete') = ${expectedAnnualArtifacts}
+              then coalesce(
+                min(source_from_date) filter (where product = ${dailyProduct} and projection_state <> 'complete') - 1,
+                max(source_to_date) filter (where product = ${dailyProduct} and projection_state = 'complete'),
+                ${annualBaselineToDate}::date
+              )::text
             else null
           end as "completeThroughDate"
           from source_artifact
@@ -335,19 +359,18 @@ export function createTrademarkIngestion(options: {
       await options.database.begin(async (transaction) => {
         await lockIngestion(transaction);
         await transaction`
-          update source_artifact set state = 'failed', current_error = ${safeError(error)}, updated_at = ${now()}
+          update source_artifact set projection_state = 'failed',
+            projection_error = ${safeError(error)}, updated_at = ${now()}
           where id = ${artifact.id}
         `;
       });
-      await cleanupArtifact(artifact);
       return {
-        action: "artifact-failed" as const,
+        action: "artifact-projection-failed" as const,
         artifactId: artifact.id,
         filename: artifact.filename,
         reason: safeError(error),
       };
     }
-    await cleanupArtifact(artifact);
     return {
       action: "projected" as const,
       artifactId: artifact.id,
@@ -364,60 +387,57 @@ export function createTrademarkIngestion(options: {
     if (orphanObjectKey) {
       return { action: "cleanup-orphan" as const, objectKey: orphanObjectKey };
     }
-    const [cleanup] = await options.database<ArtifactRow[]>`
-        select id, filename, product, source_to_date::text as "sourceToDate", state,
-          object_key as "objectKey", sha256
-        from source_artifact where object_key is not null and state in ('complete', 'failed') order by filename limit 1
-      `;
-    if (cleanup) {
-      await cleanupArtifact(cleanup);
-      return { action: "cleanup" as const, artifactId: cleanup.id };
-    }
     const interrupted = await options.database.begin(async (transaction) => {
       await lockIngestion(transaction);
       const [artifact] = await transaction<ArtifactRow[]>`
-        select id, filename, product, source_to_date::text as "sourceToDate", state,
-          object_key as "objectKey", sha256
-        from source_artifact where state = 'downloading' and object_key is null
+        select id, filename, product, source_to_date::text as "sourceToDate",
+          download_state as "downloadState", projection_state as "projectionState",
+          projection_version as "projectionVersion", object_key as "objectKey", sha256
+        from source_artifact where download_state = 'downloading' and object_key is null
         order by filename limit 1 for update
       `;
       if (!artifact) {
         return null;
       }
       await transaction`
-        update source_artifact set state = 'failed', current_error = ${interruptedDownloadError}, updated_at = ${now()}
+        update source_artifact set download_state = 'failed',
+          download_error = ${interruptedDownloadError}, updated_at = ${now()}
         where id = ${artifact.id}
       `;
       return artifact;
     });
     if (interrupted) {
       return {
-        action: "artifact-failed" as const,
+        action: "artifact-download-failed" as const,
         artifactId: interrupted.id,
         filename: interrupted.filename,
         reason: interruptedDownloadError,
       };
     }
-    const [failed] = await options.database<Array<ArtifactRow & { currentError: string | null }>>`
-      select id, filename, product, source_to_date::text as "sourceToDate", state,
-        object_key as "objectKey", sha256, current_error as "currentError"
-      from source_artifact where state = 'failed' order by source_from_date, product, filename limit 1
-    `;
-    if (failed) {
-      return {
-        action: "artifact-failed" as const,
-        artifactId: failed.id,
-        filename: failed.filename,
-        reason: failed.currentError ?? "Source artifact failed",
-      };
-    }
-    const [projecting] = await options.database<ArtifactRow[]>`
-        select id, filename, product, source_to_date::text as "sourceToDate", state,
-          object_key as "objectKey", sha256
-        from source_artifact where state = 'projecting'
-        order by source_from_date, product, filename limit 1
+    const projection = await options.database.begin(async (transaction) => {
+      await lockIngestion(transaction);
+      const [artifact] = await transaction<ArtifactRow[]>`
+        select id, filename, product, source_to_date::text as "sourceToDate",
+          download_state as "downloadState", projection_state as "projectionState",
+          projection_version as "projectionVersion", object_key as "objectKey", sha256
+        from source_artifact
+        where download_state = 'complete' and object_key is not null and sha256 is not null
+          and (projection_state in ('pending', 'projecting')
+            or projection_version is distinct from ${markVersions.projection})
+        order by source_from_date, product, filename limit 1 for update
       `;
-    return projecting ? projectArtifact(projecting) : null;
+      if (!artifact) {
+        return null;
+      }
+      if (artifact.projectionState !== "projecting") {
+        await transaction`
+          update source_artifact set projection_state = 'projecting', projection_error = null,
+            updated_at = ${now()} where id = ${artifact.id}
+        `;
+      }
+      return { ...artifact, projectionState: "projecting" as const };
+    });
+    return projection ? projectArtifact(projection) : null;
   }
 
   async function discoverNextArtifacts(lane: { nextEligibleAt: Date | null } | undefined) {
@@ -425,7 +445,7 @@ export function createTrademarkIngestion(options: {
       Array<{ annualComplete: number; annualTotal: number }>
     >`
         select count(*) filter (where product = ${annualProduct})::int as "annualTotal",
-          count(*) filter (where product = ${annualProduct} and state = 'complete')::int as "annualComplete"
+          count(*) filter (where product = ${annualProduct} and projection_state = 'complete')::int as "annualComplete"
         from source_artifact
       `;
     if (!inventory?.annualTotal) {
@@ -491,15 +511,19 @@ export async function readTrademarkIngestionStatus(
 ): Promise<TrademarkIngestionStatus> {
   const [status] = await database<TrademarkIngestionStatus[]>`
     select
-      count(artifact.id) filter (where artifact.product = ${annualProduct} and artifact.state = 'complete')::int as "annualCompleteArtifactCount",
-      coalesce(sum(artifact.projected_mark_count) filter (where artifact.product = ${annualProduct}), 0)::int as "annualProjectedMarkCount",
+      count(artifact.id) filter (where artifact.product = ${annualProduct} and artifact.projection_state = 'complete')::int as "annualCompleteArtifactCount",
+      coalesce(sum(artifact.projected_mark_count) filter (where artifact.product = ${annualProduct} and artifact.projection_state = 'complete'), 0)::int as "annualProjectedMarkCount",
       state.complete_through_date::text as "completeThroughDate",
       coalesce(state.version, 0)::int as "dataVersion",
       ${expectedAnnualArtifacts}::int as "expectedArtifactCount",
-      count(artifact.id) filter (where artifact.state = 'failed')::int as "failedArtifactCount",
-      min(artifact.updated_at) filter (where artifact.state = 'failed') as "failedArtifactUpdatedAt",
+      count(artifact.id) filter (where artifact.download_state = 'failed' or artifact.projection_state = 'failed')::int as "failedArtifactCount",
+      min(artifact.updated_at) filter (where artifact.download_state = 'failed' or artifact.projection_state = 'failed') as "failedArtifactUpdatedAt",
       state.last_successful_update_at as "lastSuccessfulUpdateAt",
-      count(artifact.id) filter (where artifact.state in ('pending', 'downloading', 'projecting'))::int as "pendingArtifactCount"
+      count(artifact.id) filter (where artifact.download_state in ('pending', 'downloading')
+        or (artifact.download_state = 'complete' and artifact.object_key is not null
+          and artifact.sha256 is not null and (artifact.projection_state in ('pending', 'projecting')
+            or artifact.projection_version is distinct from ${markVersions.projection})))::int as "pendingArtifactCount",
+      count(artifact.id) filter (where artifact.download_state = 'unavailable')::int as "unavailableArtifactCount"
     from (select 1) anchor
     left join data_state state on state.id = 'uspto'
     left join source_artifact artifact on true
@@ -512,9 +536,13 @@ export async function readTrademarkIngestionStatus(
     from (select 1) anchor left join source_lane lane on lane.id = 'uspto-odp'
   `;
   const [currentArtifact] = await database<
-    Array<{ filename: string; state: ArtifactRow["state"] }>
+    Array<{ filename: string; state: "downloading" | "projecting" }>
   >`
-    select filename, state from source_artifact where state in ('downloading', 'projecting') order by filename limit 1
+    select filename,
+      case when download_state = 'downloading' then 'downloading' else 'projecting' end as state
+    from source_artifact
+    where download_state = 'downloading' or projection_state = 'projecting'
+    order by filename limit 1
   `;
   if (!(status && lane)) {
     throw new Error("Trademark ingestion status is unavailable");
@@ -562,7 +590,7 @@ async function insertProjectionBatch(database: Database, batch: TrademarkProject
       upserts.map((projection) => ({
         filing_date: projection.filingDate,
         mark_drawing_code: projection.markDrawingCode,
-        normalization_version: normalizationVersion,
+        normalization_version: markVersions.normalization,
         registration_date: projection.registrationDate,
         registration_number: projection.registrationNumber,
         serial_number: projection.serialNumber,
@@ -771,6 +799,10 @@ function headerEligibility(error: SourceHttpError, now: Date) {
     }
   }
   return candidates.length === 0 ? null : new Date(Math.max(...candidates));
+}
+
+function sourceResponseState(error: unknown) {
+  return error instanceof SourceHttpError ? error.responseState : null;
 }
 
 function safeError(error: unknown) {

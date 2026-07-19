@@ -1,4 +1,4 @@
-export type SourceResponseState = {
+export interface SourceResponseState {
   contentLength?: string;
   contentType?: string;
   etag?: string;
@@ -6,9 +6,9 @@ export type SourceResponseState = {
   requestId?: string;
   retryAfter?: string;
   status: number;
-};
+}
 
-export type DiscoveredArtifact = {
+export interface DiscoveredArtifact {
   bytes: number;
   downloadUrl: string;
   filename: string;
@@ -16,9 +16,9 @@ export type DiscoveredArtifact = {
   lastModifiedAt: string;
   releaseDate: string;
   toDate: string;
-};
+}
 
-export type DiscoveredProduct = {
+export interface DiscoveredProduct {
   artifacts: DiscoveredArtifact[];
   product: {
     frequency: string;
@@ -27,26 +27,32 @@ export type DiscoveredProduct = {
     title: string;
   };
   responseState: SourceResponseState;
-};
+}
 
-export type ArtifactDownload = {
+export interface ArtifactDownload {
   body: ReadableStream<Uint8Array>;
   expectedBytes: number | null;
   responseState: SourceResponseState;
-};
+}
 
 export interface SourceCatalog {
-  discover(productIdentifier: string): Promise<DiscoveredProduct>;
-  download(downloadUrl: string): Promise<ArtifactDownload>;
+  discover: (productIdentifier: string) => Promise<DiscoveredProduct>;
+  download: (downloadUrl: string) => Promise<ArtifactDownload>;
 }
 
 export class SourceHttpError extends Error {
+  readonly phase: "catalog" | "download-data" | "download-redirect";
+  readonly responseState: SourceResponseState;
+
   constructor(
     message: string,
-    readonly responseState: SourceResponseState,
+    responseState: SourceResponseState,
+    phase: "catalog" | "download-data" | "download-redirect"
   ) {
     super(message);
     this.name = "SourceHttpError";
+    this.phase = phase;
+    this.responseState = responseState;
   }
 }
 
@@ -58,8 +64,8 @@ export class SourceTransportError extends Error {
 }
 
 export class SourceContractError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = "SourceContractError";
   }
 }

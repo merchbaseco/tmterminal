@@ -144,7 +144,7 @@ export function SearchPage({
   const [draftQuery, setDraftQuery] = useState(state.query);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const queryClient = useQueryClient();
-  const resultsRef = useRef<HTMLDivElement>(null);
+  const resultsRef = useRef<HTMLOListElement>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const restoredEntry = useRef<string | null>(null);
 

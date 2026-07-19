@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 
 import type { TrademarkIngestionStatus } from "../../src/ingestion/trademark-ingestion.ts";
 import { syncStatusFromFacts } from "../../src/services/sync-service.ts";
+import { isWorkerReady } from "../../src/worker-readiness.ts";
 
 const healthy: TrademarkIngestionStatus = {
   annualCompleteArtifactCount: 91,
@@ -21,6 +22,7 @@ const healthy: TrademarkIngestionStatus = {
   },
   lastSuccessfulUpdateAt: new Date("2026-01-01T00:00:00Z"),
   pendingArtifactCount: 0,
+  unavailableArtifactCount: 0,
 };
 
 test("healthy status has no future degradation timestamp", () => {
@@ -42,18 +44,20 @@ test("staleness begins at the public stale threshold", () => {
 });
 
 test("artifact failure uses its own timestamp", () => {
-  expect(
-    syncStatusFromFacts({
-      ...healthy,
-      failedArtifactCount: 1,
-      failedArtifactUpdatedAt: new Date("2026-01-02T00:00:00Z"),
-    })
-  ).toMatchObject({
+  const status = syncStatusFromFacts({
+    ...healthy,
+    failedArtifactCount: 1,
+    failedArtifactUpdatedAt: new Date("2026-01-02T00:00:00Z"),
+    pendingArtifactCount: 1,
+  });
+  expect(status).toMatchObject({
     activeState: "failed",
     degraded: true,
     degradedSince: "2026-01-02T00:00:00.000Z",
     failedCount: 1,
+    pendingCount: 1,
   });
+  expect(isWorkerReady(status.activeState)).toBe(true);
 });
 
 test("provider backoff and stop use the lane transition timestamp", () => {
@@ -66,10 +70,16 @@ test("provider backoff and stop use the lane transition timestamp", () => {
     degradedSince: updatedAt.toISOString(),
   });
   expect(
-    syncStatusFromFacts({ ...healthy, lane: { ...healthy.lane, status: "stopped", updatedAt } })
+    syncStatusFromFacts({
+      ...healthy,
+      failedArtifactCount: 1,
+      failedArtifactUpdatedAt: new Date("2026-01-02T00:00:00Z"),
+      lane: { ...healthy.lane, status: "stopped", updatedAt },
+    })
   ).toMatchObject({
     activeState: "stopped",
     degraded: true,
-    degradedSince: updatedAt.toISOString(),
+    degradedSince: "2026-01-02T00:00:00.000Z",
   });
+  expect(isWorkerReady("stopped")).toBe(false);
 });

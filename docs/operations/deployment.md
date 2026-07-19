@@ -27,21 +27,21 @@ Startup is ordered:
 2. Back up PostgreSQL and record the exact deployed and candidate SHAs.
 3. Fast-forward the clean production checkout to the reviewed merge SHA.
 4. Build images labeled with that exact SHA.
-5. Start PostgreSQL and run the one-shot Drizzle migrator. Its single transaction preserves live projected rows, all 91 annual artifacts, retained Part 26, provider state, accounts, identities, keys, and roles while removing generation keys and pointers.
+5. Start PostgreSQL and run the one-shot Drizzle migrator. Its single transaction preserves live projections, artifact availability/projection truth, provider state, accounts, identities, keys, and roles.
 6. Start API and Caddy; verify database/API/web readiness and auth/search behavior while the worker remains stopped.
-7. Start the worker only after explicit deployment authorization. Its first database-derived action resumes retained Part 26 without another provider download. Verify one atomic live update, ZIP cleanup, and truthful `/ops/sync` state.
+7. Start the worker only after explicit deployment authorization. Verify one database-derived action, referenced ZIP retention or orphan cleanup as applicable, and truthful `/ops/sync` state.
 
 There is no pre-merge cutover script, compatibility view, dual write, or embedded rollback across the schema cutover. The one forward migration is deliberately pinned to the exact sole-build production shape. If migration or acceptance fails, leave the worker stopped and deploy a corrected revision against the restored backup.
 
 The ignored production `.env` is mastered at `/Users/zknicker/srv/tmturtle/.env`, copied into the detached candidate without echoing values, and kept at mode `0600`. Required secret-bearing names are `DATABASE_URL`, `POSTGRES_PASSWORD`, `CLERK_SECRET_KEY`, and `USPTO_API_KEY`; `VITE_CLERK_PUBLISHABLE_KEY` supplies the approved shared MerchBase Clerk frontend configuration. Production sets `CLERK_AUTHORIZED_PARTIES` to exactly `https://tmturtle.merchbase.co`.
 
-PostgreSQL and the transient artifact working directory use named volumes. API, worker, database, and Caddy use restart policies compatible with the host's existing Colima launch-on-boot service. Migration remains a successful one-shot container. Resource limits reserve the host from runaway ingestion while leaving PostgreSQL and authenticated reads independently observable.
+PostgreSQL and the durable retained-artifact store use named volumes. Both are backup state. API, worker, database, and Caddy use restart policies compatible with the host's existing Colima launch-on-boot service. Migration remains a successful one-shot container. Resource limits reserve the host from runaway ingestion while leaving PostgreSQL and authenticated reads independently observable.
 
 ## Verification and monitoring hook
 
 `scripts/deployment-smoke` is the external readiness and capacity hook. Worker readiness begins only after the current process completes its first reconciliation; its startup grace matches the existing 15-minute provider request bound, persisted backoff remains valid, and a stopped lane fails smoke. The hook also fails when either the PostgreSQL or artifact volume filesystem has less than 20 GiB free, migration failed, another long-running service is unhealthy, a bounded loopback or public HTTPS probe fails, or image labels do not match the deployed revision.
 
-The anonymous readiness response is exactly `{"status":"ready"}` and contains no trademark data. Readiness does not claim data completeness. The worker reconciles immediately on startup and waits a fixed 10 seconds after each completion; it also owns serial downloads, persisted backoff, and a non-configurable eight-attempt ceiling. Authenticated sync reports freshness and durable ingestion state; the operator page reports annual baseline progress, provider lane, and compact artifact state.
+The anonymous readiness response is exactly `{"status":"ready"}` and contains no trademark data. Readiness does not claim data completeness. The worker reconciles immediately on startup and waits a fixed 10 seconds after each completion; it also owns serial downloads and global persisted backoff. A file-specific 429 fails that artifact once without stopping later files. Authenticated sync reports freshness, retained-source availability, and projection state.
 
 For an explicit smoke or post-restart check:
 
@@ -53,7 +53,7 @@ export TMTURTLE_REVISION="$(git rev-parse HEAD)"
 
 ## Rollback
 
-After the direct-schema migration, recovery uses the PostgreSQL backup plus a corrected exact Git revision. Do not run a pre-cutover worker against the direct schema. Named database and transient-working-data volumes remain attached only when the selected revision owns their schema.
+Recovery uses PostgreSQL and retained-artifact backups plus a corrected exact Git revision. Named database and artifact volumes remain attached only when the selected revision owns their schema and lifecycle contract.
 
 ```bash
 git switch --detach <corrected-post-cutover-sha>

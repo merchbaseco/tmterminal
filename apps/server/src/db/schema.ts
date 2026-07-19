@@ -5,6 +5,7 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -18,9 +19,15 @@ import {
 import { markSearchStatusSql } from "../search/status-policy.ts";
 
 export const sourceLaneStatus = pgEnum("source_lane_status", ["ready", "backoff", "stopped"]);
-export const sourceArtifactState = pgEnum("source_artifact_state", [
+export const sourceArtifactDownloadState = pgEnum("source_artifact_download_state", [
   "pending",
   "downloading",
+  "complete",
+  "failed",
+  "unavailable",
+]);
+export const sourceArtifactProjectionState = pgEnum("source_artifact_projection_state", [
+  "pending",
   "projecting",
   "complete",
   "failed",
@@ -86,8 +93,10 @@ export const sourceArtifact = pgTable(
   "source_artifact",
   {
     bytes: bigint("bytes", { mode: "number" }),
-    completedAt: timestamp("completed_at", { withTimezone: true }),
-    currentError: text("current_error"),
+    downloadError: text("download_error"),
+    downloadedAt: timestamp("downloaded_at", { withTimezone: true }),
+    downloadResponseState: jsonb("download_response_state"),
+    downloadState: sourceArtifactDownloadState("download_state").notNull().default("pending"),
     downloadUrl: text("download_url").notNull(),
     expectedBytes: bigint("expected_bytes", { mode: "number" }).notNull(),
     filename: text("filename").notNull(),
@@ -96,15 +105,22 @@ export const sourceArtifact = pgTable(
     physicalRecordCount: integer("physical_record_count").notNull().default(0),
     product: text("product").notNull(),
     projectedMarkCount: integer("projected_mark_count").notNull().default(0),
+    projectionCompletedAt: timestamp("projection_completed_at", { withTimezone: true }),
+    projectionError: text("projection_error"),
+    projectionState: sourceArtifactProjectionState("projection_state").notNull().default("pending"),
+    projectionVersion: text("projection_version"),
     sha256: varchar("sha256", { length: 64 }),
     sourceFromDate: date("source_from_date").notNull(),
     sourceToDate: date("source_to_date").notNull(),
-    state: sourceArtifactState("state").notNull().default("pending"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     uniqueIndex("source_artifact_product_filename_unique").on(table.product, table.filename),
-    index("source_artifact_state_filename_idx").on(table.state, table.filename),
+    index("source_artifact_download_state_filename_idx").on(table.downloadState, table.filename),
+    index("source_artifact_projection_state_filename_idx").on(
+      table.projectionState,
+      table.filename
+    ),
   ]
 );
 

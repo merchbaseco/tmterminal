@@ -1,0 +1,1285 @@
+{
+  "id": "3215e102-b282-4332-ac7a-8ebbbe8c0792",
+  "prevId": "01f2460e-7030-447b-93f7-e0e8ca1342fb",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.account": {
+      "name": "account",
+      "schema": "",
+      "columns": {
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "account_name_unique": {
+          "name": "account_name_unique",
+          "columns": [
+            "name"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.api_key": {
+      "name": "api_key",
+      "schema": "",
+      "columns": {
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "last_used_at": {
+          "name": "last_used_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "secret_hash": {
+          "name": "secret_hash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "suffix": {
+          "name": "suffix",
+          "type": "varchar(8)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "api_key_account_id_idx": {
+          "name": "api_key_account_id_idx",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "api_key_account_id_account_id_fk": {
+          "name": "api_key_account_id_account_id_fk",
+          "tableFrom": "api_key",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "tableTo": "account",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.clerk_identity": {
+      "name": "clerk_identity",
+      "schema": "",
+      "columns": {
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "clerk_user_id": {
+          "name": "clerk_user_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "clerk_identity_account_id_unique": {
+          "name": "clerk_identity_account_id_unique",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "clerk_identity_account_id_account_id_fk": {
+          "name": "clerk_identity_account_id_account_id_fk",
+          "tableFrom": "clerk_identity",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "tableTo": "account",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.data_state": {
+      "name": "data_state",
+      "schema": "",
+      "columns": {
+        "complete_through_date": {
+          "name": "complete_through_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "last_successful_update_at": {
+          "name": "last_successful_update_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.mark": {
+      "name": "mark",
+      "schema": "",
+      "columns": {
+        "filing_date": {
+          "name": "filing_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mark_drawing_code": {
+          "name": "mark_drawing_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "normalization_version": {
+          "name": "normalization_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "registration_date": {
+          "name": "registration_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "registration_number": {
+          "name": "registration_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "search_status": {
+          "name": "search_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "type": "stored",
+            "as": "case status_code when '000' then 'unknown' when '400' then 'dead' when '401' then 'dead' when '402' then 'dead' when '403' then 'dead' when '404' then 'dead' when '405' then 'dead' when '406' then 'dead' when '410' then 'live' when '411' then 'dead' when '412' then 'dead' when '413' then 'live' when '414' then 'dead' when '415' then 'dead' when '416' then 'dead' when '417' then 'dead' when '600' then 'dead' when '601' then 'dead' when '602' then 'dead' when '603' then 'dead' when '604' then 'dead' when '605' then 'dead' when '606' then 'dead' when '607' then 'dead' when '608' then 'dead' when '609' then 'dead' when '610' then 'dead' when '612' then 'dead' when '614' then 'dead' when '616' then 'live' when '618' then 'dead' when '620' then 'live' when '622' then 'unknown' when '624' then 'live' when '625' then 'live' when '626' then 'dead' when '630' then 'live' when '631' then 'live' when '632' then 'dead' when '638' then 'live' when '640' then 'live' when '641' then 'live' when '642' then 'live' when '643' then 'live' when '644' then 'live' when '645' then 'live' when '646' then 'live' when '647' then 'live' when '648' then 'live' when '649' then 'live' when '650' then 'live' when '651' then 'live' when '652' then 'live' when '653' then 'live' when '654' then 'live' when '655' then 'live' when '656' then 'live' when '657' then 'live' when '658' then 'live' when '659' then 'live' when '660' then 'live' when '661' then 'live' when '663' then 'live' when '664' then 'live' when '665' then 'live' when '666' then 'live' when '667' then 'live' when '668' then 'live' when '672' then 'live' when '680' then 'live' when '681' then 'live' when '682' then 'live' when '686' then 'live' when '688' then 'live' when '689' then 'live' when '690' then 'live' when '692' then 'live' when '693' then 'live' when '694' then 'live' when '700' then 'live' when '701' then 'live' when '702' then 'live' when '703' then 'live' when '704' then 'live' when '705' then 'live' when '706' then 'live' when '707' then 'live' when '708' then 'live' when '709' then 'dead' when '710' then 'dead' when '711' then 'dead' when '712' then 'dead' when '713' then 'dead' when '714' then 'dead' when '715' then 'unknown' when '717' then 'live' when '718' then 'live' when '719' then 'live' when '720' then 'live' when '721' then 'live' when '722' then 'live' when '724' then 'live' when '725' then 'live' when '730' then 'live' when '731' then 'live' when '732' then 'live' when '733' then 'live' when '734' then 'live' when '739' then 'live' when '740' then 'live' when '744' then 'live' when '745' then 'live' when '746' then 'live' when '748' then 'live' when '752' then 'live' when '753' then 'live' when '756' then 'live' when '757' then 'live' when '760' then 'live' when '762' then 'live' when '763' then 'live' when '764' then 'live' when '765' then 'live' when '766' then 'live' when '771' then 'live' when '772' then 'live' when '773' then 'live' when '774' then 'live' when '775' then 'live' when '777' then 'live' when '778' then 'live' when '779' then 'live' when '780' then 'live' when '781' then 'dead' when '782' then 'dead' when '783' then 'dead' when '790' then 'live' when '794' then 'live' when '800' then 'live' when '801' then 'live' when '802' then 'live' when '803' then 'live' when '804' then 'live' when '806' then 'live' when '807' then 'live' when '808' then 'live' when '809' then 'live' when '810' then 'live' when '811' then 'live' when '812' then 'live' when '813' then 'live' when '814' then 'live' when '815' then 'live' when '816' then 'live' when '817' then 'live' when '818' then 'live' when '819' then 'live' when '820' then 'live' when '821' then 'live' when '822' then 'live' when '823' then 'live' when '824' then 'live' when '825' then 'live' when '900' then 'dead' when '901' then 'dead' when '968' then 'dead' when '969' then 'live' when '970' then 'unknown' when '973' then 'live' else 'unknown' end"
+          }
+        },
+        "serial_number": {
+          "name": "serial_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_filename": {
+          "name": "source_filename",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_physical_record_index": {
+          "name": "source_physical_record_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_product": {
+          "name": "source_product",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_sha256": {
+          "name": "source_sha256",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_transaction_date": {
+          "name": "source_transaction_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status_code": {
+          "name": "status_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status_date": {
+          "name": "status_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "word_mark": {
+          "name": "word_mark",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "word_mark_normalized": {
+          "name": "word_mark_normalized",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "type": "stored",
+            "as": "lower(normalize(btrim(word_mark), NFKC) collate \"und-x-icu\") collate \"default\""
+          }
+        }
+      },
+      "indexes": {
+        "mark_registration_number_unique": {
+          "name": "mark_registration_number_unique",
+          "columns": [
+            {
+              "expression": "registration_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "where": "\"mark\".\"registration_number\" is not null",
+          "concurrently": false
+        },
+        "mark_word_mark_exact_idx": {
+          "name": "mark_word_mark_exact_idx",
+          "columns": [
+            {
+              "expression": "word_mark_normalized",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "hash",
+          "concurrently": false
+        },
+        "mark_filing_date_idx": {
+          "name": "mark_filing_date_idx",
+          "columns": [
+            {
+              "expression": "filing_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "serial_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "mark_registration_date_idx": {
+          "name": "mark_registration_date_idx",
+          "columns": [
+            {
+              "expression": "registration_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "serial_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "mark_status_activity_idx": {
+          "name": "mark_status_activity_idx",
+          "columns": [
+            {
+              "expression": "status_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source_transaction_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "serial_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "mark_word_mark_normalized_trgm_idx": {
+          "name": "mark_word_mark_normalized_trgm_idx",
+          "columns": [
+            {
+              "expression": "\"word_mark_normalized\" gin_trgm_ops",
+              "isExpression": true,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "gin",
+          "concurrently": false
+        },
+        "mark_live_word_mark_exact_idx": {
+          "name": "mark_live_word_mark_exact_idx",
+          "columns": [
+            {
+              "expression": "word_mark_normalized",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "hash",
+          "where": "\"mark\".\"search_status\" = 'live'",
+          "concurrently": false
+        },
+        "mark_live_word_mark_normalized_trgm_idx": {
+          "name": "mark_live_word_mark_normalized_trgm_idx",
+          "columns": [
+            {
+              "expression": "\"word_mark_normalized\" gin_trgm_ops",
+              "isExpression": true,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "gin",
+          "where": "\"mark\".\"search_status\" = 'live'",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "mark_serial_number_pk": {
+          "name": "mark_serial_number_pk",
+          "columns": [
+            "serial_number"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.mark_class": {
+      "name": "mark_class",
+      "schema": "",
+      "columns": {
+        "international_code": {
+          "name": "international_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ordinal": {
+          "name": "ordinal",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "serial_number": {
+          "name": "serial_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_filename": {
+          "name": "source_filename",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_physical_record_index": {
+          "name": "source_physical_record_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_product": {
+          "name": "source_product",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_sha256": {
+          "name": "source_sha256",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status_code": {
+          "name": "status_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status_date": {
+          "name": "status_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "mark_class_serial_number_mark_serial_number_fk": {
+          "name": "mark_class_serial_number_mark_serial_number_fk",
+          "tableFrom": "mark_class",
+          "columnsFrom": [
+            "serial_number"
+          ],
+          "tableTo": "mark",
+          "columnsTo": [
+            "serial_number"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {
+        "mark_class_serial_number_ordinal_pk": {
+          "name": "mark_class_serial_number_ordinal_pk",
+          "columns": [
+            "serial_number",
+            "ordinal"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.mark_goods_services": {
+      "name": "mark_goods_services",
+      "schema": "",
+      "columns": {
+        "ordinal": {
+          "name": "ordinal",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "serial_number": {
+          "name": "serial_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_filename": {
+          "name": "source_filename",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_physical_record_index": {
+          "name": "source_physical_record_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_product": {
+          "name": "source_product",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_sha256": {
+          "name": "source_sha256",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "text": {
+          "name": "text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type_code": {
+          "name": "type_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "mark_goods_services_serial_number_mark_serial_number_fk": {
+          "name": "mark_goods_services_serial_number_mark_serial_number_fk",
+          "tableFrom": "mark_goods_services",
+          "columnsFrom": [
+            "serial_number"
+          ],
+          "tableTo": "mark",
+          "columnsTo": [
+            "serial_number"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {
+        "mark_goods_services_serial_number_ordinal_pk": {
+          "name": "mark_goods_services_serial_number_ordinal_pk",
+          "columns": [
+            "serial_number",
+            "ordinal"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.mark_owner": {
+      "name": "mark_owner",
+      "schema": "",
+      "columns": {
+        "entry_number": {
+          "name": "entry_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ordinal": {
+          "name": "ordinal",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "party_name": {
+          "name": "party_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "party_type": {
+          "name": "party_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "serial_number": {
+          "name": "serial_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_filename": {
+          "name": "source_filename",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_physical_record_index": {
+          "name": "source_physical_record_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_product": {
+          "name": "source_product",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_sha256": {
+          "name": "source_sha256",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "mark_owner_serial_number_mark_serial_number_fk": {
+          "name": "mark_owner_serial_number_mark_serial_number_fk",
+          "tableFrom": "mark_owner",
+          "columnsFrom": [
+            "serial_number"
+          ],
+          "tableTo": "mark",
+          "columnsTo": [
+            "serial_number"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {
+        "mark_owner_serial_number_ordinal_pk": {
+          "name": "mark_owner_serial_number_ordinal_pk",
+          "columns": [
+            "serial_number",
+            "ordinal"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.mark_status_event": {
+      "name": "mark_status_event",
+      "schema": "",
+      "columns": {
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "event_date": {
+          "name": "event_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "event_key": {
+          "name": "event_key",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event_number": {
+          "name": "event_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "serial_number": {
+          "name": "serial_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_filename": {
+          "name": "source_filename",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_physical_record_index": {
+          "name": "source_physical_record_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_product": {
+          "name": "source_product",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_sha256": {
+          "name": "source_sha256",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "mark_status_event_serial_number_mark_serial_number_fk": {
+          "name": "mark_status_event_serial_number_mark_serial_number_fk",
+          "tableFrom": "mark_status_event",
+          "columnsFrom": [
+            "serial_number"
+          ],
+          "tableTo": "mark",
+          "columnsTo": [
+            "serial_number"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {
+        "mark_status_event_serial_number_event_key_pk": {
+          "name": "mark_status_event_serial_number_event_key_pk",
+          "columns": [
+            "serial_number",
+            "event_key"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.role_assignment": {
+      "name": "role_assignment",
+      "schema": "",
+      "columns": {
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "role_assignment_account_id_account_id_fk": {
+          "name": "role_assignment_account_id_account_id_fk",
+          "tableFrom": "role_assignment",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "tableTo": "account",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "role_assignment_account_id_role_pk": {
+          "name": "role_assignment_account_id_role_pk",
+          "columns": [
+            "account_id",
+            "role"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.source_artifact": {
+      "name": "source_artifact",
+      "schema": "",
+      "columns": {
+        "bytes": {
+          "name": "bytes",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "current_error": {
+          "name": "current_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "state": {
+          "name": "state",
+          "type": "source_artifact_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "download_error": {
+          "name": "download_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "download_response_state": {
+          "name": "download_response_state",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "download_state": {
+          "name": "download_state",
+          "type": "source_artifact_download_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "download_url": {
+          "name": "download_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "downloaded_at": {
+          "name": "downloaded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expected_bytes": {
+          "name": "expected_bytes",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "filename": {
+          "name": "filename",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "object_key": {
+          "name": "object_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "physical_record_count": {
+          "name": "physical_record_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "product": {
+          "name": "product",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "projection_completed_at": {
+          "name": "projection_completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "projection_error": {
+          "name": "projection_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "projection_state": {
+          "name": "projection_state",
+          "type": "source_artifact_projection_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "projection_version": {
+          "name": "projection_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "projected_mark_count": {
+          "name": "projected_mark_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "sha256": {
+          "name": "sha256",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_from_date": {
+          "name": "source_from_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_to_date": {
+          "name": "source_to_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "source_artifact_product_filename_unique": {
+          "name": "source_artifact_product_filename_unique",
+          "columns": [
+            {
+              "expression": "product",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "filename",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "source_artifact_state_filename_idx": {
+          "name": "source_artifact_state_filename_idx",
+          "columns": [
+            {
+              "expression": "state",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "filename",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "source_artifact_download_state_filename_idx": {
+          "name": "source_artifact_download_state_filename_idx",
+          "columns": [
+            {
+              "expression": "download_state",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "filename",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "source_artifact_projection_state_filename_idx": {
+          "name": "source_artifact_projection_state_filename_idx",
+          "columns": [
+            {
+              "expression": "projection_state",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "filename",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.source_lane": {
+      "name": "source_lane",
+      "schema": "",
+      "columns": {
+        "current_error": {
+          "name": "current_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "failure_count": {
+          "name": "failure_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "next_eligible_at": {
+          "name": "next_eligible_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "source_lane_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'ready'"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.source_artifact_state": {
+      "name": "source_artifact_state",
+      "schema": "public",
+      "values": [
+        "pending",
+        "downloading",
+        "projecting",
+        "complete",
+        "failed"
+      ]
+    },
+    "public.source_artifact_download_state": {
+      "name": "source_artifact_download_state",
+      "schema": "public",
+      "values": [
+        "pending",
+        "downloading",
+        "complete",
+        "failed",
+        "unavailable"
+      ]
+    },
+    "public.source_artifact_projection_state": {
+      "name": "source_artifact_projection_state",
+      "schema": "public",
+      "values": [
+        "pending",
+        "projecting",
+        "complete",
+        "failed"
+      ]
+    },
+    "public.source_lane_status": {
+      "name": "source_lane_status",
+      "schema": "public",
+      "values": [
+        "ready",
+        "backoff",
+        "stopped"
+      ]
+    }
+  },
+  "schemas": {},
+  "views": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

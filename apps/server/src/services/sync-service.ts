@@ -22,9 +22,6 @@ export function syncStatusFromFacts(facts: TrademarkIngestionStatus): SyncStatus
   if (facts.lane.status === "backoff") {
     activeState = "backoff";
   }
-  if (facts.lane.status === "stopped") {
-    activeState = "stopped";
-  }
   if (facts.currentArtifact?.state === "downloading") {
     activeState = "downloading";
   }
@@ -33,6 +30,9 @@ export function syncStatusFromFacts(facts: TrademarkIngestionStatus): SyncStatus
   }
   if (facts.failedArtifactCount > 0) {
     activeState = "failed";
+  }
+  if (facts.lane.status === "stopped") {
+    activeState = "stopped";
   }
   const staleAt = staleSince(facts.completeThroughDate);
   const stale = staleAt === null || Date.now() >= Date.parse(staleAt);

@@ -36,7 +36,7 @@ _Avoid_: Saved search, dashboard
 The exact 91 official annual artifacts through 2025-12-31 used to establish complete historical coverage. Baseline progress never gates live reads.
 
 **Source Artifact**:
-One annual or daily transport batch identified by product, filename, and downloaded SHA-256, with coverage, state, counts, and a current error.
+One annual or daily transport batch identified by product and filename, with separate download availability/error and projection state/version/error. A completed download retains its verified compressed ZIP for local replay.
 
 **Source Coordinate**:
 The product, filename, downloaded SHA-256, and physical record index attached to a projected row.

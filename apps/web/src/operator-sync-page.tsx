@@ -91,9 +91,19 @@ function requiresOperator(activeState: Outputs["status"]["summary"]["activeState
   return activeState === "stopped";
 }
 
-const artifactStateLabels: Record<Outputs["artifacts"]["items"][number]["state"], string> = {
+const downloadStateLabels: Record<Outputs["artifacts"]["items"][number]["downloadState"], string> =
+  {
+    complete: "Complete",
+    downloading: "Downloading",
+    failed: "Failed",
+    pending: "Waiting",
+    unavailable: "Unavailable",
+  };
+const projectionStateLabels: Record<
+  Outputs["artifacts"]["items"][number]["projectionState"],
+  string
+> = {
   complete: "Complete",
-  downloading: "Downloading",
   failed: "Failed",
   pending: "Waiting",
   projecting: "Processing",
@@ -104,6 +114,7 @@ const artifactStateClasses = {
   failed: "text-destructive-foreground [&>span]:bg-destructive-foreground",
   pending: "",
   projecting: "[&>span]:bg-primary",
+  unavailable: "text-destructive-foreground [&>span]:bg-destructive-foreground",
 } as const;
 
 export function OperatorSyncPage({ api }: { api: OperatorSyncApi }) {
@@ -239,8 +250,8 @@ export function OperatorSyncPage({ api }: { api: OperatorSyncApi }) {
                 </dd>
               </div>
               <div>
-                <dt>Sync issues</dt>
-                <dd>{status.annualBaseline.failedArtifactCount}</dd>
+                <dt>Source unavailable</dt>
+                <dd>{status.source.unavailableArtifactCount}</dd>
               </div>
               <div>
                 <dt>USPTO connection</dt>
@@ -265,7 +276,7 @@ export function OperatorSyncPage({ api }: { api: OperatorSyncApi }) {
                 <thead>
                   <tr>
                     <th>File</th>
-                    <th>State</th>
+                    <th>Download / projection</th>
                     <th className="text-right!">Records</th>
                     <th className="text-right!">Marks</th>
                     <th>Coverage</th>
@@ -284,12 +295,19 @@ export function OperatorSyncPage({ api }: { api: OperatorSyncApi }) {
                         <span
                           className={cn(
                             "inline-flex items-center gap-2 font-semibold [&>span]:size-2 [&>span]:rounded-full [&>span]:bg-muted-foreground",
-                            artifactStateClasses[artifact.state]
+                            artifactStateClasses[artifact.downloadState]
                           )}
-                          data-state={artifact.state}
+                          data-state={artifact.downloadState}
                         >
                           <span aria-hidden="true" />
-                          {artifactStateLabels[artifact.state]}
+                          {downloadStateLabels[artifact.downloadState]}
+                        </span>
+                        {" / "}
+                        <span
+                          className="text-muted-foreground"
+                          data-projection-state={artifact.projectionState}
+                        >
+                          {projectionStateLabels[artifact.projectionState]}
                         </span>
                       </td>
                       <td className="text-right tabular-nums">
@@ -308,13 +326,13 @@ export function OperatorSyncPage({ api }: { api: OperatorSyncApi }) {
                       </td>
                       <td
                         className={
-                          artifact.currentError
+                          artifact.downloadError || artifact.projectionError
                             ? "max-w-[22rem] overflow-hidden text-ellipsis text-destructive-foreground"
                             : undefined
                         }
-                        title={artifact.currentError ?? undefined}
+                        title={artifact.downloadError ?? artifact.projectionError ?? undefined}
                       >
-                        {artifact.currentError ?? "—"}
+                        {artifact.downloadError ?? artifact.projectionError ?? "—"}
                       </td>
                     </tr>
                   ))}
