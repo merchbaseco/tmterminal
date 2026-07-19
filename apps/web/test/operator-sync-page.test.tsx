@@ -21,16 +21,21 @@ function api(): OperatorSyncApi {
         {
           artifactId: "artifact-1",
           bytes: 123,
-          completedAt: null,
-          currentError: null,
+          downloadError: null,
+          downloadedAt: "2026-07-17T11:30:00.000Z",
+          downloadResponseState: { status: 200 },
+          downloadState: "complete",
           filename: "apc18840407-20251231-01.zip",
           physicalRecordCount: 155_000,
           product: "TRTYRAP",
           projectedMarkCount: 12_345,
+          projectionCompletedAt: "2026-07-17T12:00:00.000Z",
+          projectionError: null,
+          projectionState: "complete",
+          projectionVersion: "uspto-projection-v1",
           sha256: "a".repeat(64),
           sourceFromDate: "1884-04-07",
           sourceToDate: "2025-12-31",
-          state: "complete",
           updatedAt: "2026-07-17T12:00:00.000Z",
         },
       ],
@@ -50,6 +55,7 @@ function api(): OperatorSyncApi {
         lastActivityAt: "2026-07-17T12:05:00.000Z",
         physicalRecordCount: 155_000,
         projectedMarkCount: 23_456,
+        unavailableArtifactCount: 0,
       },
       summary: {
         activeState: "parsing",
@@ -78,7 +84,7 @@ test("presents corpus synchronization as ongoing work", async () => {
   expect(screen.getByText("Source records processed")).toBeTruthy();
   expect(screen.getAllByText("Complete through")).toHaveLength(2);
   expect(screen.getByText("Last activity")).toBeTruthy();
-  expect(screen.getByText("Sync issues")).toBeTruthy();
+  expect(screen.getByText("Source unavailable")).toBeTruthy();
   expect(screen.queryByText(baselinePattern)).toBeNull();
   expect(screen.queryByText("Now")).toBeNull();
   expect(screen.queryByText("Next", { selector: "p" })).toBeNull();
@@ -101,8 +107,8 @@ test("surfaces a synchronization issue without exposing queue position", async (
       ...page,
       items: page.items.map((artifact) => ({
         ...artifact,
-        currentError: "Archive checksum did not match",
-        state: "failed" as const,
+        projectionError: "Archive checksum did not match",
+        projectionState: "failed" as const,
       })),
     };
   };
@@ -117,7 +123,7 @@ test("surfaces a synchronization issue without exposing queue position", async (
   render(<OperatorSyncPage api={failedApi} />);
   expect(await screen.findByText("Corpus sync needs attention.")).toBeTruthy();
   expect(screen.getByText("A source file failed to process.")).toBeTruthy();
-  expect(screen.getByText("Failed", { selector: '[data-state="failed"]' })).toBeTruthy();
+  expect(screen.getByText("Failed", { selector: '[data-projection-state="failed"]' })).toBeTruthy();
   expect(screen.getByText("Archive checksum did not match")).toBeTruthy();
 });
 

@@ -6,6 +6,10 @@ test("worker readiness accepts persisted provider backoff", () => {
   expect(isWorkerReady("backoff")).toBe(true);
 });
 
-test.each(["failed", "stopped"] as const)("worker readiness rejects %s sync state", (state) =>
-  expect(isWorkerReady(state)).toBe(false)
-);
+test("worker readiness accepts an isolated artifact failure", () => {
+  expect(isWorkerReady("failed")).toBe(true);
+});
+
+test("worker readiness rejects a stopped provider lane", () => {
+  expect(isWorkerReady("stopped")).toBe(false);
+});
