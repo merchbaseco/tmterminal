@@ -1,5 +1,5 @@
 ---
-summary: Defines perpetual live USPTO ingestion, transient artifact handling, replay, and data freshness.
+summary: Defines perpetual live USPTO ingestion, retained source artifacts, replay, and data freshness.
 read_when:
   - changing USPTO discovery, downloads, parsing, projection, replay, or freshness
   - changing source coordinates, live-data updates, daily continuation, or status derivation
@@ -25,7 +25,7 @@ The module hides discovery, download, ZIP/XML streaming, validation, projection,
 
 ## Durable state
 
-One `source_artifact` row per product and filename stores the catalog URL, expected bytes, downloaded SHA-256, coverage, lifecycle state, counts, current error, and transient object pointer. The one `source_lane` row stores provider status, next eligibility, consecutive failure count, and a safe current error. `data_state` stores only the contiguous complete-through date, last successful update time, and monotonic data version.
+One `source_artifact` row per product and filename stores catalog identity and coverage, download state/error/response metadata, the retained ZIP pointer and SHA-256, and projection state/error/version/counts. A retained ZIP has `download_state = complete`; `download_state = unavailable` truthfully denotes a live legacy projection whose source ZIP is absent and prevents automatic download or replay. The one `source_lane` row stores global provider status, next eligibility, consecutive failure count, and a safe current error. `data_state` stores only the contiguous complete-through date, last successful update time, and monotonic data version.
 
 The live projection is:
 
@@ -41,20 +41,19 @@ Every projected row carries product, filename, SHA-256, and physical record inde
 
 The single worker reconciles immediately on startup, then waits a fixed 10 seconds after each reconciliation completes before starting the next. The process-local loop never overlaps or accumulates delayed work; a transaction-scoped advisory lock still serializes artifact lifecycle changes at the database. Each reconciliation performs one database-derived action:
 
-1. remove one unreferenced or terminal raw ZIP;
-2. resume one retained projecting artifact;
-3. surface a terminal artifact or provider failure;
-4. download the next pending artifact;
-5. discover the annual baseline or daily continuation;
-6. report idle or provider backoff.
+1. remove one unreferenced orphan ZIP;
+2. project or replay one retained ZIP;
+3. download the next pending artifact;
+4. discover the annual baseline or daily continuation;
+5. report idle or provider backoff.
 
-A process interruption before ZIP retention makes that artifact terminally failed on restart; it is never downloaded again. Any finalized but uncommitted ZIP is removed first as an orphan. A failed artifact blocks later downloads so the worker cannot waste provider allowance while unhealthy. A projecting artifact resumes from its retained ZIP; its prior database transaction rolled back, so replay starts cleanly for that product and filename.
+A process interruption before ZIP retention makes that artifact's download terminally failed on restart; it is never downloaded again automatically. Any finalized but uncommitted ZIP is removed first as an orphan. A retained artifact with pending, interrupted, failed, or obsolete-version projection is replayed locally from its verified ZIP with no provider call. Projection replay starts by removing only rows still owned by that product and filename inside the new artifact transaction.
 
-All provider access uses `USPTO_API_KEY`. Authentication, authorization, source-contract, and permanent HTTP failures stop the lane. Timeouts, throttling, interrupted bodies, and server errors use persisted capped exponential backoff with jitter. Eight consecutive attempts is the private fail-closed ceiling and cannot be configured upward. The serial flow stays below five files per 10 seconds per IP. An accepted signed redirect is fetched immediately and never receives the API key.
+All provider access uses `USPTO_API_KEY`. Authentication, authorization, catalog-contract, transport, and non-file-specific HTTP failures use the persisted provider lane with capped exponential backoff and an eight-attempt private fail-closed ceiling. The first file-specific HTTP 429 terminally fails only that artifact, retains safe response metadata, and leaves later artifacts eligible; the same source version is not requested again automatically. The serial flow stays below five files per 10 seconds per IP. An accepted signed redirect is fetched immediately and never receives the API key.
 
 ## Streaming projection
 
-Exactly one ZIP is retained at a time. The worker hashes and writes the download once, opens the sole XML entry with `unzipper`, and streams `case-file` events with `xml-flow`. It never buffers an artifact or writes extracted XML.
+Exactly one ZIP is downloaded or projected at a time. The worker hashes and durably retains each download, opens the sole XML entry with `unzipper`, and streams `case-file` events with `xml-flow`. It never buffers an artifact or writes extracted XML.
 
 Every document must use root `trademark-applications-daily`, exactly one `version-no` `2.0`, and exactly one `version-date` `20041108` before records. Action keys group records for source ordering only; they never select, reject, or change a record's product meaning. Every physical record must be well formed and have an eight-digit serial identity. A record is selected only with a non-empty word mark and explicit `primary-code` `025` evidence. Sparse daily records without enough projection data are ignored; a later complete daily record that no longer asserts Class 025 removes the live row.
 
@@ -62,7 +61,7 @@ Selected records project in fixed 100-record batches. Expanded status events use
 
 For an upsert, serial number is global identity. A newer source transaction replaces the mark and its child collections; an older, equal, or undated competing record cannot overwrite it. A dated record may supersede stored state whose transaction date is unknown. Replaying one artifact first removes only live rows still owned by that product and filename, then reapplies its bytes. Rows already superseded by another artifact survive replay.
 
-Artifact projection is one database transaction. Success commits all row changes, terminal artifact counts, freshness, and at most one data-version increment, then removes the ZIP immediately. Parse or validation failure rolls back all row changes, records one clear artifact error, and removes the ZIP immediately.
+Artifact projection is one database transaction. Success commits all row changes, projection counts/version, freshness, and at most one data-version increment. Parse or validation failure rolls back all row changes and records one clear projection error. Both outcomes retain the referenced compressed ZIP for local replay; cleanup removes only finalized objects with no database reference.
 
 ## Query visibility and freshness
 
@@ -74,13 +73,13 @@ Sync status reports baseline progress, pending and failed artifacts, provider st
 
 ## Migration and recovery
 
-Landed migration history is immutable. The forward migration accepts the one deployed production shape only: one unfinished annual baseline with 91 artifacts, Parts 01–25 complete, Part 26 projecting with its retained object, and the remaining parts pending. It removes generation keys and pointers while preserving every artifact, projected row, provider lane, account, Clerk identity, API key, and role assignment. The corrected worker resumes Part 26 without another provider download.
+Landed migration history is immutable. Forward migration preserves live projections, source artifacts, provider state, accounts, Clerk identities, API keys, and roles. It separates download and projection lifecycle truth. Referenced ZIPs remain replayable; absent legacy source bytes become explicitly `unavailable` while their committed projections remain live.
 
-Raw ZIPs are not backup state. Operational rollback uses the normal PostgreSQL backup plus a known Git revision; no compatibility schema, dual write, fallback reader, or generic reprocessing API exists.
+Retained ZIPs are durable source state and are backed up with PostgreSQL plus the deployed Git revision. No compatibility schema, dual write, fallback reader, attempt graph, or generic reprocessing API exists.
 
 ## Verification
 
 - Byte-exact annual and daily fixtures carry source and action context.
 - Parser tests cover Class 025 selection, sparse daily actions, removal, malformed optional dates, repeated class codes, and bounded status events.
-- Real PostgreSQL tests cover partial-data visibility, artifact-scoped replay, newer-record precedence, data-version conflicts, restart, provider limits, cleanup, and the exact deployed migration shape.
+- Real PostgreSQL tests cover partial-data visibility, retained artifact replay, newer-record precedence, data-version conflicts, restart, provider limits, orphan cleanup, and migration truth.
 - Production-shaped verification uses an isolated Compose project and retained source bytes. Live production is not a verification target.

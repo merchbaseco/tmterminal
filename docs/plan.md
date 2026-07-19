@@ -146,7 +146,7 @@ Freshness contract:
 
 Trademark Turtle records the complete-through date, last successful update time, and query-visible data version. Rows committed after the complete frontier remain live; a gap makes sync status degraded but never hides available data.
 
-The worker coordinates discovery and downloads globally per USPTO credential. USPTO limits one API key to 20 annual downloads of the same file and one IP to five files per 10 seconds; signed redirect URLs expire after five seconds. Trademark Turtle processes one artifact at a time on a fixed 10-second cadence, follows an accepted redirect immediately without forwarding the API key, and stops after eight consecutive persisted attempts. Retryable responses use persisted capped exponential backoff with jitter and honor provider retry headers when present. Authentication, permanent request errors, parser failures, and unresolved artifact identity changes stop without redownloading the artifact.
+The worker coordinates discovery and downloads globally per USPTO credential. USPTO limits one API key to 20 annual downloads of the same file and one IP to five files per 10 seconds; signed redirect URLs expire after five seconds. Trademark Turtle processes one artifact at a time on a fixed 10-second cadence and follows an accepted redirect immediately without forwarding the API key. The first file-specific HTTP 429 terminally fails that artifact, records safe response metadata, and leaves later files eligible. Other retryable provider failures use persisted capped exponential backoff with jitter and an eight-attempt fail-closed ceiling. A verified retained ZIP is never fetched again for projection replay.
 
 Authoritative references:
 
@@ -163,9 +163,9 @@ The ingestion module exposes two operations—reconcile the next database-derive
 
 - Serial number is global mark identity; nonzero registration number is a unique secondary identity.
 - The exact pinned 91-member annual set establishes the baseline. Metadata dates establish membership and the public frontier, not record transaction bounds.
-- One compact artifact row owns each product/filename/SHA, coverage, state, counts, current error, and transient ZIP pointer.
+- One compact artifact row owns each product/filename, coverage, separate download/projection state and errors, projection version/counts, and the retained verified ZIP pointer/SHA.
 - Exactly one ZIP/XML is streamed at a time. No extracted XML is written. Selected marks are projected in fixed batches.
-- Raw ZIPs are deleted immediately after success or terminal failure.
+- Referenced compressed ZIPs remain durable after projection success or failure; only unreferenced orphan objects are deleted.
 - Every projected mark/class/owner/goods/status-event row carries compact source coordinates.
 - Every committed artifact updates the live tables immediately. There is no hidden build or activation pointer.
 - Daily records upsert newer Class 025 state or remove a mark when a later complete record no longer asserts Class 025.
@@ -208,7 +208,7 @@ Required indexes:
 - `api_key`
 - `role_assignment`
 
-Account data and keys are not re-derivable and receive backup priority. Projected rows, source artifacts, and coordinates are rebuildable but expensive and quota-sensitive, so database backup covers them; raw artifacts are not backup state.
+Account data and keys are not re-derivable and receive backup priority. PostgreSQL backups cover live projections, artifact metadata, and data state. Retained ZIPs are immutable, quota-sensitive source state and are backed up from the artifact volume.
 
 ## Canonical HTTP interface
 
@@ -362,8 +362,8 @@ Deployment follows the house pattern:
 Operations:
 
 - `/api/health` for process and database readiness only
-- Nightly PostgreSQL backup covering accounts, live trademark data, artifacts, and data state
-- Compact artifact checksum/source-coordinate inventory with terminal raw-object deletion
+- Nightly PostgreSQL backup plus retained-artifact-volume backup covering accounts, live trademark data, artifact metadata/source ZIPs, and data state
+- Compact artifact checksum/source-coordinate inventory with referenced-source retention and orphan cleanup
 - Disk-pressure alert for database and artifact volumes
 - Complete-frontier staleness and artifact-gap alerts
 - Provider-access, artifact failure, stale-frontier, disk, and backup-age alerts
@@ -373,7 +373,7 @@ Operations:
 
 - Byte-exact real USPTO fixtures with source manifests and action-key context
 - Full annual Class 025 record plus the authentic maximum unselected annual record
-- Fixed projection batches, malformed-record failure, restart, idempotency, and immediate ZIP cleanup tests
+- Fixed projection batches, malformed-record failure, restart, idempotency, retained replay, and orphan-cleanup tests
 - Exact annual/daily discovery, partial-data visibility, atomic artifact replay, source-coordinate, and data-version tests
 - PostgreSQL integration tests for search/filter/sort/count/pagination
 - Unicode normalization, wildcard escaping, Split punctuation, overlap, and span-offset tests
@@ -417,12 +417,12 @@ Acceptance:
 ### Phase 2: durable live-data ingestion
 
 - Compact source-artifact and data-version state
-- Provider-aware downloads, checksums, transient raw artifacts, and immediate terminal cleanup
+- Provider-aware one-time downloads, checksums, and durable referenced source ZIPs
 - `unzipper` plus `xml-flow` streaming direct projection in fixed batches
 - Exact 91-member annual baseline followed by daily continuation
 - Artifact-scoped replay, live visibility, freshness frontier, one provider lane, observability, backup, and recovery
 
-Acceptance: every successful artifact is immediately queryable; replay is atomic and idempotent; restarts resume one retained ZIP without another provider download.
+Acceptance: every successful artifact is immediately queryable; replay is atomic and idempotent; success, failure, and restarts reuse the retained ZIP without another provider download.
 
 ### Phase 3: search and text matching
 
@@ -443,7 +443,7 @@ Acceptance: search and matching satisfy the public contract at production-scale 
 - Verify backup/restore and exact-SHA deployment
 - Exercise provider-access and terminal artifact failures
 
-Acceptance: the deployed service re-downloads one official artifact at a time, preserves account state, reports truthful freshness, and serves the published client/CLI contracts.
+Acceptance: the deployed service downloads each official source version once, retains verified ZIPs, preserves account state, reports truthful freshness, and serves the published client/CLI contracts.
 
 ## Decisions fixed by this plan
 

@@ -1,5 +1,5 @@
 ---
-summary: Records the decision to host v1 on the Mac mini with bounded transient artifact storage and a portable move to managed compute and PostgreSQL.
+summary: Records the decision to host v1 on the Mac mini with durable retained artifact storage and a portable move to managed compute and PostgreSQL.
 read_when:
   - changing deployment topology, database hosting, artifact storage, backups, worker placement, or availability targets
   - evaluating whether operational or capacity signals justify moving Trademark Turtle to managed infrastructure
@@ -12,16 +12,16 @@ Trademark Turtle runs on the existing Mac mini through the annual baseline and f
 ## v1 boundary
 
 - One Docker host runs the API, worker, one-shot migration, PostgreSQL 16, and Caddy as separate services.
-- PostgreSQL and the transient artifact working directory use dedicated volumes. Worker limits prevent bootstrap from starving authenticated queries.
+- PostgreSQL and the retained artifact store use dedicated volumes. Worker limits prevent bootstrap from starving authenticated queries.
 - Database backups leave the Mac mini encrypted; a backup on the same host is not a backup.
-- Compact artifact identity/checksums, live projected rows, data state, and source coordinates live in PostgreSQL backups. Terminal raw downloads are deleted.
+- PostgreSQL backups contain artifact identity/checksums, live projected rows, data state, and source coordinates. The artifact volume separately backs up every referenced verified ZIP.
 - Restart-on-boot, external process/freshness monitoring, disk alerts, and a restore drill are release requirements.
 
 ## Portability contract
 
 - Runtime configuration uses `DATABASE_URL`, artifact-store configuration, public origin, Clerk settings, and server-secret `USPTO_API_KEY`; code does not discover a particular host.
 - Artifact records store content-addressed object keys, never absolute host paths.
-- The artifact-store interface supports streaming put/get, finalized-key iteration without byte reads, bounded inspection, and idempotent removal. v1 implements a local-volume adapter for one active object; startup removes unreferenced finalized keys sequentially, while shared content-addressed bytes remain through their final database reference.
+- The artifact-store interface supports streaming put/get, finalized-key iteration without byte reads, bounded inspection, and idempotent removal. v1 implements a local-volume adapter; startup removes unreferenced finalized keys sequentially, while referenced content-addressed bytes remain durable for local replay.
 - Artifact state, provider lane, and data state remain durable PostgreSQL state; worker timing is process-local. Local disk outside the artifact store is scratch or cache.
 - API and worker use direct or session PostgreSQL connections where advisory locks and `LISTEN`/`NOTIFY` require session semantics.
 - Container builds remain portable across the Mac mini's architecture and a likely managed Linux target.

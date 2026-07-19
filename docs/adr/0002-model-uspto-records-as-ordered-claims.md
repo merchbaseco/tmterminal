@@ -13,7 +13,7 @@ Status: accepted; supersedes this ADR's original ordered-claims decision and the
 
 Annual `TRTYRAP` members and daily `TRTDXFAP` files are transport batches. Treating them as immutable observations, ordered claims, publication candidates, or complete query-visible builds adds lineage and visibility machinery without improving the product result.
 
-MerchBase proves the useful shape: process one artifact, stream `case-file` records, delete rows still owned by a replayed source file, upsert newer serial identities, and clean raw files immediately. Trademark Turtle adds only the server concerns that earn their keep: authenticated delivery, richer child projections, search, provider limits, durable artifact state, data-version continuity, and freshness.
+MerchBase proves the useful projection shape: process one artifact, stream `case-file` records, delete rows still owned by a replayed source file, and upsert newer serial identities. Trademark Turtle adds only the server concerns that earn their keep: authenticated delivery, retained verified source ZIPs, richer child projections, search, provider limits, data-version continuity, and freshness.
 
 ## Decision
 
@@ -21,9 +21,9 @@ PostgreSQL's mark tables are perpetual live product state. Each successfully par
 
 Serial number is global identity. A selected record with a newer source transaction replaces the mark and its class, owner, goods/services, and status-event collections. A later complete daily record that no longer asserts Class 025 removes the live mark. Compact product, filename, SHA-256, and physical record index coordinates remain on projected rows.
 
-Artifact replay is scoped to product and filename: delete live rows still owned by that artifact, then reapply its bytes in the same transaction. Rows already superseded by another artifact survive replay. `source_artifact` owns lifecycle and counts; `source_lane` owns provider backoff; `data_state` owns only complete-through date, last successful update, and a monotonic version.
+Artifact replay is scoped to product and filename: delete live rows still owned by that artifact, then reapply its retained bytes in the same transaction. Rows already superseded by another artifact survive replay. `source_artifact` separately owns immutable download identity/availability and projection lifecycle/version/counts; `source_lane` owns global provider backoff; `data_state` owns only complete-through date, last successful update, and a monotonic version.
 
-The annual baseline is the exact 91 official files through 2025-12-31. It is followed by calendar-contiguous daily files. Annual and daily records use one parser and projection path, one retained ZIP at a time, fixed projection batches, bounded expanded status-event inserts, and immediate ZIP cleanup.
+The annual baseline is the exact 91 official files through 2025-12-31. It is followed by calendar-contiguous daily files. Annual and daily records use one parser and projection path, one active ZIP at a time, fixed projection batches, bounded expanded status-event inserts, and durable compressed-source retention. Only unreferenced orphan objects are deleted.
 
 ## Consequences
 
@@ -31,4 +31,6 @@ The annual baseline is the exact 91 official files through 2025-12-31. It is fol
 - No corpus generation, active/building pointer, activation event, query join, or availability error exists.
 - Material artifact commits increment the data version once; pagination may detect a changed live dataset.
 - Sync status reports baseline progress, daily freshness, pending/failed artifacts, and provider health without controlling data access.
+- Projection failure or version change reuses the retained ZIP without another provider request; unavailable legacy source bytes remain explicit.
+- A file-specific quota failure stops that artifact without stopping later source versions.
 - There is no source-observation, claim, contributor, publication-candidate, generalized version-selection, attempt-history, diagnostics, compatibility, or fallback graph.

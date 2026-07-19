@@ -98,7 +98,7 @@ USPTO_RETRY_BASE_MS=30000
 USPTO_RETRY_MAX_MS=21600000
 ```
 
-One active download at a time uses the dedicated `artifact-data` volume under a content-addressed key. Projection streams the ZIP entry directly and writes no extracted XML. Success or terminal failure deletes the raw ZIP immediately. Normal `compose:down` preserves the database and any interrupted working object.
+One active download or projection at a time uses the dedicated `artifact-data` volume under a content-addressed key. Projection streams the ZIP entry directly and writes no extracted XML. Verified referenced ZIPs remain durable after projection success or failure; cleanup removes only unreferenced orphan objects. Normal `compose:down` preserves both PostgreSQL and retained source bytes.
 
 Authenticated website use also requires `CLERK_SECRET_KEY`, `CLERK_AUTHORIZED_PARTIES`, and `VITE_CLERK_PUBLISHABLE_KEY`. The Compose wrapper derives `CLERK_AUTHORIZED_PARTIES` from the worktree website port; direct deployments must set the public website origin explicitly. The production-shaped Compose contract refuses to render without all three values; the anonymous API readiness response remains data-free.
 
@@ -137,11 +137,11 @@ bun run compose -- logs api
 
 ## Ingestion operations
 
-The authenticated operator page at `/ops/sync` is read-only. It presents synchronization as continuous work: processed marks and source records, corpus coverage, latest activity, provider health, and bounded source artifacts with state, counts, SHA, coverage, and current error. There are no host mutation commands, queue-progress framing, reprocessing versions, quarantine workflow, compatibility reader, or second rebuild engine.
+The authenticated operator page at `/ops/sync` is read-only. It presents synchronization as continuous work: processed marks and source records, data coverage, latest activity, provider health, and bounded source artifacts with distinct download/projection states, counts, SHA, coverage, and errors. It exposes how many legacy projections lack retained source bytes. There are no host mutation commands, queue-progress framing, quarantine workflow, compatibility reader, or second rebuild engine.
 
-The worker derives restart work from `source_artifact`. Before source access it removes one unreferenced finalized ZIP, including any object left by a crash before retention was committed. A `downloading` artifact without a committed object becomes terminally failed and is never fetched again. Any failed artifact blocks later downloads. A retained projecting ZIP restarts its rolled-back artifact transaction and replaces only rows still owned by that product and filename. Complete and failed artifacts retain no raw ZIP. Provider backoff/stop state is database-backed and intentionally requires a corrected deployment or explicit database operation designed for the concrete incident; there is no generic recovery command.
+The worker derives restart work from `source_artifact`. Before source access it removes one unreferenced finalized ZIP, including an object left by a crash before retention was committed. A `downloading` artifact without a committed object becomes terminally failed and is never fetched again automatically. Pending, failed, interrupted, or obsolete-version projections with retained bytes replay locally and replace only rows still owned by that product and filename. A file-specific HTTP 429 fails only that artifact and does not stop later downloads; global provider backoff/stop remains database-backed. There is no generic recovery command.
 
-The live-data migration preserves the exact deployed annual progress, retained projecting ZIP, projected marks and children, source artifacts, provider lane, accounts, Clerk identities, API keys, and roles while removing generation keys and pointers. Drizzle applies it in one transaction. No compatibility schema or pre-migration cleanup script exists.
+Drizzle migrations preserve projected marks and children, source artifacts, provider state, accounts, Clerk identities, API keys, and roles. `download_state = unavailable` exposes a committed projection whose retained source ZIP is absent; it remains searchable but cannot replay or redownload automatically. No compatibility schema or pre-migration cleanup script exists.
 
 Drizzle owns application schema migration. Worker timing is process-local and creates no queue tables. Repeated migration is expected to be idempotent.
 
@@ -159,4 +159,4 @@ For an intentional clean local reset only:
 bun run compose -- down --volumes
 ```
 
-That reset deletes both the database and transient artifact-working volumes. It is never a routine deployment or retry operation.
+That reset deletes both the database and retained source-artifact volumes. It is never a routine deployment or retry operation.
