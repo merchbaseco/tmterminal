@@ -112,3 +112,65 @@ test("derives every search mode and page type from the server router", async () 
     wildcard,
   ]);
 });
+
+test("derives latest, text matching, and report contracts from the server router", async () => {
+  const paths: string[] = [];
+  server = Bun.serve({
+    fetch(request) {
+      const path = new URL(request.url).pathname;
+      paths.push(path);
+      let data: unknown = {
+        items: [],
+        limit: 25,
+        meta: { dataThroughDate: null, dataVersion: "0" },
+        offset: 0,
+        total: 0,
+      };
+      if (path.endsWith("marks.match-text")) {
+        data = { matches: [], meta: { dataThroughDate: null, dataVersion: "0" } };
+      } else if (path.endsWith("reports.run")) {
+        data = {
+          from: "2026-07-06",
+          items: [],
+          limit: 25,
+          meta: { dataThroughDate: null, dataVersion: "0" },
+          offset: 0,
+          to: "2026-07-12",
+          total: 0,
+        };
+      }
+      return Response.json({ result: { data } });
+    },
+    hostname: "127.0.0.1",
+    port: 0,
+  });
+  const client = createTmturtleClient({
+    apiKey: "ttk_test_secret",
+    baseUrl: `http://127.0.0.1:${server.port}`,
+  });
+  const latestInput: TmturtleRouterInputs["marks"]["latest"] = { limit: 25, offset: 0 };
+  const matchInput: TmturtleRouterInputs["marks"]["match-text"] = {
+    text: "turtle club",
+    type: "text",
+  };
+  const reportInput: TmturtleRouterInputs["reports"]["run"] = {
+    event: "filed",
+    window: "previous-week",
+  };
+
+  const latest: TmturtleRouterOutputs["marks"]["latest"] =
+    await client.marks.latest.query(latestInput);
+  const matches: TmturtleRouterOutputs["marks"]["match-text"] =
+    await client.marks["match-text"].query(matchInput);
+  const report: TmturtleRouterOutputs["reports"]["run"] =
+    await client.reports.run.query(reportInput);
+
+  expect(latest.total).toBe(0);
+  expect(matches.matches).toEqual([]);
+  expect(report).toMatchObject({ from: "2026-07-06", to: "2026-07-12" });
+  expect(paths).toEqual([
+    "/api/trpc/marks.latest",
+    "/api/trpc/marks.match-text",
+    "/api/trpc/reports.run",
+  ]);
+});
