@@ -455,6 +455,19 @@ test("removes one unreferenced raw ZIP before starting source work", async () =>
   expect(removed).toEqual(["sha256/orphan"]);
 });
 
+test("retries cleanup for one completed file before starting source work", async () => {
+  await seedArtifact(1, "complete", "sha256/object");
+
+  expect(await ingestion().reconcile()).toMatchObject({
+    action: "cleanup-artifact",
+    objectKey: "sha256/object",
+  });
+  expect(removed).toEqual(["sha256/object"]);
+  expect([
+    ...(await database`select object_key from source_artifact where filename = 'annual-01.zip'`),
+  ]).toEqual([{ object_key: null }]);
+});
+
 test("returns live rows while the annual baseline is incomplete", async () => {
   await Promise.all(Array.from({ length: 90 }, (_, index) => seedArtifact(index + 1, "complete")));
   await seedMark("LIVE PARTIAL MARK");
@@ -489,7 +502,7 @@ test("returns live rows while the annual baseline is incomplete", async () => {
   expect((await ingestion().status()).dataVersion).toBe(0);
 });
 
-test("retains one verified ZIP before and after projection", async () => {
+test("downloads once and deletes the verified ZIP after successful projection", async () => {
   await seedArtifact(1, "pending");
   let downloadCount = 0;
   const module = createTrademarkIngestion({
@@ -550,12 +563,12 @@ test("retains one verified ZIP before and after projection", async () => {
   `;
   expect(projected).toEqual({
     downloadState: "complete",
-    objectKey: "sha256/object",
+    objectKey: null,
     projectionState: "complete",
     projectionVersion: "uspto-projection-v1",
   });
   expect(downloadCount).toBe(1);
-  expect(removed).toEqual([]);
+  expect(removed).toEqual(["sha256/object"]);
 });
 
 test("restart resumes one projecting artifact from its retained ZIP", async () => {
@@ -572,12 +585,12 @@ test("restart resumes one projecting artifact from its retained ZIP", async () =
     physicalRecordCount: 1,
     projectedMarkCount: 1,
   });
-  expect(removed).toEqual([]);
+  expect(removed).toEqual(["sha256/object"]);
   expect(await ingestion().reconcile()).toEqual({ action: "idle" });
   const [artifact] = await database<
     Array<{ objectKey: string | null; projectionState: string }>
   >`select object_key as "objectKey", projection_state as "projectionState" from source_artifact`;
-  expect(artifact).toEqual({ objectKey: "sha256/object", projectionState: "complete" });
+  expect(artifact).toEqual({ objectKey: null, projectionState: "complete" });
   expect(await database`select serial_number from mark`).toHaveLength(1);
   expect([...(await database`select international_code from mark_class order by ordinal`)]).toEqual(
     [{ international_code: "025" }]
@@ -614,7 +627,7 @@ test("ingests and exactly matches a normalized word mark beyond B-tree tuple lim
     items: [{ match: "exact", serialNumber: "74668071", wordMark }],
     total: 1,
   });
-  expect(removed).toEqual([]);
+  expect(removed).toEqual(["sha256/object"]);
 });
 
 test("daily records update and remove live Class 025 identities immediately", async () => {
@@ -642,7 +655,7 @@ test("daily records update and remove live Class 025 identities immediately", as
     ...(await database`select serial_number from mark where serial_number = '79366581'`),
   ]).toEqual([]);
   expect((await ingestion().status()).dataVersion).toBe(2);
-  expect(removed).toEqual([]);
+  expect(removed).toEqual(["sha256/daily-1", "sha256/daily-2"]);
 });
 
 test("an equal-date daily removal cannot delete live state", async () => {
@@ -796,7 +809,7 @@ test("bounds expanded status-event writes without losing event data", async () =
   expect(firstMark?.eventNumbers).toEqual(
     Array.from({ length: 40 }, (_, index) => String(index + 1))
   );
-  expect(removed).toEqual([]);
+  expect(removed).toEqual(["sha256/object"]);
 });
 
 test("projection failure retains the ZIP and records projection state separately", async () => {
@@ -851,16 +864,16 @@ test("a projection-version change replays a failed artifact without downloading"
 
   expect(await replay.reconcile()).toMatchObject({ action: "projected", projectedMarkCount: 1 });
   expect(downloadCount).toBe(0);
-  expect(removed).toEqual([]);
+  expect(removed).toEqual(["sha256/object"]);
   expect([
     ...(await database`
       select object_key from source_artifact
       where projection_state = 'complete' and projection_version = 'uspto-projection-v1'
     `),
-  ]).toEqual([{ object_key: "sha256/object" }]);
+  ]).toEqual([{ object_key: null }]);
 });
 
-test("a projection-version change replays a successful artifact from retained bytes", async () => {
+test("a successful cleaned artifact is not replayed automatically", async () => {
   await seedArtifact(1, "projecting", "sha256/object");
   expect(await ingestion().reconcile()).toMatchObject({ action: "projected" });
   await database`
@@ -881,74 +894,13 @@ test("a projection-version change replays a successful artifact from retained by
     },
   });
 
-  expect((await replay.status()).pendingArtifactCount).toBe(1);
-  expect(await replay.reconcile()).toMatchObject({ action: "projected" });
+  expect((await replay.status()).pendingArtifactCount).toBe(0);
+  expect(await replay.reconcile()).toEqual({ action: "idle" });
   expect(downloadCount).toBe(0);
-  expect(removed).toEqual([]);
+  expect(removed).toEqual(["sha256/object"]);
   expect(
     await database`select serial_number from mark where serial_number = '74668071'`
   ).toHaveLength(1);
-});
-
-test("a failed obsolete-version replay retries retained bytes without a provider call", async () => {
-  await seedCompletedAnnualBaseline("2025-12-31");
-  await seedDailyArtifact(1, "apc260101.zip", "2026-01-01");
-  const module = ingestion();
-
-  expect(await module.reconcile()).toMatchObject({ action: "projected", projectedMarkCount: 1 });
-  expect((await module.status()).completeThroughDate).toBe("2026-01-01");
-  await database`
-    update source_artifact set projection_version = 'uspto-projection-v0'
-    where filename = 'apc260101.zip'
-  `;
-
-  let extractCount = 0;
-  let downloadCount = 0;
-  const replay = createTrademarkIngestion({
-    artifactStore: store,
-    database,
-    extractXml: () => {
-      extractCount += 1;
-      return extractCount === 1
-        ? Promise.reject(new Error("retained ZIP temporarily unavailable"))
-        : Promise.resolve(Readable.from([sourceDocument(validRecord)]));
-    },
-    retry: { baseMs: 1, jitter: () => 0, maxMs: 2 },
-    sourceCatalog: {
-      discover: unavailableSource.discover,
-      download: () => {
-        downloadCount += 1;
-        return Promise.reject(new Error("retained projection must not download"));
-      },
-    },
-  });
-  expect(await replay.reconcile()).toMatchObject({
-    action: "artifact-projection-failed",
-    filename: "apc260101.zip",
-  });
-
-  expect(await createMarksService(database).getBySerialNumber("74668071")).toMatchObject({
-    goodsServices: [{ text: "shirts", typeCode: "GS0251" }],
-    mark: { serialNumber: "74668071", wordMark: "GUESS JEANS" },
-  });
-  expect(await replay.status()).toMatchObject({
-    completeThroughDate: "2026-01-01",
-    failedArtifactCount: 1,
-  });
-  expect([
-    ...(await database`
-      select object_key, projection_version from source_artifact where filename = 'apc260101.zip'
-    `),
-  ]).toEqual([{ object_key: "sha256/daily-1", projection_version: "uspto-projection-v0" }]);
-
-  expect(await replay.reconcile()).toMatchObject({ action: "projected", projectedMarkCount: 1 });
-  expect(downloadCount).toBe(0);
-  expect(removed).toEqual([]);
-  expect(await replay.status()).toMatchObject({
-    completeThroughDate: "2026-01-01",
-    dataVersion: 2,
-    failedArtifactCount: 0,
-  });
 });
 
 test("restart fails an interrupted download without fetching it again", async () => {
@@ -986,6 +938,34 @@ test("restart fails an interrupted download without fetching it again", async ()
     downloadState: "failed",
     objectKey: null,
   });
+});
+
+test("a failed download is recorded once and is never requested automatically again", async () => {
+  await seedArtifact(1, "pending");
+  let downloadCount = 0;
+  const module = createTrademarkIngestion({
+    artifactStore: store,
+    database,
+    extractXml: () => Promise.resolve(Readable.from([])),
+    retry: { baseMs: 1, jitter: () => 0, maxMs: 2 },
+    sourceCatalog: {
+      discover: unavailableSource.discover,
+      download: () => {
+        downloadCount += 1;
+        return Promise.reject(new SourceTransportError("interrupted"));
+      },
+    },
+  });
+
+  expect(await module.reconcile()).toMatchObject({ action: "artifact-download-failed" });
+  expect(await module.reconcile()).toEqual({ action: "idle" });
+  expect(downloadCount).toBe(1);
+  expect([
+    ...(await database`
+      select download_request_count, download_state from source_artifact
+      where filename = 'annual-01.zip'
+    `),
+  ]).toEqual([{ download_request_count: 1, download_state: "failed" }]);
 });
 
 test("restart skips unavailable legacy bytes and downloads the next pending artifact", async () => {
@@ -1032,59 +1012,7 @@ test("restart skips unavailable legacy bytes and downloads the next pending arti
   ]).toEqual([{ download_state: "unavailable", projection_state: "complete" }]);
 });
 
-test("rolls back artifact retry state when durable failure accounting cannot commit", async () => {
-  await seedArtifact(1, "pending");
-  let downloadCount = 0;
-  const sourceCatalog = {
-    discover: unavailableSource.discover,
-    download: () => {
-      downloadCount += 1;
-      return Promise.reject(new SourceTransportError("interrupted"));
-    },
-  };
-  const restartedIngestion = () =>
-    createTrademarkIngestion({
-      artifactStore: store,
-      database,
-      extractXml: () => Promise.resolve(Readable.from([])),
-      retry: { baseMs: 1, jitter: () => 0, maxMs: 2 },
-      sourceCatalog,
-    });
-  await database.unsafe(`
-    create function reject_provider_failure() returns trigger language plpgsql as $$
-    begin
-      if new.failure_count > 0 then
-        raise exception 'injected provider failure persistence';
-      end if;
-      return new;
-    end;
-    $$;
-    create trigger reject_provider_failure before insert or update on source_lane
-    for each row execute function reject_provider_failure();
-  `);
-  try {
-    await expect(restartedIngestion().reconcile()).rejects.toThrow(
-      "injected provider failure persistence"
-    );
-  } finally {
-    await database`drop trigger if exists reject_provider_failure on source_lane`;
-    await database`drop function if exists reject_provider_failure()`;
-  }
-
-  const [interrupted] = await database<Array<{ downloadState: string; failureCount: number }>>`
-    select artifact.download_state as "downloadState", lane.failure_count::int as "failureCount"
-    from source_artifact artifact cross join source_lane lane
-    where lane.id = 'uspto-odp'
-  `;
-  expect(interrupted).toEqual({ downloadState: "downloading", failureCount: 0 });
-  expect(await restartedIngestion().reconcile()).toMatchObject({
-    action: "artifact-download-failed",
-    reason: "Download interrupted before retention",
-  });
-  expect(downloadCount).toBe(1);
-});
-
-test("stops after one download when response length changes catalog identity", async () => {
+test("blocks one file after a catalog length mismatch", async () => {
   await seedArtifact(1, "pending");
   let downloadCount = 0;
   const sourceCatalog = {
@@ -1106,14 +1034,9 @@ test("stops after one download when response length changes catalog identity", a
     sourceCatalog,
   });
 
-  expect(await module.reconcile()).toEqual({ action: "provider-stopped" });
-  expect(await module.reconcile()).toEqual({ action: "provider-stopped" });
+  expect(await module.reconcile()).toMatchObject({ action: "artifact-download-failed" });
+  expect(await module.reconcile()).toEqual({ action: "idle" });
   expect(downloadCount).toBe(1);
-  expect((await module.status()).lane).toMatchObject({
-    currentError: "Source artifact response length changed from its catalog value",
-    failureCount: 1,
-    status: "stopped",
-  });
 });
 
 test("atomically resets old provider failures with a committed download", async () => {
@@ -1373,7 +1296,7 @@ test("a file-specific 429 fails only that artifact and downloads the next one", 
   ]);
 });
 
-test("a data-origin 429 backs off the provider and leaves the artifact pending", async () => {
+test("a data-origin 429 blocks only that file", async () => {
   await seedArtifact(1, "pending");
   let downloadCount = 0;
   const module = createTrademarkIngestion({
@@ -1397,9 +1320,9 @@ test("a data-origin 429 backs off the provider and leaves the artifact pending",
     },
   });
 
-  expect(await module.reconcile()).toEqual({ action: "provider-backoff" });
+  expect(await module.reconcile()).toMatchObject({ action: "artifact-download-failed" });
   expect(downloadCount).toBe(1);
-  expect((await module.status()).lane).toMatchObject({ failureCount: 1, status: "backoff" });
+  expect((await module.status()).lane).toMatchObject({ failureCount: 0, status: "ready" });
   expect([
     ...(await database`
       select download_state, download_error from source_artifact where filename = 'annual-01.zip'
@@ -1407,7 +1330,7 @@ test("a data-origin 429 backs off the provider and leaves the artifact pending",
   ]).toEqual([
     {
       download_error: "USPTO ODP data download failed with HTTP 429",
-      download_state: "pending",
+      download_state: "failed",
     },
   ]);
 });
