@@ -94,6 +94,14 @@ export function createTrademarkIngestion(options: {
     return null;
   }
 
+  async function cleanupArtifact(artifactId: string, objectKey: string) {
+    await options.artifactStore.remove(objectKey);
+    await options.database`
+      update source_artifact set object_key = null, updated_at = ${now()}
+      where id = ${artifactId} and object_key = ${objectKey}
+    `;
+  }
+
   async function recordProviderFailure(error: unknown, database: Database = options.database) {
     const at = now();
     const [lane] = await database<Array<{ failureCount: number }>>`
@@ -218,6 +226,7 @@ export function createTrademarkIngestion(options: {
       }
       await transaction`
         update source_artifact set download_state = 'downloading', download_error = null,
+          download_request_count = download_request_count + 1,
           download_response_state = null, updated_at = ${now()} where id = ${artifact.id}
       `;
       return artifact;
@@ -253,29 +262,17 @@ export function createTrademarkIngestion(options: {
       return options.database.begin(async (transaction) => {
         await lockIngestion(transaction);
         const responseState = sourceResponseState(error);
-        if (
-          error instanceof SourceHttpError &&
-          error.phase === "download-redirect" &&
-          error.responseState.status === 429
-        ) {
-          await transaction`
-            update source_artifact set download_state = 'failed', download_error = ${safeError(error)},
-              download_response_state = ${transaction.json({ ...error.responseState })}, updated_at = ${now()}
-            where id = ${artifact.id}
-          `;
-          return {
-            action: "artifact-download-failed" as const,
-            artifactId: artifact.id,
-            filename: artifact.filename,
-            reason: safeError(error),
-          };
-        }
         await transaction`
-          update source_artifact set download_state = 'pending', download_error = ${safeError(error)},
+          update source_artifact set download_state = 'failed', download_error = ${safeError(error)},
             download_response_state = ${responseState ? transaction.json({ ...responseState }) : null}, updated_at = ${now()}
           where id = ${artifact.id}
         `;
-        return recordProviderFailure(error, transaction);
+        return {
+          action: "artifact-download-failed" as const,
+          artifactId: artifact.id,
+          filename: artifact.filename,
+          reason: safeError(error),
+        };
       });
     }
     await options.database.begin(async (transaction) => {
@@ -371,6 +368,7 @@ export function createTrademarkIngestion(options: {
         reason: safeError(error),
       };
     }
+    await cleanupArtifact(artifact.id, artifact.objectKey);
     return {
       action: "projected" as const,
       artifactId: artifact.id,
@@ -386,6 +384,19 @@ export function createTrademarkIngestion(options: {
     const orphanObjectKey = await cleanupOrphanArtifact();
     if (orphanObjectKey) {
       return { action: "cleanup-orphan" as const, objectKey: orphanObjectKey };
+    }
+    const [completedArtifact] = await options.database<Array<{ id: string; objectKey: string }>>`
+      select id, object_key as "objectKey" from source_artifact
+      where projection_state = 'complete' and object_key is not null
+      order by updated_at, filename limit 1
+    `;
+    if (completedArtifact) {
+      await cleanupArtifact(completedArtifact.id, completedArtifact.objectKey);
+      return {
+        action: "cleanup-artifact" as const,
+        artifactId: completedArtifact.id,
+        objectKey: completedArtifact.objectKey,
+      };
     }
     const interrupted = await options.database.begin(async (transaction) => {
       await lockIngestion(transaction);

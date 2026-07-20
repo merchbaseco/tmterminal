@@ -192,6 +192,7 @@ describe("live trademark data migration", () => {
     const artifacts = await database<
       Array<{
         downloadError: string | null;
+        downloadRequestCount: number;
         downloadResponseState: { status: number } | null;
         downloadState: string;
         filename: string;
@@ -202,6 +203,7 @@ describe("live trademark data migration", () => {
       }>
     >`
       select filename, download_state as "downloadState", download_error as "downloadError",
+        download_request_count as "downloadRequestCount",
         download_response_state as "downloadResponseState", object_key as "objectKey",
         projection_error as "projectionError", projection_state as "projectionState",
         projection_version as "projectionVersion"
@@ -209,9 +211,10 @@ describe("live trademark data migration", () => {
     `;
     expect([...artifacts]).toEqual([
       {
-        downloadError: "Retained ZIP unavailable from pre-retention ingestion",
+        downloadError: null,
+        downloadRequestCount: 1,
         downloadResponseState: null,
-        downloadState: "unavailable",
+        downloadState: "complete",
         filename: "apc260704.zip",
         objectKey: null,
         projectionError: null,
@@ -220,6 +223,7 @@ describe("live trademark data migration", () => {
       },
       {
         downloadError: "USPTO ODP download redirect failed with HTTP 429",
+        downloadRequestCount: 1,
         downloadResponseState: { status: 429 },
         downloadState: "failed",
         filename: "apc260705.zip",
@@ -230,6 +234,7 @@ describe("live trademark data migration", () => {
       },
       {
         downloadError: null,
+        downloadRequestCount: 0,
         downloadResponseState: null,
         downloadState: "pending",
         filename: "apc260706.zip",
@@ -240,6 +245,7 @@ describe("live trademark data migration", () => {
       },
       {
         downloadError: "Retained ZIP unavailable from pre-retention ingestion",
+        downloadRequestCount: 1,
         downloadResponseState: null,
         downloadState: "unavailable",
         filename: "apc260707.zip",
@@ -251,6 +257,7 @@ describe("live trademark data migration", () => {
       },
       {
         downloadError: "Download interrupted before retention",
+        downloadRequestCount: 1,
         downloadResponseState: null,
         downloadState: "failed",
         filename: "apc260708.zip",
@@ -385,9 +392,9 @@ describe("live trademark data migration", () => {
     `;
     expect(shape).toEqual({
       dataVersion: 1,
-      downloadComplete: 1,
+      downloadComplete: 26,
       downloadPending: 65,
-      downloadUnavailable: 25,
+      downloadUnavailable: 0,
       generationColumn: false,
       projectionComplete: 25,
       projectionPending: 65,
