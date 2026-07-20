@@ -60,6 +60,7 @@ const { act, cleanup, fireEvent, render, screen, waitFor } = await import("@test
 const defaultMatchMedia = window.matchMedia;
 
 let signedIn = false;
+let operator = false;
 let signInModalOpens = 0;
 let scrollOffset = 0;
 const searchInputs: unknown[] = [];
@@ -144,18 +145,17 @@ const reportResult = {
   to: "2026-07-12",
   total: 1,
 };
-
-const syncStatus = {
-  activeState: "idle" as const,
-  completeThroughDate: "2026-07-10",
-  dataVersion: 7,
-  degraded: false,
-  degradedSince: null,
-  failedCount: 0,
-  lastSuccessfulUpdateAt: "2026-07-10T12:00:00.000Z",
-  pendingCount: 0,
-  stale: false,
-  staleSince: null,
+const statusResult = {
+  catalog: { liveMarkCount: 400_000, registeredMarkCount: 600_000, totalMarkCount: 1_200_000 },
+  source: {
+    currentArtifact: null,
+    lastActivityAt: "2026-07-18T12:00:00.000Z",
+    latestProcessedDate: "2026-07-18",
+    processingActivity: Array.from({ length: 30 }, (_, index) => ({
+      count: index * 1000,
+      date: new Date(Date.UTC(2026, 5, 19 + index)).toISOString().slice(0, 10),
+    })),
+  },
 };
 
 mock.module("@clerk/react", () => ({
@@ -180,6 +180,9 @@ mock.module("@clerk/react", () => ({
     },
   }),
   useSignIn: () => ({ fetchStatus: "idle", signIn: {} }),
+  useUser: () => ({
+    user: { primaryEmailAddress: { emailAddress: "zach@example.com" } },
+  }),
 }));
 
 mock.module("@trpc/client", () => ({
@@ -204,9 +207,20 @@ mock.module("@trpc/client", () => ({
         },
       },
     },
+    ops: {
+      sync: {
+        artifacts: { query: async () => ({ items: [], limit: 25, offset: 0, total: 0 }) },
+        status: {
+          query: async () => ({
+            ...statusResult,
+            attention: { items: [], total: 0 },
+            provider: { status: "ready" as const },
+          }),
+        },
+      },
+    },
     reports: { run: { query: async () => reportResult } },
-    sync: { status: { query: async () => syncStatus } },
-    viewer: { role: { query: async () => ({ operator: false }) } },
+    viewer: { role: { query: async () => ({ operator }) } },
   }),
   httpLink: () => ({}),
 }));
@@ -217,10 +231,14 @@ beforeEach(() => {
   localStorage.clear();
   document.documentElement.classList.remove("dark");
   signedIn = false;
+  operator = false;
   signInModalOpens = 0;
   scrollOffset = 0;
   searchInputs.length = 0;
   searchHandler = () => Promise.resolve(searchResult);
+  globalThis.fetch = mock(async () =>
+    Response.json(statusResult, { headers: { "Content-Type": "application/json" } })
+  ) as unknown as typeof fetch;
   window.history.replaceState({}, "", "/search");
 });
 
@@ -370,7 +388,8 @@ test("search detail Back returns to the app-stored search entry", async () => {
 test("Reports presets navigate to the generated result route", async () => {
   signedIn = true;
   render(<App />);
-  expect(screen.queryByRole("link", { name: "Operations" })).toBeNull();
+  expect(screen.getByRole("link", { name: "Status" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: "Search" }).getAttribute("aria-current")).toBe("page");
 
   fireEvent.click(screen.getByRole("button", { name: "Reports" }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "Filed previous week" }));
@@ -378,7 +397,46 @@ test("Reports presets navigate to the generated result route", async () => {
   await waitFor(() => expect(window.location.pathname).toBe("/reports"));
   expect(new URLSearchParams(window.location.search).get("event")).toBe("filed");
   expect(await screen.findByRole("heading", { name: "FILED" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Reports" }).getAttribute("aria-current")).toBe("page");
   expect(screen.getByRole("link", { name: turtleMarkLinkPattern })).toBeTruthy();
+});
+
+test("shows public Status and Help without exposing operator sections", async () => {
+  render(<App />);
+
+  fireEvent.click(screen.getByRole("link", { name: "Status" }));
+  expect(await screen.findByRole("heading", { name: "Jul 18, 2026" })).toBeTruthy();
+  expect(screen.getByText("1,200,000")).toBeTruthy();
+  expect(screen.queryByText("Needs attention")).toBeNull();
+  expect(screen.queryByText("Source files")).toBeNull();
+
+  fireEvent.click(screen.getByRole("link", { name: "Help" }));
+  expect(await screen.findByRole("heading", { name: "SEARCH WITH CONFIDENCE" })).toBeTruthy();
+  expect(screen.getByText("Search modes")).toBeTruthy();
+});
+
+test("shows operator details on the shared Status page", async () => {
+  signedIn = true;
+  operator = true;
+  window.history.replaceState({}, "", "/status");
+  render(<App />);
+
+  expect(await screen.findByText("Nothing needs attention.")).toBeTruthy();
+  expect(screen.getByText("Source files")).toBeTruthy();
+  expect(screen.getByRole("link", { name: "Status" }).getAttribute("aria-current")).toBe("page");
+});
+
+test("Account navigation opens identity and API-key management", async () => {
+  signedIn = true;
+  render(<App />);
+
+  fireEvent.click(screen.getByRole("link", { name: "Account" }));
+
+  await waitFor(() => expect(window.location.pathname).toBe("/account"));
+  expect(await screen.findByRole("heading", { level: 1, name: "ACCOUNT" })).toBeTruthy();
+  expect(screen.getByText("zach@example.com")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Create API key" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: "Account" }).getAttribute("aria-current")).toBe("page");
 });
 
 test("report detail Back restores the generated page and document scroll", async () => {
@@ -430,7 +488,7 @@ test("leaving a failed replacement clears retained results and the next failure 
   );
   expect(screen.getByRole("link", { name: turtleMarkLinkPattern })).toBeTruthy();
 
-  fireEvent.click(screen.getByRole("link", { name: "Trademark Turtle" }));
+  fireEvent.click(screen.getByRole("link", { name: "Trademark Turtle home" }));
   await waitFor(() => expect(window.location.search).toBe(""));
   expect(screen.getByRole("searchbox", { name: "Search trademarks" })).toBeTruthy();
   expect(screen.queryByRole("link", { name: turtleMarkLinkPattern })).toBeNull();
@@ -441,7 +499,7 @@ test("leaving a failed replacement clears retained results and the next failure 
   });
   fireEvent.click(screen.getByRole("button", { name: "Search" }));
   expect((await screen.findByRole("alert")).textContent).toBe(
-    "Search is temporarily unavailable. Check Corpus freshness and try again."
+    "Search is temporarily unavailable. Try again shortly."
   );
   expect(screen.queryByRole("link", { name: turtleMarkLinkPattern })).toBeNull();
 });
@@ -533,7 +591,7 @@ test("a successful replacement cannot revive its source during a failed same-que
   );
 
   expect((await screen.findByRole("alert")).textContent).toBe(
-    "Search is temporarily unavailable. Check Corpus freshness and try again."
+    "Search is temporarily unavailable. Try again shortly."
   );
   expect(screen.queryByRole("link", { name: "SOURCE A" })).toBeNull();
 });

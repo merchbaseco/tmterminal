@@ -1,39 +1,45 @@
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 
-if (!GlobalRegistrator.isRegistered) GlobalRegistrator.register();
+if (!GlobalRegistrator.isRegistered) {
+  GlobalRegistrator.register();
+}
 Element.prototype.getAnimations ??= () => [];
 
 const { cleanup, fireEvent, render, screen, waitFor } = await import("@testing-library/react");
 const { afterEach, describe, expect, test } = await import("bun:test");
-const { ApiKeysPage } = await import("../src/api-keys-page.tsx");
-type AccountApi = import("../src/api-keys-page.tsx").AccountApi;
+const { AccountPage } = await import("../src/account-page.tsx");
+type AccountApi = import("../src/account-page.tsx").AccountApi;
 
 afterEach(() => {
   cleanup();
   localStorage.clear();
 });
 
-describe("API-key page", () => {
+describe("account page", () => {
   test("keeps the dialog open until a pending key creation reveals the token", async () => {
-    const token = "ttk_11111111-1111-4111-8111-111111111111_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    const token =
+      "ttk_11111111-1111-4111-8111-111111111111_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
     const key = {
-      id: "11111111-1111-4111-8111-111111111111",
-      name: "MerchBase",
-      suffix: "AAAAAA",
       createdAt: "2026-07-14T12:00:00.000Z",
+      id: "11111111-1111-4111-8111-111111111111",
       lastUsedAt: null,
+      name: "MerchBase",
       status: "active" as const,
+      suffix: "AAAAAA",
     };
     let resolveCreate: ((created: { key: typeof key; token: string }) => void) | undefined;
     const api: AccountApi = {
-      create: () => new Promise((resolve) => {
-        resolveCreate = resolve;
-      }),
+      create: () =>
+        new Promise((resolve) => {
+          resolveCreate = resolve;
+        }),
       list: async () => [],
       revoke: async () => ({ ...key, status: "revoked" }),
     };
 
-    render(<ApiKeysPage api={api} />);
+    render(<AccountPage api={api} email="zach@example.com" />);
+    expect(screen.getByRole("heading", { level: 1, name: "ACCOUNT" })).toBeTruthy();
+    expect(screen.getByText("zach@example.com")).toBeTruthy();
     await screen.findByText("No API keys yet.");
     fireEvent.click(screen.getByRole("button", { name: "Create API key" }));
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "MerchBase" } });
@@ -46,14 +52,15 @@ describe("API-key page", () => {
   });
 
   test("shows a new raw token once and removes it after acknowledgement", async () => {
-    const token = "ttk_11111111-1111-4111-8111-111111111111_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    const token =
+      "ttk_11111111-1111-4111-8111-111111111111_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
     const key = {
-      id: "11111111-1111-4111-8111-111111111111",
-      name: "MerchBase",
-      suffix: "AAAAAA",
       createdAt: "2026-07-14T12:00:00.000Z",
+      id: "11111111-1111-4111-8111-111111111111",
       lastUsedAt: null,
+      name: "MerchBase",
       status: "active" as const,
+      suffix: "AAAAAA",
     };
     const api: AccountApi = {
       create: async () => ({ key, token }),
@@ -61,7 +68,7 @@ describe("API-key page", () => {
       revoke: async () => ({ ...key, status: "revoked" }),
     };
 
-    render(<ApiKeysPage api={api} />);
+    render(<AccountPage api={api} email="zach@example.com" />);
     await screen.findByText("No API keys yet.");
     fireEvent.click(screen.getByRole("button", { name: "Create API key" }));
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "MerchBase" } });

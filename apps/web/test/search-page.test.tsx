@@ -243,6 +243,7 @@ test("search controls and result facts use customer-facing language", async () =
   ).toBeTruthy();
   expect(screen.getByText("1 live exact")).toBeTruthy();
   expect(screen.getByText("0 live partial")).toBeTruthy();
+  expect(screen.queryByText("Data through")).toBeNull();
   expect(screen.queryByText("Exact match")).toBeNull();
   expect(screen.getAllByText("Live").length).toBeGreaterThan(0);
   const row = screen.getByTestId("search-result-row");
@@ -315,6 +316,8 @@ test("normalizes whitespace-only and double-disabled direct URL state", async ()
   };
   const whitespace = renderSearch(api, "?q=+++&mode=multi&exact=false&partial=false");
   expect(screen.getByRole("searchbox", { name: "Search trademarks" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Filters and sort" })).toBeNull();
+  expect(screen.queryByRole("region", { name: "Search options" })).toBeNull();
   expect(inputs).toHaveLength(0);
   whitespace.view.unmount();
 
@@ -406,7 +409,7 @@ test("renders loading, empty, server error, and typed continuation conflict with
     search: () => Promise.reject(corpusBuilding),
   });
   expect((await screen.findByRole("alert")).textContent).toBe(
-    "Search is temporarily unavailable. Check Corpus freshness and try again."
+    "Search is temporarily unavailable. Try again shortly."
   );
   cleanup();
 

@@ -6,6 +6,7 @@ import { migrateDatabase } from "../../src/db/migrate.ts";
 import type { ProjectedMark } from "../../src/ingestion/mark-types.ts";
 import { runReport } from "../../src/queries/reports.ts";
 import { buildSearchQueries } from "../../src/queries/search.ts";
+import { createOperatorSyncService } from "../../src/services/operator-sync-service.ts";
 import { resetTestDatabase } from "./test-database.ts";
 import { createTestMarkRepository } from "./test-mark-repository.ts";
 
@@ -307,8 +308,26 @@ function operatorArtifacts(input: Record<string, unknown>) {
   });
 }
 
-test("operator artifact pagination keeps immutable source order", async () => {
-  const first = await operatorArtifacts({ limit: 2, offset: 0 });
+test("public status exposes catalog activity without operator diagnostics", async () => {
+  const response = await server.inject({ method: "GET", url: "/api/status" });
+  const status = response.json();
+
+  expect(response.statusCode).toBe(200);
+  expect(status.catalog.totalMarkCount).toBeGreaterThan(0);
+  expect(status.source.processingActivity).toHaveLength(30);
+  expect(status.attention).toBeUndefined();
+  expect(status.provider).toBeUndefined();
+
+  const privateResponse = await server.inject({
+    method: "GET",
+    url: `/api/trpc/ops.sync.artifacts?input=${encodeURIComponent(
+      JSON.stringify({ limit: 1, offset: 0 })
+    )}`,
+  });
+  expect(privateResponse.statusCode).toBe(401);
+});
+
+test("operator artifact pagination orders source files newest first", async () => {
   await database`
     update source_artifact set updated_at = '2026-07-18T04:00:00Z'
     where filename = 'source-part-01.zip'
@@ -321,15 +340,82 @@ test("operator artifact pagination keeps immutable source order", async () => {
       'https://example.test/04.zip', 1, '2026-01-04', '2026-01-04'
     )
   `;
+  const first = await operatorArtifacts({ limit: 2, offset: 0 });
   const second = await operatorArtifacts({ limit: 2, offset: 2 });
 
   expect(first.statusCode).toBe(200);
   expect(first.json().result.data.items.map((item: { filename: string }) => item.filename)).toEqual(
-    ["source-part-01.zip", "source-part-02.zip"]
+    ["source-part-04.zip", "source-part-03.zip"]
   );
   expect(
     second.json().result.data.items.map((item: { filename: string }) => item.filename)
-  ).toEqual(["source-part-03.zip", "source-part-04.zip"]);
+  ).toEqual(["source-part-02.zip", "source-part-01.zip"]);
+});
+
+test("operator status presents processed cleanup and actionable source failures", async () => {
+  await database`
+    update source_artifact set download_state = 'complete', projection_state = 'complete',
+      physical_record_count = 155000, projected_mark_count = 221, sha256 = ${"a".repeat(64)},
+      projection_completed_at = current_timestamp, updated_at = '2026-07-18T04:00:00Z'
+    where filename = 'source-part-01.zip'
+  `;
+  await database`
+    update source_artifact set download_state = 'failed', download_error = 'provider rejected download',
+      download_response_state = jsonb_build_object('status', 429),
+      updated_at = '2026-07-18T05:00:00Z'
+    where filename = 'source-part-02.zip'
+  `;
+  const service = createOperatorSyncService(database);
+
+  const [status, page] = await Promise.all([
+    service.status(),
+    service.artifacts({ limit: 25, offset: 0 }),
+  ]);
+  const [catalog] = await database<
+    Array<{ liveMarkCount: number; registeredMarkCount: number; totalMarkCount: number }>
+  >`
+    select count(*)::int as "totalMarkCount",
+      count(*) filter (where search_status = 'live')::int as "liveMarkCount",
+      count(*) filter (where registration_number is not null)::int as "registeredMarkCount"
+    from mark
+  `;
+  const [clock] = await database<Array<{ today: string }>>`
+    select (current_timestamp at time zone 'UTC')::date::text as today
+  `;
+  if (!clock) {
+    throw new Error("PostgreSQL clock is unavailable");
+  }
+
+  expect(status.source.latestProcessedDate).toBe("2026-01-01");
+  expect(status.catalog).toMatchObject(catalog ?? {});
+  expect(status.source.processingActivity).toHaveLength(30);
+  expect(status.source.processingActivity[0]?.count).toBe(0);
+  expect(status.source.processingActivity.at(-1)).toEqual({ count: 155_000, date: clock.today });
+  expect(status.attention).toMatchObject({
+    items: [
+      {
+        filename: "source-part-02.zip",
+        httpStatus: 429,
+        stage: "download",
+      },
+    ],
+    total: 1,
+  });
+  expect(page.items.find((item) => item.filename === "source-part-01.zip")).toMatchObject({
+    physicalRecordCount: 155_000,
+    projectedMarkCount: 221,
+    storageState: "cleaned-up",
+  });
+
+  await database`
+    update source_artifact set download_state = 'unavailable'
+    where filename = 'source-part-01.zip'
+  `;
+  const [legacyApplied] = (await service.artifacts({ limit: 25, offset: 0 })).items.filter(
+    (item) => item.filename === "source-part-01.zip"
+  );
+  expect(legacyApplied).toMatchObject({ storageState: "cleaned-up" });
+  expect((await service.status()).attention.total).toBe(1);
 });
 
 test("report presets use milestone dates and the current opposition status", async () => {

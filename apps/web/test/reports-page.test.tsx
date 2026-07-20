@@ -186,9 +186,7 @@ test("explains that reports are temporarily unavailable", async () => {
   );
 
   expect(
-    await screen.findByText(
-      "Reports are temporarily unavailable. Check Corpus freshness and try again."
-    )
+    await screen.findByText("Reports are temporarily unavailable. Try again shortly.")
   ).toBeTruthy();
   expect(screen.getByText(legalDisclaimerPattern)).toBeTruthy();
 });
@@ -215,18 +213,14 @@ test("keeps the legal disclaimer in empty and loading report states", async () =
   expect(screen.getByText(legalDisclaimerPattern)).toBeTruthy();
 });
 
-test("does not declare an uncovered report window empty", async () => {
+test("does not gate an empty report on source-file coverage", async () => {
   renderReports(
     { run: () => Promise.resolve({ ...result, items: [], total: 0 }) },
     "?event=filed&window=previous-week"
   );
 
-  expect(
-    await screen.findByText(
-      "This report window is not fully covered yet. Check Corpus freshness for current coverage."
-    )
-  ).toBeTruthy();
-  expect(screen.queryByText("No marks in this report.")).toBeNull();
+  expect(await screen.findByText("No marks in this report.")).toBeTruthy();
+  expect(screen.queryByText("Corpus freshness")).toBeNull();
 });
 
 test("hides cached report data after a failed refresh", async () => {
