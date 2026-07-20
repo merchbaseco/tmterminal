@@ -80,16 +80,29 @@
   --radius-2xl: calc(var(--radius) * 1.8);
 }
 
+@utility page-shell {
+  width: 100%;
+  max-width: 120rem;
+  padding-inline: clamp(1rem, 3vw, 3rem);
+  margin-inline: auto;
+}
+
 @layer base {
   html {
     overscroll-behavior: none;
     color: var(--foreground);
+    scroll-padding-top: var(
+      --page-scroll-padding,
+      var(--topbar-height, 3.75rem)
+    );
     background: var(--background);
   }
 
   body {
     min-width: 20rem;
     margin: 0;
+    font-size: 1rem;
+    line-height: 1.5;
   }
 
   button,

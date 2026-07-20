@@ -117,7 +117,7 @@ function searchErrorMessage(code: string | null, conflict: boolean, replacementF
     return "New search could not be loaded. Previous results are still shown.";
   }
   if (code === "SERVICE_UNAVAILABLE" || code === "UPSTREAM_UNAVAILABLE") {
-    return "Search is temporarily unavailable. Check Corpus freshness and try again.";
+    return "Search is temporarily unavailable. Try again shortly.";
   }
   return "Search could not be loaded.";
 }
@@ -209,7 +209,7 @@ export function SearchPage({
   const items = data?.pages.flatMap((page) => page.items) ?? [];
   const virtualizer = useWindowVirtualizer({
     count: items.length,
-    estimateSize: () => 64,
+    estimateSize: () => 72,
     getItemKey: (index) => items[index]?.serialNumber ?? index,
     initialRect: { height: 640, width: 1200 },
     overscan: 3,
@@ -224,6 +224,19 @@ export function SearchPage({
     restoredEntry.current = restorationKey;
     window.scrollTo(0, restoreScrollOffset);
   }, [data, restorationKey, restoreScrollOffset]);
+
+  useLayoutEffect(() => {
+    if (!state.query) {
+      return;
+    }
+    document.documentElement.style.setProperty(
+      "--page-scroll-padding",
+      "calc(var(--topbar-height, 3.75rem) + 7.5rem)"
+    );
+    return () => {
+      document.documentElement.style.removeProperty("--page-scroll-padding");
+    };
+  }, [state.query]);
 
   useEffect(() => {
     if (replacementSourceSearch && query.data?.pages[0]?.offset === 0 && !query.isPlaceholderData) {
@@ -276,17 +289,15 @@ export function SearchPage({
   return (
     <main
       className={cn(
-        "mx-auto flex min-h-[calc(100dvh-3.75rem)] max-w-[120rem] flex-col px-[clamp(1rem,3vw,3rem)] pt-[clamp(2rem,4vw,4rem)]",
-        state.query && "pt-4"
+        "page-shell isolate flex min-h-[calc(100dvh-3.75rem)] flex-col pt-[clamp(1.25rem,2vw,2rem)]",
+        state.query && "pt-0"
       )}
     >
       {state.query ? (
         <h1 className="sr-only">Trademark search results for “{state.query}”</h1>
       ) : (
         <header className="border-border border-b pb-[clamp(1.5rem,4vw,3rem)]">
-          <p className="mb-[0.85rem] font-[650] text-[0.72rem] uppercase tracking-[0.12em]">
-            United States trademarks / Class 025
-          </p>
+          <p className="mb-4 font-[650] text-base">Trademark search for Print on Demand sellers.</p>
           <h1 className="m-0 max-w-[10ch] font-black text-[clamp(2.75rem,min(12.5vw,18dvh),14rem)] leading-[0.78] tracking-[-0.055em]">
             TRADEMARK
             <br />
@@ -295,11 +306,16 @@ export function SearchPage({
         </header>
       )}
 
-      <div className={cn(state.query && "sticky top-0 z-10 bg-background")}>
+      <div
+        className={cn(
+          state.query && "sticky top-[var(--topbar-height,3.75rem)] z-10 bg-background pt-4"
+        )}
+      >
         <form
           className={cn(
             "grid grid-cols-[minmax(0,1fr)_auto] gap-3 px-0 pt-[clamp(1.5rem,4vw,3.5rem)] pb-5 [--search-control-height:clamp(3.5rem,7vw,5.5rem)] max-[48rem]:grid-cols-1 [&>[data-slot=button]]:h-[var(--search-control-height)] [&>[data-slot=button]]:px-[clamp(1.5rem,3vw,2.5rem)] [&>[data-slot=button]]:text-[clamp(1.125rem,1.5vw,1.4rem)] [&_[data-slot=input-control]]:h-[var(--search-control-height)] [&_[data-slot=input-control]]:rounded-[var(--radius)] [&_[data-slot=input]]:h-full [&_[data-slot=input]]:px-[clamp(1rem,2vw,1.5rem)] [&_[data-slot=input]]:py-0 [&_[data-slot=input]]:font-semibold [&_[data-slot=input]]:text-[clamp(1.25rem,3vw,2.4rem)] [&_[data-slot=input]]:leading-none [&_[data-slot=input]]:tracking-[-0.035em]",
-            state.query && "py-1 [--search-control-height:2.75rem] [&_[data-slot=input]]:text-xl"
+            state.query &&
+              "pt-1 pb-3 [--search-control-height:2.75rem] [&_[data-slot=input]]:text-xl"
           )}
           // biome-ignore lint/performance/noJsxPropsBind: The local submit handler reads this page's draft query.
           onSubmit={submit}
@@ -324,22 +340,25 @@ export function SearchPage({
           </Button>
         </form>
 
-        <Button
-          aria-controls="search-options"
-          aria-expanded={filtersOpen}
-          className="mb-3 hidden w-full max-[48rem]:inline-flex"
-          // biome-ignore lint/performance/noJsxPropsBind: This mobile disclosure owns one local boolean.
-          onClick={() => setFiltersOpen((open) => !open)}
-          variant="outline"
-        >
-          Filters and sort
-        </Button>
+        {state.query ? (
+          <Button
+            aria-controls="search-options"
+            aria-expanded={filtersOpen}
+            className="mb-3 hidden w-full max-[48rem]:inline-flex"
+            // biome-ignore lint/performance/noJsxPropsBind: This mobile disclosure owns one local boolean.
+            onClick={() => setFiltersOpen((open) => !open)}
+            variant="outline"
+          >
+            Filters and sort
+          </Button>
+        ) : null}
         <section
           aria-label="Search options"
           className={cn(
             "flex flex-wrap items-end border-border border-y max-[48rem]:hidden max-[48rem]:grid-cols-2 max-[48rem]:items-stretch",
             filtersOpen && "max-[48rem]:grid"
           )}
+          hidden={!state.query}
           id="search-options"
         >
           {/* biome-ignore lint/a11y/useSemanticElements: A native fieldset legend sits off-grid and breaks the shared filter baseline. */}
@@ -410,9 +429,7 @@ export function SearchPage({
       </div>
 
       {query.isPending && state.query ? (
-        <p className="m-0 border-border border-b py-12 text-[clamp(1.2rem,2vw,1.8rem)]">
-          Searching Class 025…
-        </p>
+        <p className="m-0 border-border border-b py-12 text-base">Searching Class 025…</p>
       ) : null}
       {query.error ? (
         <div className="flex items-center justify-between gap-4 border-border border-b">
@@ -438,7 +455,7 @@ export function SearchPage({
       ) : null}
       {data && !query.error && total === 0 ? (
         <div className="flex items-center justify-between border-border border-b py-12">
-          <p className="m-0 text-[clamp(1.2rem,2vw,1.8rem)]">No matching marks</p>
+          <p className="m-0 text-base">No matching marks</p>
           <Button
             // biome-ignore lint/performance/noJsxPropsBind: The empty state clears this page's URL-owned filters.
             onClick={() =>
@@ -460,18 +477,13 @@ export function SearchPage({
 
       {data && total > 0 && (!query.error || conflict || replacementFailure) ? (
         <section aria-label="Search results">
-          <div className="flex min-h-10 items-center justify-between font-[650] text-[0.75rem] uppercase tracking-[0.09em] [&_p]:m-0">
+          <div className="flex min-h-10 items-center font-[650] text-[0.75rem] uppercase tracking-[0.09em] [&_p]:m-0">
             <p className="flex flex-wrap gap-x-[0.6rem] gap-y-1 [&>span+span]:font-extrabold [&>span+span]:before:mr-[0.6rem] [&>span+span]:before:text-muted-foreground [&>span+span]:before:content-['·']">
               <span>
                 {total} {total === 1 ? "result" : "results"}
               </span>
               <span>{data.pages[0]?.liveMatchCounts.exact ?? 0} live exact</span>
               <span>{data.pages[0]?.liveMatchCounts.partial ?? 0} live partial</span>
-            </p>
-            <p>
-              {data.pages[0]?.meta.dataThroughDate
-                ? `Data through ${data.pages[0].meta.dataThroughDate}`
-                : "Data sync active"}
             </p>
           </div>
           <div className="border-border border-y" key={restorationKey}>
@@ -518,15 +530,15 @@ export function SearchPage({
             </ol>
           </div>
           {query.isFetchingNextPage ? (
-            <p className="m-0 border-border border-b py-12 text-[clamp(1.2rem,2vw,1.8rem)]">
-              Loading more results…
-            </p>
+            <p className="m-0 border-border border-b py-12 text-base">Loading more results…</p>
           ) : null}
         </section>
       ) : null}
-      <footer className="mt-auto border-border border-t py-8 text-muted-foreground">
-        Trademark data is informational, not legal advice. Verify critical decisions with the USPTO
-        or qualified counsel.
+      <footer className="relative left-1/2 mt-auto w-dvw -translate-x-1/2 border-border border-t text-muted-foreground/70">
+        <p className="page-shell my-0 py-8">
+          Trademark data is informational, not legal advice. Verify critical decisions with the
+          USPTO or qualified counsel.
+        </p>
       </footer>
     </main>
   );

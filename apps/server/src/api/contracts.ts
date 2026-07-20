@@ -184,6 +184,7 @@ export interface OperatorArtifact {
   sha256: string | null;
   sourceFromDate: string;
   sourceToDate: string;
+  storageState: "cleaned-up" | "not-downloaded" | "retained";
   updatedAt: string;
 }
 
@@ -192,29 +193,44 @@ export interface OperatorPageInput {
   offset: number;
 }
 
-export interface OperatorSyncStatus {
-  annualBaseline: {
-    completeArtifactCount: number;
-    expectedArtifactCount: number;
-    failedArtifactCount: number;
-    projectedMarkCount: number;
-  };
-  provider: {
-    currentError: string | null;
-    failureCount: number;
-    nextEligibleAt: string | null;
-    status: "backoff" | "ready" | "stopped";
+export interface PublicSourceStatus {
+  catalog: {
+    liveMarkCount: number;
+    registeredMarkCount: number;
+    totalMarkCount: number;
   };
   source: {
+    currentArtifact: {
+      filename: string;
+      state: "downloading" | "processing";
+    } | null;
     lastActivityAt: string | null;
-    physicalRecordCount: number;
-    projectedMarkCount: number;
-    unavailableArtifactCount: number;
+    latestProcessedDate: string | null;
+    processingActivity: Array<{
+      count: number;
+      date: string;
+    }>;
   };
-  summary: SyncStatus;
+}
+
+export interface OperatorSyncStatus extends PublicSourceStatus {
+  attention: {
+    items: Array<{
+      artifactId: string;
+      filename: string;
+      httpStatus: number | null;
+      stage: "application" | "download";
+      updatedAt: string;
+    }>;
+    total: number;
+  };
+  provider: {
+    status: "backoff" | "ready" | "stopped";
+  };
 }
 
 export interface OperatorSyncService {
   artifacts: (input: OperatorPageInput) => Promise<BoundedPage<OperatorArtifact>>;
+  publicStatus: () => Promise<PublicSourceStatus>;
   status: () => Promise<OperatorSyncStatus>;
 }

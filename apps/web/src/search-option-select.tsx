@@ -53,7 +53,7 @@ export function SearchOptionSelect<T extends string>({
         name={name}
       >
         <span className="max-[48rem]:col-span-full">{label}</span>
-        <span className="whitespace-nowrap font-bold text-[0.9rem] text-foreground normal-case tracking-normal max-[48rem]:text-base">
+        <span className="whitespace-nowrap font-bold text-base text-foreground normal-case tracking-normal">
           {selected.label}
         </span>
         <SelectChevron />

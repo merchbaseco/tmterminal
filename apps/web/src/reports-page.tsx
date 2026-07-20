@@ -180,16 +180,9 @@ function reportErrorMessage(conflict: boolean, unavailable: boolean) {
     return "Trademark data changed. Run the report again before continuing.";
   }
   if (unavailable) {
-    return "Reports are temporarily unavailable. Check Corpus freshness and try again.";
+    return "Reports are temporarily unavailable. Try again shortly.";
   }
   return "Report could not be loaded.";
-}
-
-function hasIncompleteWindowCoverage(result: ReportResult | undefined, event: ReportEvent) {
-  if (!result || event === "published-for-opposition" || !result.to) {
-    return false;
-  }
-  return !result.meta.dataThroughDate || result.meta.dataThroughDate < result.to;
 }
 
 export function ReportsPage({
@@ -214,10 +207,9 @@ export function ReportsPage({
   const update = (change: Partial<ReportState>) => onNavigate(href({ ...state, ...change }));
   const resetReport = useCallback(() => onNavigate(href(state)), [onNavigate, state]);
   const conflict = trpcErrorCode(report.error) === "CONFLICT";
-  const corpusBuilding = ["SERVICE_UNAVAILABLE", "UPSTREAM_UNAVAILABLE"].includes(
+  const temporarilyUnavailable = ["SERVICE_UNAVAILABLE", "UPSTREAM_UNAVAILABLE"].includes(
     trpcErrorCode(report.error) ?? ""
   );
-  const incompleteWindowCoverage = hasIncompleteWindowCoverage(report.data, state.event);
 
   useLayoutEffect(() => {
     if (restoredEntry.current === search || !report.data || report.isError) {
@@ -228,17 +220,17 @@ export function ReportsPage({
   }, [report.data, report.isError, restoreScrollOffset, search]);
 
   return (
-    <main className="mx-auto flex min-h-[calc(100dvh-3.75rem)] max-w-[120rem] flex-col px-[clamp(1rem,3vw,3rem)] pt-4">
+    <main className="page-shell isolate flex min-h-[calc(100dvh-3.75rem)] flex-col pt-4">
       <header className="grid grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)] items-end gap-8 border-border border-b pb-[clamp(1.5rem,3vw,2.5rem)] max-[48rem]:grid-cols-1 max-[48rem]:items-start">
         <div>
-          <p className="mb-[0.85rem] font-[650] text-[0.72rem] uppercase tracking-[0.12em]">
+          <p className="mb-[0.85rem] font-[650] text-[0.75rem] uppercase tracking-[0.1em]">
             {labels.eyebrow}
           </p>
           <h1 className="m-0 font-black text-[clamp(4.75rem,13vw,13rem)] leading-[0.78] tracking-[-0.055em]">
             {labels.heading}
           </h1>
         </div>
-        <p className="m-0 max-w-[29rem] text-[clamp(1.15rem,2vw,1.7rem)] leading-[1.15]">
+        <p className="m-0 max-w-[29rem] text-base">
           {report.data && !report.isError
             ? range(report.data.from, report.data.to)
             : "Resolving report window…"}
@@ -282,21 +274,19 @@ export function ReportsPage({
         />
       </section>
       {report.isPending ? (
-        <p className="m-0 border-border border-b py-12 text-[clamp(1.2rem,2vw,1.8rem)]">
-          Generating report…
-        </p>
+        <p className="m-0 border-border border-b py-12 text-base">Generating report…</p>
       ) : null}
       {report.isError ? (
         <div className="flex items-center justify-between gap-4 border-border border-b">
           <p
             className={
-              corpusBuilding
-                ? "m-0 py-12 text-[clamp(1.2rem,2vw,1.8rem)]"
+              temporarilyUnavailable
+                ? "m-0 py-12 text-base"
                 : "m-0 py-8 text-destructive-foreground"
             }
             role="alert"
           >
-            {reportErrorMessage(conflict, corpusBuilding)}
+            {reportErrorMessage(conflict, temporarilyUnavailable)}
           </p>
           {conflict ? (
             <Button onClick={resetReport} variant="outline">
@@ -306,19 +296,14 @@ export function ReportsPage({
         </div>
       ) : null}
       {report.data && !report.isError && report.data.total === 0 ? (
-        <p className="m-0 border-border border-b py-12 text-[clamp(1.2rem,2vw,1.8rem)]">
-          {incompleteWindowCoverage
-            ? "This report window is not fully covered yet. Check Corpus freshness for current coverage."
-            : "No marks in this report."}
-        </p>
+        <p className="m-0 border-border border-b py-12 text-base">No marks in this report.</p>
       ) : null}
       {report.data && !report.isError && report.data.total > 0 ? (
         <section aria-label="Report results">
-          <div className="flex min-h-10 items-center justify-between font-[650] text-[0.75rem] uppercase tracking-[0.09em] [&_p]:m-0">
+          <div className="flex min-h-10 items-center font-[650] text-[0.75rem] uppercase tracking-[0.09em] [&_p]:m-0">
             <p>
               {report.data.total} {report.data.total === 1 ? "result" : "results"}
             </p>
-            <p>Data through {report.data.meta.dataThroughDate ?? "not yet available"}</p>
           </div>
           <div className="border-border border-y">
             {report.data.items.map((item) => (
@@ -375,9 +360,11 @@ export function ReportsPage({
           </nav>
         </section>
       ) : null}
-      <footer className="mt-auto border-border border-t py-8 text-muted-foreground">
-        Trademark data is informational, not legal advice. Verify critical decisions with the USPTO
-        or qualified counsel.
+      <footer className="relative left-1/2 mt-auto w-dvw -translate-x-1/2 border-border border-t text-muted-foreground/70">
+        <p className="page-shell my-0 py-8">
+          Trademark data is informational, not legal advice. Verify critical decisions with the
+          USPTO or qualified counsel.
+        </p>
       </footer>
     </main>
   );

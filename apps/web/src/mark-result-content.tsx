@@ -63,12 +63,12 @@ export function MarkResultContent({
             {item.wordMark}
           </a>
           {contextLabel ? (
-            <span className="shrink-0 font-bold text-[0.65rem] text-muted-foreground uppercase tracking-[0.08em]">
+            <span className="shrink-0 font-bold text-[0.75rem] text-muted-foreground uppercase tracking-[0.1em]">
               {contextLabel}
             </span>
           ) : null}
         </div>
-        <p className="flex min-w-0 gap-x-[0.55rem] overflow-hidden text-ellipsis whitespace-nowrap font-medium text-[0.85rem] text-muted-foreground leading-[1.3] tracking-normal [&>span+span]:before:mr-[0.55rem] [&>span+span]:before:content-['·'] [&>span:first-child]:min-w-0 [&>span:first-child]:overflow-hidden [&>span:first-child]:text-ellipsis [&>span]:shrink-0">
+        <p className="flex min-w-0 gap-x-[0.55rem] overflow-hidden text-ellipsis whitespace-nowrap font-medium text-base text-muted-foreground tracking-normal [&>span+span]:before:mr-[0.55rem] [&>span+span]:before:content-['·'] [&>span:first-child]:min-w-0 [&>span:first-child]:overflow-hidden [&>span:first-child]:text-ellipsis [&>span]:shrink-0">
           <span>{item.owner ?? "Owner unavailable"}</span>
           <span>{typeLabels[item.type]}</span>
           {classLabel ? <span>{classLabel}</span> : null}
@@ -80,7 +80,7 @@ export function MarkResultContent({
       >
         <span
           className={cn(
-            "inline-flex min-h-6 items-center rounded-[2px] border border-current px-[0.45rem] py-[0.15rem] font-bold text-[0.7rem] uppercase leading-none tracking-[0.08em]",
+            "inline-flex min-h-6 items-center rounded-[2px] border border-current px-[0.45rem] py-[0.15rem] font-bold text-[0.75rem] uppercase leading-none tracking-[0.1em]",
             statusChipClasses[item.status]
           )}
           data-slot="result-status"
@@ -89,7 +89,7 @@ export function MarkResultContent({
           {statusChipLabels[item.status]}
         </span>
         {item.statusDate ? (
-          <time className="text-[0.8rem] text-muted-foreground" dateTime={item.statusDate}>
+          <time className="text-base text-muted-foreground" dateTime={item.statusDate}>
             {item.statusDate}
           </time>
         ) : null}

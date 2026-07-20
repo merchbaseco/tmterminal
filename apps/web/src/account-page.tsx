@@ -15,6 +15,7 @@ import {
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@/components/ui/menu";
+import { cn } from "@/lib/utils";
 import type { AppRouter } from "../../server/src/api/router.ts";
 
 type RouterOutputs = inferRouterOutputs<AppRouter>;
@@ -62,7 +63,7 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
 }
 
-export function ApiKeysPage({ api }: { api: AccountApi }) {
+export function AccountPage({ api, email }: { api: AccountApi; email: string | null }) {
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -154,24 +155,40 @@ export function ApiKeysPage({ api }: { api: AccountApi }) {
   );
 
   return (
-    <main className="mx-auto min-h-[calc(100vh-3.75rem)] max-w-[100rem] px-[clamp(1rem,3vw,3rem)] py-[clamp(2rem,5vw,5.5rem)]">
-      <section className="grid grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)] items-end gap-8 max-[48rem]:grid-cols-1">
+    <main className="page-shell isolate min-h-[calc(100dvh-3.75rem)] py-[clamp(2rem,5vw,5.5rem)]">
+      <section className="grid grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)] items-end gap-8 max-[90rem]:grid-cols-1">
         <div>
-          <p className="mb-[0.85rem] font-[650] text-[0.72rem] uppercase tracking-[0.12em]">
-            Account / credentials
+          <p className="mb-[0.85rem] font-[650] text-[0.75rem] uppercase tracking-[0.1em]">
+            Account
           </p>
-          <h1 className="m-0 font-black text-[clamp(4.75rem,13vw,13rem)] leading-[0.78] tracking-[-0.055em]">
-            API KEYS
+          <h1 className="m-0 font-black text-[clamp(3.25rem,13vw,13rem)] leading-[0.78] tracking-[-0.055em]">
+            ACCOUNT
           </h1>
         </div>
-        <p className="m-0 max-w-[27rem] text-[clamp(1.15rem,2vw,1.7rem)] leading-[1.15]">
-          Create credentials for the CLI and typed clients. New tokens appear once.
+        <p className="m-0 max-w-[27rem] text-base">
+          Your MerchBase sign-in and the credentials that call the service.
         </p>
       </section>
 
-      <div className="mt-[clamp(3rem,8vw,7rem)] flex items-center justify-between border-border border-y py-3">
-        <p className="m-0 font-[650] text-[0.72rem] uppercase tracking-[0.12em]">
-          {keys.length} total
+      {email ? (
+        <dl className="mt-[clamp(3rem,8vw,7rem)] border-border border-y py-4">
+          <div className="grid gap-1">
+            <dt className="font-[650] text-[0.75rem] text-muted-foreground uppercase tracking-[0.1em]">
+              Signed in as
+            </dt>
+            <dd className="m-0 text-base">{email}</dd>
+          </div>
+        </dl>
+      ) : null}
+
+      <div
+        className={cn(
+          "flex items-center justify-between border-border border-y py-3",
+          email ? "mt-[clamp(2rem,4vw,3.5rem)]" : "mt-[clamp(3rem,8vw,7rem)]"
+        )}
+      >
+        <p className="m-0 font-[650] text-[0.75rem] uppercase tracking-[0.1em]">
+          API keys — {keys.length} total
         </p>
         <Dialog onOpenChange={changeCreateOpen} open={createOpen}>
           <DialogTrigger render={<Button />}>Create API key</DialogTrigger>
@@ -243,12 +260,12 @@ export function ApiKeysPage({ api }: { api: AccountApi }) {
             key={key.id}
           >
             <div className="grid gap-[0.3rem]">
-              <strong className="text-[1.35rem]">{key.name}</strong>
-              <span className="text-[0.72rem] text-muted-foreground uppercase tracking-[0.1em]">
+              <strong className="text-base">{key.name}</strong>
+              <span className="text-[0.75rem] text-muted-foreground uppercase tracking-[0.1em]">
                 {key.status}
               </span>
             </div>
-            <dl className="m-0 grid grid-cols-3 gap-4 max-[48rem]:grid-cols-2 [&>div]:grid [&>div]:gap-[0.35rem] [&_dd]:m-0 [&_dd]:text-[0.9rem] [&_dt]:text-[0.68rem] [&_dt]:text-muted-foreground [&_dt]:uppercase [&_dt]:tracking-[0.09em]">
+            <dl className="m-0 grid grid-cols-3 gap-4 max-[64rem]:grid-cols-2 [&>div]:grid [&>div]:gap-[0.35rem] [&_dd]:m-0 [&_dd]:text-base [&_dt]:text-[0.75rem] [&_dt]:text-muted-foreground [&_dt]:uppercase [&_dt]:tracking-[0.1em]">
               <div>
                 <dt>Suffix</dt>
                 <dd>••••{key.suffix}</dd>

@@ -4,12 +4,45 @@ import type { OperatorSyncService } from "../api/contracts.ts";
 import { readTrademarkIngestionStatus } from "../ingestion/trademark-ingestion.ts";
 import {
   readOperatorArtifacts,
+  readOperatorAttentionArtifacts,
+  readOperatorCatalogSummary,
+  readOperatorProcessingActivity,
   readOperatorSourceSummary,
 } from "../queries/operator-sync-repository.ts";
-import { syncStatusFromFacts } from "./sync-service.ts";
 
 const safeError = (value: string | null) =>
   value?.replace(/https?:\/\/\S+/g, "[url]").slice(0, 500) ?? null;
+const attentionLimit = 20;
+
+async function readPublicStatus(database: postgres.TransactionSql) {
+  const [facts, source, catalog] = await Promise.all([
+    readTrademarkIngestionStatus(database),
+    readOperatorSourceSummary(database),
+    readOperatorCatalogSummary(database),
+  ]);
+  const processingActivity = await readOperatorProcessingActivity(database);
+  return {
+    attentionCount: source.attentionCount,
+    providerStatus: facts.lane.status,
+    status: {
+      catalog,
+      source: {
+        currentArtifact: facts.currentArtifact
+          ? {
+              filename: facts.currentArtifact.filename,
+              state:
+                facts.currentArtifact.state === "projecting"
+                  ? ("processing" as const)
+                  : ("downloading" as const),
+            }
+          : null,
+        lastActivityAt: source.lastActivityAt?.toISOString() ?? null,
+        latestProcessedDate: source.latestProcessedDate,
+        processingActivity,
+      },
+    },
+  } as const;
+}
 
 export function createOperatorSyncService(database: postgres.Sql): OperatorSyncService {
   return {
@@ -33,32 +66,33 @@ export function createOperatorSyncService(database: postgres.Sql): OperatorSyncS
         };
       });
     },
-    async status() {
-      const [facts, source] = await Promise.all([
-        readTrademarkIngestionStatus(database),
-        readOperatorSourceSummary(database),
-      ]);
-      return {
-        annualBaseline: {
-          completeArtifactCount: facts.annualCompleteArtifactCount,
-          expectedArtifactCount: facts.expectedArtifactCount,
-          failedArtifactCount: facts.failedArtifactCount,
-          projectedMarkCount: facts.annualProjectedMarkCount,
-        },
-        provider: {
-          currentError: facts.lane.currentError,
-          failureCount: facts.lane.failureCount,
-          nextEligibleAt: facts.lane.nextEligibleAt?.toISOString() ?? null,
-          status: facts.lane.status,
-        },
-        source: {
-          lastActivityAt: source.lastActivityAt?.toISOString() ?? null,
-          physicalRecordCount: Number(source.physicalRecordCount),
-          projectedMarkCount: Number(source.projectedMarkCount),
-          unavailableArtifactCount: facts.unavailableArtifactCount,
-        },
-        summary: syncStatusFromFacts(facts),
-      };
+    publicStatus() {
+      return database.begin(async (transaction) => {
+        await transaction`set transaction isolation level repeatable read`;
+        return (await readPublicStatus(transaction)).status;
+      });
+    },
+    status() {
+      return database.begin(async (transaction) => {
+        await transaction`set transaction isolation level repeatable read`;
+        const [summary, attentionItems] = await Promise.all([
+          readPublicStatus(transaction),
+          readOperatorAttentionArtifacts(transaction, attentionLimit),
+        ]);
+        return {
+          attention: {
+            items: attentionItems.map((item) => ({
+              ...item,
+              updatedAt: item.updatedAt.toISOString(),
+            })),
+            total: summary.attentionCount,
+          },
+          provider: {
+            status: summary.providerStatus,
+          },
+          ...summary.status,
+        };
+      });
     },
   };
 }

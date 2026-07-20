@@ -94,7 +94,7 @@ export function MarkDetailPage({
 
   if (error) {
     return (
-      <main className="isolate mx-auto flex min-h-[calc(100dvh-3.75rem)] max-w-[100rem] flex-col px-[clamp(1rem,3vw,3rem)] pt-[clamp(2rem,5vw,5.5rem)]">
+      <main className="page-shell isolate flex min-h-[calc(100dvh-3.75rem)] flex-col pt-[clamp(2rem,5vw,5.5rem)]">
         <a
           className="text-inherit underline decoration-border underline-offset-[0.3em]"
           href="/search"
@@ -113,7 +113,7 @@ export function MarkDetailPage({
     return (
       <main
         aria-busy="true"
-        className="isolate mx-auto flex min-h-[calc(100dvh-3.75rem)] max-w-[100rem] flex-col px-[clamp(1rem,3vw,3rem)] pt-[clamp(2rem,5vw,5.5rem)]"
+        className="page-shell isolate flex min-h-[calc(100dvh-3.75rem)] flex-col pt-[clamp(2rem,5vw,5.5rem)]"
       >
         <p>Loading trademark…</p>
       </main>
@@ -127,7 +127,7 @@ export function MarkDetailPage({
   );
 
   return (
-    <main className="isolate mx-auto flex min-h-[calc(100dvh-3.75rem)] max-w-[100rem] flex-col px-[clamp(1rem,3vw,3rem)] pt-[clamp(2rem,5vw,5.5rem)]">
+    <main className="page-shell isolate flex min-h-[calc(100dvh-3.75rem)] flex-col pt-[clamp(2rem,5vw,5.5rem)]">
       <a
         className="text-inherit underline decoration-border underline-offset-[0.3em]"
         href="/search"
@@ -138,18 +138,18 @@ export function MarkDetailPage({
 
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-8 py-[clamp(1.5rem,4vw,3rem)] pb-[clamp(2rem,4vw,3rem)] max-[48rem]:grid-cols-1">
         <div>
-          <p className="mb-[0.85rem] font-[650] text-[0.72rem] uppercase tracking-[0.12em]">
+          <p className="mb-[0.85rem] font-[650] text-[0.75rem] uppercase tracking-[0.1em]">
             United States trademark record
           </p>
           <h1 className="wrap-anywhere m-0 font-black text-[clamp(3.25rem,7vw,6rem)] leading-[0.78] tracking-[-0.055em]">
             {mark.mark.wordMark ?? "Untitled mark"}
           </h1>
         </div>
-        <div className="grid min-w-52 gap-[0.4rem] border-border border-l py-3 pl-4 text-[0.75rem] max-[48rem]:min-w-0 max-[48rem]:border-t max-[48rem]:border-l-0 max-[48rem]:pl-0 [&>p:not(:first-child)]:text-muted-foreground [&_p]:m-0">
+        <div className="grid min-w-52 gap-[0.4rem] border-border border-l py-3 pl-4 text-base max-[48rem]:min-w-0 max-[48rem]:border-t max-[48rem]:border-l-0 max-[48rem]:pl-0 [&>p:not(:first-child)]:text-muted-foreground [&_p]:m-0">
           <p className="flex items-center">
             <strong
               className={cn(
-                "inline-flex min-h-6 items-center rounded-[2px] border border-current px-[0.45rem] py-[0.15rem] font-bold text-[0.7rem] uppercase leading-none tracking-[0.08em]",
+                "inline-flex min-h-6 items-center rounded-[2px] border border-current px-[0.45rem] py-[0.15rem] font-bold text-[0.75rem] uppercase leading-none tracking-[0.1em]",
                 statusChipClasses[mark.mark.status]
               )}
               data-status={mark.mark.status}
@@ -162,7 +162,7 @@ export function MarkDetailPage({
               ? `Status date ${mark.mark.statusDate}`
               : "Status date unavailable"}
           </p>
-          <p className="font-[650] text-[0.75rem] uppercase tracking-[0.08em]">
+          <p className="font-[650] text-[0.75rem] uppercase tracking-[0.1em]">
             USPTO status {mark.mark.statusCode ?? "unknown"}
           </p>
         </div>
@@ -174,12 +174,12 @@ export function MarkDetailPage({
       >
         <div className="grid content-start gap-[0.65rem]">
           <h2
-            className="m-0 font-[650] text-[0.78rem] uppercase tracking-[0.08em]"
+            className="m-0 font-[650] text-[0.75rem] uppercase tracking-[0.1em]"
             id="goods-heading"
           >
             Goods/services
           </h2>
-          <p className="m-0 font-[650] text-[0.68rem] text-muted-foreground uppercase tabular-nums tracking-[0.06em]">
+          <p className="m-0 font-[650] text-[0.75rem] text-muted-foreground uppercase tabular-nums tracking-[0.1em]">
             International {mark.classes.length === 1 ? "class" : "classes"}{" "}
             {mark.classes
               .map((classification) => classification.internationalCode ?? "unknown")
@@ -190,7 +190,7 @@ export function MarkDetailPage({
         <div className="col-start-2 grid list-none gap-2 p-0 max-[48rem]:col-start-1">
           {goodsServices.map((goods) => (
             <p
-              className="m-0 max-w-[68ch] text-[1.15rem] leading-[1.55]"
+              className="m-0 max-w-[68ch] text-base"
               key={`${goods.typeCode ?? "goods"}-${goods.text ?? "description-unavailable"}`}
             >
               {goods.text ?? "Description unavailable"}
@@ -204,20 +204,20 @@ export function MarkDetailPage({
         className="border-border border-t py-[clamp(1.25rem,2.5vw,1.75rem)]"
       >
         <h2
-          className="mt-0 mb-3 font-[650] text-[0.78rem] uppercase tracking-[0.08em]"
+          className="mt-0 mb-3 font-[650] text-[0.75rem] uppercase tracking-[0.1em]"
           id="record-heading"
         >
           Record
         </h2>
-        <dl className="[&_dd]:wrap-anywhere m-0 grid grid-cols-4 border-border border-t border-l tabular-nums max-[48rem]:grid-cols-2 [&>div]:grid [&>div]:min-h-[4.5rem] [&>div]:content-start [&>div]:gap-[0.4rem] [&>div]:border-border [&>div]:border-r [&>div]:border-b [&>div]:px-3 [&>div]:py-[0.65rem] [&_dd:not(.record-owner)]:whitespace-nowrap [&_dd]:m-0 [&_dd]:text-[0.9rem] [&_dd]:text-muted-foreground [&_dt]:font-[650] [&_dt]:text-[0.68rem] [&_dt]:text-muted-foreground [&_dt]:uppercase [&_dt]:tracking-[0.06em]">
+        <dl className="[&_dd]:wrap-anywhere m-0 grid grid-cols-4 border-border border-t border-l tabular-nums max-[64rem]:grid-cols-2 [&>div]:grid [&>div]:min-h-[4.5rem] [&>div]:content-start [&>div]:gap-[0.4rem] [&>div]:border-border [&>div]:border-r [&>div]:border-b [&>div]:px-3 [&>div]:py-[0.65rem] [&_dd:not(.record-owner)]:whitespace-nowrap [&_dd]:m-0 [&_dd]:text-base [&_dd]:text-muted-foreground [&_dt]:font-[650] [&_dt]:text-[0.75rem] [&_dt]:text-muted-foreground [&_dt]:uppercase [&_dt]:tracking-[0.1em]">
           <div>
             <dt>Owner</dt>
             <dd className="record-owner grid gap-1">
-              <strong className="text-[0.95rem] text-foreground">
+              <strong className="text-base text-foreground">
                 {ownerNames[0] ?? "Unknown owner"}
               </strong>
               {ownerNames.length > 1 ? (
-                <span className="text-[0.8rem]">
+                <span className="text-base">
                   Also recorded as {ownerNames.slice(1).join(" · ")}
                 </span>
               ) : null}
@@ -263,7 +263,7 @@ export function MarkDetailPage({
         className="grid grid-cols-[minmax(12rem,1fr)_minmax(0,3fr)] gap-[clamp(1.5rem,4vw,3rem)] border-border border-t py-[clamp(1.5rem,3vw,2.25rem)] max-[48rem]:grid-cols-1"
       >
         <h2
-          className="m-0 font-[650] text-[0.78rem] uppercase tracking-[0.08em]"
+          className="m-0 font-[650] text-[0.75rem] uppercase tracking-[0.1em]"
           id="history-heading"
         >
           Status history as reported by USPTO
@@ -292,7 +292,7 @@ export function MarkDetailPage({
         className="grid grid-cols-[minmax(12rem,1fr)_minmax(0,3fr)] gap-[clamp(1.5rem,4vw,3rem)] border-border border-t py-[clamp(1.5rem,3vw,2.25rem)] max-[48rem]:grid-cols-1"
       >
         <h2
-          className="m-0 font-[650] text-[0.78rem] uppercase tracking-[0.08em]"
+          className="m-0 font-[650] text-[0.75rem] uppercase tracking-[0.1em]"
           id="provenance-heading"
         >
           USPTO source and provenance
@@ -317,8 +317,8 @@ export function MarkDetailPage({
         </ul>
       </section>
 
-      <footer className="mt-auto border-border border-t py-8 text-muted-foreground">
-        {mark.legalDisclaimer}
+      <footer className="relative left-1/2 mt-auto w-dvw -translate-x-1/2 border-border border-t text-muted-foreground/70">
+        <p className="page-shell my-0 py-8">{mark.legalDisclaimer}</p>
       </footer>
     </main>
   );

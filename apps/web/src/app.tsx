@@ -1,4 +1,4 @@
-import { Show, SignInButton, UserButton, useAuth, useClerk } from "@clerk/react";
+import { Show, SignInButton, UserButton, useAuth, useClerk, useUser } from "@clerk/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createTRPCClient, httpLink } from "@trpc/client";
 import {
@@ -8,19 +8,23 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Menu, MenuLinkItem, MenuPopup, MenuTrigger } from "@/components/ui/menu";
+import { cn } from "@/lib/utils";
+import turtleLogo from "../../../assets/brand/turtle-mark.svg";
 import type { AppRouter } from "../../server/src/api/router.ts";
-import { type AccountApi, ApiKeysPage } from "./api-keys-page.tsx";
+import { type AccountApi, AccountPage } from "./account-page.tsx";
 import { AppearanceMenu } from "./appearance-menu.tsx";
 import { DevAutoSignIn } from "./dev-auto-sign-in.tsx";
-import { type FreshnessApi, FreshnessPopover } from "./freshness-popover.tsx";
+import { HelpPage } from "./help-page.tsx";
 import { type MarkApi, MarkDetailPage } from "./mark-detail-page.tsx";
-import { type OperatorSyncApi, OperatorSyncPage } from "./operator-sync-page.tsx";
+import { type OperatorSyncApi, type PublicStatusApi, StatusPage } from "./operator-sync-page.tsx";
 import { type ReportsApi, ReportsPage } from "./reports-page.tsx";
 import { type SearchApi, SearchPage } from "./search-page.tsx";
 
@@ -31,6 +35,16 @@ interface BrowserLocation {
 }
 
 const markPath = /^\/marks\/(\d{8})$/;
+
+const publicStatusApi: PublicStatusApi = {
+  async status() {
+    const response = await fetch("/api/status");
+    if (!response.ok) {
+      throw new Error("Status unavailable");
+    }
+    return response.json();
+  },
+};
 
 function browserLocation(): BrowserLocation {
   const { state } = window.history;
@@ -65,6 +79,7 @@ function plainPrimaryClick(event: ReactMouseEvent) {
 
 function SignedInApp({ location }: { location: BrowserLocation }) {
   const { getToken } = useAuth();
+  const { user } = useUser();
   const client = useMemo(
     () =>
       createTRPCClient<AppRouter>({
@@ -97,12 +112,6 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
   const searchApi = useMemo<SearchApi>(
     () => ({
       search: (input) => client.marks.search.query(input),
-    }),
-    [client]
-  );
-  const freshnessApi = useMemo<FreshnessApi>(
-    () => ({
-      status: () => client.sync.status.query(),
     }),
     [client]
   );
@@ -181,10 +190,17 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
         search={location.search}
       />
     );
-  } else if (location.pathname === "/ops/sync") {
-    page = <OperatorSyncPage api={operatorApi} />;
-  } else if (location.pathname === "/settings/api-keys") {
-    page = <ApiKeysPage api={accountApi} />;
+  } else if (location.pathname === "/status") {
+    page = (
+      <StatusPage
+        api={publicStatusApi}
+        operatorApi={operator || import.meta.env.DEV ? operatorApi : undefined}
+      />
+    );
+  } else if (location.pathname === "/help") {
+    page = <HelpPage />;
+  } else if (location.pathname === "/account") {
+    page = <AccountPage api={accountApi} email={user?.primaryEmailAddress?.emailAddress ?? null} />;
   } else {
     const replacementSourceSearch =
       typeof location.state.searchReplacementSource === "string"
@@ -205,19 +221,17 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
 
   return (
     <>
-      <TopBar freshnessApi={freshnessApi} operator={operator} />
+      <TopBar pathname={location.pathname} />
       {page}
     </>
   );
 }
 
-function TopBar({
-  freshnessApi,
-  operator = false,
-}: {
-  freshnessApi?: FreshnessApi;
-  operator?: boolean;
-}) {
+const navItemClassName =
+  "inline-flex items-center text-inherit underline-offset-[0.3em] hover:underline";
+
+function TopBar({ pathname }: { pathname: string }) {
+  const headerRef = useRef<HTMLElement>(null);
   const navigate = useCallback((event: ReactMouseEvent<HTMLAnchorElement>) => {
     if (!plainPrimaryClick(event)) {
       return;
@@ -226,63 +240,129 @@ function TopBar({
     setBrowserLocation(event.currentTarget.getAttribute("href") ?? "/search");
   }, []);
 
+  useLayoutEffect(() => {
+    const header = headerRef.current;
+    if (!header) {
+      return;
+    }
+    const updateHeight = () => {
+      document.documentElement.style.setProperty(
+        "--topbar-height",
+        `${header.getBoundingClientRect().height}px`
+      );
+    };
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(header);
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty("--topbar-height");
+    };
+  }, []);
+
   return (
-    <header className="grid min-h-[3.75rem] grid-cols-[1fr_auto_auto] items-center border-border border-b px-[clamp(1rem,3vw,3rem)] py-3 max-[48rem]:grid-cols-[1fr_auto] max-[48rem]:gap-y-1">
-      <a
-        className="whitespace-nowrap font-extrabold text-[0.82rem] text-inherit uppercase leading-none tracking-[-0.02em] no-underline"
-        href="/search"
-        onClick={navigate}
-      >
-        Trademark Turtle
-      </a>
-      <Show when="signed-in">
+    <header className="sticky top-0 z-30 border-border border-b bg-background" ref={headerRef}>
+      <div className="page-shell grid min-h-[3.75rem] grid-cols-[1fr_auto_auto] items-center py-1.5 max-[48rem]:grid-cols-[1fr_auto] max-[48rem]:gap-y-1">
+        <a
+          aria-label="Trademark Turtle home"
+          className="inline-flex h-12 w-16 items-center justify-center overflow-hidden bg-[#151616] no-underline"
+          href="/search"
+          onClick={navigate}
+        >
+          <img
+            alt=""
+            className="h-8 w-auto max-w-none"
+            draggable={false}
+            height="36"
+            src={turtleLogo}
+            width="52"
+          />
+        </a>
         <nav
           aria-label="Primary"
-          className="flex items-center gap-3.5 text-[0.8125rem] max-[48rem]:col-span-full max-[48rem]:row-start-2 max-[48rem]:w-full max-[48rem]:justify-start max-[48rem]:gap-x-4 max-[48rem]:gap-y-1 max-[48rem]:overflow-x-auto [&_a:hover]:underline [&_a:hover]:underline-offset-[0.3em] [&_a]:text-inherit [&_a]:no-underline max-[48rem]:[&_a]:inline-flex max-[48rem]:[&_a]:min-h-11 max-[48rem]:[&_a]:shrink-0 max-[48rem]:[&_a]:items-center max-[48rem]:[&_button]:inline-flex max-[48rem]:[&_button]:min-h-11 max-[48rem]:[&_button]:shrink-0 max-[48rem]:[&_button]:items-center"
+          className="flex items-center gap-3.5 text-base max-[48rem]:col-span-full max-[48rem]:row-start-2 max-[48rem]:w-full max-[48rem]:justify-start max-[48rem]:gap-x-4 max-[48rem]:gap-y-1 max-[48rem]:overflow-x-auto max-[48rem]:[&_a]:min-h-11 max-[48rem]:[&_a]:shrink-0 max-[48rem]:[&_button]:min-h-11 max-[48rem]:[&_button]:shrink-0"
         >
-          <a href="/search" onClick={navigate}>
-            Search
-          </a>
-          <Menu>
-            <MenuTrigger render={<Button size="sm" variant="ghost" />}>Reports</MenuTrigger>
-            <MenuPopup align="start">
-              <MenuLinkItem href="/reports?event=filed&window=previous-week" onClick={navigate}>
-                Filed previous week
-              </MenuLinkItem>
-              <MenuLinkItem
-                href="/reports?event=registered&window=previous-week"
-                onClick={navigate}
-              >
-                Registered previous week
-              </MenuLinkItem>
-              <MenuLinkItem href="/reports?event=published-for-opposition" onClick={navigate}>
-                Published for opposition
-              </MenuLinkItem>
-            </MenuPopup>
-          </Menu>
-          <a href="/settings/api-keys" onClick={navigate}>
-            API Keys
-          </a>
-          {operator ? (
-            <a href="/ops/sync" onClick={navigate}>
-              Operations
+          <Show when="signed-in">
+            <a
+              aria-current={pathname === "/" || pathname === "/search" ? "page" : undefined}
+              className={cn(
+                navItemClassName,
+                (pathname === "/" || pathname === "/search") && "underline"
+              )}
+              href="/search"
+              onClick={navigate}
+            >
+              Search
             </a>
-          ) : null}
-          {freshnessApi ? <FreshnessPopover api={freshnessApi} /> : null}
+            <Menu>
+              <MenuTrigger
+                aria-current={pathname === "/reports" ? "page" : undefined}
+                className={cn(
+                  navItemClassName,
+                  "border-0 bg-transparent p-0 font-inherit",
+                  pathname === "/reports" && "underline"
+                )}
+              >
+                Reports
+              </MenuTrigger>
+              <MenuPopup align="start">
+                <MenuLinkItem href="/reports?event=filed&window=previous-week" onClick={navigate}>
+                  Filed previous week
+                </MenuLinkItem>
+                <MenuLinkItem
+                  href="/reports?event=registered&window=previous-week"
+                  onClick={navigate}
+                >
+                  Registered previous week
+                </MenuLinkItem>
+                <MenuLinkItem href="/reports?event=published-for-opposition" onClick={navigate}>
+                  Published for opposition
+                </MenuLinkItem>
+              </MenuPopup>
+            </Menu>
+          </Show>
+          <a
+            aria-current={pathname === "/status" ? "page" : undefined}
+            className={cn(navItemClassName, pathname === "/status" && "underline")}
+            href="/status"
+            onClick={navigate}
+          >
+            Status
+          </a>
+          <a
+            aria-current={pathname === "/help" ? "page" : undefined}
+            className={cn(navItemClassName, pathname === "/help" && "underline")}
+            href="/help"
+            onClick={navigate}
+          >
+            Help
+          </a>
+          <Show when="signed-in">
+            <a
+              aria-current={pathname === "/account" ? "page" : undefined}
+              className={cn(navItemClassName, pathname === "/account" && "underline")}
+              href="/account"
+              onClick={navigate}
+            >
+              Account
+            </a>
+          </Show>
         </nav>
-        <div className="ml-3.5 flex items-center gap-2 max-[48rem]:col-start-2 max-[48rem]:row-start-1 max-[48rem]:ml-2">
-          <AppearanceMenu />
-          <UserButton />
-        </div>
-      </Show>
-      <Show when="signed-out">
-        <div className="ml-3.5 flex items-center gap-2 max-[48rem]:col-start-2 max-[48rem]:row-start-1 max-[48rem]:ml-2">
-          <SignInButton mode="modal">
-            <Button>Sign in</Button>
-          </SignInButton>
-          <AppearanceMenu />
-        </div>
-      </Show>
+        <Show when="signed-in">
+          <div className="ml-3.5 flex items-center gap-2 max-[48rem]:col-start-2 max-[48rem]:row-start-1 max-[48rem]:ml-2">
+            <AppearanceMenu />
+            <UserButton />
+          </div>
+        </Show>
+        <Show when="signed-out">
+          <div className="ml-3.5 flex items-center gap-2 max-[48rem]:col-start-2 max-[48rem]:row-start-1 max-[48rem]:ml-2">
+            <SignInButton mode="modal">
+              <Button>Sign in</Button>
+            </SignInButton>
+            <AppearanceMenu />
+          </div>
+        </Show>
+      </div>
     </header>
   );
 }
@@ -319,16 +399,14 @@ function SignedOutSearch({ search }: { search: string }) {
   );
 
   return (
-    <main className="mx-auto grid min-h-[calc(100vh-3.75rem)] max-w-[100rem] content-center gap-8 px-[clamp(1rem,3vw,3rem)] py-[clamp(2rem,5vw,5.5rem)]">
-      <p className="mb-[0.85rem] font-[650] text-[0.72rem] uppercase tracking-[0.12em]">
-        Private trademark search / Class 025
-      </p>
+    <main className="page-shell isolate grid min-h-[calc(100dvh-3.75rem)] content-center gap-8 py-[clamp(2rem,5vw,5.5rem)]">
+      <p className="mb-0 font-[650] text-base">Trademark search for Print on Demand sellers.</p>
       <h1 className="m-0 font-black text-[clamp(2.75rem,12.5vw,14rem)] leading-[0.78] tracking-[-0.055em]">
         TRADEMARK
         <br />
         TURTLE
       </h1>
-      <p className="m-0 max-w-[30rem] text-[1.2rem]">
+      <p className="m-0 max-w-[30rem] text-base">
         Sign in with your MerchBase account to run your search.
       </p>
       <form
@@ -364,6 +442,12 @@ export function App() {
         defaultOptions: { queries: { retry: false } },
       })
   );
+  let signedOutPage: ReactNode = <SignedOutSearch search={location.search} />;
+  if (location.pathname === "/status") {
+    signedOutPage = <StatusPage api={publicStatusApi} />;
+  } else if (location.pathname === "/help") {
+    signedOutPage = <HelpPage />;
+  }
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -371,9 +455,9 @@ export function App() {
         <SignedInApp location={location} />
       </Show>
       <Show when="signed-out">
-        <TopBar />
+        <TopBar pathname={location.pathname} />
         <DevAutoSignIn />
-        <SignedOutSearch search={location.search} />
+        {signedOutPage}
       </Show>
     </QueryClientProvider>
   );

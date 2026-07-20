@@ -3,6 +3,7 @@ import Fastify, { type FastifyRequest, type FastifyServerOptions } from "fastify
 
 import { createClerkVerifier, type VerifyClerkToken } from "../auth/clerk-verifier.ts";
 import { createDatabaseClient } from "../db/client.ts";
+import { createOperatorSyncService } from "../services/operator-sync-service.ts";
 import { createAppContext } from "./context.ts";
 import {
   configuredDevClerkSignIn,
@@ -48,6 +49,7 @@ export async function buildServer({
   verifyClerkToken = configuredClerkVerifier(),
 }: BuildServerOptions) {
   const database = createDatabaseClient(databaseUrl);
+  const sourceStatus = createOperatorSyncService(database);
   const server = Fastify({ logger });
   const resolvedDevClerkSignIn = resolveDevClerkSignIn(nodeEnv, devClerkSignIn);
 
@@ -57,6 +59,16 @@ export async function buildServer({
     try {
       await database`select 1`;
       return { status: "ready" };
+    } catch {
+      return reply.code(503).send({ status: "unavailable" });
+    }
+  });
+
+  server.get("/api/status", async (_request, reply) => {
+    try {
+      const status = await sourceStatus.publicStatus();
+      reply.header("Cache-Control", "public, max-age=60");
+      return status;
     } catch {
       return reply.code(503).send({ status: "unavailable" });
     }
