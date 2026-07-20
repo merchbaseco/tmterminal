@@ -1,18 +1,24 @@
 ---
-summary: Defines how operators inspect and repair one source file without automatic redownloads, bulk replay, or query downtime.
+summary: Defines how agents inspect and repair one source file without automatic redownloads, bulk replay, or query downtime.
 read_when:
   - repairing a blocked download, parser issue, unresolved record, interrupted application, or official file reissue
-  - changing operator mutation controls, request confirmation, parser replay, or source cleanup
+  - changing repository repair controls, request confirmation, parser replay, or source cleanup
 ---
 
 # Source Repair
 
 Status: Accepted target workflow; it is not executable until the source-state
-migration and operator Repair procedure land.
+migration and private repository repair operation land.
 
-Repair one Source Artifact at a time from the operator-only sections of `/status`.
-There is no bulk repair,
-automatic historical replay, or CLI repair command.
+Repair one Source Artifact at a time with the private repository operation. An
+agent runs it from a production checkout after inspecting the file. `/status`
+remains read-only. There is no website mutation, public API, published `tt`
+command, bulk repair, or automatic historical replay.
+
+The operation must require one exact Source Artifact identity. It first reports
+the file's current download, storage, and application facts without changing
+state. Any action that would contact USPTO requires a separate explicit
+reacquisition flag; a parse-only replay must not accept that flag.
 
 ## Before Repair
 
@@ -25,13 +31,20 @@ Inspect the row's:
 - applied and unresolved counts;
 - current error and worker status.
 
+Before authorizing reacquisition, read the durable Download Request Count and
+the [USPTO access limits](../reference/uspto-source.md#access-and-limits). Treat
+ZIP inputs conservatively: no more than 20 requests for the same file per year
+per API key, no more than five files per 10 seconds from one IP, and no automatic
+repeat after a failed request. The operation persists the incremented request
+count before contacting USPTO.
+
 Confirm that the failure belongs to the file. Database, disk, artifact-store, or
 worker-code errors are system failures; fix the system before touching source
 state.
 
 ## Retained ZIP
 
-If verified bytes remain, `Repair` queues the same file for the deployed parser.
+If verified bytes remain, repair queues the same file for the deployed parser.
 It does not call USPTO. Existing mark data stays searchable while safe corrected
 records replace it in batches.
 
@@ -40,8 +53,8 @@ performance-only release keeps the version unchanged.
 
 ## Cleaned Or Blocked ZIP
 
-If bytes are absent, the confirmation shows how many provider requests have
-already been spent for that exact file. Approval creates exactly one new
+If bytes are absent, the agent reports how many provider requests have already
+been spent for that exact file. Explicit reacquisition creates exactly one new
 Download Request. No automated loop or provider-lane retry follows a failure.
 
 For an official reissue under the same product and filename, verify the catalog

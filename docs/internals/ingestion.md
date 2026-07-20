@@ -27,7 +27,8 @@ One ingestion module owns:
 - source cleanup, restart, status, and one-file repair.
 
 The USPTO catalog and artifact store are its only external adapters. The module
-exposes narrow reconcile, status, and operator-repair operations.
+exposes narrow reconcile, status, and repository repair operations. Repair is
+run by an agent from the repository; it is not a website mutation.
 
 ## Discovery And Queue
 
@@ -182,9 +183,11 @@ Coverage groups are not persisted releases or query gates.
 
 ## Historical Repair
 
-Repair is explicit, one file at a time, through the operator website. Existing
-data remains searchable and is corrected record by record. A parser release does
-not automatically replay all completed history. See [Source repair](../operations/source-repair.md).
+Repair is explicit, one file at a time, through the private repository workflow.
+An agent inspects durable state before authorizing any new provider request.
+Existing data remains searchable and is corrected record by record. A parser
+release does not automatically replay all completed history. See
+[Source repair](../operations/source-repair.md).
 
 ## In-place Migration
 

@@ -1,5 +1,5 @@
 ---
-summary: Defines the public Status page, Latest Processed, operator-only issues and source ledger, and per-file Repair behavior.
+summary: Defines the public Status page, Latest Processed, and operator-only issues and source ledger.
 read_when:
   - changing `/status`, freshness copy, source-file visibility, issue presentation, or repair controls
   - deciding whether an ingestion condition is normal progress, a file issue, or a system failure
@@ -7,7 +7,7 @@ read_when:
 
 # Status
 
-Status: Accepted target behavior; operator Repair remains target-only.
+Status: Accepted target behavior.
 
 The Status page publicly explains how current the database is. Operator-only
 sections explain what needs human attention. Neither controls whether trademark
@@ -80,24 +80,20 @@ There is no heartbeat history or global provider retry lane.
 
 ### Repair
 
-`Repair` is a per-file operator action.
+The website does not mutate source state. An agent repairs one file through the
+private repository workflow after inspecting its durable request count and
+storage state. Existing trademark data stays available while corrected records
+replace it. See [Source repair](../operations/source-repair.md).
 
-- If the ZIP remains, Repair replays it with the deployed parser.
-- If it was cleaned, the confirmation shows the file's durable request count
-  before allowing one new provider request.
-- Existing trademark data stays available while corrected records replace it.
-- Repair never clears the database, starts a corpus rebuild, or retries every
-  file automatically.
-
-Parser version and source coordinates live in technical details; the primary
-action remains `Repair`.
+Parser version and source coordinates remain operator-only technical details;
+the page offers no source-state action.
 
 ## Access
 
-`/status` and its aggregate status response are public. Needs Attention, Source
-Files, and future Repair actions require a Clerk session plus the server-enforced
-operator role. API keys and ordinary website users cannot read diagnostics or
-mutate source state.
+`/status` and its aggregate status response are public. Needs Attention and
+Source Files require a Clerk session plus the server-enforced operator role. API
+keys and ordinary website users cannot read diagnostics. No website route
+mutates source state.
 
 ## Related
 

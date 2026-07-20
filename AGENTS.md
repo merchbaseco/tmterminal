@@ -7,6 +7,7 @@
 - Read `docs/internals/README.md` before changing architecture, persistence ownership, or ingestion.
 - Read `docs/reference/README.md` before changing API, client, CLI, source, schema, state, or precedence contracts.
 - Read `docs/operations/README.md` before changing development, verification, deployment, repair, or issue workflows.
+- Read `docs/operations/source-repair.md` before inspecting or repairing a failed source file, replaying retained bytes, or authorizing another USPTO download request.
 - Read `docs/design/system.md` before changing website primitives, styling, themes, or layout.
 - Prefer the right end state. Do not add legacy aliases, compatibility shims, dual-write paths, or website features outside the v1 contract.
 - Keep changes small and reviewable. Preserve unfamiliar work.
