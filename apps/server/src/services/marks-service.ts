@@ -2,8 +2,10 @@ import type postgres from "postgres";
 
 import { legalDisclaimer, type MarkDetail, type MarksService } from "../api/contracts.ts";
 import type { ProjectedMark } from "../ingestion/mark-types.ts";
+import { latestMarks } from "../queries/latest.ts";
 import { createMarkRepository } from "../queries/mark-repository.ts";
 import { searchMarks } from "../queries/search.ts";
+import { matchText } from "../queries/text-matches.ts";
 import { markStatusForCode } from "../search/status-policy.ts";
 
 export function createMarksService(database: postgres.Sql): MarksService {
@@ -28,6 +30,8 @@ export function createMarksService(database: postgres.Sql): MarksService {
       const materialization = await repository.read(serialNumber);
       return materialization ? publicMark(materialization) : null;
     },
+    latest: (input) => latestMarks(database, input),
+    matchText: (input) => matchText(database, input),
     search: (input) => searchMarks(database, input),
   };
 }
