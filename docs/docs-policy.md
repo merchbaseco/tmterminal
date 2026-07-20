@@ -1,50 +1,86 @@
 ---
-summary: Defines Trademark Turtle's docs surfaces, routed frontmatter, contract language, and maintenance expectations.
+summary: Sets the Trademark Turtle documentation contract, final information architecture, frontmatter quality, brevity, review, and retirement rules.
 read_when:
-  - adding, moving, renaming, reviewing, or retiring Markdown files under docs
-  - deciding whether information belongs in a product contract, ADR, engineering workflow, or source code
+  - adding, moving, reviewing, or retiring Markdown files under docs
+  - deciding whether a claim belongs in product, internals, reference, operations, design, or decisions
+  - correcting docs that are stale, repetitive, too detailed, or difficult for agents to route
 ---
 
-# Docs policy
+# Docs Policy
 
-Trademark Turtle docs preserve product behavior, service ownership, external-data semantics, exact client contracts, operational workflows, and accepted architecture decisions that are difficult to recover from code search.
+Trademark Turtle docs exist for knowledge that is hard to recover from code
+search: product contracts, ownership boundaries, source precedence, external
+formats, operational workflows, and accepted tradeoffs.
 
-Do not document facts already obvious from a well-named file, type, test, or package script.
+Do not document what a well-named type, function, test, or package script already
+tells a reader.
 
-## Current surfaces
+## Surfaces
 
-- `plan.md` owns the durable product and architecture contract plus implementation sequence.
-- `ingestion.md`, `cli.md`, and `website.md` own focused product and engineering contracts.
-- `adr/` records accepted architectural decisions and their consequences.
-- `agents/` configures shared engineering workflows for this repository.
-- `README.md` routes readers; it does not duplicate the underlying contracts.
+| Section | Purpose | Excludes |
+| --- | --- | --- |
+| `product/` | User-facing behavior and intentional omissions. | Source tours, SQL, migration history. |
+| `internals/` | Ownership, data flow, boundaries, and invariants. | Marketing copy, line-by-line inventories. |
+| `reference/` | Exact names, states, schemas, APIs, precedence, and external rules. | Broad rationale and task plans. |
+| `operations/` | Commands, verification, deployment, recovery, and issue workflow. | Product specs and architecture essays. |
+| `design/` | Visual language and component ownership. | Feature behavior and custom component forks. |
+| `decisions/` | Accepted tradeoffs and their consequences. | Implementation diaries and temporary plans. |
 
-Add `features/`, `api/`, `architecture/`, `operations/`, or `specs/` only when the implemented product has enough durable material to justify the boundary. Prefer moving an existing contract into the new surface over maintaining duplicate pages.
+Split a page that crosses surfaces. Link to the owner instead of copying its
+contract.
 
-## Routed frontmatter
+## Frontmatter
 
 Every Markdown file under `docs/` starts with:
 
 ```yaml
 ---
-summary: One specific sentence naming what the page owns.
+summary: One specific sentence naming what this page owns.
 read_when:
   - a concrete change or diagnostic trigger using Trademark Turtle nouns
 ---
 ```
 
-`summary` describes the durable subject. `read_when` routes an agent to the page before relevant work; avoid generic hints such as “working on the API.”
+Use varied, task-specific hints. Avoid “working on the API” or repeated generic
+phrasing. Run `bun run docs:list` at task start and after documentation changes.
 
-Run `bun run docs:list` at task start and after documentation changes. Every listed page should render a summary and useful `Read when` hints without metadata errors.
+## Writing Rules
 
-## Contract language
+- State contracts directly and in present tense.
+- Name product nouns from root `CONTEXT.md`; do not invent synonyms.
+- Use tables for ownership, states, precedence, and command maps.
+- Use bullets for invariants and intentional omissions.
+- Keep implementation status separate from target behavior.
+- Preserve exact commands and external limits only in reference or operations.
+- Link to official external contracts instead of copying long explanations.
+- Cut filler, repeated motivation, source-file tours, test inventories, and task history.
+- Remove superseded names rather than documenting compatibility aliases.
 
-- State current product behavior directly and in present tense.
-- Keep product scope and intentional omissions explicit.
-- Separate user-visible behavior, architecture ownership, exact interface contracts, operations, and decisions when they become distinct bodies of knowledge.
-- Record accepted tradeoffs in ADRs, not as research diaries inside product docs.
-- Remove stale names and superseded behavior rather than preserving compatibility prose.
+## Substantive Changes
 
-## As implementation lands
+For a documentation rewrite or architecture change:
 
-Update the page that owns changed behavior in the same reviewable change. Add a new page only when the new capability, exact contract, architecture boundary, or operational workflow needs a durable home. Keep links and routing metadata current when pages move.
+1. Inventory the old page and relevant source.
+2. Assign every durable claim to one final surface or discard it as stale plan.
+3. Draft from evidence, not memory.
+4. Tighten for brevity and remove overlap.
+5. Run one independent review for stale claims, missing context, contradictions,
+   and excess prose.
+6. Resolve findings, then validate routes, links, frontmatter, and stale names.
+
+Do not delete an old page until its useful content has been migrated,
+intentionally discarded, or recorded as a superseded decision.
+
+## Completion Contract
+
+The final tree is the only documentation source of truth. Completion requires:
+
+- no old `plan.md`, `specs/`, `adr/`, or `agents/` hierarchy remains;
+- every surviving page has specific frontmatter;
+- every local Markdown link resolves;
+- `bun run docs:list` routes the final surfaces cleanly;
+- stale corpus, frontier, annual-mode, daily-mode, and automatic-retry contracts
+  do not survive outside explicit historical context;
+- an independent review has checked the substantive pages.
+
+This is a rewrite, not a compatibility layer over the old docs.

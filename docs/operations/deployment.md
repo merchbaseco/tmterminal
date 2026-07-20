@@ -1,49 +1,78 @@
 ---
-summary: Defines the one supported Mac mini production deployment, verification, monitoring hook, and rollback path.
+summary: Defines the supported Mac mini production topology, exact-SHA GitHub deployment, smoke checks, source-worker release boundary, and rollback.
 read_when:
-  - deploying or diagnosing Trademark Turtle on the Mac mini, Cloudflare Tunnel, production Compose, restart persistence, or rollback
-  - changing the deployment workflow, production ports, image revision labels, resource limits, or deployment smoke checks
+  - deploying or diagnosing Trademark Turtle on the Mac mini, Cloudflare Tunnel, production Compose, or restart persistence
+  - changing workflows, image revisions, resource limits, production ports, worker startup, or deployment smoke
 ---
 
-# Mac mini deployment
+# Deployment
 
-Trademark Turtle runs from `/Users/zknicker/srv/tmturtle` as Compose project `tmturtle`. Cloudflare Tunnel terminates public TLS for `https://tmturtle.merchbase.co` and forwards that hostname to Caddy on `http://127.0.0.1:8095`. The direct API diagnostic port is `127.0.0.1:3095`; PostgreSQL is available on `127.0.0.1:5437` for the established Tailscale development path. No container binds a non-loopback host port.
+Trademark Turtle runs from `/Users/zknicker/srv/tmturtle` as Compose project
+`tmturtle`. Cloudflare Tunnel sends `https://tmturtle.merchbase.co` to loopback
+Caddy on port 8095. API diagnostics use loopback port 3095; PostgreSQL uses
+loopback 5437 for the established Tailscale development path.
 
-## Deployment contract
+## Topology
 
-The host checkout stays on `main`. A push to `main` first runs the reusable quality workflow on a
-GitHub-hosted runner. Deployment starts on the existing self-hosted runner only after install,
-changed-file lint, typecheck, tests, build, fixture tooling, migration drift, and production-shaped
-PostgreSQL integration are green. The deployment then fast-forwards the host checkout, refuses
-tracked or untracked checkout changes, requires `HEAD` to equal both `origin/main` and the
-workflow's expected Git revision, labels both production images with that revision, builds, stops
-the currently deployed worker, starts the stack, and runs `scripts/deployment-smoke`. Full
-fixture verification remains an ingestion-change lane because its external test cache is
-intentionally not copied to CI or the production host.
+| Service | Role |
+| --- | --- |
+| PostgreSQL 16 | Accounts, source state, live trademark data, and Data Version. |
+| migrate | One-shot Drizzle migration before long-running services. |
+| API | Fastify/tRPC and data-free readiness. |
+| worker | Serial USPTO discovery, download, and application. |
+| Caddy/web | Static website and `/api` proxy. |
 
-Startup is ordered:
+PostgreSQL and artifact storage use named volumes. No service binds a public host
+port. The worker handles one temporary ZIP at a time and keeps the 20 GiB floor
+for both persistent filesystems.
 
-1. Keep the current production worker stopped.
-2. Back up PostgreSQL and record the exact deployed and candidate SHAs.
-3. Fast-forward the clean production checkout to the reviewed merge SHA.
-4. Build images labeled with that exact SHA.
-5. Start PostgreSQL and run the one-shot Drizzle migrator. Its single transaction preserves live projections, artifact availability/projection truth, provider state, accounts, identities, keys, and roles.
-6. Start API and Caddy; verify database/API/web readiness and auth/search behavior while the worker remains stopped.
-7. Start the worker only after explicit deployment authorization. Verify one database-derived action, referenced ZIP retention or orphan cleanup as applicable, and truthful `/ops/sync` state.
+## GitHub Deployment
 
-There is no pre-merge cutover script, compatibility view, dual write, or embedded rollback across the schema cutover. The one forward migration is deliberately pinned to the exact sole-build production shape. If migration or acceptance fails, leave the worker stopped and deploy a corrected revision against the restored backup.
+A push to `main` runs the reusable quality workflow on a GitHub-hosted runner.
+The self-hosted Mac mini job runs only after quality passes.
 
-The ignored production `.env` is mastered at `/Users/zknicker/srv/tmturtle/.env`, copied into the detached candidate without echoing values, and kept at mode `0600`. Required secret-bearing names are `DATABASE_URL`, `POSTGRES_PASSWORD`, `CLERK_SECRET_KEY`, and `USPTO_API_KEY`; `VITE_CLERK_PUBLISHABLE_KEY` supplies the approved shared MerchBase Clerk frontend configuration. Production sets `CLERK_AUTHORIZED_PARTIES` to exactly `https://tmturtle.merchbase.co`.
+The deploy job:
 
-PostgreSQL and the durable retained-artifact store use named volumes. Both are backup state. API, worker, database, and Caddy use restart policies compatible with the host's existing Colima launch-on-boot service. Migration remains a successful one-shot container. Resource limits reserve the host from runaway ingestion while leaving PostgreSQL and authenticated reads independently observable.
+1. fast-forwards the clean production checkout;
+2. requires `HEAD` to equal both `origin/main` and the workflow SHA;
+3. builds core and web images labeled with that exact revision;
+4. stops the existing worker before changing the stack;
+5. starts migration, database, API, worker, and web in dependency order;
+6. runs `scripts/deployment-smoke`.
 
-## Verification and monitoring hook
+The checkout-integrity script refuses tracked, staged, or untracked nonignored
+changes. It never cleans or resets the host.
 
-`scripts/deployment-smoke` is the external readiness and capacity hook. Worker readiness begins only after the current process completes its first reconciliation; its startup grace matches the existing 15-minute provider request bound, persisted backoff remains valid, and a stopped lane fails smoke. The hook also fails when either the PostgreSQL or artifact volume filesystem has less than 20 GiB free, migration failed, another long-running service is unhealthy, a bounded loopback or public HTTPS probe fails, or image labels do not match the deployed revision.
+Database, API, worker, and Caddy use restart policies compatible with the
+host's Colima launch-on-boot service. Migration remains a successful one-shot
+container. Resource limits contain ingestion while leaving PostgreSQL and
+authenticated reads independently observable.
 
-The anonymous readiness response is exactly `{"status":"ready"}` and contains no trademark data. Readiness does not claim data completeness. The worker reconciles immediately on startup and waits a fixed 10 seconds after each completion; it also owns serial downloads and global persisted backoff. A file-specific 429 fails that artifact once without stopping later files. Authenticated sync reports freshness, retained-source availability, and projection state.
+## Secrets
 
-For an explicit smoke or post-restart check:
+The ignored production `.env` lives at
+`/Users/zknicker/srv/tmturtle/.env`, mode `0600`. Required values include
+database, Clerk, and USPTO credentials. Production authorized parties is exactly
+`https://tmturtle.merchbase.co`.
+
+Secrets are not printed, committed, copied into runtime image layers, or exposed
+through readiness.
+
+## Smoke
+
+`scripts/deployment-smoke` verifies:
+
+- exact image revision labels;
+- database, migration, API, worker, and web health;
+- at least 20 GiB free in database and artifact volumes;
+- bounded loopback and public HTTPS probes;
+- anonymous data-free readiness;
+- source worker heartbeat without claiming source completeness.
+
+The anonymous readiness response is exactly `{"status":"ready"}` and contains
+no trademark data. Readiness does not claim source completeness.
+
+Run it explicitly on the host with:
 
 ```bash
 cd /Users/zknicker/srv/tmturtle
@@ -51,16 +80,28 @@ export TMTURTLE_REVISION="$(git rev-parse HEAD)"
 ./scripts/deployment-smoke
 ```
 
+For an ingestion schema cutover, leave the worker stopped until migration,
+authenticated reads, existing mark visibility, source-row mapping, and operator
+status are verified. Start it only when the deployed revision owns the new
+schema.
+
 ## Rollback
 
-Recovery uses PostgreSQL and retained-artifact backups plus a corrected exact Git revision. Named database and artifact volumes remain attached only when the selected revision owns their schema and lifecycle contract.
+Code-only rollback uses a known compatible revision while preserving named
+volumes:
 
 ```bash
-git switch --detach <corrected-post-cutover-sha>
+git switch --detach <compatible-sha>
 export TMTURTLE_REVISION="$(git rev-parse HEAD)"
 docker compose --project-name tmturtle --env-file .env build
 docker compose --project-name tmturtle --env-file .env up --detach --remove-orphans --wait
 ./scripts/deployment-smoke
 ```
 
-After the bad revision is corrected, return the host checkout to `main`, fast-forward, and run the same build, up, and smoke sequence. Do not delete volumes as part of rollback.
+Do not run a revision against a schema it does not own. Do not delete volumes as
+part of rollback. A failed forward-only schema change requires a corrected
+revision or an operator-managed database restore; the repository does not own a
+backup product in v1.
+
+After recovery, return the host checkout to `main`, fast-forward, and run the
+normal exact-SHA deployment.

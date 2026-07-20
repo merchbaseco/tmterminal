@@ -1,26 +1,71 @@
+![Trademark Turtle — USPTO trademark search for print-on-demand sellers](assets/brand/github-header.png)
+
 # Trademark Turtle
 
-Trademark Turtle (`tmturtle`) is an authenticated US trademark data service for print-on-demand sellers.
+Trademark Turtle makes trademark compliance easy for online sellers, primarily focused on print-on-demand entrepreneurs in the merch and apparel niche. Trademark Turtle maintains a searchable United States trademark database and surfaces the functionality through the [tmturtle.merchbase.co](https://tmturtle.merchbase.co) website, a dedicated HTTP API, and the `tt` CLI native to agentic workflows.
 
-It continuously discovers and ingests the latest USPTO bulk trademark artifacts, exposes a focused search website and typed HTTP interface, and ships a JSON-first `tt` CLI. Other products, including MerchBase, consume the same typed client.
+## What Trademark Turtle does
 
-## Status
+Trademark Turtle gives sellers one place to:
 
-The Bun workspace, production-shaped local runtime, authentication, USPTO ingestion, Class 025 corpus publication, and exact mark/search reads are runnable.
+- search word marks using Multi, Split, or Wildcard matching;
+- look up an exact serial or registration number;
+- check listing text against known trademarks;
+- browse recent filings, registrations, and marks published for opposition;
+- review a mark's status, owner, classes, goods and services, and source history.
 
-Start with the [docs front door](docs/README.md). Architecture and scope live in [docs/plan.md](docs/plan.md), source authority in [docs/ingestion.md](docs/ingestion.md), the command contract in [docs/cli.md](docs/cli.md), and website behavior in [docs/website.md](docs/website.md).
+Searches run against Trademark Turtle's current best-known view of the USPTO record. New source files update that view as they are processed; ingestion never takes the existing database offline.
 
-Run the workspace and PostgreSQL integration harness through [local runtime operations](docs/operations/local-runtime.md).
+Trademark data is informational, not legal advice. Verify consequential decisions with the USPTO or qualified counsel.
 
-## v1 shape
+## Ways to use it
 
-- Private API server and ingestion worker
-- Private Vite/React website
-- Dedicated PostgreSQL database
-- `@tmturtle/http-client`
-- `@tmturtle/cli` with the `tt` executable
-- Shared MerchBase Clerk authentication for the website
-- API-key authentication for the HTTP client and CLI
-- Docker Compose deployment on the Mac mini at `tmturtle.merchbase.co`
+| Interface | Best for |
+| --- | --- |
+| [Website](https://tmturtle.merchbase.co) | Interactive search, reports, trademark detail, API-key management, and source status. |
+| HTTP API | Typed integrations with Trademark Turtle search, reports, exact lookups, and text matching. |
+| `@tmturtle/http-client` | TypeScript applications that want the server's native input and output types. |
+| `tt` CLI | JSON-first shell automation and agentic workflows. |
 
-No billing, marketing site, or anonymous data routes are planned for v1.
+The website uses MerchBase authentication. The HTTP API, client, and CLI use Trademark Turtle API keys. MerchBase consumes the same API as every other client.
+
+## Data coverage
+
+Trademark Turtle continuously processes the USPTO's bulk trademark data and keeps one live, searchable database. The initial product focuses on International Class 025—clothing, footwear, and headwear—while keeping the underlying model ready for additional classes.
+
+Inactive and abandoned marks remain searchable because they are still part of the trademark record. Source progress and individual file problems are visible to operators without blocking customer searches.
+
+## Repository
+
+Trademark Turtle is a Bun and TypeScript workspace:
+
+| Path | Purpose |
+| --- | --- |
+| `apps/server` | Authenticated HTTP API, PostgreSQL persistence, and USPTO ingestion worker. |
+| `apps/web` | React website for search, reports, trademark detail, and operations. |
+| `packages/http-client` | Typed programmatic client derived from the server contract. |
+| `packages/cli` | The `tt` command-line interface. |
+| `docs` | Product, architecture, reference, and operations documentation. |
+
+Install dependencies and start the development environment:
+
+```sh
+bun install
+bun run dev
+```
+
+Run the standard verification lanes:
+
+```sh
+bun run check
+bun run lint
+bun run build
+```
+
+See [development operations](docs/operations/development.md) for environment setup and [testing](docs/operations/testing.md) for PostgreSQL and production-shaped verification.
+
+## Project status
+
+Trademark Turtle is under active development. Authentication, search, exact lookups, the website, HTTP client, CLI, and production runtime are operational. The USPTO ingestion lifecycle is being simplified around direct updates to the live trademark database; the accepted design is documented in [ingestion internals](docs/internals/ingestion.md).
+
+Start with the [documentation index](docs/README.md). Product behavior lives under [product](docs/product/README.md), system ownership under [internals](docs/internals/README.md), exact contracts under [reference](docs/reference/README.md), and maintainer workflows under [operations](docs/operations/README.md).
