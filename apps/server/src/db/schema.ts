@@ -95,6 +95,7 @@ export const sourceArtifact = pgTable(
     bytes: bigint("bytes", { mode: "number" }),
     downloadError: text("download_error"),
     downloadedAt: timestamp("downloaded_at", { withTimezone: true }),
+    downloadRequestCount: integer("download_request_count").notNull().default(0),
     downloadResponseState: jsonb("download_response_state"),
     downloadState: sourceArtifactDownloadState("download_state").notNull().default("pending"),
     downloadUrl: text("download_url").notNull(),
