@@ -53,8 +53,8 @@ tt marks match --text <text> [--type design|typeset|text|other]
 tt marks match --stdin [--type design|typeset|text|other]
 tt marks latest [--limit 25] [--offset 0] [--data-version <version>]
 
-tt reports run --event filed --window previous-week [filters and page options]
-tt reports run --event registered --window previous-week [filters and page options]
+tt reports run --event filed --window previous-week [filters and page options] [--from YYYY-MM-DD --to YYYY-MM-DD]
+tt reports run --event registered --window previous-week [filters and page options] [--from YYYY-MM-DD --to YYYY-MM-DD]
 tt reports run --event published-for-opposition [filters and page options]
 
 tt sync status
@@ -64,6 +64,12 @@ tt sync status
 least one Unicode word token. Wildcard queries without `*` are exact whole-mark searches; patterns
 with `*` require at least three consecutive literal Unicode word characters. `%`, `_`, and `\` remain
 literal. `--text` and `--stdin` are mutually exclusive.
+
+`marks match` sends the selected text unchanged and returns every live overlap. Match spans are
+half-open JavaScript UTF-16 offsets; slicing the submitted string with `text.slice(start, end)`
+recovers the exact source text. Input is limited to 4,096 UTF-16 code units and 128 Unicode word
+tokens; oversized input is rejected, never truncated. The response also carries
+`meta.dataThroughDate` and `meta.dataVersion`. Accepted input has no hidden candidate or match limit.
 
 Annual artifact state and provider diagnostics remain read-only operator capabilities outside the published CLI.
 
@@ -101,5 +107,8 @@ Paged responses preserve the server envelope:
 ```
 
 Every sort ends with serial number as a stable tie-breaker. Continuation requests pass `--data-version`; changed live data returns `CONFLICT` instead of silently duplicating or skipping results.
+Filed and registered continuations also pass the first response's resolved `from` and `to` through
+`--from` and `--to`. The CLI requires all three snapshot values together so crossing a week
+boundary returns `CONFLICT` rather than changing the report window.
 
 External streaming is not part of the v1 CLI.

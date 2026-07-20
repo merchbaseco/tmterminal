@@ -233,10 +233,16 @@ One public tRPC router defines customer capabilities. The website, HTTP client, 
 - `marks.get-by-registration`
   - Exact registration number only
 - `marks.match-text`
-  - Server-owned live word-mark candidate generation and Unicode-aware span detection
-  - Explicit type filters within Class 025 data, all overlapping matches, stable UTF-16 offsets, and no silent truncation
+  - Input: listing text plus an optional explicit mark-type filter within Class 025 data
+  - Listing text is limited to 4,096 JavaScript UTF-16 code units and 128 Unicode word tokens; oversized input is rejected, never truncated
+  - The server generates every adjacent Unicode word-token candidate and resolves exact normalized live word marks without a result cap
+  - Output groups each matching mark with one half-open `[start, end)` span into the original text; all overlaps are returned
+  - Offsets are JavaScript UTF-16 string offsets, so `text.slice(start, end)` recovers the exact source text even when normalization changes code points
+  - Output includes `{ meta: { dataThroughDate, dataVersion } }`
 - `marks.latest`
-  - Recent source transaction activity with stable pagination
+  - Recent non-null source transaction activity ordered by transaction date descending and serial number ascending
+  - Server-side count, fixed 25-item pages, and data-version conflict protection
+  - Same `{ items, total, limit, offset, meta }` envelope as other mark pages
 
 ### Reports
 
