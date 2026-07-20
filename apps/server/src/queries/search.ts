@@ -2,13 +2,8 @@ import type postgres from "postgres";
 
 import type { SearchInput, SearchPage } from "../api/contracts.ts";
 import { splitSearchTerms } from "../search/search-patterns.ts";
-
-interface DataState {
-  completeThroughDate: string | null;
-  dataVersion: string;
-}
-
-export class DataVersionConflictError extends Error {}
+import { assertDataVersion, readDataSnapshot } from "./data-snapshot.ts";
+import { markFilterConditions, markSummarySql } from "./mark-page.ts";
 
 type QueryValue = number | string;
 
@@ -70,28 +65,7 @@ export function buildSearchQueries(input: SearchInput) {
     values.push(value);
     return `$${values.length}`;
   };
-  const markType = `case
-    when m.mark_drawing_code = '1' then 'typeset'
-    when m.mark_drawing_code = '4' then 'text'
-    when m.mark_drawing_code in ('2', '3', '5') then 'design'
-    else 'other'
-  end`;
-  const conditions = [match.predicate];
-  if (input.status === "live") {
-    conditions.push("m.search_status = 'live'");
-  }
-  if (input.status === "dead") {
-    conditions.push("m.search_status = 'dead'");
-  }
-  if (input.type !== "all") {
-    conditions.push(`${markType} = ${parameter(input.type)}`);
-  }
-  if (input.registered === "yes") {
-    conditions.push("m.registration_number is not null");
-  }
-  if (input.registered === "no") {
-    conditions.push("m.registration_number is null");
-  }
+  const conditions = [match.predicate, ...markFilterConditions(input, parameter)];
   const predicate = conditions.join(" and ");
   let orderBy = match.relevanceOrder;
   if (input.sort === "newest-activity") {
@@ -119,32 +93,8 @@ export function buildSearchQueries(input: SearchInput) {
     items: {
       text: `with ${match.normalized}
         select
-          m.serial_number as "serialNumber",
-          m.registration_number as "registrationNumber",
-          m.word_mark as "wordMark",
-          m.search_status as status,
-          m.status_date::text as "statusDate",
-          m.source_transaction_date::text as "sourceTransactionDate",
-          ${markType} as type,
-          ${match.kind} as match,
-          array(
-            select distinct classification.international_code
-            from mark_class classification
-            where classification.serial_number = m.serial_number
-              and classification.international_code is not null
-            order by classification.international_code
-          ) as "internationalClasses",
-          (select owner.party_name from mark_owner owner
-            where owner.serial_number = m.serial_number order by owner.ordinal limit 1) as owner,
-          (select goods.text from mark_goods_services goods
-            where goods.serial_number = m.serial_number
-            order by case
-              when goods.type_code like 'GS025%' then 0
-              when goods.type_code like 'GS%' then 1
-              when goods.type_code like 'CC%' then 3
-              else 2
-            end, goods.ordinal
-            limit 1) as "goodsServicesExcerpt"
+          ${markSummarySql},
+          ${match.kind} as match
         from mark m ${match.join} where ${predicate}
         order by ${orderBy}
         limit ${limitParameter} offset ${offsetParameter}`,
@@ -155,17 +105,8 @@ export function buildSearchQueries(input: SearchInput) {
 
 export function searchMarks(database: postgres.Sql, input: SearchInput): Promise<SearchPage> {
   return database.begin("isolation level repeatable read read only", async (transaction) => {
-    const [state] = await transaction<DataState[]>`
-      select state.complete_through_date::text as "completeThroughDate",
-        coalesce(state.version, 0)::text as "dataVersion"
-      from (select 1) anchor left join data_state state on state.id = 'uspto'
-    `;
-    if (!state) {
-      throw new Error("Trademark data state is unavailable");
-    }
-    if (input.expectedDataVersion && input.expectedDataVersion !== state.dataVersion) {
-      throw new DataVersionConflictError("Trademark data changed during pagination");
-    }
+    const snapshot = await readDataSnapshot(transaction);
+    assertDataVersion(snapshot, input.expectedDataVersion);
 
     const queries = buildSearchQueries(input);
     const [count] = await transaction.unsafe<
@@ -183,10 +124,7 @@ export function searchMarks(database: postgres.Sql, input: SearchInput): Promise
       items,
       limit: input.limit,
       liveMatchCounts: { exact: count.liveExact, partial: count.livePartial },
-      meta: {
-        dataThroughDate: state.completeThroughDate,
-        dataVersion: state.dataVersion,
-      },
+      meta: snapshot,
       offset: input.offset,
       total: count.total,
     };

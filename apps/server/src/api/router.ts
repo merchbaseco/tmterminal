@@ -1,6 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { DataVersionConflictError } from "../queries/search.ts";
+import { DataVersionConflictError } from "../queries/data-snapshot.ts";
 import type {
   AccountService,
   AuthenticatedAccount,
@@ -9,6 +9,7 @@ import type {
   ReportsService,
   SyncService,
 } from "./contracts.ts";
+import { latestInputSchema, matchTextInputSchema } from "./marks-input.ts";
 import { reportInputSchema } from "./report-input.ts";
 import { searchInputSchema } from "./search-input.ts";
 
@@ -78,6 +79,20 @@ const marksRouter = t.router({
       }
       return mark;
     }),
+  latest: t.procedure.input(latestInputSchema).query(async ({ ctx, input }) => {
+    try {
+      return await ctx.marks.latest(input);
+    } catch (error) {
+      if (error instanceof DataVersionConflictError) {
+        // biome-ignore lint/style/useErrorCause: TRPCError receives the original cause in its options.
+        throw new TRPCError({ cause: error, code: "CONFLICT", message: error.message });
+      }
+      throw error;
+    }
+  }),
+  "match-text": t.procedure
+    .input(matchTextInputSchema)
+    .query(({ ctx, input }) => ctx.marks.matchText(input)),
   search: t.procedure.input(searchInputSchema).query(async ({ ctx, input }) => {
     try {
       return await ctx.marks.search(input);

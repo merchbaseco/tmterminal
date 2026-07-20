@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import type { TmturtleRouterOutputs } from "@tmturtle/http-client";
 
-import { type CliDependencies, runCli } from "../src/run.ts";
+import { type CliClient, type CliDependencies, runCli } from "../src/run.ts";
 
 const token =
   "ttk_11111111-1111-4111-8111-111111111111_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
@@ -70,7 +70,17 @@ const noop = () => Promise.resolve();
 const noValue = () => Promise.resolve(null);
 const unexpected = (name: string) => () => Promise.reject(new Error(`Unexpected ${name}`));
 
-function dependencies(overrides: Partial<CliDependencies> = {}): CliDependencies {
+type DeepPartial<T> = T extends (...args: infer Args) => infer Result
+  ? (...args: Args) => Result
+  : T extends object
+    ? { [Key in keyof T]?: DeepPartial<T[Key]> }
+    : T;
+
+type DependencyOverrides = Omit<Partial<CliDependencies>, "createClient"> & {
+  createClient?: (options: { apiKey: string; baseUrl: string }) => DeepPartial<CliClient>;
+};
+
+function dependencies(overrides: DependencyOverrides = {}): CliDependencies {
   return {
     config: {},
     createClient: () => {
@@ -84,7 +94,7 @@ function dependencies(overrides: Partial<CliDependencies> = {}): CliDependencies
     },
     stdin: "",
     ...overrides,
-  };
+  } as CliDependencies;
 }
 
 test("auth set stores a stdin token against the normalized origin without echoing it", async () => {
@@ -645,4 +655,256 @@ test("marks search preserves a typed data conflict envelope", async () => {
       '{"ok":false,"error":{"code":"CONFLICT","message":"Trademark data changed during pagination","details":{}}}\n',
     stdout: "",
   });
+});
+
+test("marks get-by-registration sends an exact registration identity", async () => {
+  const inputs: unknown[] = [];
+  const result = await runCli(
+    ["marks", "get-by-registration", "0146682"],
+    dependencies({
+      createClient: () =>
+        ({
+          marks: {
+            "get-by-registration": {
+              query: (input: unknown) => {
+                inputs.push(input);
+                return Promise.resolve(markFixture);
+              },
+            },
+          },
+        }) as never,
+      env: { TMTURTLE_API_KEY: token },
+    })
+  );
+
+  expect(inputs).toEqual([{ registrationNumber: "0146682" }]);
+  expect(JSON.parse(result.stdout)).toEqual({ data: markFixture, ok: true });
+});
+
+test("marks match preserves listing text and the explicit type filter", async () => {
+  const inputs: unknown[] = [];
+  const data = {
+    matches: [{ end: 13, mark: searchPage.items[0], start: 3 }],
+    meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
+  };
+  const result = await runCli(
+    ["marks", "match", "--text", "🐢 Cafe\u0301", "--type", "text"],
+    dependencies({
+      createClient: () =>
+        ({
+          marks: {
+            "match-text": {
+              query: (input: unknown) => {
+                inputs.push(input);
+                return Promise.resolve(data);
+              },
+            },
+          },
+        }) as never,
+      env: { TMTURTLE_API_KEY: token },
+    })
+  );
+
+  expect(inputs).toEqual([{ text: "🐢 Cafe\u0301", type: "text" }]);
+  expect(JSON.parse(result.stdout)).toEqual({ data, ok: true });
+});
+
+test("marks match reads stdin without silently truncating it", async () => {
+  const inputs: unknown[] = [];
+  const text = "first turtle\nsecond turtle\n";
+  const result = await runCli(
+    ["marks", "match", "--stdin"],
+    dependencies({
+      createClient: () =>
+        ({
+          marks: {
+            "match-text": {
+              query: (input: unknown) => {
+                inputs.push(input);
+                return Promise.resolve({
+                  matches: [],
+                  meta: { dataThroughDate: null, dataVersion: "0" },
+                });
+              },
+            },
+          },
+        }) as never,
+      env: { TMTURTLE_API_KEY: token },
+      stdin: text,
+    })
+  );
+
+  expect(result.exitCode).toBe(0);
+  expect(inputs).toEqual([{ text, type: "all" }]);
+});
+
+test("marks match rejects ambiguous text sources before HTTP", async () => {
+  const result = await runCli(
+    ["marks", "match", "--text", "turtle", "--stdin"],
+    dependencies({ env: { TMTURTLE_API_KEY: token }, stdin: "turtle" })
+  );
+
+  expect(JSON.parse(result.stderr)).toMatchObject({
+    error: { code: "BAD_REQUEST", message: "--text and --stdin are mutually exclusive" },
+    ok: false,
+  });
+});
+
+test("marks latest preserves stable page options and the server envelope", async () => {
+  const inputs: unknown[] = [];
+  const data = {
+    items: searchPage.items.map(({ match: _match, ...item }) => item),
+    limit: 25,
+    meta: searchPage.meta,
+    offset: 25,
+    total: 26,
+  };
+  const result = await runCli(
+    ["marks", "latest", "--limit", "25", "--offset", "25", "--data-version", "7"],
+    dependencies({
+      createClient: () =>
+        ({
+          marks: {
+            latest: {
+              query: (input: unknown) => {
+                inputs.push(input);
+                return Promise.resolve(data);
+              },
+            },
+          },
+        }) as never,
+      env: { TMTURTLE_API_KEY: token },
+    })
+  );
+
+  expect(inputs).toEqual([{ expectedDataVersion: "7", limit: 25, offset: 25 }]);
+  expect(JSON.parse(result.stdout)).toEqual({ data, ok: true });
+});
+
+test("reports run maps a pinned previous-week continuation", async () => {
+  const inputs: unknown[] = [];
+  const data = {
+    from: "2026-07-06",
+    items: [],
+    limit: 25,
+    meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
+    offset: 25,
+    to: "2026-07-12",
+    total: 26,
+  };
+  const result = await runCli(
+    [
+      "reports",
+      "run",
+      "--event",
+      "filed",
+      "--window",
+      "previous-week",
+      "--status",
+      "live",
+      "--type",
+      "text",
+      "--registered",
+      "no",
+      "--sort",
+      "oldest-activity",
+      "--offset",
+      "25",
+      "--data-version",
+      "7",
+      "--from",
+      "2026-07-06",
+      "--to",
+      "2026-07-12",
+    ],
+    dependencies({
+      createClient: () =>
+        ({
+          reports: {
+            run: {
+              query: (input: unknown) => {
+                inputs.push(input);
+                return Promise.resolve(data);
+              },
+            },
+          },
+        }) as never,
+      env: { TMTURTLE_API_KEY: token },
+    })
+  );
+
+  expect(inputs).toEqual([
+    {
+      event: "filed",
+      expectedDataVersion: "7",
+      expectedFrom: "2026-07-06",
+      expectedTo: "2026-07-12",
+      limit: 25,
+      offset: 25,
+      registered: "no",
+      sort: "oldest-activity",
+      status: "live",
+      type: "text",
+      window: "previous-week",
+    },
+  ]);
+  expect(JSON.parse(result.stdout)).toEqual({ data, ok: true });
+});
+
+test("reports run maps the current opposition-status view without a window", async () => {
+  const inputs: unknown[] = [];
+  const result = await runCli(
+    ["reports", "run", "--event", "published-for-opposition"],
+    dependencies({
+      createClient: () =>
+        ({
+          reports: {
+            run: {
+              query: (input: unknown) => {
+                inputs.push(input);
+                return Promise.resolve({});
+              },
+            },
+          },
+        }) as never,
+      env: { TMTURTLE_API_KEY: token },
+    })
+  );
+
+  expect(result.exitCode).toBe(0);
+  expect(inputs).toEqual([
+    {
+      event: "published-for-opposition",
+      limit: 25,
+      offset: 0,
+      registered: "all",
+      sort: "newest-activity",
+      status: "all",
+      type: "all",
+    },
+  ]);
+});
+
+test("sync status preserves the authenticated freshness envelope", async () => {
+  const data = {
+    activeState: "idle",
+    completeThroughDate: null,
+    dataVersion: 0,
+    degraded: false,
+    degradedSince: null,
+    failedCount: 0,
+    lastSuccessfulUpdateAt: null,
+    pendingCount: 91,
+    stale: false,
+    staleSince: null,
+  };
+  const result = await runCli(
+    ["sync", "status"],
+    dependencies({
+      createClient: () => ({ sync: { status: { query: () => Promise.resolve(data) } } }) as never,
+      env: { TMTURTLE_API_KEY: token },
+    })
+  );
+
+  expect(JSON.parse(result.stdout)).toEqual({ data, ok: true });
 });

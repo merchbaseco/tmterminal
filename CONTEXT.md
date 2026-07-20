@@ -32,6 +32,14 @@ Searches the query as a pattern in which `*` represents zero or more characters.
 A trademark result set produced from typed data constraints rather than a word-mark search query.
 _Avoid_: Saved search, dashboard
 
+**Text Match**:
+One live word mark found in listing text, paired with a half-open JavaScript UTF-16 source span.
+Every overlapping occurrence is retained.
+
+**Source Activity**:
+The USPTO source transaction date that ordered the current projected mark state.
+_Avoid_: Status date, ingestion time
+
 **Annual Baseline**:
 The exact 91 official annual artifacts through 2025-12-31 used to establish complete historical coverage. Baseline progress never gates live reads.
 

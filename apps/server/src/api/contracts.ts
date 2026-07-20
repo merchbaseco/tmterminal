@@ -50,25 +50,22 @@ export type SearchInput = SearchInputBase &
     | { match?: never; mode: "wildcard" }
   );
 
-export interface SearchPage {
-  items: Array<{
-    goodsServicesExcerpt: string | null;
-    internationalClasses: string[];
-    match: "exact" | "partial";
-    owner: string | null;
-    registrationNumber: string | null;
-    serialNumber: string;
-    sourceTransactionDate: string | null;
-    status: "live" | "dead" | "unknown";
-    statusDate: string | null;
-    type: "design" | "typeset" | "text" | "other";
-    wordMark: string;
-  }>;
+export interface MarkSummary {
+  goodsServicesExcerpt: string | null;
+  internationalClasses: string[];
+  owner: string | null;
+  registrationNumber: string | null;
+  serialNumber: string;
+  sourceTransactionDate: string | null;
+  status: "live" | "dead" | "unknown";
+  statusDate: string | null;
+  type: "design" | "typeset" | "text" | "other";
+  wordMark: string;
+}
+
+export interface MarkPage {
+  items: MarkSummary[];
   limit: 25;
-  liveMatchCounts: {
-    exact: number;
-    partial: number;
-  };
   meta: {
     dataThroughDate: string | null;
     dataVersion: string;
@@ -77,9 +74,39 @@ export interface SearchPage {
   total: number;
 }
 
+export interface SearchPage extends Omit<MarkPage, "items"> {
+  items: Array<MarkSummary & { match: "exact" | "partial" }>;
+  liveMatchCounts: {
+    exact: number;
+    partial: number;
+  };
+}
+
+export interface LatestInput {
+  expectedDataVersion?: string;
+  limit: 25;
+  offset: number;
+}
+
+export interface MatchTextInput {
+  text: string;
+  type: "all" | "design" | "typeset" | "text" | "other";
+}
+
+export interface MatchTextResult {
+  matches: Array<{
+    end: number;
+    mark: MarkSummary;
+    start: number;
+  }>;
+  meta: MarkPage["meta"];
+}
+
 export interface MarksService {
   getByRegistrationNumber: (registrationNumber: string) => Promise<MarkDetail | null>;
   getBySerialNumber: (serialNumber: string) => Promise<MarkDetail | null>;
+  latest: (input: LatestInput) => Promise<MarkPage>;
+  matchText: (input: MatchTextInput) => Promise<MatchTextResult>;
   search: (input: SearchInput) => Promise<SearchPage>;
 }
 
@@ -97,7 +124,7 @@ export interface ReportInput {
   window?: "previous-week";
 }
 
-export interface ReportPage extends Omit<SearchPage, "items" | "liveMatchCounts"> {
+export interface ReportPage extends MarkPage {
   from: string | null;
   items: Omit<SearchPage["items"][number], "match">[];
   to: string | null;

@@ -83,6 +83,12 @@ beforeAll(async () => {
   await repository.replace(mark("10000011", "PATH\\MARK SYMBOL"));
   await repository.replace(mark("10000012", "PATHXMARK SYMBOL"));
   await repository.replace(mark("10000013", "ᴬ"));
+  await repository.replace(
+    mark("10000014", "EMBLEMZETA", {
+      markDrawingCode: "2",
+      sourceTransactionDate: "2026-07-08",
+    })
+  );
   await repository.replace(mark("11000001", "Naïve 東京 Club"));
   await repository.replace(mark("11000002", "Naïve 東京"));
   await repository.replace(mark("11000003", "東京 Club"));
@@ -277,6 +283,22 @@ function report(input: Record<string, unknown>) {
   });
 }
 
+function latest(input: Record<string, unknown>) {
+  return server.inject({
+    headers: { authorization: "Bearer clerk-session" },
+    method: "GET",
+    url: `/api/trpc/marks.latest?input=${encodeURIComponent(JSON.stringify(input))}`,
+  });
+}
+
+function matchText(input: Record<string, unknown>) {
+  return server.inject({
+    headers: { authorization: "Bearer clerk-session" },
+    method: "GET",
+    url: `/api/trpc/marks.match-text?input=${encodeURIComponent(JSON.stringify(input))}`,
+  });
+}
+
 function operatorArtifacts(input: Record<string, unknown>) {
   return server.inject({
     headers: { authorization: "Bearer clerk-session" },
@@ -406,6 +428,105 @@ test("pinned report pages reject a previous-week boundary change", async () => {
       new Date("2026-07-13T00:00:00Z")
     )
   ).rejects.toThrow("Report window changed during pagination");
+});
+
+test("latest returns source transaction activity in stable pages", async () => {
+  const first = await latest({});
+  const missingVersion = await latest({ offset: 25 });
+  const second = await latest({ expectedDataVersion: "7", offset: 25 });
+
+  expect(first.statusCode).toBe(200);
+  expect(first.json().result.data).toMatchObject({
+    limit: 25,
+    meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
+    offset: 0,
+    total: 123,
+  });
+  expect(first.json().result.data.items.slice(0, 2)).toEqual([
+    expect.objectContaining({ serialNumber: "10000005" }),
+    expect.objectContaining({ serialNumber: "10000006" }),
+  ]);
+  expect(first.json().result.data.items).toHaveLength(25);
+  expect(missingVersion.statusCode).toBe(400);
+  expect(second.statusCode).toBe(200);
+  expect(second.json().result.data).toMatchObject({ limit: 25, offset: 25, total: 123 });
+  expect(
+    new Set(
+      [...first.json().result.data.items, ...second.json().result.data.items].map(
+        (item: { serialNumber: string }) => item.serialNumber
+      )
+    ).size
+  ).toBe(50);
+});
+
+test("latest returns a typed conflict after live data changes", async () => {
+  await database`update data_state set version = 8 where id = 'uspto'`;
+  const response = await latest({ expectedDataVersion: "7", offset: 25 });
+  await database`update data_state set version = 7 where id = 'uspto'`;
+
+  expect(response.statusCode).toBe(409);
+  expect(response.json().error.data.code).toBe("CONFLICT");
+});
+
+test("text matching returns every live overlap with JavaScript UTF-16 offsets", async () => {
+  const text = "🐢 TURTLE CLUB—turtle EMBLEMZETA";
+  const response = await matchText({ text });
+  const matches = response.json().result.data.matches as Array<{
+    end: number;
+    mark: { serialNumber: string };
+    start: number;
+  }>;
+
+  expect(response.statusCode).toBe(200);
+  expect(response.json().result.data.meta).toEqual({
+    dataThroughDate: "2026-07-10",
+    dataVersion: "7",
+  });
+  expect(
+    matches.map((match) => [
+      match.mark.serialNumber,
+      match.start,
+      match.end,
+      text.slice(match.start, match.end),
+    ])
+  ).toEqual([
+    ["10000005", 3, 14, "TURTLE CLUB"],
+    ["10000004", 3, 9, "TURTLE"],
+    ["11000006", 10, 14, "CLUB"],
+    ["10000004", 15, 21, "turtle"],
+    ["10000014", 22, 32, "EMBLEMZETA"],
+  ]);
+});
+
+test("text matching normalizes Unicode without destabilizing consumer slicing", async () => {
+  const text = "Cafe\u0301 Society";
+  const response = await matchText({ text, type: "text" });
+  const matches = response.json().result.data.matches as Array<{
+    end: number;
+    mark: { serialNumber: string };
+    start: number;
+  }>;
+
+  expect(response.statusCode).toBe(200);
+  expect(
+    matches.map((match) => [match.mark.serialNumber, text.slice(match.start, match.end)])
+  ).toEqual([
+    ["10000001", "Cafe\u0301 Society"],
+    ["10000002", "Cafe\u0301"],
+  ]);
+});
+
+test("text matching applies only its explicit mark type filter", async () => {
+  const response = await matchText({ text: "emblemzeta", type: "design" });
+
+  expect(response.statusCode).toBe(200);
+  expect(response.json().result.data.matches).toEqual([
+    expect.objectContaining({
+      end: 10,
+      mark: expect.objectContaining({ serialNumber: "10000014" }),
+      start: 0,
+    }),
+  ]);
 });
 
 test("Multi returns the same page through Clerk and API-key credentials", async () => {
