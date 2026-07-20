@@ -6,6 +6,7 @@ Trademark Turtle uses one logo treatment: the acid-chartreuse turtle on near-bla
 
 | File | Use |
 | --- | --- |
+| `github-header.png` | 4:1 repository and social header |
 | `turtle-mark.svg` | Canonical scalable mark on dark surfaces |
 | `turtle-mark.png` | 1024 px transparent raster mark |
 | `turtle-mark-dark-field.png` | 1024 px protected treatment for light surfaces |
@@ -35,4 +36,3 @@ The turtle is a logomark, not a UI mascot. It does not appear as decorative empt
 - Typeface: Archivo Variable
 - Display: heavy condensed Archivo
 - Interface copy: Archivo 400–600
-

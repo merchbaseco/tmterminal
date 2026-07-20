@@ -3,10 +3,11 @@
 ## Working model
 
 - Run `bun run docs:list` at task start and read docs whose `Read when` hints match the work.
-- Read `docs/plan.md` before architecture, ingestion, API, client, CLI, website, or deployment work.
-- Read `docs/ingestion.md` before USPTO source, parser, projection, provenance, replay, or freshness work.
-- Read `docs/cli.md` before changing commands, credentials, output, errors, or pagination.
-- Read `docs/website.md` before website, authentication UI, search UI, reports, or visual-system work.
+- Read `docs/product/README.md` before changing user-facing service, search, reports, source-status, or website behavior.
+- Read `docs/internals/README.md` before changing architecture, persistence ownership, or ingestion.
+- Read `docs/reference/README.md` before changing API, client, CLI, source, schema, state, or precedence contracts.
+- Read `docs/operations/README.md` before changing development, verification, deployment, repair, or issue workflows.
+- Read `docs/design/system.md` before changing website primitives, styling, themes, or layout.
 - Prefer the right end state. Do not add legacy aliases, compatibility shims, dual-write paths, or website features outside the v1 contract.
 - Keep changes small and reviewable. Preserve unfamiliar work.
 - Use Bun and the repository's pinned toolchain.
@@ -22,9 +23,9 @@
 - Exact serial and registration numbers are identities. Never treat them as fuzzy search terms.
 - Apply filtering and sorting on the server before pagination and count.
 - Source-artifact and data state are database-backed. Worker completion must be observable across processes.
-- USPTO artifacts update perpetual live Class 025 tables transactionally; ingestion progress never gates reads.
-- The exact pinned annual baseline is followed by calendar-contiguous daily updates.
-- Public data-through date is the contiguous complete frontier, not the newest downloaded artifact.
+- USPTO artifacts update perpetual live trademark tables in bounded transactions; ingestion progress never gates reads.
+- Annual and daily are provider packaging, not separate application modes or query-visible datasets.
+- Latest Processed and Needs Attention describe source currentness without implying that other database rows are unavailable.
 
 ## Code shape
 
@@ -99,12 +100,12 @@ Before any PRD commit, PR, merge, or closeout:
 
 ### Issue tracker
 
-Issues are tracked in Linear under the Products (`PRD`) team and routed with the `Trademark Turtle` label. See `docs/agents/issue-tracker.md`.
+Issues are tracked in Linear under the Products (`PRD`) team and routed with the `Trademark Turtle` label. See `docs/operations/issues.md`.
 
 ### Triage labels
 
-The Linear Products team uses the canonical triage label vocabulary. See `docs/agents/triage-labels.md`.
+The Linear Products team uses the canonical triage label vocabulary in `docs/operations/issues.md`.
 
 ### Domain docs
 
-This is a single-context repository. See `docs/agents/domain.md`.
+This is a single-context repository. Root `CONTEXT.md` owns the shared glossary; `docs/README.md` routes durable contracts and decisions.
