@@ -1,5 +1,5 @@
 ---
-summary: Routes Trademark Turtle product contracts for the service, search and reports, and source status.
+summary: Routes Trademark Turtle product contracts for the service, search and reports, and public status with operator details.
 read_when:
   - locating the user-facing contract behind a website, API, client, or operator change
   - deciding whether a behavior belongs in service scope, trademark results, or source visibility
@@ -14,4 +14,4 @@ tours.
 | --- | --- |
 | Service scope, users, authentication, clients, and non-goals | [Service](service.md) |
 | Search modes, filters, reports, results, and mark detail | [Search and reports](search-and-reports.md) |
-| Latest Processed, Needs Attention, source ledger, and Repair | [Source status](source-status.md) |
+| Public status, operator issues, source ledger, and Repair | [Status](source-status.md) |

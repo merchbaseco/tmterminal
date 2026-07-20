@@ -42,7 +42,7 @@ the worker may still expose older corpus, frontier, and retry concepts.
 | --- | --- |
 | Users, authentication, clients, scope, and non-goals | [Service](product/service.md) |
 | Multi, Split, Wildcard, filters, reports, and mark detail | [Search and reports](product/search-and-reports.md) |
-| Latest Processed, Needs Attention, source files, and Repair | [Source status](product/source-status.md) |
+| Public status, operator issues, source files, and Repair | [Status](product/source-status.md) |
 
 ## Internals
 

@@ -22,7 +22,7 @@ Trademark data is informational, not legal advice. Verify consequential decision
 
 | Interface | Best for |
 | --- | --- |
-| [Website](https://tmturtle.merchbase.co) | Interactive search, reports, trademark detail, API-key management, and source status. |
+| [Website](https://tmturtle.merchbase.co) | Interactive search, reports, trademark detail, API-key management, public status, and help. |
 | HTTP API | Typed integrations with Trademark Turtle search, reports, exact lookups, and text matching. |
 | `@tmturtle/http-client` | TypeScript applications that want the server's native input and output types. |
 | `tt` CLI | JSON-first shell automation and agentic workflows. |

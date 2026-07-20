@@ -10,7 +10,8 @@ read_when:
 Status: Accepted target workflow; it is not executable until the source-state
 migration and operator Repair procedure land.
 
-Repair one Source Artifact at a time from `/ops/sync`. There is no bulk repair,
+Repair one Source Artifact at a time from the operator-only sections of `/status`.
+There is no bulk repair,
 automatic historical replay, or CLI repair command.
 
 ## Before Repair

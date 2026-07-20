@@ -26,7 +26,8 @@ products.
 - Match listing text against known marks.
 - Browse recent activity and generated reports.
 - Inspect mark identity, ownership, classes, goods, status, and provenance.
-- Inspect source freshness and active ingestion issues.
+- Inspect public source freshness and recent processing activity.
+- Inspect active ingestion issues as an operator.
 - Create and revoke API keys.
 
 Trademark data is informational, not legal advice. Users verify consequential
@@ -39,10 +40,11 @@ Every data procedure requires one authenticated account context.
 - The website uses the shared MerchBase Clerk configuration.
 - The HTTP client and CLI use Trademark Turtle API keys.
 - API-key management requires a Clerk session.
-- Source operations require a Clerk session plus the database-backed operator
-  role.
-- Process and database readiness is the only anonymous route and exposes no
-  trademark data.
+- Source diagnostics and operations require a Clerk session plus the
+  database-backed operator role.
+- Process and database readiness plus aggregate source status are anonymous.
+  Public status exposes catalog counts and processing activity, not mark records,
+  source errors, or repair details.
 
 A request selects exactly one credential. Supplying Clerk and API-key
 credentials together is invalid; a failed credential never falls through to
@@ -59,7 +61,7 @@ that it was saved. Revocation is immediate and idempotent.
 
 | Surface | Role |
 | --- | --- |
-| Website | Thin private search, reports, mark detail, source status, and key management. |
+| Website | Private search, reports, mark detail, and account management plus public Status and Help pages. |
 | `@tmturtle/http-client` | Typed programmatic access derived from the server router. |
 | `@tmturtle/cli` / `tt` | JSON-first shell automation over API-key-authorized procedures. |
 | MerchBase | Downstream consumer that owns its own adapter and product policy. |
@@ -76,7 +78,8 @@ runtime configuration.
 
 V1 excludes:
 
-- anonymous trademark routes or a public marketing site;
+- anonymous trademark search, reports, or mark-detail routes, or a public
+  marketing site;
 - billing, plans, teams, watches, alerts, or email delivery;
 - filing, prosecution, legal-risk scores, or legal advice;
 - design-mark image similarity;
@@ -86,6 +89,6 @@ V1 excludes:
 ## Related
 
 - [Search and reports](search-and-reports.md)
-- [Source status](source-status.md)
+- [Status](source-status.md)
 - [Architecture](../internals/architecture.md)
 - [Thin website decision](../decisions/thin-website-v1.md)

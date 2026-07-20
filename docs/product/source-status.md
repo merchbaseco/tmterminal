@@ -1,17 +1,17 @@
 ---
-summary: Defines the operator-quality source status page, Latest Processed, Needs Attention, source-file ledger, and per-file Repair behavior.
+summary: Defines the public Status page, Latest Processed, operator-only issues and source ledger, and per-file Repair behavior.
 read_when:
-  - changing `/ops/sync`, freshness copy, source-file visibility, issue presentation, or repair controls
+  - changing `/status`, freshness copy, source-file visibility, issue presentation, or repair controls
   - deciding whether an ingestion condition is normal progress, a file issue, or a system failure
 ---
 
-# Source Status
+# Status
 
-Status: Accepted target behavior; current `/ops/sync` remains read-only until
-the ingestion migration adds the per-file Repair action.
+Status: Accepted target behavior; operator Repair remains target-only.
 
-The source status page explains how current the database is and what needs human
-attention. It never controls whether trademark data is searchable.
+The Status page publicly explains how current the database is. Operator-only
+sections explain what needs human attention. Neither controls whether trademark
+data is searchable.
 
 The page uses customer-quality language even though its controls are
 operator-only in v1.
@@ -22,15 +22,30 @@ The page leads with two things:
 
 - **Latest Processed.** Newest source coverage date whose validated safe records
   have been applied.
+- **Records processed.** A dated 30-day chart shows how many USPTO source
+  records Trademark Turtle successfully processed each day.
+- **Catalog snapshot.** Total Class 025 trademarks, live trademarks, registered
+  trademarks, and the rolling 30-day source-record count appear as a compact
+  stat row.
 - **Needs Attention.** Active system failures, blocked downloads, and
   application issues with the affected file, a plain-language problem, and the
   required action.
 
 Normal pending, downloaded, or applying work is not an issue. There is no
 corpus health, complete frontier, queue percentage, annual section, or daily
-section.
+section. Processing throughput and source-file issues stay separate; neither
+implies that the rest of the database is unavailable.
 
-## Source Files
+Latest Processed, processing activity, the catalog snapshot, and quiet current
+work are public. They contain no credentials, source errors, or repair details.
+
+## Operator Details
+
+Needs Attention and Source Files render only after the server confirms the
+Clerk account has the operator role. They are never included in the anonymous
+status response.
+
+### Source Files
 
 One ledger keeps a durable row for every discovered source file. It supports:
 
@@ -43,6 +58,9 @@ One ledger keeps a durable row for every discovered source file. It supports:
 - plain-language storage state;
 - technical source coordinates and current error in expanded details.
 
+The ledger loads its server-paged rows through document infinite scroll. It
+never introduces a nested viewport or replaces already loaded rows.
+
 A deleted temporary ZIP reads `Cleaned up`, not `Unavailable`. A blocked older
 file completely covered by later applied source data reads
 `Not downloaded · Covered by newer source data` and is not an active issue.
@@ -54,13 +72,13 @@ masquerade as pending downloads.
 Annual and daily are provider metadata. They do not create separate UI,
 progress, or health concepts.
 
-## Worker Status
+### Worker Status
 
 One current worker row records its last heartbeat, current file, and current
 system error. A heartbeat older than five minutes appears in Needs Attention.
 There is no heartbeat history or global provider retry lane.
 
-## Repair
+### Repair
 
 `Repair` is a per-file operator action.
 
@@ -76,8 +94,10 @@ action remains `Repair`.
 
 ## Access
 
-`/ops/sync` requires a Clerk session and the server-enforced operator role.
-API keys and ordinary authenticated website users cannot mutate source state.
+`/status` and its aggregate status response are public. Needs Attention, Source
+Files, and future Repair actions require a Clerk session plus the server-enforced
+operator role. API keys and ordinary website users cannot read diagnostics or
+mutate source state.
 
 ## Related
 

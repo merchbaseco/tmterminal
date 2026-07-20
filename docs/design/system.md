@@ -27,12 +27,17 @@ Working order:
 ## Visual Language
 
 - Archivo Variable is the sole typeface.
-- Mastheads and primary mark names use heavy condensed display type.
+- Body copy, navigation, metadata, controls, dates, and tooltips use one readable
+  16px/24px body setting. Uppercase utility labels use 12px type with restrained
+  tracking. Nothing runs smaller.
+- Mastheads, primary mark names, search controls, and key catalog statistics may
+  use heavy display type. Avoid intermediate type sizes that create a second
+  hierarchy between body and display.
 - The shared primary is chartreuse `#D7F52A` in light and dark themes.
 - Backgrounds are flat neutrals separated by thin rules.
 - Search is the dominant interaction; results appear directly beneath it.
 - Layouts are typographic rows and documents, not card dashboards.
-- Utility text stays readable: at least 12px, with navigation at 13px or larger.
+- Utility text stays readable at 12px; navigation uses the body setting.
 - Fields and adjacent actions share an exact visual height and vertically
   centered text.
 
@@ -50,6 +55,9 @@ inverting it. Additional mascot illustration is deferred.
 
 ## Layout
 
+- The header and every page use one 120rem maximum-width shell with identical
+  responsive horizontal padding. Full-bleed header rules may span the viewport;
+  navigation, mastheads, and page content share the same inner edges.
 - The empty search masthead fills the brand state and leaves the layout once a
   query is active.
 - Search controls remain prominent and aligned.

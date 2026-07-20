@@ -18,6 +18,7 @@ implementation changes the router.
 
 | Procedures | Credential |
 | --- | --- |
+| Aggregate `/api/status` | Anonymous. |
 | Trademark reads | Clerk session or API key. |
 | Safe sync status | Clerk session or API key. |
 | Account identity | Clerk session or API key. |
@@ -96,10 +97,15 @@ revoked rows remain for audit and last-used updates are coalesced.
 
 ## Source Operations
 
+`GET /api/status` returns Latest Processed, 30 days of source-record processing
+activity, aggregate Class 025 catalog counts, and quiet current work. It exposes
+no issue details, source-file ledger, credentials, or repair actions.
+
 Current private operator procedures are `ops.sync.status` and
-`ops.sync.artifacts`. They return worker/provider summary and stable read-only
-source-file pages. They have no mutation or Repair procedure yet and are not
-exported by the public HTTP client or CLI.
+`ops.sync.artifacts`. They return Latest Processed, 30 days of source-record
+processing throughput, catalog totals, active issues, current work, provider
+state, and stable read-only source-file pages. The procedures have no mutation
+or Repair procedure yet and are not exported by the public HTTP client or CLI.
 
 ## Errors
 

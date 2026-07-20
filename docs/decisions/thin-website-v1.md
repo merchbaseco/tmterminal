@@ -13,17 +13,18 @@ Date: 2026-07-14
 
 ## Context
 
-Direct search, reports, mark detail, source visibility, and API-key self-service
-are useful without requiring MerchBase. A headless-only service would make those
-jobs unnecessarily difficult, while a full SaaS marketing and dashboard surface
-would distract from the trademark service.
+Direct search, reports, mark detail, source visibility, basic product help, and
+API-key self-service are useful without requiring MerchBase. A headless-only
+service would make those jobs unnecessarily difficult, while a full SaaS
+marketing and dashboard surface would distract from the trademark service.
 
 ## Decision
 
 V1 includes a private Vite/React website using shared MerchBase Clerk
-authentication. It exposes search, reports, mark detail, API-key management, and
-operator source status. Stock COSS UI and the documented visual system keep the
-surface narrow.
+authentication. It exposes authenticated search, reports, mark detail, and
+API-key management; Status and Help are public. Source errors, file details, and
+repair remain operator-only. Stock COSS UI and the documented visual system keep
+the surface narrow.
 
 ## Consequences
 
@@ -32,4 +33,5 @@ surface narrow.
 - The server remains the source of truth for data and authorization.
 - Marketing pages, billing, teams, and a custom dashboard system remain outside
   v1.
-- No anonymous trademark-data route is introduced for visual convenience.
+- Public status is aggregate operational information, not anonymous trademark
+  search or mark-detail access.
