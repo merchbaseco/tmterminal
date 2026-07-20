@@ -11,5 +11,5 @@ bun install --frozen-lockfile
 name = "dev"
 icon = "run"
 command = '''
-bun run dev
+./scripts/dev
 '''
