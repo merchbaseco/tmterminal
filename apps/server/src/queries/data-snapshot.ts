@@ -1,7 +1,6 @@
 import type postgres from "postgres";
 
 export interface DataSnapshot {
-  dataThroughDate: string | null;
   dataVersion: string;
 }
 
@@ -11,9 +10,10 @@ export async function readDataSnapshot(
   transaction: postgres.TransactionSql
 ): Promise<DataSnapshot> {
   const [snapshot] = await transaction<DataSnapshot[]>`
-    select state.complete_through_date::text as "dataThroughDate",
-      coalesce(state.version, 0)::text as "dataVersion"
-    from (select 1) anchor left join data_state state on state.id = 'uspto'
+    select coalesce(state.version, 0)::text as "dataVersion"
+    from (select 1) anchor
+    left join data_state state on state.id = 'uspto'
+    group by state.version
   `;
   if (!snapshot) {
     throw new Error("Trademark data state is unavailable");

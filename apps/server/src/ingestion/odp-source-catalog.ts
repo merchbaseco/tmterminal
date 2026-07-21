@@ -287,9 +287,10 @@ export function createOdpSourceCatalog(options: {
       };
     },
 
-    async download(downloadUrl) {
+    async download({ filename, product }) {
+      const downloadUrl = `${odpOrigin}/api/v1/datasets/products/files/${encodeURIComponent(product)}/${encodeURIComponent(filename)}`;
       if (!odpDownloadUrl.safeParse(downloadUrl).success) {
-        throw new SourceContractError("USPTO ODP returned an unauthorized download URL");
+        throw new SourceContractError("USPTO ODP download identity is invalid");
       }
       const redirect = await send(
         fetcher,

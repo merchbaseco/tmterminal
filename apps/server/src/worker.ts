@@ -38,11 +38,6 @@ const ingestion = createTrademarkIngestion({
   artifactStore,
   database,
   extractXml: extractZipXml,
-  retry: {
-    baseMs: milliseconds("USPTO_RETRY_BASE_MS", 30_000),
-    jitter: Math.random,
-    maxMs: milliseconds("USPTO_RETRY_MAX_MS", 6 * 60 * 60 * 1000),
-  },
   sourceCatalog: createOdpSourceCatalog({
     apiKey: usptoApiKey,
     timeoutMs: requestTimeoutMs,
@@ -55,15 +50,20 @@ const scheduler = createIngestionScheduler({
 const sync = createSyncService(database);
 let stopping = false;
 let heartbeatTimer: Timer | undefined;
+let firstReconciliationComplete = false;
 
 async function checkDatabase() {
   await database`select 1`;
 }
 
-async function markReady() {
+async function refreshHealth() {
+  await ingestion.pulse();
   await checkDatabase();
   const status = await sync.status();
-  await Bun.write(healthFile, isWorkerReady(status.activeState) ? String(Date.now()) : "0");
+  await Bun.write(
+    healthFile,
+    isWorkerReady(status.activeState, firstReconciliationComplete) ? String(Date.now()) : "0"
+  );
 }
 
 async function stop() {
@@ -87,15 +87,17 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 
 await Bun.write(healthFile, "0");
 await checkDatabase();
-await scheduler.start();
-const firstReconciliation = await scheduler.waitForFirstReconciliation();
-if (firstReconciliation.ok) {
-  await markReady();
-}
+await ingestion.initialize();
 heartbeatTimer = setInterval(() => {
-  markReady().catch(async (error) => {
+  refreshHealth().catch(async (error) => {
     console.error("Worker database readiness failed", error);
     await database.end({ timeout: 1 });
     process.exit(1);
   });
 }, 10_000);
+await scheduler.start();
+const firstReconciliation = await scheduler.waitForFirstReconciliation();
+if (firstReconciliation.ok) {
+  firstReconciliationComplete = true;
+  await refreshHealth();
+}

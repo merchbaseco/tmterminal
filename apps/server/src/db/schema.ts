@@ -18,19 +18,27 @@ import {
 
 import { markSearchStatusSql } from "../search/status-policy.ts";
 
-export const sourceLaneStatus = pgEnum("source_lane_status", ["ready", "backoff", "stopped"]);
-export const sourceArtifactDownloadState = pgEnum("source_artifact_download_state", [
+export const sourceArtifactDownloadState = pgEnum("source_artifact_download_state_v2", [
   "pending",
   "downloading",
-  "complete",
-  "failed",
-  "unavailable",
+  "downloaded",
+  "blocked",
 ]);
-export const sourceArtifactProjectionState = pgEnum("source_artifact_projection_state", [
+export const sourceArtifactApplicationState = pgEnum("source_artifact_application_state", [
   "pending",
-  "projecting",
+  "applying",
   "complete",
-  "failed",
+  "needs_attention",
+]);
+export const sourceArtifactProcessingDisposition = pgEnum(
+  "source_artifact_processing_disposition",
+  ["required", "deferred", "covered"]
+);
+export const workerActivity = pgEnum("worker_activity", [
+  "idle",
+  "discovering",
+  "downloading",
+  "applying",
 ]);
 
 export const account = pgTable("account", {
@@ -80,50 +88,66 @@ export const roleAssignment = pgTable(
   (table) => [primaryKey({ columns: [table.accountId, table.role] })]
 );
 
-export const sourceLane = pgTable("source_lane", {
-  currentError: text("current_error"),
-  failureCount: integer("failure_count").notNull().default(0),
-  id: text("id").primaryKey(),
-  nextEligibleAt: timestamp("next_eligible_at", { withTimezone: true }),
-  status: sourceLaneStatus("status").notNull().default("ready"),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
-
 export const sourceArtifact = pgTable(
   "source_artifact",
   {
+    applicationCompletedAt: timestamp("application_completed_at", { withTimezone: true }),
+    applicationState: sourceArtifactApplicationState("application_state")
+      .notNull()
+      .default("pending"),
+    appliedRecordCount: integer("applied_record_count").notNull().default(0),
     bytes: bigint("bytes", { mode: "number" }),
-    downloadError: text("download_error"),
+    contentRevision: integer("content_revision").notNull().default(1),
+    currentError: text("current_error"),
     downloadedAt: timestamp("downloaded_at", { withTimezone: true }),
     downloadRequestCount: integer("download_request_count").notNull().default(0),
     downloadResponseState: jsonb("download_response_state"),
     downloadState: sourceArtifactDownloadState("download_state").notNull().default("pending"),
-    downloadUrl: text("download_url").notNull(),
     expectedBytes: bigint("expected_bytes", { mode: "number" }).notNull(),
     filename: text("filename").notNull(),
     id: uuid("id").primaryKey(),
     objectKey: text("object_key"),
+    parserVersion: text("parser_version"),
     physicalRecordCount: integer("physical_record_count").notNull().default(0),
+    processingDisposition: sourceArtifactProcessingDisposition("processing_disposition")
+      .notNull()
+      .default("required"),
     product: text("product").notNull(),
     projectedMarkCount: integer("projected_mark_count").notNull().default(0),
-    projectionCompletedAt: timestamp("projection_completed_at", { withTimezone: true }),
-    projectionError: text("projection_error"),
-    projectionState: sourceArtifactProjectionState("projection_state").notNull().default("pending"),
-    projectionVersion: text("projection_version"),
+    selectedBroadFromDate: date("selected_broad_from_date"),
+    selectedBroadToDate: date("selected_broad_to_date"),
     sha256: varchar("sha256", { length: 64 }),
     sourceFromDate: date("source_from_date").notNull(),
     sourceToDate: date("source_to_date").notNull(),
+    unresolvedRecordCount: integer("unresolved_record_count").notNull().default(0),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     uniqueIndex("source_artifact_product_filename_unique").on(table.product, table.filename),
     index("source_artifact_download_state_filename_idx").on(table.downloadState, table.filename),
-    index("source_artifact_projection_state_filename_idx").on(
-      table.projectionState,
+    index("source_artifact_application_state_filename_idx").on(
+      table.applicationState,
+      table.filename
+    ),
+    index("source_artifact_queue_idx").on(
+      table.processingDisposition,
+      table.downloadState,
+      table.sourceToDate,
+      table.sourceFromDate,
       table.filename
     ),
   ]
 );
+
+export const workerStatus = pgTable("worker_status", {
+  activity: workerActivity("activity").notNull().default("idle"),
+  currentError: text("current_error"),
+  currentFilename: text("current_filename"),
+  id: text("id").primaryKey(),
+  lastDiscoveryAt: timestamp("last_discovery_at", { withTimezone: true }),
+  lastHeartbeatAt: timestamp("last_heartbeat_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const mark = pgTable(
   "mark",
@@ -135,10 +159,13 @@ export const mark = pgTable(
     registrationNumber: text("registration_number"),
     searchStatus: text("search_status").generatedAlwaysAs(markSearchStatusSql),
     serialNumber: text("serial_number").notNull(),
+    sourceContentRevision: integer("source_content_revision").notNull().default(1),
     sourceFilename: text("source_filename").notNull(),
+    sourceParserVersion: text("source_parser_version").notNull().default("uspto-projection-v1"),
     sourcePhysicalRecordIndex: integer("source_physical_record_index").notNull(),
     sourceProduct: text("source_product").notNull(),
     sourceSha256: varchar("source_sha256", { length: 64 }).notNull(),
+    sourceSnapshotHash: varchar("source_snapshot_hash", { length: 64 }).notNull().default(""),
     sourceTransactionDate: date("source_transaction_date"),
     statusCode: text("status_code"),
     statusDate: date("status_date"),
@@ -262,8 +289,20 @@ export const markStatusEvent = pgTable(
   ]
 );
 
+export const trademarkRecency = pgTable("trademark_recency", {
+  contentRevision: integer("content_revision").notNull(),
+  parserVersion: text("parser_version").notNull(),
+  serialNumber: text("serial_number").primaryKey(),
+  snapshotHash: varchar("snapshot_hash", { length: 64 }).notNull(),
+  sourceFilename: text("source_filename").notNull(),
+  sourcePhysicalRecordIndex: integer("source_physical_record_index").notNull(),
+  sourceProduct: text("source_product").notNull(),
+  sourceSha256: varchar("source_sha256", { length: 64 }).notNull(),
+  sourceTransactionDate: date("source_transaction_date").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const dataState = pgTable("data_state", {
-  completeThroughDate: date("complete_through_date"),
   id: text("id").primaryKey(),
   lastSuccessfulUpdateAt: timestamp("last_successful_update_at", { withTimezone: true }),
   version: bigint("version", { mode: "number" }).notNull().default(0),

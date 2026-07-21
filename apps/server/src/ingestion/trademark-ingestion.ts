@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import type postgres from "postgres";
 
 import { lockIngestion } from "../queries/ingestion-lock.ts";
-import { annualBaselineV1Artifacts } from "./annual-baseline-v1.ts";
 import { ArtifactIntegrityError, type ArtifactStore } from "./artifact-store.ts";
 import { markVersions } from "./mark-types.ts";
 import {
@@ -14,57 +13,57 @@ import {
   type SourceResponseState,
   SourceTransportError,
 } from "./source-catalog.ts";
+import { applyTrademarkBatch } from "./trademark-application.ts";
 import {
-  type MarkUpsertProjection,
   type SourceProduct,
   streamTrademarkProjections,
-  type TrademarkProjection,
+  TrademarkSourceError,
 } from "./trademark-projection.ts";
+import { ArtifactArchiveError } from "./zip-artifact-xml.ts";
 
-const annualProduct = "TRTYRAP";
-const dailyProduct = "TRTDXFAP";
-const dailyProductTitle = "Trademark Full Text XML Data (No Images) – Daily Applications";
-const annualBaselineFromDate = "1884-04-07";
-const annualBaselineToDate = "2025-12-31";
-const expectedAnnualArtifacts = 91;
-const maxProviderAttempts = 8;
-const statusEventInsertBatchSize = 250;
-const dailyDiscoveryIntervalMs = 24 * 60 * 60 * 1000;
-const interruptedDownloadError = "Download interrupted before retention";
+const supportedProducts = ["TRTYRAP", "TRTDXFAP"] as const;
+const expectedFrequency: Record<SourceProduct, string> = {
+  TRTDXFAP: "daily",
+  TRTYRAP: "yearly",
+};
+const discoveryIntervalMs = 24 * 60 * 60 * 1000;
+const discoveryInsertBatchSize = 250;
+const interruptedDownloadError = "Download interrupted before verified bytes were retained";
 
 type Database = postgres.Sql | postgres.TransactionSql;
 
 interface ArtifactRow {
-  downloadState: "complete" | "downloading" | "failed" | "pending" | "unavailable";
+  applicationState: "applying" | "complete" | "needs_attention" | "pending";
+  contentRevision: number;
+  downloadState: "blocked" | "downloaded" | "downloading" | "pending";
+  expectedBytes: string;
   filename: string;
   id: string;
   objectKey: string | null;
+  parserVersion: string | null;
   product: SourceProduct;
-  projectionState: "complete" | "failed" | "pending" | "projecting";
-  projectionVersion: string | null;
   sha256: string | null;
+  sourceFromDate: string;
   sourceToDate: string;
 }
 
 export interface TrademarkIngestionStatus {
-  annualCompleteArtifactCount: number;
-  annualProjectedMarkCount: number;
-  completeThroughDate: string | null;
-  currentArtifact: { filename: string; state: "downloading" | "projecting" } | null;
+  attentionCount: number;
+  currentArtifact: {
+    filename: string;
+    state: "applying" | "discovering" | "downloading";
+  } | null;
   dataVersion: number;
-  expectedArtifactCount: number;
-  failedArtifactCount: number;
-  failedArtifactUpdatedAt: Date | null;
-  lane: {
-    currentError: string | null;
-    failureCount: number;
-    nextEligibleAt: Date | null;
-    status: "backoff" | "ready" | "stopped";
-    updatedAt: Date;
-  };
   lastSuccessfulUpdateAt: Date | null;
+  latestProcessedDate: string | null;
   pendingArtifactCount: number;
-  unavailableArtifactCount: number;
+  worker: {
+    activity: "applying" | "discovering" | "downloading" | "idle";
+    currentError: string | null;
+    lastDiscoveryAt: Date | null;
+    lastHeartbeatAt: Date | null;
+    updatedAt: Date | null;
+  };
 }
 
 export function createTrademarkIngestion(options: {
@@ -72,26 +71,22 @@ export function createTrademarkIngestion(options: {
   database: postgres.Sql;
   extractXml: (archivePath: string) => Promise<import("node:stream").Readable>;
   now?: () => Date;
-  retry: { baseMs: number; jitter: () => number; maxMs: number };
   sourceCatalog: SourceCatalog;
 }) {
   const now = options.now ?? (() => new Date());
 
-  async function cleanupOrphanArtifact() {
-    const retained = new Set(
-      (
-        await options.database<Array<{ objectKey: string }>>`
-          select object_key as "objectKey" from source_artifact where object_key is not null
-        `
-      ).map(({ objectKey }) => objectKey)
-    );
-    for await (const objectKey of options.artifactStore.listObjectKeys()) {
-      if (!retained.has(objectKey)) {
-        await options.artifactStore.remove(objectKey);
-        return objectKey;
-      }
-    }
-    return null;
+  async function heartbeat(
+    activity: TrademarkIngestionStatus["worker"]["activity"] = "idle",
+    currentFilename: string | null = null,
+    currentError: string | null = null
+  ) {
+    await options.database`
+      insert into worker_status (id, activity, current_filename, current_error, last_heartbeat_at, updated_at)
+      values ('uspto', ${activity}, ${currentFilename}, ${currentError}, ${now()}, ${now()})
+      on conflict (id) do update set activity = excluded.activity,
+        current_filename = excluded.current_filename, current_error = excluded.current_error,
+        last_heartbeat_at = excluded.last_heartbeat_at, updated_at = excluded.updated_at
+    `;
   }
 
   async function cleanupArtifact(artifactId: string, objectKey: string) {
@@ -102,706 +97,717 @@ export function createTrademarkIngestion(options: {
     `;
   }
 
-  async function recordProviderFailure(error: unknown, database: Database = options.database) {
-    const at = now();
-    const [lane] = await database<Array<{ failureCount: number }>>`
-      select failure_count as "failureCount" from source_lane where id = 'uspto-odp'
-    `;
-    const failureCount = (lane?.failureCount ?? 0) + 1;
-    const retryable = isRetryable(error) && failureCount < maxProviderAttempts;
-    const permanent = !retryable;
-    const delay = Math.min(options.retry.maxMs, options.retry.baseMs * 2 ** (failureCount - 1));
-    const exponentialEligibility =
-      at.getTime() + delay + Math.floor(delay * 0.2 * options.retry.jitter());
-    const providerEligibility =
-      error instanceof SourceHttpError ? (headerEligibility(error, at)?.getTime() ?? 0) : 0;
-    const nextEligibleAt = retryable
-      ? new Date(Math.max(exponentialEligibility, providerEligibility))
-      : null;
-    await database`
-      insert into source_lane (id, status, failure_count, current_error, next_eligible_at, updated_at)
-      values ('uspto-odp', ${permanent ? "stopped" : "backoff"}, ${failureCount}, ${safeError(error)}, ${nextEligibleAt}, ${at})
-      on conflict (id) do update set status = excluded.status, failure_count = excluded.failure_count,
-        current_error = excluded.current_error, next_eligible_at = excluded.next_eligible_at,
-        updated_at = excluded.updated_at
-    `;
-    return { action: permanent ? ("provider-stopped" as const) : ("provider-backoff" as const) };
-  }
-
-  async function markProviderSuccess(database: Database, nextEligibleAt: Date | null = null) {
-    await database`
-      insert into source_lane (id, status, failure_count, current_error, next_eligible_at, updated_at)
-      values ('uspto-odp', 'ready', 0, null, ${nextEligibleAt}, ${now()})
-      on conflict (id) do update set status = 'ready', failure_count = 0, current_error = null,
-        next_eligible_at = excluded.next_eligible_at, updated_at = excluded.updated_at
-    `;
-  }
-
-  async function retainDiscoveredArtifacts(
-    product: SourceProduct,
-    artifacts: DiscoveredArtifact[]
-  ) {
-    const nextEligibleAt =
-      product === dailyProduct ? new Date(now().getTime() + dailyDiscoveryIntervalMs) : null;
-    const inserted = await options.database.begin(async (transaction) => {
-      await lockIngestion(transaction);
-      await assertRetainedArtifactIdentities(transaction, product, artifacts);
-      const rows = await transaction<Array<{ id: string }>>`
-        insert into source_artifact ${transaction(
-          artifacts.map((artifact) => ({
-            download_url: artifact.downloadUrl,
-            expected_bytes: artifact.bytes,
-            filename: artifact.filename,
-            id: randomUUID(),
-            product,
-            source_from_date: artifact.fromDate,
-            source_to_date: artifact.toDate,
-          }))
-        )}
-        on conflict (product, filename) do nothing returning id
-      `;
-      await markProviderSuccess(transaction, nextEligibleAt);
-      return rows;
-    });
-    return {
-      action: "discovered" as const,
-      artifactCount: inserted.length,
-      product,
-    };
-  }
-
-  async function assertRetainedArtifactIdentities(
-    database: Database,
-    product: SourceProduct,
-    artifacts: DiscoveredArtifact[]
-  ) {
-    if (artifacts.length === 0) {
-      return;
-    }
-    const expected = new Map(artifacts.map((artifact) => [artifact.filename, artifact]));
-    const retained = await database<
-      Array<{ downloadUrl: string; expectedBytes: string; filename: string }>
-    >`
-      select filename, download_url as "downloadUrl", expected_bytes::text as "expectedBytes"
-      from source_artifact where product = ${product}
-        and filename in ${database([...expected.keys()])}
-    `;
-    for (const artifact of retained) {
-      const discovered = expected.get(artifact.filename);
-      if (
-        !discovered ||
-        artifact.downloadUrl !== discovered.downloadUrl ||
-        artifact.expectedBytes !== String(discovered.bytes)
-      ) {
-        throw new SourceContractError(
-          `Source catalog changed retained artifact identity: ${artifact.filename}`
-        );
-      }
-    }
-  }
-
-  async function retainSelectedArtifacts(product: SourceProduct, artifacts: DiscoveredArtifact[]) {
+  async function tryCleanupCompletedArtifact(artifactId: string, objectKey: string) {
     try {
-      return await retainDiscoveredArtifacts(product, artifacts);
+      await cleanupArtifact(artifactId, objectKey);
+      return true;
     } catch (error) {
-      if (error instanceof SourceContractError) {
-        return recordProviderFailure(error);
-      }
-      throw error;
+      console.error(`Completed artifact cleanup failed for ${artifactId}`, error);
+      return false;
     }
+  }
+
+  async function cleanupOneObject() {
+    const retained = new Set(
+      (
+        await options.database<Array<{ objectKey: string }>>`
+          select object_key as "objectKey" from source_artifact where object_key is not null
+        `
+      ).map(({ objectKey }) => objectKey)
+    );
+    for await (const objectKey of options.artifactStore.listObjectKeys()) {
+      if (!retained.has(objectKey)) {
+        await options.artifactStore.remove(objectKey);
+        return { action: "cleanup-orphan" as const, objectKey };
+      }
+    }
+    const [artifact] = await options.database<Array<{ id: string; objectKey: string }>>`
+      select id, object_key as "objectKey" from source_artifact
+      where application_state = 'complete' and object_key is not null
+      order by updated_at, filename limit 1
+    `;
+    if (!artifact) {
+      return null;
+    }
+    return (await tryCleanupCompletedArtifact(artifact.id, artifact.objectKey))
+      ? { action: "cleanup-artifact" as const, artifactId: artifact.id }
+      : null;
+  }
+
+  async function recoverInterruptedDownload() {
+    const [candidate] = await options.database<
+      Array<{ expectedBytes: string; filename: string; id: string }>
+    >`
+      select expected_bytes::text as "expectedBytes", filename, id from source_artifact
+      where download_state = 'downloading' and object_key is null
+      order by source_to_date, source_from_date, filename limit 1
+    `;
+    if (!candidate) {
+      return null;
+    }
+    const expectedBytes = Number(candidate.expectedBytes);
+    if (!Number.isSafeInteger(expectedBytes) || expectedBytes < 0) {
+      throw new Error(`Source artifact ${candidate.id} has an invalid expected byte count`);
+    }
+    const stored = await options.artifactStore.recoverPut(candidate.id, expectedBytes);
+    return options.database.begin(async (transaction) => {
+      await lockIngestion(transaction);
+      const [artifact] = await transaction<Array<{ filename: string; id: string }>>`
+        select id, filename from source_artifact where id = ${candidate.id}
+          and download_state = 'downloading' and object_key is null for update
+      `;
+      if (!artifact) {
+        return null;
+      }
+      if (stored) {
+        await transaction`
+          update source_artifact set download_state = 'downloaded', application_state = 'pending',
+            sha256 = ${stored.sha256}, bytes = ${stored.bytes}, object_key = ${stored.objectKey},
+            current_error = null, downloaded_at = ${now()}, updated_at = ${now()}
+          where id = ${artifact.id}
+        `;
+        return {
+          action: "artifact-downloaded" as const,
+          artifactId: artifact.id,
+          filename: artifact.filename,
+          sha256: stored.sha256,
+        };
+      }
+      await transaction`
+        update source_artifact set download_state = 'blocked', current_error = ${interruptedDownloadError},
+          updated_at = ${now()} where id = ${artifact.id}
+      `;
+      await resolveCoveredArtifacts(transaction);
+      return {
+        action: "artifact-download-blocked" as const,
+        artifactId: artifact.id,
+        filename: artifact.filename,
+        reason: interruptedDownloadError,
+      };
+    });
+  }
+
+  function reserveApplication() {
+    return options.database.begin(async (transaction) => {
+      await lockIngestion(transaction);
+      const [artifact] = await transaction<ArtifactRow[]>`
+        select application_state as "applicationState", content_revision as "contentRevision",
+          download_state as "downloadState", expected_bytes::text as "expectedBytes", filename, id,
+          object_key as "objectKey", parser_version as "parserVersion", product, sha256,
+          source_from_date::text as "sourceFromDate", source_to_date::text as "sourceToDate"
+        from source_artifact
+        where download_state = 'downloaded' and object_key is not null and sha256 is not null
+          and application_state in ('pending', 'applying')
+        order by source_to_date, source_from_date, filename limit 1 for update
+      `;
+      if (!artifact) {
+        return null;
+      }
+      await transaction`
+        update source_artifact set application_state = 'applying', current_error = null,
+          updated_at = ${now()} where id = ${artifact.id}
+      `;
+      return { ...artifact, applicationState: "applying" as const };
+    });
+  }
+
+  async function applyArtifact(artifact: ArtifactRow) {
+    if (!(artifact.objectKey && artifact.sha256)) {
+      throw new Error(`Source artifact ${artifact.id} has no retained ZIP`);
+    }
+    await heartbeat("applying", artifact.filename);
+    const archivePath = await options.artifactStore.openFile(artifact.objectKey);
+    const coordinate = {
+      contentRevision: artifact.contentRevision,
+      filename: artifact.filename,
+      parserVersion: markVersions.projection,
+      product: artifact.product,
+      sha256: artifact.sha256,
+    };
+    let validation: Awaited<ReturnType<typeof streamTrademarkProjections>>;
+    try {
+      validation = await streamTrademarkProjections({
+        coordinate,
+        onBatch: async (batch) => ({
+          appliedRecordCount: batch.length,
+          firstError: null,
+          materialChangeCount: 0,
+          unresolvedRecordCount: 0,
+        }),
+        xml: await options.extractXml(archivePath),
+      });
+    } catch (error) {
+      if (!(error instanceof ArtifactArchiveError || error instanceof TrademarkSourceError)) {
+        throw error;
+      }
+      const reason = safeError(error);
+      await options.database`
+        update source_artifact set application_state = 'needs_attention', current_error = ${reason},
+          parser_version = ${markVersions.projection}, updated_at = ${now()} where id = ${artifact.id}
+      `;
+      await heartbeat("idle");
+      return {
+        action: "artifact-needs-attention" as const,
+        artifactId: artifact.id,
+        filename: artifact.filename,
+        reason,
+      };
+    }
+    if (validation.physicalRecordCount === 0) {
+      const reason = "Source artifact contains no physical records";
+      await options.database`
+        update source_artifact set application_state = 'needs_attention', current_error = ${reason},
+          parser_version = ${markVersions.projection}, updated_at = ${now()} where id = ${artifact.id}
+      `;
+      await heartbeat("idle");
+      return {
+        action: "artifact-needs-attention" as const,
+        artifactId: artifact.id,
+        filename: artifact.filename,
+        reason,
+      };
+    }
+
+    const application = await streamTrademarkProjections({
+      coordinate,
+      onBatch: (batch) =>
+        options.database.begin(async (transaction) => {
+          await lockIngestion(transaction);
+          return applyTrademarkBatch(transaction, batch, now());
+        }),
+      xml: await options.extractXml(archivePath),
+    });
+    const unresolvedRecordCount = Math.max(
+      validation.unresolvedRecordCount,
+      application.unresolvedRecordCount
+    );
+    const firstError = validation.firstError ?? application.firstError;
+    const applicationState = unresolvedRecordCount === 0 ? "complete" : "needs_attention";
+    await options.database.begin(async (transaction) => {
+      await lockIngestion(transaction);
+      await transaction`
+        update source_artifact set application_state = ${applicationState},
+          applied_record_count = ${application.appliedRecordCount},
+          application_completed_at = ${now()}, current_error = ${firstError},
+          parser_version = ${markVersions.projection},
+          physical_record_count = ${application.physicalRecordCount},
+          projected_mark_count = ${application.projectedMarkCount},
+          unresolved_record_count = ${unresolvedRecordCount}, updated_at = ${now()}
+        where id = ${artifact.id}
+      `;
+      if (applicationState === "complete") {
+        await resolveCoveredArtifacts(transaction);
+      }
+    });
+    if (applicationState === "complete") {
+      await tryCleanupCompletedArtifact(artifact.id, artifact.objectKey);
+    }
+    await heartbeat("idle");
+    return {
+      action:
+        applicationState === "complete"
+          ? ("artifact-applied" as const)
+          : ("artifact-needs-attention" as const),
+      artifactId: artifact.id,
+      filename: artifact.filename,
+      ...application,
+    };
   }
 
   function reserveDownload() {
     return options.database.begin(async (transaction) => {
       await lockIngestion(transaction);
       const [artifact] = await transaction<ArtifactRow[]>`
-        select id, filename, product, source_to_date::text as "sourceToDate",
-          download_state as "downloadState", projection_state as "projectionState",
-          projection_version as "projectionVersion", object_key as "objectKey", sha256
-        from source_artifact where download_state = 'pending'
-        order by source_from_date, product, filename limit 1
+        select application_state as "applicationState", content_revision as "contentRevision",
+          download_state as "downloadState", expected_bytes::text as "expectedBytes", filename, id,
+          object_key as "objectKey", parser_version as "parserVersion", product, sha256,
+          source_from_date::text as "sourceFromDate", source_to_date::text as "sourceToDate"
+        from source_artifact
+        where processing_disposition = 'required' and download_state = 'pending'
+        order by source_to_date, source_from_date, filename limit 1 for update
       `;
       if (!artifact) {
         return null;
       }
       await transaction`
-        update source_artifact set download_state = 'downloading', download_error = null,
-          download_request_count = download_request_count + 1,
-          download_response_state = null, updated_at = ${now()} where id = ${artifact.id}
+        update source_artifact set download_state = 'downloading', current_error = null,
+          download_request_count = download_request_count + 1, download_response_state = null,
+          updated_at = ${now()} where id = ${artifact.id}
       `;
-      return artifact;
+      return { ...artifact, downloadState: "downloading" as const };
     });
   }
 
   async function downloadArtifact(artifact: ArtifactRow) {
-    const [source] = await options.database<Array<{ downloadUrl: string; expectedBytes: string }>>`
-      select download_url as "downloadUrl", expected_bytes::text as "expectedBytes" from source_artifact where id = ${artifact.id}
-    `;
-    if (!source) {
-      throw new Error(`Reserved source artifact disappeared: ${artifact.id}`);
-    }
-    const expectedBytes = Number(source.expectedBytes);
+    await heartbeat("downloading", artifact.filename);
+    const expectedBytes = Number(artifact.expectedBytes);
     if (!Number.isSafeInteger(expectedBytes) || expectedBytes < 0) {
       throw new Error(`Source artifact ${artifact.id} has an invalid expected byte count`);
     }
-    let stored: Awaited<ReturnType<ArtifactStore["put"]>>;
-    let downloadResponseState: SourceResponseState;
     try {
-      const download = await options.sourceCatalog.download(source.downloadUrl);
-      downloadResponseState = download.responseState;
+      const download = await options.sourceCatalog.download({
+        filename: artifact.filename,
+        product: artifact.product,
+      });
       if (download.expectedBytes !== null && download.expectedBytes !== expectedBytes) {
-        await download.body.cancel(
-          "Source artifact response length changed from its catalog value"
-        );
-        throw new SourceContractError(
-          "Source artifact response length changed from its catalog value"
-        );
+        await download.body.cancel("Source response length changed from catalog metadata");
+        throw new SourceContractError("Source response length changed from catalog metadata");
       }
-      stored = await options.artifactStore.put(download.body, expectedBytes);
-    } catch (error) {
-      return options.database.begin(async (transaction) => {
-        await lockIngestion(transaction);
-        const observedAt = now();
-        const responseState = storedSourceResponseState(error, observedAt);
-        await transaction`
-          update source_artifact set download_state = 'failed', download_error = ${safeError(error)},
-            download_response_state = ${responseState ? transaction.json(responseState) : null}, updated_at = ${observedAt}
-          where id = ${artifact.id}
-        `;
-        return {
-          action: "artifact-download-failed" as const,
-          artifactId: artifact.id,
-          filename: artifact.filename,
-          reason: safeError(error),
-        };
-      });
-    }
-    await options.database.begin(async (transaction) => {
-      await lockIngestion(transaction);
-      await transaction`
-        update source_artifact set download_state = 'complete', projection_state = 'pending',
-          sha256 = ${stored.sha256}, bytes = ${stored.bytes}, object_key = ${stored.objectKey},
-          download_error = null, download_response_state = ${transaction.json({ ...downloadResponseState })},
-          downloaded_at = ${now()}, updated_at = ${now()}
-        where id = ${artifact.id} and download_state = 'downloading'
-      `;
-      await markProviderSuccess(transaction);
-    });
-    return {
-      action: "downloaded" as const,
-      artifactId: artifact.id,
-      filename: artifact.filename,
-      sha256: stored.sha256,
-    };
-  }
-
-  async function projectArtifact(artifact: ArtifactRow) {
-    if (!(artifact.downloadState === "complete" && artifact.objectKey && artifact.sha256)) {
-      throw new Error(`Source artifact ${artifact.id} has no retained ZIP`);
-    }
-    const { sha256 } = artifact;
-    let result: Awaited<ReturnType<typeof streamTrademarkProjections>>;
-    try {
-      const archivePath = await options.artifactStore.openFile(artifact.objectKey);
-      result = await options.database.begin(async (transaction) => {
-        await lockIngestion(transaction);
-        const removed = await transaction<Array<{ serialNumber: string }>>`
-          delete from mark where source_product = ${artifact.product}
-            and source_filename = ${artifact.filename}
-          returning serial_number as "serialNumber"
-        `;
-        const parsed = await streamTrademarkProjections({
-          coordinate: {
-            filename: artifact.filename,
-            product: artifact.product,
-            sha256,
-          },
-          onBatch: (batch) => insertProjectionBatch(transaction, batch),
-          xml: await options.extractXml(archivePath),
-        });
-        if (parsed.physicalRecordCount === 0) {
-          throw new Error("Source artifact contains no physical records");
-        }
-        await transaction`
-          update source_artifact set projection_state = 'complete',
-            projection_version = ${markVersions.projection},
-            physical_record_count = ${parsed.physicalRecordCount},
-            projected_mark_count = ${parsed.projectedMarkCount},
-            projection_completed_at = ${now()}, projection_error = null,
-            updated_at = ${now()} where id = ${artifact.id}
-        `;
-        const materialChangeCount = parsed.materialChangeCount + removed.length;
-        const [coverage] = await transaction<Array<{ completeThroughDate: string | null }>>`
-          select case
-            when count(*) filter (where product = ${annualProduct} and projection_state = 'complete') = ${expectedAnnualArtifacts}
-              then coalesce(
-                min(source_from_date) filter (where product = ${dailyProduct} and projection_state <> 'complete') - 1,
-                max(source_to_date) filter (where product = ${dailyProduct} and projection_state = 'complete'),
-                ${annualBaselineToDate}::date
-              )::text
-            else null
-          end as "completeThroughDate"
-          from source_artifact
-        `;
-        await transaction`
-          insert into data_state (id, version, complete_through_date, last_successful_update_at)
-          values ('uspto', ${materialChangeCount > 0 ? 1 : 0}, ${coverage?.completeThroughDate ?? null}, ${now()})
-          on conflict (id) do update set
-            version = data_state.version + ${materialChangeCount > 0 ? 1 : 0},
-            complete_through_date = excluded.complete_through_date,
-            last_successful_update_at = excluded.last_successful_update_at
-        `;
-        return { ...parsed, materialChangeCount };
-      });
-    } catch (error) {
+      const stored = await options.artifactStore.put(download.body, expectedBytes, artifact.id);
       await options.database.begin(async (transaction) => {
         await lockIngestion(transaction);
         await transaction`
-          update source_artifact set projection_state = 'failed',
-            projection_error = ${safeError(error)}, updated_at = ${now()}
-          where id = ${artifact.id}
+          update source_artifact set download_state = 'downloaded', application_state = 'pending',
+            sha256 = ${stored.sha256}, bytes = ${stored.bytes}, object_key = ${stored.objectKey},
+            current_error = null, download_response_state = ${transaction.json({ ...download.responseState })},
+            downloaded_at = ${now()}, updated_at = ${now()}
+          where id = ${artifact.id} and download_state = 'downloading'
         `;
       });
+      await heartbeat("idle");
       return {
-        action: "artifact-projection-failed" as const,
+        action: "artifact-downloaded" as const,
         artifactId: artifact.id,
         filename: artifact.filename,
-        reason: safeError(error),
+        sha256: stored.sha256,
       };
-    }
-    await cleanupArtifact(artifact.id, artifact.objectKey);
-    return {
-      action: "projected" as const,
-      artifactId: artifact.id,
-      filename: artifact.filename,
-      ...result,
-    };
-  }
-
-  async function reconcileLocalState() {
-    await options.database`
-        insert into source_lane (id, status) values ('uspto-odp', 'ready') on conflict (id) do nothing
-      `;
-    const orphanObjectKey = await cleanupOrphanArtifact();
-    if (orphanObjectKey) {
-      return { action: "cleanup-orphan" as const, objectKey: orphanObjectKey };
-    }
-    const [completedArtifact] = await options.database<Array<{ id: string; objectKey: string }>>`
-      select id, object_key as "objectKey" from source_artifact
-      where projection_state = 'complete' and object_key is not null
-      order by updated_at, filename limit 1
-    `;
-    if (completedArtifact) {
-      await cleanupArtifact(completedArtifact.id, completedArtifact.objectKey);
-      return {
-        action: "cleanup-artifact" as const,
-        artifactId: completedArtifact.id,
-        objectKey: completedArtifact.objectKey,
-      };
-    }
-    const interrupted = await options.database.begin(async (transaction) => {
-      await lockIngestion(transaction);
-      const [artifact] = await transaction<ArtifactRow[]>`
-        select id, filename, product, source_to_date::text as "sourceToDate",
-          download_state as "downloadState", projection_state as "projectionState",
-          projection_version as "projectionVersion", object_key as "objectKey", sha256
-        from source_artifact where download_state = 'downloading' and object_key is null
-        order by filename limit 1 for update
-      `;
-      if (!artifact) {
-        return null;
-      }
-      await transaction`
-        update source_artifact set download_state = 'failed',
-          download_error = ${interruptedDownloadError}, updated_at = ${now()}
-        where id = ${artifact.id}
-      `;
-      return artifact;
-    });
-    if (interrupted) {
-      return {
-        action: "artifact-download-failed" as const,
-        artifactId: interrupted.id,
-        filename: interrupted.filename,
-        reason: interruptedDownloadError,
-      };
-    }
-    const projection = await options.database.begin(async (transaction) => {
-      await lockIngestion(transaction);
-      const [artifact] = await transaction<ArtifactRow[]>`
-        select id, filename, product, source_to_date::text as "sourceToDate",
-          download_state as "downloadState", projection_state as "projectionState",
-          projection_version as "projectionVersion", object_key as "objectKey", sha256
-        from source_artifact
-        where download_state = 'complete' and object_key is not null and sha256 is not null
-          and (projection_state in ('pending', 'projecting')
-            or projection_version is distinct from ${markVersions.projection})
-        order by source_from_date, product, filename limit 1 for update
-      `;
-      if (!artifact) {
-        return null;
-      }
-      if (artifact.projectionState !== "projecting") {
-        await transaction`
-          update source_artifact set projection_state = 'projecting', projection_error = null,
-            updated_at = ${now()} where id = ${artifact.id}
-        `;
-      }
-      return { ...artifact, projectionState: "projecting" as const };
-    });
-    return projection ? projectArtifact(projection) : null;
-  }
-
-  async function discoverNextArtifacts(lane: { nextEligibleAt: Date | null } | undefined) {
-    const [inventory] = await options.database<
-      Array<{ annualComplete: number; annualTotal: number }>
-    >`
-        select count(*) filter (where product = ${annualProduct})::int as "annualTotal",
-          count(*) filter (where product = ${annualProduct} and projection_state = 'complete')::int as "annualComplete"
-        from source_artifact
-      `;
-    if (!inventory?.annualTotal) {
-      try {
-        const artifacts = selectAnnualArtifacts(
-          await options.sourceCatalog.discover(annualProduct)
-        );
-        return retainSelectedArtifacts(annualProduct, artifacts);
-      } catch (error) {
-        return recordProviderFailure(error);
-      }
-    }
-    if (
-      inventory.annualComplete !== expectedAnnualArtifacts ||
-      (lane?.nextEligibleAt && lane.nextEligibleAt > now())
-    ) {
-      return { action: "idle" as const };
-    }
-    try {
-      const [state] = await options.database<Array<{ completeThroughDate: string | null }>>`
-        select complete_through_date::text as "completeThroughDate"
-        from data_state where id = 'uspto'
-      `;
-      if (!state?.completeThroughDate) {
-        throw new Error("Daily discovery requires durable complete-through coverage");
-      }
-      const artifacts = selectDailyArtifacts(
-        await options.sourceCatalog.discover(dailyProduct),
-        state.completeThroughDate
-      );
-      return retainSelectedArtifacts(dailyProduct, artifacts);
     } catch (error) {
-      return recordProviderFailure(error);
+      if (!isSourceDownloadFailure(error)) {
+        throw error;
+      }
+      const observedAt = now();
+      const reason = safeError(error);
+      const responseState = storedSourceResponseState(error, observedAt);
+      await options.database.begin(async (transaction) => {
+        await lockIngestion(transaction);
+        await transaction`
+          update source_artifact set download_state = 'blocked', current_error = ${reason},
+            download_response_state = ${responseState ? transaction.json({ ...responseState }) : null},
+            updated_at = ${observedAt} where id = ${artifact.id}
+        `;
+        await resolveCoveredArtifacts(transaction);
+      });
+      await heartbeat("idle");
+      return {
+        action: "artifact-download-blocked" as const,
+        artifactId: artifact.id,
+        filename: artifact.filename,
+        reason,
+      };
     }
+  }
+
+  async function discoverIfDue() {
+    const [worker] = await options.database<Array<{ lastDiscoveryAt: Date | null }>>`
+      select last_discovery_at as "lastDiscoveryAt" from worker_status where id = 'uspto'
+    `;
+    if (
+      worker?.lastDiscoveryAt &&
+      worker.lastDiscoveryAt.getTime() + discoveryIntervalMs > now().getTime()
+    ) {
+      return null;
+    }
+    await heartbeat("discovering");
+    try {
+      const discovered: DiscoveredProduct[] = [];
+      for (const product of supportedProducts) {
+        // biome-ignore lint/performance/noAwaitInLoops: ODP permits one concurrent request per API key.
+        discovered.push(await options.sourceCatalog.discover(product));
+      }
+      const artifactCount = await retainDiscovery(discovered);
+      await options.database`
+        update worker_status set activity = 'idle', current_error = null,
+          last_discovery_at = ${now()}, last_heartbeat_at = ${now()}, updated_at = ${now()}
+        where id = 'uspto'
+      `;
+      return { action: "discovered" as const, artifactCount };
+    } catch (error) {
+      await heartbeat("idle", null, safeError(error));
+      throw error;
+    }
+  }
+
+  function retainDiscovery(products: DiscoveredProduct[]) {
+    const discovered = products.flatMap(validateProduct);
+    return options.database.begin(async (transaction) => {
+      await lockIngestion(transaction);
+      const retainedIdentities = await assertRetainedArtifactIdentities(transaction, discovered);
+      const [inventory] = await transaction<Array<{ count: number }>>`
+        select count(*)::int as count from source_artifact
+      `;
+      const bootstrap = inventory?.count === 0 ? bootstrapDisposition(discovered) : null;
+      const [retainedBroad] = bootstrap
+        ? []
+        : await transaction<Array<{ complete: boolean; fromDate: string; toDate: string }>>`
+            select source_from_date::text as "fromDate", source_to_date::text as "toDate",
+              bool_and(application_state = 'complete') as complete
+            from source_artifact where source_from_date < source_to_date
+            group by source_from_date, source_to_date
+            order by source_from_date, source_to_date desc limit 1
+          `;
+      const newArtifacts = discovered.filter(
+        ({ artifact, product }) => !retainedIdentities.has(`${product}:${artifact.filename}`)
+      );
+      let retainedCount = 0;
+      for (let offset = 0; offset < newArtifacts.length; offset += discoveryInsertBatchSize) {
+        const rows = newArtifacts
+          .slice(offset, offset + discoveryInsertBatchSize)
+          .map(({ artifact, product }) => {
+            const selected =
+              bootstrap?.get(`${product}:${artifact.filename}`) ??
+              retainedBroadDisposition(artifact, retainedBroad);
+            return {
+              expected_bytes: artifact.bytes,
+              filename: artifact.filename,
+              id: randomUUID(),
+              processing_disposition: selected?.disposition ?? "required",
+              product,
+              selected_broad_from_date: selected?.broadFromDate ?? null,
+              selected_broad_to_date: selected?.broadToDate ?? null,
+              source_from_date: artifact.fromDate,
+              source_to_date: artifact.toDate,
+            };
+          });
+        // biome-ignore lint/performance/noAwaitInLoops: Catalog writes stay bounded and ordered under one ingestion lock.
+        const inserted = await transaction<Array<{ id: string }>>`
+          insert into source_artifact ${transaction(rows)}
+          on conflict (product, filename) do nothing returning id
+        `;
+        retainedCount += inserted.length;
+      }
+      await resolveCoveredArtifacts(transaction);
+      return retainedCount;
+    });
   }
 
   async function reconcile() {
-    const localAction = await reconcileLocalState();
-    if (localAction) {
-      return localAction;
-    }
-    const [lane] = await options.database<Array<{ nextEligibleAt: Date | null; status: string }>>`
-      select status, next_eligible_at as "nextEligibleAt" from source_lane where id = 'uspto-odp'
+    const [worker] = await options.database<Array<{ currentError: string | null }>>`
+      select current_error as "currentError" from worker_status where id = 'uspto'
     `;
-    if (lane?.status === "stopped") {
-      return { action: "provider-stopped" as const };
+    if (worker?.currentError) {
+      return { action: "stopped" as const };
     }
-    if (lane?.status === "backoff" && lane.nextEligibleAt && lane.nextEligibleAt > now()) {
-      return { action: "provider-backoff" as const };
+    await heartbeat();
+    try {
+      const interrupted = await recoverInterruptedDownload();
+      if (interrupted) {
+        return interrupted;
+      }
+      const cleanup = await cleanupOneObject();
+      if (cleanup) {
+        return cleanup;
+      }
+      const application = await reserveApplication();
+      if (application) {
+        const result = await applyArtifact(application);
+        return result;
+      }
+      const discovery = await discoverIfDue();
+      if (discovery) {
+        return discovery;
+      }
+      const download = await reserveDownload();
+      if (download) {
+        const result = await downloadArtifact(download);
+        return result;
+      }
+      return { action: "idle" as const };
+    } catch (error) {
+      await heartbeat("idle", null, safeError(error));
+      throw error;
     }
-    const artifact = await reserveDownload();
-    return artifact ? downloadArtifact(artifact) : discoverNextArtifacts(lane);
+  }
+
+  async function initialize() {
+    await options.database.begin(async (transaction) => {
+      await lockIngestion(transaction);
+      await resolveCoveredArtifacts(transaction);
+    });
+    await heartbeat();
   }
 
   return {
+    heartbeat,
+    initialize,
+    pulse: () =>
+      options.database`
+        update worker_status set last_heartbeat_at = ${now()}, updated_at = ${now()}
+        where id = 'uspto'
+      `,
     reconcile,
-    status: () => readTrademarkIngestionStatus(options.database),
+    status: () => readTrademarkIngestionStatus(options.database, now()),
   };
 }
 
 export async function readTrademarkIngestionStatus(
-  database: Database
+  database: Database,
+  at = new Date()
 ): Promise<TrademarkIngestionStatus> {
-  const [status] = await database<TrademarkIngestionStatus[]>`
-    select
-      count(artifact.id) filter (where artifact.product = ${annualProduct} and artifact.projection_state = 'complete')::int as "annualCompleteArtifactCount",
-      coalesce(sum(artifact.projected_mark_count) filter (where artifact.product = ${annualProduct} and artifact.projection_state = 'complete'), 0)::int as "annualProjectedMarkCount",
-      state.complete_through_date::text as "completeThroughDate",
+  const [facts] = await database<
+    Array<
+      Omit<TrademarkIngestionStatus, "currentArtifact" | "worker"> & {
+        activity: TrademarkIngestionStatus["worker"]["activity"] | null;
+        currentError: string | null;
+        currentFilename: string | null;
+        lastDiscoveryAt: Date | null;
+        lastHeartbeatAt: Date | null;
+        workerUpdatedAt: Date | null;
+      }
+    >
+  >`
+    select count(artifact.id) filter (where artifact.processing_disposition = 'required'
+        and (artifact.download_state = 'blocked'
+          or artifact.application_state = 'needs_attention'))::int as "attentionCount",
       coalesce(state.version, 0)::int as "dataVersion",
-      ${expectedAnnualArtifacts}::int as "expectedArtifactCount",
-      count(artifact.id) filter (where artifact.download_state = 'failed' or artifact.projection_state = 'failed')::int as "failedArtifactCount",
-      min(artifact.updated_at) filter (where artifact.download_state = 'failed' or artifact.projection_state = 'failed') as "failedArtifactUpdatedAt",
       state.last_successful_update_at as "lastSuccessfulUpdateAt",
-      count(artifact.id) filter (where artifact.download_state in ('pending', 'downloading')
-        or (artifact.download_state = 'complete' and artifact.object_key is not null
-          and artifact.sha256 is not null and (artifact.projection_state in ('pending', 'projecting')
-            or artifact.projection_version is distinct from ${markVersions.projection})))::int as "pendingArtifactCount",
-      count(artifact.id) filter (where artifact.download_state = 'unavailable')::int as "unavailableArtifactCount"
+      max(artifact.source_to_date) filter (where artifact.applied_record_count > 0)::text
+        as "latestProcessedDate",
+      count(artifact.id) filter (where artifact.processing_disposition = 'required'
+        and (artifact.download_state in ('pending', 'downloading')
+          or (artifact.download_state = 'downloaded'
+            and artifact.application_state in ('pending', 'applying'))))::int
+        as "pendingArtifactCount",
+      worker.activity, worker.current_error as "currentError",
+      worker.current_filename as "currentFilename", worker.last_discovery_at as "lastDiscoveryAt",
+      worker.last_heartbeat_at as "lastHeartbeatAt", worker.updated_at as "workerUpdatedAt"
     from (select 1) anchor
     left join data_state state on state.id = 'uspto'
+    left join worker_status worker on worker.id = 'uspto'
     left join source_artifact artifact on true
-    group by state.complete_through_date, state.version, state.last_successful_update_at
+    group by state.version, state.last_successful_update_at, worker.activity,
+      worker.current_error, worker.current_filename, worker.last_discovery_at,
+      worker.last_heartbeat_at, worker.updated_at
   `;
-  const [lane] = await database<TrademarkIngestionStatus["lane"][]>`
-    select lane.current_error as "currentError", coalesce(lane.failure_count, 0)::int as "failureCount",
-      lane.next_eligible_at as "nextEligibleAt", coalesce(lane.status, 'ready') as status,
-      coalesce(lane.updated_at, to_timestamp(0)) as "updatedAt"
-    from (select 1) anchor left join source_lane lane on lane.id = 'uspto-odp'
-  `;
-  const [currentArtifact] = await database<
-    Array<{ filename: string; state: "downloading" | "projecting" }>
-  >`
-    select filename,
-      case when download_state = 'downloading' then 'downloading' else 'projecting' end as state
-    from source_artifact
-    where download_state = 'downloading' or projection_state = 'projecting'
-    order by filename limit 1
-  `;
-  if (!(status && lane)) {
+  if (!facts) {
     throw new Error("Trademark ingestion status is unavailable");
   }
-  return { ...status, currentArtifact: currentArtifact ?? null, lane };
+  const activity = facts.activity ?? "idle";
+  const heartbeatIsCurrent =
+    facts.lastHeartbeatAt !== null &&
+    at.getTime() - facts.lastHeartbeatAt.getTime() <= 5 * 60 * 1000;
+  let currentArtifact: TrademarkIngestionStatus["currentArtifact"] = null;
+  if (heartbeatIsCurrent && activity === "discovering") {
+    currentArtifact = { filename: "USPTO source catalog", state: activity };
+  } else if (heartbeatIsCurrent && facts.currentFilename && activity !== "idle") {
+    currentArtifact = { filename: facts.currentFilename, state: activity };
+  }
+  return {
+    attentionCount: facts.attentionCount,
+    currentArtifact,
+    dataVersion: facts.dataVersion,
+    lastSuccessfulUpdateAt: facts.lastSuccessfulUpdateAt,
+    latestProcessedDate: facts.latestProcessedDate,
+    pendingArtifactCount: facts.pendingArtifactCount,
+    worker: {
+      activity,
+      currentError: facts.currentError,
+      lastDiscoveryAt: facts.lastDiscoveryAt,
+      lastHeartbeatAt: facts.lastHeartbeatAt,
+      updatedAt: facts.workerUpdatedAt,
+    },
+  };
 }
 
-async function insertProjectionBatch(database: Database, batch: TrademarkProjection[]) {
-  let materialChangeCount = 0;
-  const removals = batch.filter((projection) => projection.kind === "remove");
-  const removalsByDate = new Map<string | null, string[]>();
-  for (const removal of removals) {
-    const serials = removalsByDate.get(removal.sourceTransactionDate) ?? [];
-    serials.push(removal.serialNumber);
-    removalsByDate.set(removal.sourceTransactionDate, serials);
-  }
-  const removalResults = await Promise.all(
-    [...removalsByDate].map(([sourceTransactionDate, serials]) =>
-      sourceTransactionDate
-        ? database<Array<{ serialNumber: string }>>`
-          delete from mark where serial_number in ${database(serials)}
-            and (source_transaction_date is null or source_transaction_date < ${sourceTransactionDate})
-          returning serial_number as "serialNumber"
-        `
-        : Promise.resolve([])
-    )
-  );
-  materialChangeCount += removalResults.reduce((count, removed) => count + removed.length, 0);
-
-  const upserts = batch.filter(
-    (projection): projection is MarkUpsertProjection & { kind: "upsert" } =>
-      projection.kind === "upsert"
-  );
-  if (upserts.length === 0) {
-    return materialChangeCount;
-  }
-  const source = (projection: MarkUpsertProjection) => ({
-    source_filename: projection.coordinate.filename,
-    source_physical_record_index: projection.coordinate.physicalRecordIndex,
-    source_product: projection.coordinate.product,
-    source_sha256: projection.coordinate.sha256,
-  });
-  const acceptedRows = await database<Array<{ serialNumber: string }>>`
-    insert into mark ${database(
-      upserts.map((projection) => ({
-        filing_date: projection.filingDate,
-        mark_drawing_code: projection.markDrawingCode,
-        normalization_version: markVersions.normalization,
-        registration_date: projection.registrationDate,
-        registration_number: projection.registrationNumber,
-        serial_number: projection.serialNumber,
-        source_transaction_date: projection.sourceTransactionDate,
-        status_code: projection.statusCode,
-        status_date: projection.statusDate,
-        word_mark: projection.wordMark,
-        ...source(projection),
-      }))
-    )}
-    on conflict (serial_number) do update set
-      filing_date = excluded.filing_date,
-      mark_drawing_code = excluded.mark_drawing_code,
-      normalization_version = excluded.normalization_version,
-      registration_date = excluded.registration_date,
-      registration_number = excluded.registration_number,
-      source_filename = excluded.source_filename,
-      source_physical_record_index = excluded.source_physical_record_index,
-      source_product = excluded.source_product,
-      source_sha256 = excluded.source_sha256,
-      source_transaction_date = excluded.source_transaction_date,
-      status_code = excluded.status_code,
-      status_date = excluded.status_date,
-      word_mark = excluded.word_mark
-    where excluded.source_transaction_date is not null
-      and (mark.source_transaction_date is null
-        or excluded.source_transaction_date > mark.source_transaction_date)
-    returning serial_number as "serialNumber"
-  `;
-  materialChangeCount += acceptedRows.length;
-  if (acceptedRows.length === 0) {
-    return materialChangeCount;
-  }
-  const acceptedSerials = acceptedRows.map(({ serialNumber }) => serialNumber);
-  await database`delete from mark_class where serial_number in ${database(acceptedSerials)}`;
-  await database`delete from mark_owner where serial_number in ${database(acceptedSerials)}`;
-  await database`delete from mark_goods_services where serial_number in ${database(acceptedSerials)}`;
-  await database`delete from mark_status_event where serial_number in ${database(acceptedSerials)}`;
-  const accepted = new Set(acceptedSerials);
-  const projections = upserts.filter((projection) => accepted.has(projection.serialNumber));
-  const classes = projections.flatMap((projection) =>
-    projection.classes.map((item, index) => ({
-      international_code: item.internationalCode,
-      ordinal: index + 1,
-      serial_number: projection.serialNumber,
-      status_code: item.statusCode,
-      status_date: item.statusDate,
-      ...source(projection),
-    }))
-  );
-  const owners = projections.flatMap((projection) =>
-    projection.owners.map((item, index) => ({
-      entry_number: item.entryNumber,
-      ordinal: index + 1,
-      party_name: item.partyName,
-      party_type: item.partyType,
-      serial_number: projection.serialNumber,
-      ...source(projection),
-    }))
-  );
-  const goods = projections.flatMap((projection) =>
-    projection.goodsServices.map((item, index) => ({
-      ordinal: index + 1,
-      serial_number: projection.serialNumber,
-      text: item.text,
-      type_code: item.typeCode,
-      ...source(projection),
-    }))
-  );
-  const events = projections.flatMap((projection) =>
-    projection.statusEvents.map((item) => ({
-      code: item.code,
-      description: item.description,
-      event_date: item.date,
-      event_key: item.eventKey,
-      event_number: item.number,
-      serial_number: projection.serialNumber,
-      type: item.type,
-      ...source(projection),
-    }))
-  );
-  if (classes.length > 0) {
-    await database`insert into mark_class ${database(classes)}`;
-  }
-  if (owners.length > 0) {
-    await database`insert into mark_owner ${database(owners)}`;
-  }
-  if (goods.length > 0) {
-    await database`insert into mark_goods_services ${database(goods)}`;
-  }
-  if (events.length > 0) {
-    for (let offset = 0; offset < events.length; offset += statusEventInsertBatchSize) {
-      // biome-ignore lint/performance/noAwaitInLoops: Artifact projection writes stay ordered inside one transaction.
-      await database`insert into mark_status_event ${database(events.slice(offset, offset + statusEventInsertBatchSize))}`;
-    }
-  }
-  return materialChangeCount;
-}
-
-function isRetryable(error: unknown) {
-  if (error instanceof SourceHttpError) {
-    return (
-      [408, 425, 429].includes(error.responseState.status) || error.responseState.status >= 500
-    );
-  }
-  return error instanceof SourceTransportError || error instanceof ArtifactIntegrityError;
-}
-
-function selectAnnualArtifacts(discovered: DiscoveredProduct) {
+function validateProduct(discovered: DiscoveredProduct) {
+  const product = discovered.product.identifier as SourceProduct;
   if (
-    discovered.product.identifier !== annualProduct ||
-    discovered.product.frequency.toLowerCase() !== "yearly"
+    !supportedProducts.includes(product) ||
+    discovered.product.frequency.toLowerCase() !== expectedFrequency[product]
   ) {
-    throw new SourceContractError("Annual catalog returned the wrong product contract");
-  }
-  const byFilename = new Map(discovered.artifacts.map((artifact) => [artifact.filename, artifact]));
-  if (byFilename.size !== discovered.artifacts.length) {
-    throw new SourceContractError("Annual catalog contains duplicate filenames");
-  }
-  const artifacts = annualBaselineV1Artifacts.map((filename) => {
-    const artifact = byFilename.get(filename);
-    if (
-      !artifact ||
-      artifact.fromDate !== annualBaselineFromDate ||
-      artifact.toDate !== annualBaselineToDate
-    ) {
-      throw new SourceContractError(`Annual catalog is missing pinned member ${filename}`);
-    }
-    return artifact;
-  });
-  if (artifacts.length !== expectedAnnualArtifacts) {
-    throw new SourceContractError("Annual baseline must contain 91 members");
-  }
-  return artifacts;
-}
-
-function selectDailyArtifacts(discovered: DiscoveredProduct, completeThroughDate: string) {
-  if (
-    discovered.product.identifier !== dailyProduct ||
-    discovered.product.title !== dailyProductTitle ||
-    discovered.product.frequency.toLowerCase() !== "daily"
-  ) {
-    throw new SourceContractError("Daily catalog returned the wrong product contract");
+    throw new SourceContractError("USPTO catalog returned an unsupported product contract");
   }
   const filenames = new Set<string>();
-  const artifacts = discovered.artifacts
-    .filter((artifact) => artifact.fromDate > annualBaselineToDate)
-    .sort((left, right) => left.fromDate.localeCompare(right.fromDate));
-  for (const artifact of artifacts) {
+  return discovered.artifacts.map((artifact) => {
     if (filenames.has(artifact.filename)) {
-      throw new SourceContractError("Daily catalog contains duplicate filenames");
+      throw new SourceContractError(`USPTO catalog repeats ${product}/${artifact.filename}`);
     }
     filenames.add(artifact.filename);
     if (
-      artifact.toDate !== artifact.fromDate ||
-      artifact.filename !== dailyFilename(artifact.fromDate)
+      artifact.bytes <= 0 ||
+      artifact.fromDate > artifact.toDate ||
+      !artifact.downloadUrl.endsWith(`/${product}/${encodeURIComponent(artifact.filename)}`)
+    ) {
+      throw new SourceContractError(`USPTO catalog has invalid metadata for ${artifact.filename}`);
+    }
+    return { artifact, product };
+  });
+}
+
+function retainedBroadDisposition(
+  artifact: DiscoveredArtifact,
+  broad: { complete: boolean; fromDate: string; toDate: string } | undefined
+) {
+  if (
+    !broad ||
+    artifact.fromDate < broad.fromDate ||
+    artifact.toDate > broad.toDate ||
+    (artifact.fromDate === broad.fromDate && artifact.toDate === broad.toDate)
+  ) {
+    return;
+  }
+  return {
+    broadFromDate: broad.fromDate,
+    broadToDate: broad.toDate,
+    disposition: broad.complete ? ("covered" as const) : ("deferred" as const),
+  };
+}
+
+function bootstrapDisposition(
+  discovered: Array<{ artifact: DiscoveredArtifact; product: SourceProduct }>
+) {
+  const groups = new Map<string, typeof discovered>();
+  for (const item of discovered) {
+    const key = `${item.artifact.fromDate}:${item.artifact.toDate}`;
+    const group = groups.get(key) ?? [];
+    group.push(item);
+    groups.set(key, group);
+  }
+  const [broad] = [...groups.values()].sort((left, right) => {
+    const start = left[0]?.artifact.fromDate.localeCompare(right[0]?.artifact.fromDate ?? "") ?? 0;
+    return start === 0
+      ? (right[0]?.artifact.toDate.localeCompare(left[0]?.artifact.toDate ?? "") ?? 0)
+      : start;
+  });
+  if (!broad?.[0]) {
+    throw new SourceContractError("USPTO catalog contains no source files");
+  }
+  const broadFromDate = broad[0].artifact.fromDate;
+  const broadToDate = broad[0].artifact.toDate;
+  return new Map(
+    discovered.map((item) => {
+      const inBroadGroup =
+        item.artifact.fromDate === broadFromDate && item.artifact.toDate === broadToDate;
+      const disposition =
+        inBroadGroup || item.artifact.toDate > broadToDate ? "required" : "deferred";
+      return [
+        `${item.product}:${item.artifact.filename}`,
+        { broadFromDate, broadToDate, disposition },
+      ];
+    })
+  );
+}
+
+async function assertRetainedArtifactIdentities(
+  database: Database,
+  discovered: Array<{ artifact: DiscoveredArtifact; product: SourceProduct }>
+) {
+  if (discovered.length === 0) {
+    return new Set<string>();
+  }
+  const rows = await database<
+    Array<{
+      expectedBytes: string;
+      filename: string;
+      product: string;
+      sourceFromDate: string;
+      sourceToDate: string;
+    }>
+  >`
+    select expected_bytes::text as "expectedBytes", filename, product,
+      source_from_date::text as "sourceFromDate", source_to_date::text as "sourceToDate"
+    from source_artifact
+  `;
+  const expected = new Map(
+    discovered.map(({ artifact, product }) => [`${product}:${artifact.filename}`, artifact])
+  );
+  const retained = new Set<string>();
+  for (const row of rows) {
+    const identity = `${row.product}:${row.filename}`;
+    const artifact = expected.get(identity);
+    if (!artifact) {
+      continue;
+    }
+    retained.add(identity);
+    if (
+      row.expectedBytes !== String(artifact.bytes) ||
+      row.sourceFromDate !== artifact.fromDate ||
+      row.sourceToDate !== artifact.toDate
     ) {
       throw new SourceContractError(
-        `Daily catalog member has invalid identity: ${artifact.filename}`
+        `USPTO catalog changed retained identity for ${row.product}/${row.filename}`
       );
     }
   }
-  let expectedDate = nextDate(completeThroughDate);
-  const newerArtifacts = artifacts.filter((artifact) => artifact.fromDate >= expectedDate);
-  for (const artifact of newerArtifacts) {
-    if (artifact.fromDate !== expectedDate) {
-      throw new SourceContractError(`Daily catalog is not contiguous at ${expectedDate}`);
-    }
-    expectedDate = nextDate(expectedDate);
+  return retained;
+}
+
+async function resolveCoveredArtifacts(database: Database) {
+  await database`
+    update source_artifact covered set processing_disposition = 'deferred', updated_at = now()
+    where covered.processing_disposition = 'covered'
+      and covered.selected_broad_from_date is not null
+      and covered.selected_broad_to_date is not null
+      and exists (
+        select 1 from source_artifact broad
+        where broad.source_from_date = covered.selected_broad_from_date
+          and broad.source_to_date = covered.selected_broad_to_date
+          and broad.application_state <> 'complete'
+      )
+  `;
+  await database`
+    update source_artifact deferred set processing_disposition = 'covered', updated_at = now()
+    where deferred.processing_disposition = 'deferred'
+      and deferred.selected_broad_from_date is not null
+      and deferred.selected_broad_to_date is not null
+      and not exists (
+        select 1 from source_artifact broad
+        where broad.source_from_date = deferred.selected_broad_from_date
+          and broad.source_to_date = deferred.selected_broad_to_date
+          and broad.application_state <> 'complete'
+      )
+  `;
+  await database`
+    with covering as (
+      select distinct on (blocked.id) blocked.id,
+        broad.source_from_date as broad_from_date, broad.source_to_date as broad_to_date
+      from source_artifact blocked
+      join source_artifact broad
+        on broad.source_from_date <= blocked.source_from_date
+        and broad.source_to_date >= blocked.source_to_date
+      where blocked.processing_disposition = 'required'
+        and blocked.download_state = 'blocked'
+      group by blocked.id, broad.source_from_date, broad.source_to_date
+      having bool_and(broad.application_state = 'complete')
+      order by blocked.id, broad.source_from_date, broad.source_to_date desc
+    )
+    update source_artifact blocked set processing_disposition = 'covered',
+      selected_broad_from_date = covering.broad_from_date,
+      selected_broad_to_date = covering.broad_to_date, updated_at = now()
+    from covering where blocked.id = covering.id
+  `;
+}
+
+function storedSourceResponseState(error: unknown, observedAt: Date) {
+  if (!(error instanceof SourceHttpError)) {
+    return null;
   }
-  return artifacts;
+  const state: SourceResponseState = { ...error.responseState };
+  const retryNotBefore = providerRetryNotBefore(state, observedAt);
+  if (retryNotBefore) {
+    state.observedAt = observedAt.toISOString();
+    state.retryNotBefore = retryNotBefore.toISOString();
+  }
+  return state;
 }
 
-function dailyFilename(date: string) {
-  return `apc${date.slice(2).replaceAll("-", "")}.zip`;
-}
-
-function nextDate(date: string) {
-  const value = new Date(`${date}T00:00:00Z`);
-  value.setUTCDate(value.getUTCDate() + 1);
-  return value.toISOString().slice(0, 10);
-}
-
-function headerEligibility(error: SourceHttpError, now: Date) {
+function providerRetryNotBefore(state: SourceResponseState, observedAt: Date) {
   const candidates: number[] = [];
-  const { rateLimitReset, retryAfter } = error.responseState;
-  if (retryAfter) {
-    const seconds = Number(retryAfter);
+  if (state.retryAfterSeconds !== undefined) {
+    candidates.push(observedAt.getTime() + state.retryAfterSeconds * 1000);
+  }
+  if (state.retryAfter) {
+    const seconds = Number(state.retryAfter);
     const value = Number.isFinite(seconds)
-      ? now.getTime() + seconds * 1000
-      : Date.parse(retryAfter);
+      ? observedAt.getTime() + seconds * 1000
+      : Date.parse(state.retryAfter);
     if (Number.isFinite(value)) {
       candidates.push(value);
     }
   }
-  if (rateLimitReset) {
-    const reset = Number(rateLimitReset);
+  if (state.rateLimitReset) {
+    const reset = Number(state.rateLimitReset);
     if (Number.isFinite(reset)) {
-      let value = now.getTime() + reset * 1000;
+      let value = observedAt.getTime() + reset * 1000;
       if (reset >= 1_000_000_000_000) {
         value = reset;
       } else if (reset >= 1_000_000_000) {
@@ -813,18 +819,13 @@ function headerEligibility(error: SourceHttpError, now: Date) {
   return candidates.length === 0 ? null : new Date(Math.max(...candidates));
 }
 
-function storedSourceResponseState(error: unknown, observedAt: Date) {
-  if (!(error instanceof SourceHttpError)) {
-    return null;
-  }
-  const state = { ...error.responseState };
-  if (state.providerRequestCount !== undefined && state.retryAfterSeconds !== undefined) {
-    state.observedAt = observedAt.toISOString();
-    state.retryNotBefore = new Date(
-      observedAt.getTime() + state.retryAfterSeconds * 1000
-    ).toISOString();
-  }
-  return state;
+function isSourceDownloadFailure(error: unknown) {
+  return (
+    error instanceof ArtifactIntegrityError ||
+    error instanceof SourceContractError ||
+    error instanceof SourceHttpError ||
+    error instanceof SourceTransportError
+  );
 }
 
 function safeError(error: unknown) {

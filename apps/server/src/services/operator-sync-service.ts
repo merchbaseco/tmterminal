@@ -8,6 +8,7 @@ import {
   readOperatorCatalogSummary,
   readOperatorProcessingActivity,
   readOperatorSourceSummary,
+  readOperatorWorkerAttention,
 } from "../queries/operator-sync-repository.ts";
 
 const safeError = (value: string | null) =>
@@ -23,19 +24,10 @@ async function readPublicStatus(database: postgres.TransactionSql) {
   const processingActivity = await readOperatorProcessingActivity(database);
   return {
     attentionCount: source.attentionCount,
-    providerStatus: facts.lane.status,
     status: {
       catalog,
       source: {
-        currentArtifact: facts.currentArtifact
-          ? {
-              filename: facts.currentArtifact.filename,
-              state:
-                facts.currentArtifact.state === "projecting"
-                  ? ("processing" as const)
-                  : ("downloading" as const),
-            }
-          : null,
+        currentArtifact: facts.currentArtifact,
         lastActivityAt: source.lastActivityAt?.toISOString() ?? null,
         latestProcessedDate: source.latestProcessedDate,
         processingActivity,
@@ -53,11 +45,10 @@ export function createOperatorSyncService(database: postgres.Sql): OperatorSyncS
         return {
           items: page.items.map((item) => ({
             ...item,
+            applicationCompletedAt: item.applicationCompletedAt?.toISOString() ?? null,
             bytes: item.bytes === null ? null : Number(item.bytes),
-            downloadError: safeError(item.downloadError),
+            currentError: safeError(item.currentError),
             downloadedAt: item.downloadedAt?.toISOString() ?? null,
-            projectionCompletedAt: item.projectionCompletedAt?.toISOString() ?? null,
-            projectionError: safeError(item.projectionError),
             updatedAt: item.updatedAt.toISOString(),
           })),
           limit: input.limit,
@@ -75,21 +66,23 @@ export function createOperatorSyncService(database: postgres.Sql): OperatorSyncS
     status() {
       return database.begin(async (transaction) => {
         await transaction`set transaction isolation level repeatable read`;
-        const [summary, attentionItems] = await Promise.all([
+        const [summary, sourceAttentionItems, workerAttention] = await Promise.all([
           readPublicStatus(transaction),
           readOperatorAttentionArtifacts(transaction, attentionLimit),
+          readOperatorWorkerAttention(transaction),
         ]);
+        const attentionItems = [workerAttention, ...sourceAttentionItems]
+          .filter((item) => item !== null)
+          .slice(0, attentionLimit);
         return {
           attention: {
             items: attentionItems.map((item) => ({
               ...item,
+              message: safeError(item.message),
               retryNotBefore: item.retryNotBefore?.toISOString() ?? null,
               updatedAt: item.updatedAt.toISOString(),
             })),
-            total: summary.attentionCount,
-          },
-          provider: {
-            status: summary.providerStatus,
+            total: summary.attentionCount + (workerAttention ? 1 : 0),
           },
           ...summary.status,
         };

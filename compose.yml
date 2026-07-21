@@ -79,8 +79,6 @@ services:
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
       USPTO_API_KEY: ${USPTO_API_KEY:?set USPTO_API_KEY}
       USPTO_REQUEST_TIMEOUT_MS: ${USPTO_REQUEST_TIMEOUT_MS:-900000}
-      USPTO_RETRY_BASE_MS: ${USPTO_RETRY_BASE_MS:-30000}
-      USPTO_RETRY_MAX_MS: ${USPTO_RETRY_MAX_MS:-21600000}
     depends_on:
       migrate:
         condition: service_completed_successfully

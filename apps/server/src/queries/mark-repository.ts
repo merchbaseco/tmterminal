@@ -11,6 +11,7 @@ import {
 
 type Database = postgres.Sql | postgres.TransactionSql;
 type MarkRow = ProjectedMark["mark"] & {
+  sourceParserVersion: string;
   sourcePhysicalRecordIndex: number;
   sourceProduct: string;
   sourceSha256: string;
@@ -27,7 +28,8 @@ async function readMark(
           m.word_mark as "wordMark", m.mark_drawing_code as "markDrawingCode", m.filing_date::text as "filingDate",
           m.registration_date::text as "registrationDate", m.status_code as "statusCode", m.status_date::text as "statusDate",
           m.source_transaction_date::text as "sourceTransactionDate", m.source_product as "sourceProduct",
-          m.source_sha256 as "sourceSha256", m.source_physical_record_index as "sourcePhysicalRecordIndex"
+          m.source_sha256 as "sourceSha256", m.source_parser_version as "sourceParserVersion",
+          m.source_physical_record_index as "sourcePhysicalRecordIndex"
         from mark m where m.serial_number = ${identity.serialNumber}`;
   } else {
     rows = await database<MarkRow[]>`
@@ -35,7 +37,8 @@ async function readMark(
           m.word_mark as "wordMark", m.mark_drawing_code as "markDrawingCode", m.filing_date::text as "filingDate",
           m.registration_date::text as "registrationDate", m.status_code as "statusCode", m.status_date::text as "statusDate",
           m.source_transaction_date::text as "sourceTransactionDate", m.source_product as "sourceProduct",
-          m.source_sha256 as "sourceSha256", m.source_physical_record_index as "sourcePhysicalRecordIndex"
+          m.source_sha256 as "sourceSha256", m.source_parser_version as "sourceParserVersion",
+          m.source_physical_record_index as "sourcePhysicalRecordIndex"
         from mark m where m.registration_number = ${identity.registrationNumber ?? ""}`;
   }
   const [mark] = rows;
@@ -54,7 +57,13 @@ async function readMark(
   const statusEvents = await database<MarkStatusEvent[]>`
     select code, event_date::text as date, description, event_number as number, type from mark_status_event
     where serial_number = ${mark.serialNumber} order by event_date, event_key`;
-  const { sourcePhysicalRecordIndex, sourceProduct, sourceSha256, ...publicMark } = mark;
+  const {
+    sourceParserVersion,
+    sourcePhysicalRecordIndex,
+    sourceProduct,
+    sourceSha256,
+    ...publicMark
+  } = mark;
   return {
     classes,
     contributors: [
@@ -71,7 +80,7 @@ async function readMark(
     mark: publicMark,
     owners,
     statusEvents,
-    versions: markVersions,
+    versions: { ...markVersions, projection: sourceParserVersion },
   } satisfies ProjectedMark;
 }
 

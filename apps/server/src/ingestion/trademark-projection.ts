@@ -7,7 +7,7 @@ const compactDate = /^\d{8}$/;
 const serialNumber = /^\d{8}$/;
 const zeroes = /^0+$/;
 const registrationNumber = /^\d{1,7}$/;
-const batchSize = 100;
+const batchSize = 250;
 const documentRoot = "trademark-applications-daily";
 const sourceVersion = "2.0";
 const sourceVersionDate = "20041108";
@@ -18,7 +18,9 @@ const rootWhitespace = /^\s*/;
 export type SourceProduct = "TRTDXFAP" | "TRTYRAP";
 
 interface SourceCoordinate {
+  contentRevision: number;
   filename: string;
+  parserVersion: string;
   physicalRecordIndex: number;
   product: SourceProduct;
   sha256: string;
@@ -38,7 +40,8 @@ export interface MarkUpsertProjection {
   registrationDate: string | null;
   registrationNumber: string | null;
   serialNumber: string;
-  sourceTransactionDate: string | null;
+  snapshotHash: string;
+  sourceTransactionDate: string;
   statusCode: string | null;
   statusDate: string | null;
   statusEvents: Array<{
@@ -52,26 +55,35 @@ export interface MarkUpsertProjection {
   wordMark: string;
 }
 
-export interface MarkRemovalProjection {
+export interface MarkObservationProjection {
   coordinate: SourceCoordinate;
-  kind: "remove";
+  kind: "observe";
   serialNumber: string;
-  sourceTransactionDate: string | null;
+  snapshotHash: string;
+  sourceTransactionDate: string;
 }
 
 export type TrademarkProjection =
   | (MarkUpsertProjection & { kind: "upsert" })
-  | MarkRemovalProjection;
+  | MarkObservationProjection;
 
-interface TrademarkProjectionResult {
+export interface ProjectionBatchResult {
+  appliedRecordCount: number;
+  firstError: string | null;
   materialChangeCount: number;
+  unresolvedRecordCount: number;
+}
+
+export interface TrademarkProjectionResult extends ProjectionBatchResult {
   physicalRecordCount: number;
   projectedMarkCount: number;
 }
 
+export class TrademarkSourceError extends Error {}
+
 export function streamTrademarkProjections(options: {
   coordinate: Omit<SourceCoordinate, "physicalRecordIndex">;
-  onBatch: (batch: TrademarkProjection[]) => Promise<number>;
+  onBatch: (batch: TrademarkProjection[]) => Promise<ProjectionBatchResult>;
   xml: Readable;
 }): Promise<TrademarkProjectionResult> {
   return new Promise((resolve, reject) => {
@@ -88,10 +100,13 @@ export function streamTrademarkProjections(options: {
     let physicalRecordCount = 0;
     let projectedMarkCount = 0;
     let failed = false;
+    let firstError: string | null = null;
+    let appliedRecordCount = 0;
     let materialChangeCount = 0;
     let pending: TrademarkProjection[] = [];
     let versionCount = 0;
     let versionDateCount = 0;
+    let unresolvedRecordCount = 0;
     let writes = Promise.resolve();
 
     const fail = (error: unknown) => {
@@ -113,15 +128,17 @@ export function streamTrademarkProjections(options: {
       parser.pause();
       writes = writes
         .then(() => options.onBatch(batch))
-        .then((changes) => {
-          materialChangeCount += changes;
+        .then((result) => {
+          appliedRecordCount += result.appliedRecordCount;
+          firstError ??= result.firstError;
+          materialChangeCount += result.materialChangeCount;
+          unresolvedRecordCount += result.unresolvedRecordCount;
           parser.resume();
         });
       writes.catch(fail);
     };
     const projectCaseFile = (value: unknown) => {
       physicalRecordCount += 1;
-      assertDocumentVersion(versionCount, versionDateCount, " before records");
       const projection = projectRecord(value, {
         ...options.coordinate,
         physicalRecordIndex: physicalRecordCount,
@@ -141,21 +158,21 @@ export function streamTrademarkProjections(options: {
     parser.on("tag:version-no", (value) => {
       versionCount += 1;
       if (versionCount !== 1) {
-        fail(new Error("version-no must occur exactly once"));
+        fail(new TrademarkSourceError("version-no must occur exactly once"));
         return;
       }
       if (scalar(value, "version-no") !== sourceVersion) {
-        fail(new Error("Unsupported USPTO XML version"));
+        fail(new TrademarkSourceError("Unsupported USPTO XML version"));
       }
     });
     parser.on("tag:version-date", (value) => {
       versionDateCount += 1;
       if (versionDateCount !== 1) {
-        fail(new Error("version-date must occur exactly once"));
+        fail(new TrademarkSourceError("version-date must occur exactly once"));
         return;
       }
       if (scalar(value, "version-date") !== sourceVersionDate) {
-        fail(new Error("Unsupported USPTO XML version date"));
+        fail(new TrademarkSourceError("Unsupported USPTO XML version date"));
       }
     });
     parser.on("tag:case-file", (value) => {
@@ -163,16 +180,20 @@ export function streamTrademarkProjections(options: {
         return;
       }
       try {
+        assertDocumentVersion(versionCount, versionDateCount, " before records");
+      } catch (error) {
+        fail(error);
+        return;
+      }
+      try {
         projectCaseFile(value);
       } catch (error) {
-        fail(
-          new Error(
-            `Trademark record ${physicalRecordCount} is invalid: ${error instanceof Error ? error.message : String(error)}`
-          )
-        );
+        const message = `Trademark record ${physicalRecordCount} is invalid: ${error instanceof Error ? error.message : String(error)}`;
+        firstError ??= message;
+        unresolvedRecordCount += 1;
       }
     });
-    parser.on("error", fail);
+    parser.on("error", (error) => fail(asTrademarkSourceError(error)));
     validatedXml.on("error", fail);
     options.xml.on("error", fail);
     parser.on("end", () => {
@@ -189,7 +210,14 @@ export function streamTrademarkProjections(options: {
       writes
         .then(() => {
           if (!failed) {
-            resolve({ materialChangeCount, physicalRecordCount, projectedMarkCount });
+            resolve({
+              appliedRecordCount,
+              firstError,
+              materialChangeCount,
+              physicalRecordCount,
+              projectedMarkCount,
+              unresolvedRecordCount,
+            });
           }
         })
         .catch(fail);
@@ -202,7 +230,11 @@ function validateTrademarkRoot(xml: Readable) {
   let validated = false;
   const validator = new Transform({
     flush(callback) {
-      callback(validated ? undefined : new Error(`Trademark XML root must be ${documentRoot}`));
+      callback(
+        validated
+          ? undefined
+          : new TrademarkSourceError(`Trademark XML root must be ${documentRoot}`)
+      );
     },
     transform(chunk: Buffer, _encoding, callback) {
       if (validated) {
@@ -214,7 +246,11 @@ function validateTrademarkRoot(xml: Readable) {
       const root = rootElementName(inspected.toString("utf8"));
       if (root === null) {
         if (chunk.length > remaining || inspected.length >= maxRootPrefixBytes) {
-          callback(new Error(`Trademark XML root must occur within ${maxRootPrefixBytes} bytes`));
+          callback(
+            new TrademarkSourceError(
+              `Trademark XML root must occur within ${maxRootPrefixBytes} bytes`
+            )
+          );
           return;
         }
         prefix = inspected;
@@ -222,7 +258,7 @@ function validateTrademarkRoot(xml: Readable) {
         return;
       }
       if (root !== documentRoot) {
-        callback(new Error(`Trademark XML root must be ${documentRoot}`));
+        callback(new TrademarkSourceError(`Trademark XML root must be ${documentRoot}`));
         return;
       }
       validated = true;
@@ -328,29 +364,21 @@ function projectRecord(value: unknown, coordinate: SourceCoordinate): TrademarkP
   const header = headers[0] as Record<string, unknown>;
   const wordMark = optionalScalar(header["mark-identification"], "mark-identification")?.trim();
   const classes = objects(record.classifications);
+  const filingDate = parseDate(optionalScalar(header["filing-date"], "filing-date"), "filing-date");
   const sourceTransactionDate = parseDate(
     optionalScalar(record["transaction-date"], "transaction-date"),
     "transaction-date"
   );
-  if (!wordMark) {
-    return null;
-  }
-  const selected = classes.some(
-    (item) => optionalScalar(item["primary-code"], "primary-code")?.trim() === "025"
-  );
-  if (!selected) {
-    if (coordinate.product === "TRTDXFAP" && classes.length > 0) {
-      return {
-        coordinate,
-        kind: "remove",
-        serialNumber: serial,
-        sourceTransactionDate,
-      };
-    }
-    return null;
+  if (sourceTransactionDate === null) {
+    throw new Error("transaction-date is missing");
   }
   const projectedClasses = classes.flatMap((item) => {
     const internationalCodes = optionalScalars(item["international-code"], "international-code");
+    const primaryClassFallback =
+      internationalCodes.length === 0 &&
+      filingDate !== null &&
+      filingDate >= "1973-09-01" &&
+      optionalScalar(item["primary-code"], "primary-code")?.trim() === "025";
     const projection = {
       statusCode: optionalScalar(item["status-code"], "class status-code"),
       statusDate: parseDate(
@@ -358,9 +386,9 @@ function projectRecord(value: unknown, coordinate: SourceCoordinate): TrademarkP
         "class status-date"
       ),
     };
-    return (internationalCodes.length === 0 ? [null] : internationalCodes).map(
-      (internationalCode) => ({ internationalCode, ...projection })
-    );
+    return (
+      internationalCodes.length === 0 ? [primaryClassFallback ? "025" : null] : internationalCodes
+    ).map((internationalCode) => ({ internationalCode, ...projection }));
   });
   const goodsServices = objects(record["case-file-statements"]).map((item) => ({
     text: optionalScalar(item.text, "statement text"),
@@ -384,12 +412,11 @@ function projectRecord(value: unknown, coordinate: SourceCoordinate): TrademarkP
       return [eventKey, { ...event, eventKey }] as const;
     })
   );
-  return {
+  const selected = projectedClasses.some((item) => item.internationalCode?.trim() === "025");
+  const snapshot = {
     classes: projectedClasses,
-    coordinate,
-    filingDate: parseDate(optionalScalar(header["filing-date"], "filing-date"), "filing-date"),
+    filingDate,
     goodsServices,
-    kind: "upsert",
     markDrawingCode: optionalScalar(header["mark-drawing-code"], "mark-drawing-code"),
     owners,
     registrationDate: parseDate(
@@ -404,6 +431,34 @@ function projectRecord(value: unknown, coordinate: SourceCoordinate): TrademarkP
     statusCode: optionalScalar(header["status-code"], "status-code"),
     statusDate: parseDate(optionalScalar(header["status-date"], "status-date"), "status-date"),
     statusEvents: [...statusEvents.values()],
+    wordMark: wordMark ?? null,
+  };
+  const canonicalStatusEvents = [...statusEvents.values()].sort((left, right) =>
+    left.eventKey.localeCompare(right.eventKey)
+  );
+  const snapshotHash = createHash("sha256")
+    .update(
+      JSON.stringify({
+        ...snapshot,
+        statusEvents: canonicalStatusEvents,
+        trackedClassSelected: selected,
+      })
+    )
+    .digest("hex");
+  if (!(selected && wordMark)) {
+    return {
+      coordinate,
+      kind: "observe",
+      serialNumber: serial,
+      snapshotHash,
+      sourceTransactionDate,
+    };
+  }
+  return {
+    ...snapshot,
+    coordinate,
+    kind: "upsert",
+    snapshotHash,
     wordMark,
   };
 }
@@ -487,9 +542,18 @@ function parseRegistrationNumber(value: string | null) {
 
 function assertDocumentVersion(versionCount: number, versionDateCount: number, context = "") {
   if (versionCount !== 1) {
-    throw new Error(`version-no must occur exactly once${context}`);
+    throw new TrademarkSourceError(`version-no must occur exactly once${context}`);
   }
   if (versionDateCount !== 1) {
-    throw new Error(`version-date must occur exactly once${context}`);
+    throw new TrademarkSourceError(`version-date must occur exactly once${context}`);
   }
+}
+
+function asTrademarkSourceError(error: unknown) {
+  if (error instanceof TrademarkSourceError) {
+    return error;
+  }
+  return new TrademarkSourceError(error instanceof Error ? error.message : String(error), {
+    cause: error,
+  });
 }

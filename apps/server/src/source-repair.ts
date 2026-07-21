@@ -6,18 +6,19 @@ import {
   importSourceArtifact,
   inspectSourceArtifact,
   repairSourceArtifact,
+  type SourceInspectionFacts,
   type SourceRepairFacts,
 } from "./ingestion/source-repair.ts";
 
 interface Input {
-  action: "import" | "inspect" | "reacquire" | "replay";
+  action: "import" | "inspect" | "promote" | "reacquire" | "replay";
   filename: string;
   importPath: string | null;
   product: string;
 }
 
 const usage =
-  "Usage: bun run source:repair --product <product> --filename <filename> [--reacquire|--replay|--import <path>]";
+  "Usage: bun run source:repair --product <product> --filename <filename> [--promote|--reacquire|--replay|--import <path>]";
 
 function parseInput(args: string[]): Input {
   if (args[0] !== "--product" || args[2] !== "--filename") {
@@ -33,6 +34,8 @@ function parseInput(args: string[]): Input {
   let importPath: string | null = null;
   if (actionFlag === "--reacquire") {
     action = "reacquire";
+  } else if (actionFlag === "--promote") {
+    action = "promote";
   } else if (actionFlag === "--replay") {
     action = "replay";
   } else if (actionFlag === "--import" && importPathValue) {
@@ -74,7 +77,7 @@ const artifactStore = createLocalArtifactStore(
 
 try {
   const identity = { filename: input.filename, product: input.product };
-  let result: SourceRepairFacts;
+  let result: SourceInspectionFacts | SourceRepairFacts;
   if (input.action === "inspect") {
     result = await inspectSourceArtifact(artifactStore, database, identity);
   } else if (input.action === "import") {

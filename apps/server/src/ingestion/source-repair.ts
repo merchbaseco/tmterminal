@@ -7,135 +7,103 @@ import { lockIngestion } from "../queries/ingestion-lock.ts";
 import type { ArtifactStore } from "./artifact-store.ts";
 
 const maximumZipRequests = 20;
-
 type Database = postgres.Sql | postgres.TransactionSql;
 
 interface SourceArtifactRow {
+  applicationState: "applying" | "complete" | "needs_attention" | "pending";
+  appliedRecordCount: number;
   bytes: string | null;
-  downloadError: string | null;
+  contentRevision: number;
+  currentError: string | null;
   downloadRequestCount: number;
   downloadResponseState: unknown;
-  downloadState: "complete" | "downloading" | "failed" | "pending" | "unavailable";
+  downloadState: "blocked" | "downloaded" | "downloading" | "pending";
   expectedBytes: string;
   filename: string;
   id: string;
   objectKey: string | null;
+  parserVersion: string | null;
   physicalRecordCount: number;
+  processingDisposition: "covered" | "deferred" | "required";
   product: string;
   projectedMarkCount: number;
-  projectionError: string | null;
-  projectionState: "complete" | "failed" | "pending" | "projecting";
-  projectionVersion: string | null;
   sha256: string | null;
   sourceFromDate: string;
   sourceToDate: string;
+  unresolvedRecordCount: number;
   updatedAt: Date;
 }
 
-interface SourceLaneRow {
-  currentError: string | null;
-  nextEligibleAt: Date | null;
-  status: "backoff" | "ready" | "stopped";
-  updatedAt: Date;
-}
-
-export interface SourceRepairFacts {
-  bytes: string | null;
-  downloadError: string | null;
-  downloadRequestCount: number;
-  downloadResponseState: unknown;
-  downloadState: SourceArtifactRow["downloadState"];
-  expectedBytes: string;
-  filename: string;
+export type SourceRepairFacts = Omit<SourceArtifactRow, "objectKey"> & {
   hasRetainedZip: boolean;
-  id: string;
-  physicalRecordCount: number;
-  product: string;
-  projectedMarkCount: number;
-  projectionError: string | null;
-  projectionState: SourceArtifactRow["projectionState"];
-  projectionVersion: string | null;
-  sha256: string | null;
-  sourceFromDate: string;
-  sourceLaneError: string | null;
-  sourceLaneNextEligibleAt: Date | null;
-  sourceLaneStatus: SourceLaneRow["status"];
-  sourceLaneUpdatedAt: Date;
-  sourceToDate: string;
-  updatedAt: Date;
-}
+};
+
+export type SourceInspectionFacts = SourceRepairFacts & {
+  worker: {
+    activity: "applying" | "discovering" | "downloading" | "idle";
+    currentError: string | null;
+    currentFilename: string | null;
+    lastHeartbeatAt: Date | null;
+  } | null;
+};
 
 export async function inspectSourceArtifact(
   artifactStore: ArtifactStore,
   database: Database,
   identity: { filename: string; product: string }
 ) {
-  const artifact = await readSourceArtifact(database, identity);
-  if (!artifact) {
-    throw new Error(`Source artifact not found: ${identity.product}/${identity.filename}`);
-  }
-  const sourceLane = await readSourceLane(database);
-  return facts(artifact, sourceLane, await hasVerifiedRetainedZip(artifactStore, artifact));
+  const artifact = await requireSourceArtifact(database, identity);
+  const worker = await readWorkerStatus(database);
+  return {
+    ...facts(artifact, await hasVerifiedRetainedZip(artifactStore, artifact)),
+    worker,
+  } satisfies SourceInspectionFacts;
 }
 
 export function repairSourceArtifact(
   artifactStore: ArtifactStore,
   database: postgres.Sql,
-  input: {
-    action: "reacquire" | "replay";
-    filename: string;
-    product: string;
-  }
+  input: { action: "promote" | "reacquire" | "replay"; filename: string; product: string }
 ) {
   return database.begin(async (transaction) => {
     await lockIngestion(transaction);
-    const artifact = await readSourceArtifact(transaction, input, true);
-    if (!artifact) {
-      throw new Error(`Source artifact not found: ${input.product}/${input.filename}`);
-    }
-    const sourceLane = await readSourceLane(transaction);
+    const artifact = await requireSourceArtifact(transaction, input, true);
     let hasRetainedZip = false;
-
     if (input.action === "reacquire") {
-      authorizeSourceLane(sourceLane);
       authorizeReacquisition(artifact);
       await transaction`
-        update source_artifact set download_state = 'pending', download_error = null,
-          download_response_state = null, projection_state = 'pending',
-          projection_error = null, updated_at = now()
+        update source_artifact set download_state = 'pending', application_state = 'pending',
+          current_error = null, download_response_state = null, updated_at = now()
         where id = ${artifact.id}
       `;
-    } else {
+    } else if (input.action === "replay") {
       await authorizeReplay(artifactStore, artifact);
       hasRetainedZip = true;
       await transaction`
-        update source_artifact set projection_state = 'pending', projection_error = null,
-          updated_at = now()
+        update source_artifact set application_state = 'pending', current_error = null,
+          updated_at = now() where id = ${artifact.id}
+      `;
+    } else {
+      authorizePromotion(artifact);
+      await transaction`
+        update source_artifact set processing_disposition = 'required',
+          selected_broad_from_date = null, selected_broad_to_date = null, updated_at = now()
         where id = ${artifact.id}
       `;
     }
-
-    const repaired = await readSourceArtifact(transaction, input);
-    if (!repaired) {
-      throw new Error(`Source artifact disappeared during repair: ${artifact.id}`);
-    }
-    return facts(repaired, sourceLane, hasRetainedZip);
+    return facts(await requireSourceArtifact(transaction, input), hasRetainedZip);
   });
 }
 
 export function importSourceArtifact(
   artifactStore: ArtifactStore,
   database: postgres.Sql,
-  input: {
-    body: ReadableStream<Uint8Array>;
-    filename: string;
-    product: string;
-  }
+  input: { body: ReadableStream<Uint8Array>; filename: string; product: string }
 ) {
   return reserveImport(database, input).then(async ({ artifactId, expectedBytes }) => {
     let stored: Awaited<ReturnType<ArtifactStore["put"]>>;
     try {
-      stored = await artifactStore.put(input.body, expectedBytes);
+      stored = await artifactStore.put(input.body, expectedBytes, artifactId);
     } catch (error) {
       await failImport(database, artifactId, error);
       throw error;
@@ -143,8 +111,8 @@ export function importSourceArtifact(
     return database.begin(async (transaction) => {
       await lockIngestion(transaction);
       const completed = await transaction<Array<{ id: string }>>`
-        update source_artifact set download_state = 'complete', download_error = null,
-          download_response_state = null, projection_state = 'pending', projection_error = null,
+        update source_artifact set download_state = 'downloaded', application_state = 'pending',
+          current_error = null, download_response_state = null,
           sha256 = ${stored.sha256}, bytes = ${stored.bytes}, object_key = ${stored.objectKey},
           downloaded_at = now(), updated_at = now()
         where id = ${artifactId} and download_state = 'downloading'
@@ -153,11 +121,7 @@ export function importSourceArtifact(
       if (completed.length !== 1) {
         throw new Error(`Source artifact import reservation was lost: ${artifactId}`);
       }
-      const imported = await readSourceArtifact(transaction, input);
-      if (!imported) {
-        throw new Error(`Source artifact disappeared during import: ${artifactId}`);
-      }
-      return facts(imported, await readSourceLane(transaction), true);
+      return facts(await requireSourceArtifact(transaction, input), true);
     });
   });
 }
@@ -165,19 +129,16 @@ export function importSourceArtifact(
 function reserveImport(database: postgres.Sql, input: { filename: string; product: string }) {
   return database.begin(async (transaction) => {
     await lockIngestion(transaction);
-    const artifact = await readSourceArtifact(transaction, input, true);
-    if (!artifact) {
-      throw new Error(`Source artifact not found: ${input.product}/${input.filename}`);
-    }
+    const artifact = await requireSourceArtifact(transaction, input, true);
     authorizeImport(artifact);
     const expectedBytes = Number(artifact.expectedBytes);
     if (!Number.isSafeInteger(expectedBytes) || expectedBytes < 0) {
       throw new Error(`Source artifact ${artifact.id} has an invalid expected byte count`);
     }
     await transaction`
-      update source_artifact set download_state = 'downloading', download_error = null,
-        download_request_count = download_request_count + 1, download_response_state = null,
-        projection_state = 'pending', projection_error = null, updated_at = now()
+      update source_artifact set download_state = 'downloading', application_state = 'pending',
+        current_error = null, download_request_count = download_request_count + 1,
+        download_response_state = null, updated_at = now()
       where id = ${artifact.id}
     `;
     return { artifactId: artifact.id, expectedBytes };
@@ -189,22 +150,25 @@ function failImport(database: postgres.Sql, artifactId: string, error: unknown) 
   return database.begin(async (transaction) => {
     await lockIngestion(transaction);
     await transaction`
-      update source_artifact set download_state = 'failed', download_error = ${message},
+      update source_artifact set download_state = 'blocked', current_error = ${message},
         updated_at = now() where id = ${artifactId} and download_state = 'downloading'
     `;
   });
 }
 
 function authorizeReacquisition(artifact: SourceArtifactRow) {
+  if (artifact.processingDisposition !== "required") {
+    throw new Error(
+      `Reacquisition requires a required source file, not ${artifact.processingDisposition}`
+    );
+  }
   if (artifact.objectKey !== null) {
     throw new Error("Reacquisition is forbidden while a retained ZIP exists; use replay");
   }
   if (artifact.sha256 !== null) {
-    throw new Error("Reacquisition of previously retained bytes requires content-revision support");
+    throw new Error("Reacquisition of prior bytes requires an approved content revision");
   }
-  const eligibleState =
-    artifact.downloadState === "failed" || artifact.downloadState === "unavailable";
-  if (!eligibleState) {
+  if (artifact.downloadState !== "blocked") {
     throw new Error(`Reacquisition requires a blocked download, not ${artifact.downloadState}`);
   }
   if (artifact.downloadRequestCount >= maximumZipRequests) {
@@ -212,73 +176,96 @@ function authorizeReacquisition(artifact: SourceArtifactRow) {
       `Reacquisition would exceed the conservative ${maximumZipRequests}-request ZIP limit`
     );
   }
+  const retryNotBefore = responseRetryNotBefore(artifact.downloadResponseState);
+  if (responseStatus(artifact.downloadResponseState) === 429 && !retryNotBefore) {
+    throw new Error("Reacquisition requires a known USPTO retry time");
+  }
+  if (retryNotBefore && retryNotBefore > new Date()) {
+    throw new Error(`Reacquisition is blocked until ${retryNotBefore.toISOString()}`);
+  }
+}
+
+function responseStatus(value: unknown) {
+  if (!(value && typeof value === "object" && "status" in value)) {
+    return null;
+  }
+  const { status } = value as { status?: unknown };
+  return typeof status === "number" ? status : null;
+}
+
+function responseRetryNotBefore(value: unknown) {
+  if (!(value && typeof value === "object" && "retryNotBefore" in value)) {
+    return null;
+  }
+  const { retryNotBefore } = value as { retryNotBefore?: unknown };
+  if (typeof retryNotBefore !== "string") {
+    return null;
+  }
+  const milliseconds = Date.parse(retryNotBefore);
+  return Number.isFinite(milliseconds) ? new Date(milliseconds) : null;
 }
 
 function authorizeImport(artifact: SourceArtifactRow) {
+  if (artifact.processingDisposition !== "required") {
+    throw new Error(
+      `Import requires a required source file, not ${artifact.processingDisposition}`
+    );
+  }
   if (artifact.objectKey !== null || artifact.sha256 !== null) {
     throw new Error("Import is forbidden while retained or previously retained bytes exist");
   }
-  if (artifact.downloadState !== "failed" && artifact.downloadState !== "unavailable") {
+  if (artifact.downloadState !== "blocked") {
     throw new Error(`Import requires a blocked download, not ${artifact.downloadState}`);
   }
 }
 
+function authorizePromotion(artifact: SourceArtifactRow) {
+  if (artifact.processingDisposition !== "deferred") {
+    throw new Error(
+      `Promotion requires a deferred source file, not ${artifact.processingDisposition}`
+    );
+  }
+  if (
+    artifact.applicationState !== "pending" ||
+    (artifact.downloadState !== "pending" && artifact.downloadState !== "blocked")
+  ) {
+    throw new Error("Promotion requires an unapplied source file");
+  }
+}
+
 async function authorizeReplay(artifactStore: ArtifactStore, artifact: SourceArtifactRow) {
-  if (artifact.objectKey === null || artifact.downloadState !== "complete") {
+  if (artifact.objectKey === null || artifact.downloadState !== "downloaded") {
     throw new Error("Replay requires a retained ZIP");
   }
-  if (artifact.projectionState !== "failed") {
-    throw new Error(`Replay requires failed application, not ${artifact.projectionState}`);
+  if (artifact.applicationState !== "needs_attention") {
+    throw new Error(`Replay requires an application issue, not ${artifact.applicationState}`);
   }
   await hasVerifiedRetainedZip(artifactStore, artifact);
 }
 
-async function readSourceArtifact(
+async function requireSourceArtifact(
   database: Database,
   identity: { filename: string; product: string },
   forUpdate = false
 ) {
-  const rows = await database<SourceArtifactRow[]>`
-    select bytes::text, download_error as "downloadError",
+  const [artifact] = await database<SourceArtifactRow[]>`
+    select application_state as "applicationState", applied_record_count as "appliedRecordCount",
+      bytes::text, content_revision as "contentRevision", current_error as "currentError",
       download_request_count as "downloadRequestCount",
       download_response_state as "downloadResponseState", download_state as "downloadState",
       expected_bytes::text as "expectedBytes", filename, id, object_key as "objectKey",
-      physical_record_count as "physicalRecordCount",
-      product, projected_mark_count as "projectedMarkCount",
-      projection_error as "projectionError", projection_state as "projectionState",
-      projection_version as "projectionVersion", sha256,
+      parser_version as "parserVersion", physical_record_count as "physicalRecordCount",
+      processing_disposition as "processingDisposition", product,
+      projected_mark_count as "projectedMarkCount", sha256,
       source_from_date::text as "sourceFromDate", source_to_date::text as "sourceToDate",
-      updated_at as "updatedAt"
-    from source_artifact
-    where product = ${identity.product} and filename = ${identity.filename}
+      unresolved_record_count as "unresolvedRecordCount", updated_at as "updatedAt"
+    from source_artifact where product = ${identity.product} and filename = ${identity.filename}
     ${forUpdate ? database`for update` : database``}
   `;
-  return rows[0] ?? null;
-}
-
-async function readSourceLane(database: Database) {
-  const [sourceLane] = await database<SourceLaneRow[]>`
-    select current_error as "currentError", next_eligible_at as "nextEligibleAt", status,
-      updated_at as "updatedAt"
-    from source_lane where id = 'uspto-odp'
-  `;
-  if (!sourceLane) {
-    throw new Error("USPTO source lane is unavailable");
+  if (!artifact) {
+    throw new Error(`Source artifact not found: ${identity.product}/${identity.filename}`);
   }
-  return sourceLane;
-}
-
-function authorizeSourceLane(sourceLane: SourceLaneRow) {
-  if (sourceLane.status === "stopped") {
-    throw new Error("Source repair requires an available USPTO lane, not stopped");
-  }
-  if (
-    sourceLane.status === "backoff" &&
-    sourceLane.nextEligibleAt &&
-    sourceLane.nextEligibleAt > new Date()
-  ) {
-    throw new Error("Source repair requires the USPTO lane backoff to expire");
-  }
+  return artifact;
 }
 
 async function hasVerifiedRetainedZip(artifactStore: ArtifactStore, artifact: SourceArtifactRow) {
@@ -303,18 +290,16 @@ async function hasVerifiedRetainedZip(artifactStore: ArtifactStore, artifact: So
   return true;
 }
 
-function facts(
-  artifact: SourceArtifactRow,
-  sourceLane: SourceLaneRow,
-  hasRetainedZip: boolean
-): SourceRepairFacts {
-  const { objectKey, ...visible } = artifact;
-  return {
-    ...visible,
-    hasRetainedZip,
-    sourceLaneError: sourceLane.currentError,
-    sourceLaneNextEligibleAt: sourceLane.nextEligibleAt,
-    sourceLaneStatus: sourceLane.status,
-    sourceLaneUpdatedAt: sourceLane.updatedAt,
-  };
+function facts(artifact: SourceArtifactRow, hasRetainedZip: boolean): SourceRepairFacts {
+  const { objectKey: _objectKey, ...visible } = artifact;
+  return { ...visible, hasRetainedZip };
+}
+
+async function readWorkerStatus(database: Database) {
+  const [worker] = await database<NonNullable<SourceInspectionFacts["worker"]>[]>`
+    select activity, current_error as "currentError", current_filename as "currentFilename",
+      last_heartbeat_at as "lastHeartbeatAt"
+    from worker_status where id = 'uspto'
+  `;
+  return worker ?? null;
 }

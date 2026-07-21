@@ -37,12 +37,12 @@ for service in migrate; do
   test "$(docker inspect --format '{{.State.ExitCode}}' "$container_id")" = "0"
 done
 
-lane_status="$(compose exec -T database sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "select status from source_lane where id = '\''uspto-odp'\''"')"
-test "$lane_status" = "ready" -o "$lane_status" = "backoff"
+worker_state="$(compose exec -T database sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "select case when current_error is null and last_heartbeat_at >= current_timestamp - interval '\''1 minute'\'' then '\''ready'\'' else '\''failed'\'' end from worker_status where id = '\''uspto'\''"')"
+test "$worker_state" = "ready"
 
 for service in api worker web; do
   container_id="$(compose ps --quiet "$service")"
   test "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$container_id")" = "$TMTURTLE_REVISION"
 done
 
-echo "Deployment smoke passed: disk, migration, services, worker lane, loopback, and public readiness"
+echo "Deployment smoke passed: disk, migration, services, worker status, loopback, and public readiness"

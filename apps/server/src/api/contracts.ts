@@ -67,7 +67,6 @@ export interface MarkPage {
   items: MarkSummary[];
   limit: 25;
   meta: {
-    dataThroughDate: string | null;
     dataVersion: string;
   };
   offset: number;
@@ -135,16 +134,12 @@ export interface ReportsService {
 }
 
 export interface SyncStatus {
-  activeState: "backoff" | "downloading" | "failed" | "idle" | "parsing" | "stopped";
-  completeThroughDate: string | null;
+  activeState: "applying" | "discovering" | "downloading" | "failed" | "idle";
   dataVersion: number;
-  degraded: boolean;
-  degradedSince: string | null;
   failedCount: number;
   lastSuccessfulUpdateAt: string | null;
+  latestProcessedDate: string | null;
   pendingCount: number;
-  stale: boolean;
-  staleSince: string | null;
 }
 
 export interface SyncService {
@@ -159,9 +154,12 @@ export interface BoundedPage<T> {
 }
 
 export interface OperatorArtifact {
+  applicationCompletedAt: string | null;
+  applicationState: "applying" | "complete" | "needs_attention" | "pending";
+  appliedRecordCount: number;
   artifactId: string;
   bytes: number | null;
-  downloadError: string | null;
+  currentError: string | null;
   downloadedAt: string | null;
   downloadResponseState: {
     contentLength?: string;
@@ -176,19 +174,18 @@ export interface OperatorArtifact {
     retryNotBefore?: string;
     status: number;
   } | null;
-  downloadState: "complete" | "downloading" | "failed" | "pending" | "unavailable";
+  downloadState: "blocked" | "downloaded" | "downloading" | "pending";
   filename: string;
+  parserVersion: string | null;
   physicalRecordCount: number;
+  processingDisposition: "covered" | "deferred" | "required";
   product: "TRTDXFAP" | "TRTYRAP";
   projectedMarkCount: number;
-  projectionCompletedAt: string | null;
-  projectionError: string | null;
-  projectionState: "complete" | "failed" | "pending" | "projecting";
-  projectionVersion: string | null;
   sha256: string | null;
   sourceFromDate: string;
   sourceToDate: string;
   storageState: "cleaned-up" | "not-downloaded" | "retained";
+  unresolvedRecordCount: number;
   updatedAt: string;
 }
 
@@ -206,7 +203,7 @@ export interface PublicSourceStatus {
   source: {
     currentArtifact: {
       filename: string;
-      state: "downloading" | "processing";
+      state: "applying" | "discovering" | "downloading";
     } | null;
     lastActivityAt: string | null;
     latestProcessedDate: string | null;
@@ -223,15 +220,13 @@ export interface OperatorSyncStatus extends PublicSourceStatus {
       artifactId: string;
       filename: string;
       httpStatus: number | null;
+      message: string | null;
       providerRequestCount: number | null;
       retryNotBefore: string | null;
-      stage: "application" | "download";
+      stage: "application" | "download" | "worker";
       updatedAt: string;
     }>;
     total: number;
-  };
-  provider: {
-    status: "backoff" | "ready" | "stopped";
   };
 }
 

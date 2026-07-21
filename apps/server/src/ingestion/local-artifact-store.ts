@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { mkdir, open, readdir, rename, stat, unlink } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -6,9 +6,22 @@ import { ArtifactIntegrityError, type ArtifactStore } from "./artifact-store.ts"
 
 const objectKeyPattern = /^sha256\/[0-9a-f]{2}\/[0-9a-f]{64}$/;
 const objectKeyPrefixPattern = /^[0-9a-f]{2}$/;
+const reservationKeyPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const reservedObjectKeyPattern = /^source\/[0-9a-f-]{36}$/i;
+
+function reservationPaths(root: string, reservationKey: string) {
+  if (!reservationKeyPattern.test(reservationKey)) {
+    throw new Error(`Invalid artifact reservation key: ${reservationKey}`);
+  }
+  return {
+    objectKey: `source/${reservationKey}`,
+    temporaryPath: join(root, `.put-${reservationKey}`),
+  };
+}
 
 function objectPath(root: string, objectKey: string) {
-  if (!objectKeyPattern.test(objectKey)) {
+  if (!(objectKeyPattern.test(objectKey) || reservedObjectKeyPattern.test(objectKey))) {
     throw new Error(`Invalid artifact object key: ${objectKey}`);
   }
   return join(root, objectKey);
@@ -45,6 +58,44 @@ export function createLocalArtifactStore(
         }
       }
     }
+    const reserved = await readdir(join(root, "source"), { withFileTypes: true }).catch(
+      (error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") {
+          return [];
+        }
+        throw error;
+      }
+    );
+    for (const object of reserved
+      .filter((entry) => entry.isFile() && reservationKeyPattern.test(entry.name))
+      .sort((left, right) => left.name.localeCompare(right.name))) {
+      yield `source/${object.name}`;
+    }
+  }
+
+  async function inspectStored(path: string, objectKey: string, expectedBytes: number) {
+    const details = await stat(path).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") {
+        return null;
+      }
+      throw error;
+    });
+    if (!details) {
+      return null;
+    }
+    if (details.size !== expectedBytes) {
+      return null;
+    }
+    const hash = createHash("sha256");
+    const file = await open(path, "r");
+    try {
+      for await (const chunk of file.createReadStream({ autoClose: false })) {
+        hash.update(chunk);
+      }
+    } finally {
+      await file.close();
+    }
+    return { bytes: details.size, objectKey, sha256: hash.digest("hex") };
   }
 
   async function cleanStaleStagingFiles() {
@@ -73,8 +124,8 @@ export function createLocalArtifactStore(
 
   // biome-ignore assist/source/useSortedKeys: Store operations follow the write lifecycle before read inspection.
   return {
-    async put(body, expectedBytes) {
-      const temporaryPath = join(root, `.put-${randomUUID()}`);
+    async put(body, expectedBytes, reservationKey) {
+      const { objectKey, temporaryPath } = reservationPaths(root, reservationKey);
       await cleanStaleStagingFiles();
       const file = await open(temporaryPath, "wx");
       const hash = createHash("sha256");
@@ -121,16 +172,36 @@ export function createLocalArtifactStore(
       }
 
       const sha256 = hash.digest("hex");
-      const objectKey = `sha256/${sha256.slice(0, 2)}/${sha256}`;
       const destination = objectPath(root, objectKey);
-      await mkdir(join(root, "sha256", sha256.slice(0, 2)), { recursive: true });
+      await mkdir(join(root, "source"), { recursive: true });
       const existing = await stat(destination).catch(() => null);
       if (existing) {
         await unlink(temporaryPath);
-      } else {
-        await rename(temporaryPath, destination);
+        throw new Error(`Artifact reservation already contains bytes: ${reservationKey}`);
       }
+      await rename(temporaryPath, destination);
       return { bytes, objectKey, sha256 };
+    },
+
+    async recoverPut(reservationKey, expectedBytes) {
+      const { objectKey, temporaryPath } = reservationPaths(root, reservationKey);
+      const destination = objectPath(root, objectKey);
+      const finalized = await inspectStored(destination, objectKey, expectedBytes);
+      if (finalized) {
+        return finalized;
+      }
+      const staged = await inspectStored(temporaryPath, objectKey, expectedBytes);
+      if (!staged) {
+        await unlink(temporaryPath).catch((error: NodeJS.ErrnoException) => {
+          if (error.code !== "ENOENT") {
+            throw error;
+          }
+        });
+        return null;
+      }
+      await mkdir(join(root, "source"), { recursive: true });
+      await rename(temporaryPath, destination);
+      return staged;
     },
 
     async remove(objectKey) {

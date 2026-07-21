@@ -41,7 +41,7 @@ export interface ArtifactDownload {
 
 export interface SourceCatalog {
   discover: (productIdentifier: string) => Promise<DiscoveredProduct>;
-  download: (downloadUrl: string) => Promise<ArtifactDownload>;
+  download: (identity: { filename: string; product: string }) => Promise<ArtifactDownload>;
 }
 
 export class SourceHttpError extends Error {

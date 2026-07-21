@@ -60,20 +60,28 @@ function relativeTimestamp(value: string) {
 }
 
 function artifactState(artifact: Artifact) {
-  if (artifact.projectionState === "complete") {
+  if (artifact.processingDisposition === "covered") {
+    return {
+      label: "Not downloaded · Covered by newer source data",
+      tone: "text-muted-foreground",
+    };
+  }
+  if (artifact.processingDisposition === "deferred") {
+    return {
+      label: "Not required · Selected broad source pending",
+      tone: "text-muted-foreground",
+    };
+  }
+  if (artifact.applicationState === "complete") {
     return {
       label: artifact.storageState === "cleaned-up" ? "Complete · Cleaned up" : "Complete",
       tone: "text-foreground",
     };
   }
-  if (
-    artifact.downloadState === "failed" ||
-    artifact.downloadState === "unavailable" ||
-    artifact.projectionState === "failed"
-  ) {
+  if (artifact.downloadState === "blocked" || artifact.applicationState === "needs_attention") {
     return { label: "Needs attention", tone: "text-destructive-foreground" };
   }
-  if (artifact.projectionState === "projecting") {
+  if (artifact.applicationState === "applying") {
     return { label: "Processing", tone: "text-primary" };
   }
   if (artifact.downloadState === "downloading") {
@@ -83,6 +91,9 @@ function artifactState(artifact: Artifact) {
 }
 
 function attentionMessage(item: AttentionItem) {
+  if (item.stage === "worker") {
+    return item.message ?? "The ingestion worker needs attention.";
+  }
   if (item.httpStatus === 429 && item.providerRequestCount && item.retryNotBefore) {
     return `The USPTO temporarily blocked this file after ${count(item.providerRequestCount)} requests. Try again after ${timestamp(item.retryNotBefore)}.`;
   }
@@ -204,7 +215,7 @@ export function StatusPage({
           </header>
           {status.source.currentArtifact ? (
             <p className="mt-6 mb-0 border-border border-y py-3 text-muted-foreground">
-              {status.source.currentArtifact.state === "processing" ? "Processing" : "Downloading"}{" "}
+              {currentActivityLabel(status.source.currentArtifact.state)}{" "}
               <strong className="text-foreground">{status.source.currentArtifact.filename}</strong>.
               Processed data remains searchable.
             </p>
@@ -358,8 +369,7 @@ function SourceFiles({
 }
 
 function Attention({ status }: { status: Outputs["status"] }) {
-  const providerStopped = status.provider.status === "stopped";
-  const total = status.attention.total + (providerStopped ? 1 : 0);
+  const { total } = status.attention;
   return (
     <section
       aria-labelledby="attention-heading"
@@ -392,14 +402,6 @@ function Attention({ status }: { status: Outputs["status"] }) {
               </p>
             </li>
           ))}
-          {providerStopped ? (
-            <li className="grid gap-1 border border-foreground p-4">
-              <strong>USPTO connection stopped</strong>
-              <p className="m-0 text-destructive-foreground">
-                Source downloads have stopped and need operator attention.
-              </p>
-            </li>
-          ) : null}
         </ul>
       )}
       {status.attention.total > status.attention.items.length ? (
@@ -409,6 +411,16 @@ function Attention({ status }: { status: Outputs["status"] }) {
       ) : null}
     </section>
   );
+}
+
+function currentActivityLabel(state: "applying" | "discovering" | "downloading") {
+  if (state === "applying") {
+    return "Processing";
+  }
+  if (state === "discovering") {
+    return "Discovering";
+  }
+  return "Downloading";
 }
 
 function ActivityStats({ status }: { status: PublicSourceStatus }) {

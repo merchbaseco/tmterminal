@@ -6,64 +6,21 @@ import {
   type TrademarkIngestionStatus,
 } from "../ingestion/trademark-ingestion.ts";
 
-const stalenessGraceDays = 3;
+const heartbeatStaleAfterMs = 5 * 60 * 1000;
 
-function staleSince(completeThroughDate: string | null) {
-  if (!completeThroughDate) {
-    return null;
-  }
-  const value = new Date(`${completeThroughDate}T00:00:00Z`);
-  value.setUTCDate(value.getUTCDate() + stalenessGraceDays + 1);
-  return value.toISOString();
-}
-
-export function syncStatusFromFacts(facts: TrademarkIngestionStatus): SyncStatus {
-  let activeState: SyncStatus["activeState"] = "idle";
-  if (facts.lane.status === "backoff") {
-    activeState = "backoff";
-  }
-  if (facts.currentArtifact?.state === "downloading") {
-    activeState = "downloading";
-  }
-  if (facts.currentArtifact?.state === "projecting") {
-    activeState = "parsing";
-  }
-  if (facts.failedArtifactCount > 0) {
-    activeState = "failed";
-  }
-  if (facts.lane.status === "stopped") {
-    activeState = "stopped";
-  }
-  const staleAt = staleSince(facts.completeThroughDate);
-  const stale = staleAt === null || Date.now() >= Date.parse(staleAt);
-  const failedCount = facts.failedArtifactCount + (facts.lane.status === "stopped" ? 1 : 0);
-  const degradationTimes: number[] = [];
-  if (staleAt && stale) {
-    degradationTimes.push(Date.parse(staleAt));
-  }
-  if (facts.failedArtifactCount > 0 && facts.failedArtifactUpdatedAt) {
-    degradationTimes.push(facts.failedArtifactUpdatedAt.getTime());
-  }
-  if (facts.lane.status === "backoff" || facts.lane.status === "stopped") {
-    degradationTimes.push(facts.lane.updatedAt.getTime());
-  }
-  const degradedSince =
-    degradationTimes.length > 0 ? new Date(Math.min(...degradationTimes)).toISOString() : null;
+export function syncStatusFromFacts(facts: TrademarkIngestionStatus, now = new Date()): SyncStatus {
+  const workerSignalAt = facts.worker.lastHeartbeatAt ?? facts.worker.updatedAt;
+  const workerFailed =
+    facts.worker.currentError !== null ||
+    workerSignalAt === null ||
+    now.getTime() - workerSignalAt.getTime() > heartbeatStaleAfterMs;
   return {
-    activeState,
-    completeThroughDate: facts.completeThroughDate,
+    activeState: workerFailed ? "failed" : facts.worker.activity,
     dataVersion: facts.dataVersion,
-    degraded:
-      stale ||
-      failedCount > 0 ||
-      facts.completeThroughDate === null ||
-      facts.lane.status === "backoff",
-    degradedSince,
-    failedCount,
+    failedCount: facts.attentionCount + (workerFailed ? 1 : 0),
     lastSuccessfulUpdateAt: facts.lastSuccessfulUpdateAt?.toISOString() ?? null,
+    latestProcessedDate: facts.latestProcessedDate,
     pendingCount: facts.pendingArtifactCount,
-    stale,
-    staleSince: stale ? staleAt : null,
   };
 }
 

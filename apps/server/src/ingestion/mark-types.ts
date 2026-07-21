@@ -1,9 +1,11 @@
 export const markVersions = {
   authorityPolicy: "uspto-authority-v1",
   normalization: "uspto-normalization-v1",
-  projection: "uspto-projection-v1",
+  projection: "uspto-projection-v2",
   sourceProfile: "uspto-application-xml-v2.0-v1",
 } as const;
+
+export type MarkVersions = Omit<typeof markVersions, "projection"> & { projection: string };
 
 export interface SourceContributor {
   artifactVersionSha256: string;
@@ -56,5 +58,5 @@ export interface ProjectedMark {
   };
   owners: MarkOwner[];
   statusEvents: MarkStatusEvent[];
-  versions: typeof markVersions;
+  versions: MarkVersions;
 }
