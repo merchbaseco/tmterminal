@@ -7,9 +7,6 @@ read_when:
 
 # Source Repair
 
-Status: Accepted target workflow; it is not executable until the source-state
-migration and private repository repair operation land.
-
 Repair one Source Artifact at a time with the private repository operation. An
 agent runs it from a production checkout after inspecting the file. `/status`
 remains read-only. There is no website mutation, public API, published `tt`
@@ -20,6 +17,28 @@ the file's current download, storage, and application facts without changing
 state. Any action that would contact USPTO requires a separate explicit
 reacquisition flag; a parse-only replay must not accept that flag.
 
+Inspect one file from the production checkout:
+
+```bash
+bun run source:repair --product TRTDXFAP --filename apc260714.zip
+```
+
+After reviewing the output and provider request count, authorize exactly one
+new download attempt:
+
+```bash
+bun run source:repair --product TRTDXFAP --filename apc260714.zip --reacquire
+```
+
+Replay retained bytes without contacting USPTO:
+
+```bash
+bun run source:repair --product TRTDXFAP --filename apc260714.zip --replay
+```
+
+Run one action at a time and wait for the worker to finish it before repairing
+another file.
+
 ## Before Repair
 
 Inspect the row's:
@@ -29,7 +48,7 @@ Inspect the row's:
 - Application State and parser version;
 - SHA-256, actual bytes, and temporary storage state;
 - applied and unresolved counts;
-- current error and worker status.
+- current error and USPTO source-lane status.
 
 Before authorizing reacquisition, read the durable Download Request Count and
 the [USPTO access limits](../reference/uspto-source.md#access-and-limits). Treat
@@ -51,15 +70,17 @@ records replace it in batches.
 Use a newer Parser Version for changed source semantics. A refactor or
 performance-only release keeps the version unchanged.
 
-## Cleaned Or Blocked ZIP
+## Blocked ZIP
 
-If bytes are absent, the agent reports how many provider requests have already
-been spent for that exact file. Explicit reacquisition creates exactly one new
-Download Request. No automated loop or provider-lane retry follows a failure.
+If the file has never retained bytes, the agent reports how many provider
+requests have already been spent for it. Explicit reacquisition creates exactly
+one new Download Request. No automated loop or provider-lane retry follows a
+failure.
 
-For an official reissue under the same product and filename, verify the catalog
-change, approve it explicitly, and increment the content revision. Winning mark
-provenance records the new revision and SHA-256.
+A cleaned file with a prior digest, or an official reissue under the same
+product and filename, requires content-revision support. Land that exact code
+change before reacquiring it; this operation does not silently replace known
+bytes.
 
 ## Completion
 
@@ -81,8 +102,8 @@ When fixing a known parser defect across history:
 1. land and deploy the corrected semantics;
 2. bump Parser Version only if interpretation changed;
 3. repair retained affected files first;
-4. inventory request counts before reacquiring cleaned files;
-5. repair missing files individually, watching provider quota and disk;
+4. add content-revision support before reacquiring cleaned files;
+5. repair never-retained files individually, watching provider quota and disk;
 6. verify representative marks and source rows after each file.
 
 Do not clear the mark tables before repair. Safe old knowledge remains available
