@@ -163,10 +163,12 @@ test("follows the USPTO data redirect without forwarding the credential", async 
   ]);
 });
 
-test("identifies a download-redirect 429 as a file-specific quota response", async () => {
+test("normalizes a bounded download-redirect quota response", async () => {
+  const providerMessage =
+    "This URI has been requested 15 times. Please wait 604800 seconds before trying again.";
   const catalog = createOdpSourceCatalog({
     apiKey: "test-key",
-    fetch: () => Promise.resolve(new Response(null, { status: 429 })),
+    fetch: () => Promise.resolve(Response.json(providerMessage, { status: 429 })),
   });
 
   try {
@@ -175,8 +177,40 @@ test("identifies a download-redirect 429 as a file-specific quota response", asy
   } catch (error) {
     expect(error).toBeInstanceOf(SourceHttpError);
     expect((error as SourceHttpError).phase).toBe("download-redirect");
-    expect((error as SourceHttpError).responseState.status).toBe(429);
+    expect((error as SourceHttpError).responseState).toEqual({
+      contentType: "application/json;charset=utf-8",
+      providerRequestCount: 15,
+      retryAfterSeconds: 604_800,
+      status: 429,
+    });
+    expect(JSON.stringify(error)).not.toContain(providerMessage);
   }
+});
+
+test("falls back when a download-redirect quota body is unusable", async () => {
+  const bodies = [
+    null,
+    "not-json",
+    JSON.stringify("The provider changed this message."),
+    JSON.stringify(`This URI has been requested 15 times. Wait ${"6".repeat(5000)} seconds.`),
+  ];
+  const states = await Promise.all(
+    bodies.map(async (body) => {
+      const catalog = createOdpSourceCatalog({
+        apiKey: "test-key",
+        fetch: () => Promise.resolve(new Response(body, { status: 429 })),
+      });
+      try {
+        await catalog.download("https://api.uspto.gov/files/apc240925.zip");
+        throw new Error("expected request rejection");
+      } catch (error) {
+        expect(error).toBeInstanceOf(SourceHttpError);
+        return (error as SourceHttpError).responseState;
+      }
+    })
+  );
+
+  expect(states).toEqual([{ status: 429 }, { status: 429 }, { status: 429 }, { status: 429 }]);
 });
 
 test("identifies a data-origin 429 as a provider throttle", async () => {

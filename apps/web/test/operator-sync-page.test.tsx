@@ -13,6 +13,8 @@ type OperatorSyncApi = import("../src/operator-sync-page.tsx").OperatorSyncApi;
 afterEach(cleanup);
 
 const searchablePattern = /searchable/i;
+const structuredQuotaPattern =
+  /The USPTO temporarily blocked this file after 15 requests\. Try again after/;
 let intersectionCallback: IntersectionObserverCallback | undefined;
 const processingActivity = Array.from({ length: 30 }, (_, index) => {
   const value = new Date(Date.UTC(2026, 5, 19 + index));
@@ -198,6 +200,8 @@ test("explains a rate-limited source file without implying existing data is unav
             artifactId: "artifact-1",
             filename: "apc18840407-20251231-01.zip",
             httpStatus: 429,
+            providerRequestCount: 15,
+            retryNotBefore: "2026-07-25T12:00:00.000Z",
             stage: "download" as const,
             updatedAt: "2026-07-18T12:00:00.000Z",
           },
@@ -207,15 +211,42 @@ test("explains a rate-limited source file without implying existing data is unav
     };
   };
   render(<StatusPage api={failedApi} operatorApi={failedApi} />);
+  expect(await screen.findByText(structuredQuotaPattern)).toBeTruthy();
+  expect(screen.queryByText(searchablePattern)).toBeNull();
+  expect(screen.getByText("Needs attention", { selector: "span" })).toBeTruthy();
+  expect(screen.queryByText("429 from a provider endpoint")).toBeNull();
+  expect(screen.queryByText("Corpus sync")).toBeNull();
+});
+
+test("falls back to generic rate-limit copy without structured provider facts", async () => {
+  const failedApi = api();
+  failedApi.status = async () => {
+    const status = await api().status();
+    return {
+      ...status,
+      attention: {
+        items: [
+          {
+            artifactId: "artifact-1",
+            filename: "apc18840407-20251231-01.zip",
+            httpStatus: 429,
+            providerRequestCount: null,
+            retryNotBefore: null,
+            stage: "download" as const,
+            updatedAt: "2026-07-18T12:00:00.000Z",
+          },
+        ],
+        total: 1,
+      },
+    };
+  };
+
+  render(<StatusPage api={failedApi} operatorApi={failedApi} />);
   expect(
     await screen.findByText(
       "The USPTO rate-limited this download. It needs a new download attempt."
     )
   ).toBeTruthy();
-  expect(screen.queryByText(searchablePattern)).toBeNull();
-  expect(screen.getByText("Needs attention", { selector: "span" })).toBeTruthy();
-  expect(screen.queryByText("429 from a provider endpoint")).toBeNull();
-  expect(screen.queryByText("Corpus sync")).toBeNull();
 });
 
 test("shows the current file as quiet background work", async () => {

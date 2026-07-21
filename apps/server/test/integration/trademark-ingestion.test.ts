@@ -1374,9 +1374,11 @@ test("a file-specific 429 fails only that artifact and downloads the next one", 
           new SourceHttpError(
             "USPTO ODP download redirect failed with HTTP 429",
             {
+              providerRequestCount: 15,
               rateLimitReset: "3600",
               requestId: "quota-1",
               retryAfter: "600",
+              retryAfterSeconds: 604_800,
               status: 429,
             },
             "download-redirect"
@@ -1399,6 +1401,7 @@ test("a file-specific 429 fails only that artifact and downloads the next one", 
     artifactStore: store,
     database,
     extractXml: () => Promise.resolve(Readable.from([])),
+    now: () => new Date("2026-07-20T20:00:00Z"),
     retry: { baseMs: 1, jitter: () => 0, maxMs: 2 },
     sourceCatalog,
   });
@@ -1429,9 +1432,13 @@ test("a file-specific 429 fails only that artifact and downloads the next one", 
     {
       downloadError: "USPTO ODP download redirect failed with HTTP 429",
       downloadResponseState: {
+        observedAt: "2026-07-20T20:00:00.000Z",
+        providerRequestCount: 15,
         rateLimitReset: "3600",
         requestId: "quota-1",
         retryAfter: "600",
+        retryAfterSeconds: 604_800,
+        retryNotBefore: "2026-07-27T20:00:00.000Z",
         status: 429,
       },
       downloadState: "failed",

@@ -361,7 +361,13 @@ test("operator status presents processed cleanup and actionable source failures"
   `;
   await database`
     update source_artifact set download_state = 'failed', download_error = 'provider rejected download',
-      download_response_state = jsonb_build_object('status', 429),
+      download_response_state = jsonb_build_object(
+        'status', 429,
+        'providerRequestCount', 15,
+        'retryAfterSeconds', 604800,
+        'observedAt', '2026-07-18T05:00:00.000Z',
+        'retryNotBefore', '2026-07-25T05:00:00.000Z'
+      ),
       updated_at = '2026-07-18T05:00:00Z'
     where filename = 'source-part-02.zip'
   `;
@@ -396,6 +402,8 @@ test("operator status presents processed cleanup and actionable source failures"
       {
         filename: "source-part-02.zip",
         httpStatus: 429,
+        providerRequestCount: 15,
+        retryNotBefore: "2026-07-25T05:00:00.000Z",
         stage: "download",
       },
     ],
