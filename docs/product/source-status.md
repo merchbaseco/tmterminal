@@ -76,8 +76,10 @@ progress, or health concepts.
 ### Worker Status
 
 One current worker row records its last heartbeat, current file, and current
-system error. A heartbeat older than five minutes appears in Needs Attention.
-There is no heartbeat history or global provider retry lane.
+system error. The worker pulses that heartbeat during long file operations. A
+heartbeat older than five minutes—or no heartbeat five minutes after the row
+was created—appears in Needs Attention. There is no heartbeat history or global
+provider retry lane.
 
 ### Repair
 

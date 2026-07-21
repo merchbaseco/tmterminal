@@ -39,9 +39,9 @@ implementation changes the router.
 ## Sync
 
 `sync.status` returns the authenticated safe summary used by `tt sync status`:
-active state, complete-through date, Data Version, degradation and staleness
-facts, last successful update, and pending/failed counts. It does not expose
-filenames or repair actions.
+worker activity, Latest Processed, Data Version, last successful update, and
+pending/failed counts. A worker heartbeat older than five minutes reports a
+failed active state. The summary does not expose filenames or repair actions.
 
 Serial and registration are identities, never fuzzy query terms.
 
@@ -70,7 +70,6 @@ Filtering, sorting, count, and offset happen on the server. Paged responses use:
   "limit": 25,
   "offset": 0,
   "meta": {
-    "dataThroughDate": "2026-07-13",
     "dataVersion": "123"
   }
 }
@@ -79,8 +78,9 @@ Filtering, sorting, count, and offset happen on the server. Paged responses use:
 Continuation requests may pass the expected Data Version. A material live-data
 change returns `CONFLICT` instead of silently duplicating or skipping rows.
 
-The accepted ingestion redesign removes `dataThroughDate` when its API migration
-lands. Until then, clients preserve the current field.
+Source-file coverage is not query metadata. Reads always use the perpetual live
+trademark tables; Data Version protects continuation requests from material
+changes while paging.
 
 ## Account
 

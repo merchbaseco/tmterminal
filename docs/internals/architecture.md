@@ -20,7 +20,7 @@ data; the website, HTTP client, and CLI consume the server contract.
 | `packages/http-client` | Published typed client derived from the server router. |
 | `packages/cli` | Published `tt` JSON automation client. |
 | PostgreSQL | Accounts, keys, roles, source state, current trademark knowledge, and data version. |
-| Artifact store | Temporary content-addressed ZIP bytes owned by the worker. |
+| Artifact store | Temporary checksummed ZIP bytes reserved by source artifact. |
 
 The API and worker use the same server image with different entrypoints. The API
 does not run schedules; the worker does not serve customer procedures.

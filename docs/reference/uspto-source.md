@@ -64,7 +64,7 @@ Accepted application documents require:
 - root `trademark-applications-daily`;
 - exactly one `version-no` equal to `2.0`;
 - exactly one `version-date` equal to `20041108`;
-- application file segment `TRMK`;
+- well-formed application transport framing;
 - well-formed `case-file` records with an eight-digit serial identity.
 
 Action keys group transport records and preserve file order. They do not define
@@ -76,9 +76,6 @@ The retained v2 application documentation defines the XML shapes used by the
 source files.
 
 ## Classification
-
-Status: Accepted target selection semantics. The deployed parser still uses its
-older primary-code-only Class 025 rule until the ingestion migration lands.
 
 International Class evidence comes from explicit `international-code` values.
 `primary-code` may stand in only when the filing date is on or after 1973-09-01.

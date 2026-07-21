@@ -36,6 +36,13 @@ Replay retained bytes without contacting USPTO:
 bun run source:repair --product TRTDXFAP --filename apc260714.zip --replay
 ```
 
+If the selected broad bootstrap source cannot be repaired, promote one inspected
+deferred file into the ordinary queue:
+
+```bash
+bun run source:repair --product TRTDXFAP --filename apc251231.zip --promote
+```
+
 Import one exact ZIP obtained manually from the signed-in ODP portal without
 making another API request:
 
@@ -62,7 +69,7 @@ Inspect the row's:
 - SHA-256, actual bytes, and temporary storage state;
 - applied and unresolved counts;
 - current error, normalized provider request count and retry time when known,
-  and USPTO source-lane status.
+  and current worker status.
 
 Before authorizing reacquisition, read the durable Download Request Count and
 the [USPTO access limits](../reference/uspto-source.md#access-and-limits). Treat
@@ -72,8 +79,9 @@ repeat after a failed request. The operation persists the incremented request
 count before contacting USPTO.
 
 If a recognized provider cooldown is present, wait until its estimated retry
-time. A 429 with no structured cooldown remains blocked for investigation; do
-not rotate keys or probe repeatedly.
+time; the repair command refuses early reacquisition. A 429 with no structured
+cooldown remains blocked for investigation; do not rotate keys or probe
+repeatedly.
 
 Confirm that the failure belongs to the file. Database, disk, artifact-store, or
 worker-code errors are system failures; fix the system before touching source
@@ -92,8 +100,7 @@ performance-only release keeps the version unchanged.
 
 If the file has never retained bytes, the agent reports how many provider
 requests have already been spent for it. Explicit reacquisition creates exactly
-one new Download Request. No automated loop or provider-lane retry follows a
-failure.
+one new Download Request. No automatic retry follows a failure.
 
 A manually downloaded official ZIP may be imported instead of reacquired. Keep
 it unextracted and unrenamed, verify it against the catalog byte count, and

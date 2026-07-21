@@ -32,7 +32,7 @@ PostgreSQL. Do not put only the database across the home WAN.
 
 - The supported release path is the self-hosted GitHub runner and production
   Compose project.
-- Source objects use content-addressed keys, never absolute host paths.
+- Source objects use artifact-scoped keys, never absolute host paths.
 - Raw source files are working data, not backups.
 - An automated backup product is deferred; deployment docs must not claim one
   exists.

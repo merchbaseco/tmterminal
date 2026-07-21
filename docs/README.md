@@ -16,10 +16,8 @@ HTTP API, and the `tt` CLI native to agentic workflows.
 
 These docs state behavior, boundaries, exact contracts, workflows, and durable
 decisions that are hard to recover from code search alone. Source Status,
-ingestion internals, the target data model, source repair, and the live-data
-decision describe the accepted ingestion redesign. Until its in-place migration
-lands, executable API and CLI reference stays aligned with deployed code, while
-the worker may still expose older corpus, frontier, and retry concepts.
+ingestion internals, the data model, source repair, and the live-data decision
+describe how USPTO files continuously update the searchable database.
 
 ## Start Here
 

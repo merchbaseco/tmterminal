@@ -7,10 +7,6 @@ read_when:
 
 # Ingestion
 
-Status: Accepted target architecture. The deployed worker still contains older
-corpus, frontier, provider-lane, and automatic-retry concepts until the in-place
-migration lands.
-
 USPTO files are transport batches into one ever-updating database. Every safe
 committed update is immediately searchable. Source progress and failures never
 gate reads.
@@ -61,7 +57,7 @@ than skipping ahead.
 Before contacting USPTO, one transaction increments the file's request count
 and moves Download State from `pending` to `downloading`. The worker then follows
 the exact short-lived data redirect immediately and streams the response into a
-content-addressed file while computing size and SHA-256.
+file reserved by Source Artifact ID while computing size and SHA-256.
 
 The API key is sent only to `api.uspto.gov`, never to the redirected data host.
 Signed URLs are never persisted. Product and filename are the durable provider
@@ -69,7 +65,7 @@ locator.
 
 After restart:
 
-- complete bytes matching the expected size and recorded hash are adopted
+- complete reserved bytes matching the expected size are hashed and adopted
   without a new provider request;
 - absent, partial, or unverifiable bytes make the download `blocked`;
 - blocked downloads never retry automatically.
@@ -91,7 +87,7 @@ The parser does not extract XML to disk or buffer the whole file. The private
 batch size changes only from measured production evidence.
 
 Document validation requires the official root, version, version date, and
-`TRMK` file segment. An invalid document applies nothing. A valid document with
+well-formed transport framing. An invalid document applies nothing. A valid document with
 individual unresolved records applies every safe record, records the unresolved
 count and one concise error, and retains the ZIP.
 
@@ -153,17 +149,18 @@ ordinary worker error; the pointer remains so later cleanup can retry. Cleanup
 does not change application completeness or data availability.
 
 A `needs_attention` file retains one ZIP for whole-file replay by a newer parser
-version, regardless of unresolved-record count.
+version, regardless of unresolved-record count. A parser-version change never
+queues retained history automatically; an agent inspects and replays one file.
 
 ## Failure And Restart
 
 Source failures are isolated to one file. They appear in Needs Attention while
 unrelated files and all data queries continue.
 
-Database, disk, artifact-store, or worker-code failures stop the worker. Before
-starting each file, PostgreSQL storage and artifact storage must each have at
-least 20 GiB free. The worker surfaces the original system error; it does not
-auto-prune, relabel the file, or continue through fallback machinery.
+Database, disk, artifact-store, or worker-code failures stop the worker. The
+deployment smoke requires at least 20 GiB free in PostgreSQL and artifact
+storage. The worker surfaces the original system error; it does not auto-prune,
+relabel the file, or continue through fallback machinery.
 
 An interrupted `applying` file replays idempotently from its retained ZIP after
 the system fault is fixed. Repeated interruption remains a System Failure; it is

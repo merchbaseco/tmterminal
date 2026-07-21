@@ -7,9 +7,6 @@ read_when:
 
 # Data Model
 
-Status: Accepted target contract. Names in the deployed schema may differ until
-the in-place ingestion migration lands.
-
 ## Ownership
 
 | State | Purpose |
@@ -93,6 +90,10 @@ status events are replaced together from that snapshot.
 | Dates equal, files differ, snapshots differ | Record an application issue. |
 | Exact coordinate, newer parser version | Allow corrected interpretation. |
 | Same product/filename, approved higher content revision | Allow corrected official bytes. |
+
+Rows migrated from the earlier store carry an explicit legacy snapshot marker.
+The first equal-date logical snapshot replaces that marker instead of reporting
+a false conflict between provider packages.
 
 Filename, frequency, coverage, download time, and processing order never decide
 which trademark snapshot wins.
