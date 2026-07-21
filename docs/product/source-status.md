@@ -29,7 +29,8 @@ The page leads with two things:
   stat row.
 - **Needs Attention.** Active system failures, blocked downloads, and
   application issues with the affected file, a plain-language problem, and the
-  required action.
+  required action. A recognized USPTO file cooldown includes its provider
+  request count and estimated retry time; unknown 429 shapes use generic copy.
 
 Normal pending, downloaded, or applying work is not an issue. There is no
 corpus health, complete frontier, queue percentage, annual section, or daily

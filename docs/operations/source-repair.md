@@ -48,7 +48,8 @@ Inspect the row's:
 - Application State and parser version;
 - SHA-256, actual bytes, and temporary storage state;
 - applied and unresolved counts;
-- current error and USPTO source-lane status.
+- current error, normalized provider request count and retry time when known,
+  and USPTO source-lane status.
 
 Before authorizing reacquisition, read the durable Download Request Count and
 the [USPTO access limits](../reference/uspto-source.md#access-and-limits). Treat
@@ -56,6 +57,10 @@ ZIP inputs conservatively: no more than 20 requests for the same file per year
 per API key, no more than five files per 10 seconds from one IP, and no automatic
 repeat after a failed request. The operation persists the incremented request
 count before contacting USPTO.
+
+If a recognized provider cooldown is present, wait until its estimated retry
+time. A 429 with no structured cooldown remains blocked for investigation; do
+not rotate keys or probe repeatedly.
 
 Confirm that the failure belongs to the file. Database, disk, artifact-store, or
 worker-code errors are system failures; fix the system before touching source

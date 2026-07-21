@@ -43,6 +43,13 @@ specific file once, persist the request count before sending it, and never
 automatically repeat a failed download. Parsing and application retries reuse
 retained bytes and do not contact USPTO.
 
+When the file endpoint returns its recognized 429 JSON-string diagnostic,
+Trademark Turtle reads at most 4 KiB and stores only the normalized provider
+request count, cooldown seconds, observation time, and estimated retry time.
+Raw provider text is neither persisted nor shown. Missing, malformed, changed,
+or oversized bodies retain the ordinary HTTP 429 facts and generic operator
+copy.
+
 The API key goes only to `api.uspto.gov`. The exact accepted redirect targets
 the USPTO data host, starts immediately, and receives no key. Product and
 filename—not the expiring URL—are the durable locator.
