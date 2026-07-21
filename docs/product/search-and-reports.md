@@ -66,17 +66,23 @@ the seller sees the primary go/no-go signal before scanning rows.
 
 `/marks/:serial-number` is a stable route. Its single document includes:
 
-- word mark and status;
+- word mark, mark type, and status;
 - serial, registration, filing, registration, and status dates;
 - owner, classes, and goods/services;
-- distinct source-reported status transitions;
-- winning source provenance.
+- distinct source-reported status transitions, newest first, with histories
+  longer than five events disclosed behind an explicit control;
+- one external action opening the official USPTO record (TSDR) for the serial
+  number in a new tab.
 
-Goods/services follow the heading, order Class 025 `GS` statements first, and
-fall back to other source statements only when `GS` is absent. Record facts form
-a compact reference grid beneath the primary review content. Status history does
-not label an event current or latest because canonical disposition may come from
-other source state. Repeated observations do not create duplicate user-visible
+Winning source provenance remains in the `marks.get` API payload for operator
+and CLI consumers; the website does not render it. Goods/services follow the
+heading, pair each `GS` statement with its international class code, order Class
+025 `GS` statements first, and fall back to other source statements only when
+`GS` is absent. The website presents those pairs as a full-width class and
+description table that grows vertically; mark type belongs to the compact record
+facts grid beneath it. Status history does not label an
+event current or latest because canonical disposition may come from other
+source state. Repeated observations do not create duplicate user-visible
 events.
 
 ## Text Matching

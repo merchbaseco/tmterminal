@@ -68,7 +68,7 @@ export function MarkResultContent({
             </span>
           ) : null}
         </div>
-        <p className="flex min-w-0 gap-x-[0.55rem] overflow-hidden text-ellipsis whitespace-nowrap font-medium text-base text-muted-foreground tracking-normal [&>span+span]:before:mr-[0.55rem] [&>span+span]:before:content-['·'] [&>span:first-child]:min-w-0 [&>span:first-child]:overflow-hidden [&>span:first-child]:text-ellipsis [&>span]:shrink-0">
+        <p className="flex min-w-0 flex-wrap gap-x-[0.55rem] font-medium text-base text-muted-foreground tracking-normal min-[48rem]:flex-nowrap min-[48rem]:overflow-hidden min-[48rem]:whitespace-nowrap [&>span:first-child]:min-w-0 min-[48rem]:[&>span:first-child]:overflow-hidden min-[48rem]:[&>span:first-child]:text-ellipsis min-[48rem]:[&>span:last-child]:min-w-0 min-[48rem]:[&>span:last-child]:overflow-hidden min-[48rem]:[&>span:last-child]:text-ellipsis min-[48rem]:[&>span:not(:first-child):not(:last-child)]:shrink-0 [&>span:not(:last-child)]:after:ml-[0.55rem] [&>span:not(:last-child)]:after:content-['·']">
           <span>{item.owner ?? "Owner unavailable"}</span>
           <span>{typeLabels[item.type]}</span>
           {classLabel ? <span>{classLabel}</span> : null}

@@ -1,4 +1,4 @@
-import type { ProjectedMark, SourceContributor } from "../ingestion/mark-types.ts";
+import type { MarkType, ProjectedMark, SourceContributor } from "../ingestion/mark-types.ts";
 
 export const legalDisclaimer =
   "Trademark data is informational, not legal advice. Verify critical decisions with the USPTO or qualified counsel.";
@@ -30,6 +30,7 @@ export type MarkDetail = Omit<ProjectedMark, "contributors" | "kind" | "mark" | 
     contributors: SourceContributor[];
     versions: ProjectedMark["versions"];
   };
+  type: MarkType;
 };
 
 interface SearchInputBase {
@@ -59,7 +60,7 @@ export interface MarkSummary {
   sourceTransactionDate: string | null;
   status: "live" | "dead" | "unknown";
   statusDate: string | null;
-  type: "design" | "typeset" | "text" | "other";
+  type: MarkType;
   wordMark: string;
 }
 

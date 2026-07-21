@@ -40,6 +40,8 @@ services:
     build:
       context: .
       target: runtime
+      secrets:
+        - hugeicons_license_key
       args:
         TMTURTLE_REVISION: ${TMTURTLE_REVISION:-development}
     image: tmturtle-core:${TMTURTLE_REVISION:-development}
@@ -96,6 +98,8 @@ services:
     build:
       context: .
       target: web
+      secrets:
+        - hugeicons_license_key
       args:
         TMTURTLE_REVISION: ${TMTURTLE_REVISION:-development}
         VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:?set VITE_CLERK_PUBLISHABLE_KEY}
@@ -137,6 +141,8 @@ services:
     build:
       context: .
       target: test
+      secrets:
+        - hugeicons_license_key
     command: ["bun", "run", "test:integration"]
     environment:
       TEST_DATABASE_URL: postgres://tmturtle_test:tmturtle_test@test-database:5432/tmturtle_test
@@ -147,3 +153,7 @@ services:
 volumes:
   artifact-data:
   database-data:
+
+secrets:
+  hugeicons_license_key:
+    environment: HUGEICONS_LICENSE_KEY

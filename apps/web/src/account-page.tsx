@@ -1,5 +1,6 @@
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Copy01Icon, MoreVerticalIcon } from "@hugeicons-pro/core-stroke-rounded";
 import type { inferRouterOutputs } from "@trpc/server";
-import { EllipsisIcon } from "lucide-react";
 import { type ChangeEvent, type FormEvent, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@/components/ui/menu";
 import { cn } from "@/lib/utils";
 import type { AppRouter } from "../../server/src/api/router.ts";
+import { LegalFooter } from "./legal-footer.tsx";
 
 type RouterOutputs = inferRouterOutputs<AppRouter>;
 type ApiKey = RouterOutputs["account"]["api-keys"]["list"][number];
@@ -45,7 +47,7 @@ function ApiKeyActions({ id, name, onRevoke }: ApiKeyActionsProps) {
         aria-label={`Actions for ${name}`}
         render={<Button size="icon" variant="ghost" />}
       >
-        <EllipsisIcon />
+        <HugeiconsIcon icon={MoreVerticalIcon} />
       </MenuTrigger>
       <MenuPopup align="end">
         <MenuItem onClick={revoke} variant="destructive">
@@ -155,11 +157,11 @@ export function AccountPage({ api, email }: { api: AccountApi; email: string | n
   );
 
   return (
-    <main className="page-shell isolate min-h-[calc(100dvh-3.75rem)] py-[clamp(2rem,5vw,5.5rem)]">
+    <main className="page-shell isolate flex min-h-[calc(100dvh-var(--topbar-height,4.5rem))] flex-col py-[clamp(2rem,5vw,5.5rem)]">
       <section className="grid grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)] items-end gap-8 max-[90rem]:grid-cols-1">
         <div>
           <p className="mb-[0.85rem] font-[650] text-[0.75rem] uppercase tracking-[0.1em]">
-            Account
+            Account / Access
           </p>
           <h1 className="m-0 font-black text-[clamp(3.25rem,13vw,13rem)] leading-[0.78] tracking-[-0.055em]">
             ACCOUNT
@@ -211,6 +213,7 @@ export function AccountPage({ api, email }: { api: AccountApi; email: string | n
                 </DialogPanel>
                 <DialogFooter>
                   <Button onClick={copyIssuedToken} variant="outline">
+                    <HugeiconsIcon aria-hidden="true" icon={Copy01Icon} />
                     Copy
                   </Button>
                   <Button onClick={acknowledgeToken}>I saved this key</Button>
@@ -256,7 +259,7 @@ export function AccountPage({ api, email }: { api: AccountApi; email: string | n
         {!loading && keys.length === 0 ? <p className="m-0 py-8">No API keys yet.</p> : null}
         {keys.map((key) => (
           <article
-            className="grid min-h-[6.5rem] grid-cols-[minmax(11rem,1.2fr)_minmax(28rem,2fr)_auto] items-center gap-8 border-border border-t py-4 first:border-t-0 max-[48rem]:grid-cols-1 max-[48rem]:gap-4"
+            className="grid grid-cols-[minmax(11rem,1.2fr)_minmax(28rem,2fr)_auto] items-center gap-8 border-border border-t py-5 first:border-t-0 max-[48rem]:grid-cols-1 max-[48rem]:gap-4"
             key={key.id}
           >
             <div className="grid gap-[0.3rem]">
@@ -287,6 +290,7 @@ export function AccountPage({ api, email }: { api: AccountApi; email: string | n
           </article>
         ))}
       </section>
+      <LegalFooter />
     </main>
   );
 }

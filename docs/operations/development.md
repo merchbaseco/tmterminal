@@ -87,8 +87,16 @@ The ignored `.env` supplies:
 - `POSTGRES_PASSWORD`
 - `CLERK_SECRET_KEY`
 - `CLERK_AUTHORIZED_PARTIES`
+- `HUGEICONS_LICENSE_KEY`
 - `VITE_CLERK_PUBLISHABLE_KEY`
 - `USPTO_API_KEY`
+
+Package installation also needs `HUGEICONS_LICENSE_KEY` in the shell
+environment so Bun can resolve the scoped `@hugeicons-pro/*` icon package (see
+the root `bunfig.toml` registry scope). Compose exposes it to image builds as a
+BuildKit secret. GitHub Quality receives the same value from the repository
+secret. The key is install-time only; it is never stored in an image or bundled
+into browser code.
 
 Do not print, commit, copy into images, or pass source credentials to browser
 code. The source key belongs only in the worker.

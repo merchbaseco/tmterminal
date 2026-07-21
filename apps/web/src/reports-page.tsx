@@ -1,8 +1,11 @@
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowLeft02Icon, ArrowRight02Icon } from "@hugeicons-pro/core-stroke-rounded";
 import { useQuery } from "@tanstack/react-query";
 import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
 import { useCallback, useLayoutEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import type { AppRouter } from "../../server/src/api/router.ts";
+import { LegalFooter } from "./legal-footer.tsx";
 import { MarkResultContent } from "./mark-result-content.tsx";
 import { SearchOptionSelect } from "./search-option-select.tsx";
 import { trpcErrorCode } from "./trpc-error-code.ts";
@@ -30,15 +33,13 @@ interface ReportPageState {
   to?: string;
 }
 
-const reportLabels: Record<ReportEvent, { context: string; eyebrow: string; heading: string }> = {
-  filed: { context: "Filed previous week", eyebrow: "Reports / Previous week", heading: "FILED" },
+const reportLabels: Record<ReportEvent, { eyebrow: string; heading: string }> = {
+  filed: { eyebrow: "Reports / Previous week", heading: "FILED" },
   "published-for-opposition": {
-    context: "Published for opposition",
     eyebrow: "Reports / Current status",
     heading: "PUBLISHED",
   },
   registered: {
-    context: "Registered previous week",
     eyebrow: "Reports / Previous week",
     heading: "REGISTERED",
   },
@@ -220,7 +221,7 @@ export function ReportsPage({
   }, [report.data, report.isError, restoreScrollOffset, search]);
 
   return (
-    <main className="page-shell isolate flex min-h-[calc(100dvh-3.75rem)] flex-col pt-4">
+    <main className="page-shell isolate flex min-h-[calc(100dvh-var(--topbar-height,4.5rem))] flex-col pt-4">
       <header className="grid grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)] items-end gap-8 border-border border-b pb-[clamp(1.5rem,3vw,2.5rem)] max-[48rem]:grid-cols-1 max-[48rem]:items-start">
         <div>
           <p className="mb-[0.85rem] font-[650] text-[0.75rem] uppercase tracking-[0.1em]">
@@ -305,13 +306,13 @@ export function ReportsPage({
               {report.data.total} {report.data.total === 1 ? "result" : "results"}
             </p>
           </div>
-          <div className="border-border border-y">
+          <div className="border-border border-t">
             {report.data.items.map((item) => (
               <article
                 className="relative isolate grid min-h-16 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-8 border-border border-b py-2 has-[a:hover]:bg-accent max-[48rem]:min-h-20 max-[48rem]:gap-4 max-[48rem]:py-2.5"
                 key={item.serialNumber}
               >
-                <MarkResultContent contextLabel={labels.context} item={item} onOpen={onOpenMark} />
+                <MarkResultContent contextLabel="" item={item} onOpen={onOpenMark} />
               </article>
             ))}
           </div>
@@ -334,6 +335,7 @@ export function ReportsPage({
               }
               variant="outline"
             >
+              <HugeiconsIcon aria-hidden="true" icon={ArrowLeft02Icon} />
               Previous
             </Button>
             <p>
@@ -356,16 +358,12 @@ export function ReportsPage({
               variant="outline"
             >
               Next
+              <HugeiconsIcon aria-hidden="true" icon={ArrowRight02Icon} />
             </Button>
           </nav>
         </section>
       ) : null}
-      <footer className="relative left-1/2 mt-auto w-dvw -translate-x-1/2 border-border border-t text-muted-foreground/70">
-        <p className="page-shell my-0 py-8">
-          Trademark data is informational, not legal advice. Verify critical decisions with the
-          USPTO or qualified counsel.
-        </p>
-      </footer>
+      <LegalFooter />
     </main>
   );
 }

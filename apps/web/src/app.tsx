@@ -1,4 +1,11 @@
 import { Show, SignInButton, UserButton, useAuth, useClerk, useUser } from "@clerk/react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  ArrowDown01Icon,
+  Cancel01Icon,
+  Menu01Icon,
+  Search01Icon,
+} from "@hugeicons-pro/core-stroke-rounded";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createTRPCClient, httpLink } from "@trpc/client";
 import {
@@ -15,7 +22,15 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Menu, MenuLinkItem, MenuPopup, MenuTrigger } from "@/components/ui/menu";
+import {
+  Menu,
+  MenuGroup,
+  MenuGroupLabel,
+  MenuLinkItem,
+  MenuPopup,
+  MenuSeparator,
+  MenuTrigger,
+} from "@/components/ui/menu";
 import { cn } from "@/lib/utils";
 import turtleLogo from "../../../assets/brand/turtle-mark.svg";
 import type { AppRouter } from "../../server/src/api/router.ts";
@@ -228,7 +243,9 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
 }
 
 const navItemClassName =
-  "inline-flex items-center text-inherit underline-offset-[0.3em] hover:underline";
+  "inline-flex h-8 cursor-pointer items-center rounded-full border border-border bg-transparent px-3 font-medium text-foreground no-underline hover:bg-accent focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2";
+
+const activeNavItemClassName = "border-transparent bg-accent";
 
 function TopBar({ pathname }: { pathname: string }) {
   const headerRef = useRef<HTMLElement>(null);
@@ -261,33 +278,30 @@ function TopBar({ pathname }: { pathname: string }) {
   }, []);
 
   return (
-    <header className="sticky top-0 z-30 border-border border-b bg-background" ref={headerRef}>
-      <div className="page-shell grid min-h-[3.75rem] grid-cols-[1fr_auto_auto] items-center py-1.5 max-[48rem]:grid-cols-[1fr_auto] max-[48rem]:gap-y-1">
+    <header className="sticky top-0 z-30 bg-background" ref={headerRef}>
+      <div className="page-shell grid min-h-[4.5rem] grid-cols-[1fr_auto_auto] items-center py-3 max-[48rem]:grid-cols-[1fr_auto] max-[48rem]:gap-y-1">
         <a
           aria-label="Trademark Turtle home"
-          className="inline-flex h-12 w-16 items-center justify-center overflow-hidden bg-[#151616] no-underline"
+          className="inline-flex h-9 w-fit items-center justify-center self-center justify-self-start rounded-[var(--radius)] bg-[#151616] px-1.5 no-underline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 dark:border dark:border-border"
           href="/search"
           onClick={navigate}
         >
           <img
             alt=""
-            className="h-8 w-auto max-w-none"
+            className="h-6 w-auto max-w-none"
             draggable={false}
-            height="36"
+            height="24"
             src={turtleLogo}
-            width="52"
+            width="35"
           />
         </a>
-        <nav
-          aria-label="Primary"
-          className="flex items-center gap-3.5 text-base max-[48rem]:col-span-full max-[48rem]:row-start-2 max-[48rem]:w-full max-[48rem]:justify-start max-[48rem]:gap-x-4 max-[48rem]:gap-y-1 max-[48rem]:overflow-x-auto max-[48rem]:[&_a]:min-h-11 max-[48rem]:[&_a]:shrink-0 max-[48rem]:[&_button]:min-h-11 max-[48rem]:[&_button]:shrink-0"
-        >
+        <nav aria-label="Primary" className="hidden items-center gap-1.5 text-sm min-[48rem]:flex">
           <Show when="signed-in">
             <a
               aria-current={pathname === "/" || pathname === "/search" ? "page" : undefined}
               className={cn(
                 navItemClassName,
-                (pathname === "/" || pathname === "/search") && "underline"
+                (pathname === "/" || pathname === "/search") && activeNavItemClassName
               )}
               href="/search"
               onClick={navigate}
@@ -299,11 +313,16 @@ function TopBar({ pathname }: { pathname: string }) {
                 aria-current={pathname === "/reports" ? "page" : undefined}
                 className={cn(
                   navItemClassName,
-                  "border-0 bg-transparent p-0 font-inherit",
-                  pathname === "/reports" && "underline"
+                  "group gap-1 pr-2.5 font-inherit",
+                  pathname === "/reports" && activeNavItemClassName
                 )}
               >
                 Reports
+                <HugeiconsIcon
+                  aria-hidden="true"
+                  className="size-3.5 text-muted-foreground transition-transform duration-[120ms] ease-out group-data-[popup-open]:rotate-180"
+                  icon={ArrowDown01Icon}
+                />
               </MenuTrigger>
               <MenuPopup align="start">
                 <MenuLinkItem href="/reports?event=filed&window=previous-week" onClick={navigate}>
@@ -323,7 +342,7 @@ function TopBar({ pathname }: { pathname: string }) {
           </Show>
           <a
             aria-current={pathname === "/status" ? "page" : undefined}
-            className={cn(navItemClassName, pathname === "/status" && "underline")}
+            className={cn(navItemClassName, pathname === "/status" && activeNavItemClassName)}
             href="/status"
             onClick={navigate}
           >
@@ -331,7 +350,7 @@ function TopBar({ pathname }: { pathname: string }) {
           </a>
           <a
             aria-current={pathname === "/help" ? "page" : undefined}
-            className={cn(navItemClassName, pathname === "/help" && "underline")}
+            className={cn(navItemClassName, pathname === "/help" && activeNavItemClassName)}
             href="/help"
             onClick={navigate}
           >
@@ -340,7 +359,7 @@ function TopBar({ pathname }: { pathname: string }) {
           <Show when="signed-in">
             <a
               aria-current={pathname === "/account" ? "page" : undefined}
-              className={cn(navItemClassName, pathname === "/account" && "underline")}
+              className={cn(navItemClassName, pathname === "/account" && activeNavItemClassName)}
               href="/account"
               onClick={navigate}
             >
@@ -351,7 +370,14 @@ function TopBar({ pathname }: { pathname: string }) {
         <Show when="signed-in">
           <div className="ml-3.5 flex items-center gap-2 max-[48rem]:col-start-2 max-[48rem]:row-start-1 max-[48rem]:ml-2">
             <AppearanceMenu />
-            <UserButton />
+            <UserButton
+              appearance={{
+                elements: {
+                  userButtonAvatarBox: "h-8 w-8 rounded-[var(--radius)] border border-border",
+                },
+              }}
+            />
+            <MobileNavMenu navigate={navigate} pathname={pathname} signedIn />
           </div>
         </Show>
         <Show when="signed-out">
@@ -360,10 +386,100 @@ function TopBar({ pathname }: { pathname: string }) {
               <Button>Sign in</Button>
             </SignInButton>
             <AppearanceMenu />
+            <MobileNavMenu navigate={navigate} pathname={pathname} signedIn={false} />
           </div>
         </Show>
       </div>
     </header>
+  );
+}
+
+function MobileNavMenu({
+  navigate,
+  pathname,
+  signedIn,
+}: {
+  navigate: (event: ReactMouseEvent<HTMLAnchorElement>) => void;
+  pathname: string;
+  signedIn: boolean;
+}) {
+  const currentItemClass = (current: boolean) => (current ? "bg-accent" : undefined);
+  return (
+    <Menu>
+      <MenuTrigger
+        aria-label="Menu"
+        className="group min-[48rem]:hidden"
+        render={<Button size="icon" variant="ghost" />}
+      >
+        <HugeiconsIcon
+          aria-hidden="true"
+          className="group-data-[popup-open]:hidden"
+          icon={Menu01Icon}
+        />
+        <HugeiconsIcon
+          aria-hidden="true"
+          className="hidden group-data-[popup-open]:block"
+          icon={Cancel01Icon}
+        />
+      </MenuTrigger>
+      <MenuPopup align="end">
+        {signedIn ? (
+          <>
+            <MenuLinkItem
+              aria-current={pathname === "/" || pathname === "/search" ? "page" : undefined}
+              className={currentItemClass(pathname === "/" || pathname === "/search")}
+              href="/search"
+              onClick={navigate}
+            >
+              Search
+            </MenuLinkItem>
+            <MenuSeparator />
+            <MenuGroup>
+              <MenuGroupLabel>Reports</MenuGroupLabel>
+              <MenuLinkItem href="/reports?event=filed&window=previous-week" onClick={navigate}>
+                Filed previous week
+              </MenuLinkItem>
+              <MenuLinkItem
+                href="/reports?event=registered&window=previous-week"
+                onClick={navigate}
+              >
+                Registered previous week
+              </MenuLinkItem>
+              <MenuLinkItem href="/reports?event=published-for-opposition" onClick={navigate}>
+                Published for opposition
+              </MenuLinkItem>
+            </MenuGroup>
+            <MenuSeparator />
+          </>
+        ) : null}
+        <MenuLinkItem
+          aria-current={pathname === "/status" ? "page" : undefined}
+          className={currentItemClass(pathname === "/status")}
+          href="/status"
+          onClick={navigate}
+        >
+          Status
+        </MenuLinkItem>
+        <MenuLinkItem
+          aria-current={pathname === "/help" ? "page" : undefined}
+          className={currentItemClass(pathname === "/help")}
+          href="/help"
+          onClick={navigate}
+        >
+          Help
+        </MenuLinkItem>
+        {signedIn ? (
+          <MenuLinkItem
+            aria-current={pathname === "/account" ? "page" : undefined}
+            className={currentItemClass(pathname === "/account")}
+            href="/account"
+            onClick={navigate}
+          >
+            Account
+          </MenuLinkItem>
+        ) : null}
+      </MenuPopup>
+    </Menu>
   );
 }
 
@@ -399,7 +515,7 @@ function SignedOutSearch({ search }: { search: string }) {
   );
 
   return (
-    <main className="page-shell isolate grid min-h-[calc(100dvh-3.75rem)] content-center gap-8 py-[clamp(2rem,5vw,5.5rem)]">
+    <main className="page-shell isolate grid min-h-[calc(100dvh-var(--topbar-height,4.5rem))] content-center gap-8 py-[clamp(2rem,5vw,5.5rem)]">
       <p className="mb-0 font-[650] text-base">Trademark search for Print on Demand sellers.</p>
       <h1 className="m-0 font-black text-[clamp(2.75rem,12.5vw,14rem)] leading-[0.78] tracking-[-0.055em]">
         TRADEMARK
@@ -410,22 +526,30 @@ function SignedOutSearch({ search }: { search: string }) {
         Sign in with your MerchBase account to run your search.
       </p>
       <form
-        className="grid max-w-[70rem] grid-cols-[minmax(0,1fr)_auto] gap-3 p-0 [--search-control-height:clamp(3.5rem,7vw,5.5rem)] max-[48rem]:grid-cols-1 [&>[data-slot=button]]:h-[var(--search-control-height)] [&>[data-slot=button]]:px-[clamp(1.5rem,3vw,2.5rem)] [&>[data-slot=button]]:text-[clamp(1.125rem,1.5vw,1.4rem)] [&_[data-slot=input-control]]:h-[var(--search-control-height)] [&_[data-slot=input-control]]:rounded-[var(--radius)] [&_[data-slot=input]]:h-full [&_[data-slot=input]]:px-[clamp(1rem,2vw,1.5rem)] [&_[data-slot=input]]:py-0 [&_[data-slot=input]]:font-semibold [&_[data-slot=input]]:text-[clamp(1.25rem,3vw,2.4rem)] [&_[data-slot=input]]:leading-none [&_[data-slot=input]]:tracking-[-0.035em]"
+        className="grid max-w-[70rem] grid-cols-[minmax(0,1fr)_auto] gap-3 p-0 [--search-control-height:clamp(3.5rem,7vw,5.5rem)] max-[48rem]:grid-cols-1 [&>[data-slot=button]]:h-[var(--search-control-height)] [&>[data-slot=button]]:px-[clamp(1.5rem,3vw,2.5rem)] [&>[data-slot=button]]:text-[clamp(1.125rem,1.5vw,1.4rem)] [&_[data-slot=input-control]]:h-[var(--search-control-height)] [&_[data-slot=input-control]]:rounded-[var(--radius)] [&_[data-slot=input]]:h-full [&_[data-slot=input]]:py-0 [&_[data-slot=input]]:pr-[clamp(1rem,2vw,1.5rem)] [&_[data-slot=input]]:pl-[clamp(2.75rem,4.5vw,3.75rem)] [&_[data-slot=input]]:font-semibold [&_[data-slot=input]]:text-[clamp(1.25rem,3vw,2.4rem)] [&_[data-slot=input]]:leading-none [&_[data-slot=input]]:tracking-[-0.035em]"
         onSubmit={handleSubmit}
       >
         <label className="sr-only" htmlFor="signed-out-search">
           Search trademarks
         </label>
-        <Input
-          id="signed-out-search"
-          maxLength={200}
-          onChange={handleChange}
-          placeholder="Search a word mark"
-          required
-          size="lg"
-          type="search"
-          value={query}
-        />
+        <div className="relative min-w-0">
+          <HugeiconsIcon
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 left-[clamp(1rem,2vw,1.5rem)] z-10 size-[clamp(1.25rem,2vw,1.6rem)] -translate-y-1/2 text-muted-foreground"
+            data-slot="search-icon"
+            icon={Search01Icon}
+          />
+          <Input
+            id="signed-out-search"
+            maxLength={200}
+            onChange={handleChange}
+            placeholder="Search a word mark"
+            required
+            size="lg"
+            type="search"
+            value={query}
+          />
+        </div>
         <Button size="xl" type="submit">
           Search
         </Button>

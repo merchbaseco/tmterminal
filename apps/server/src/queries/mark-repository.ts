@@ -5,9 +5,11 @@ import {
   type MarkGoodsServices,
   type MarkOwner,
   type MarkStatusEvent,
+  type MarkType,
   markVersions,
   type ProjectedMark,
 } from "../ingestion/mark-types.ts";
+import { markTypeSql } from "./mark-page.ts";
 
 type Database = postgres.Sql | postgres.TransactionSql;
 type MarkRow = ProjectedMark["mark"] & {
@@ -15,7 +17,16 @@ type MarkRow = ProjectedMark["mark"] & {
   sourcePhysicalRecordIndex: number;
   sourceProduct: string;
   sourceSha256: string;
+  type: MarkType;
 };
+
+const markColumns = `
+  m.serial_number as "serialNumber", m.registration_number as "registrationNumber",
+  m.word_mark as "wordMark", m.mark_drawing_code as "markDrawingCode", m.filing_date::text as "filingDate",
+  m.registration_date::text as "registrationDate", m.status_code as "statusCode", m.status_date::text as "statusDate",
+  m.source_transaction_date::text as "sourceTransactionDate", m.source_product as "sourceProduct",
+  m.source_sha256 as "sourceSha256", m.source_parser_version as "sourceParserVersion",
+  m.source_physical_record_index as "sourcePhysicalRecordIndex", ${markTypeSql} as type`;
 
 async function readMark(
   database: Database,
@@ -23,23 +34,15 @@ async function readMark(
 ) {
   let rows: MarkRow[];
   if (identity.serialNumber) {
-    rows = await database<MarkRow[]>`
-        select m.serial_number as "serialNumber", m.registration_number as "registrationNumber",
-          m.word_mark as "wordMark", m.mark_drawing_code as "markDrawingCode", m.filing_date::text as "filingDate",
-          m.registration_date::text as "registrationDate", m.status_code as "statusCode", m.status_date::text as "statusDate",
-          m.source_transaction_date::text as "sourceTransactionDate", m.source_product as "sourceProduct",
-          m.source_sha256 as "sourceSha256", m.source_parser_version as "sourceParserVersion",
-          m.source_physical_record_index as "sourcePhysicalRecordIndex"
-        from mark m where m.serial_number = ${identity.serialNumber}`;
+    rows = await database.unsafe<MarkRow[]>(
+      `select ${markColumns} from mark m where m.serial_number = $1`,
+      [identity.serialNumber]
+    );
   } else {
-    rows = await database<MarkRow[]>`
-        select m.serial_number as "serialNumber", m.registration_number as "registrationNumber",
-          m.word_mark as "wordMark", m.mark_drawing_code as "markDrawingCode", m.filing_date::text as "filingDate",
-          m.registration_date::text as "registrationDate", m.status_code as "statusCode", m.status_date::text as "statusDate",
-          m.source_transaction_date::text as "sourceTransactionDate", m.source_product as "sourceProduct",
-          m.source_sha256 as "sourceSha256", m.source_parser_version as "sourceParserVersion",
-          m.source_physical_record_index as "sourcePhysicalRecordIndex"
-        from mark m where m.registration_number = ${identity.registrationNumber ?? ""}`;
+    rows = await database.unsafe<MarkRow[]>(
+      `select ${markColumns} from mark m where m.registration_number = $1`,
+      [identity.registrationNumber ?? ""]
+    );
   }
   const [mark] = rows;
   if (!mark) {
@@ -62,6 +65,7 @@ async function readMark(
     sourcePhysicalRecordIndex,
     sourceProduct,
     sourceSha256,
+    type,
     ...publicMark
   } = mark;
   return {
@@ -80,8 +84,9 @@ async function readMark(
     mark: publicMark,
     owners,
     statusEvents,
+    type,
     versions: { ...markVersions, projection: sourceParserVersion },
-  } satisfies ProjectedMark;
+  } satisfies ProjectedMark & { type: MarkType };
 }
 
 export function createMarkRepository(database: postgres.Sql) {

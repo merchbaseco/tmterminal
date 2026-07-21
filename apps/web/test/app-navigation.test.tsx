@@ -134,6 +134,7 @@ const mark = {
     },
   },
   statusEvents: [],
+  type: "text" as const,
 };
 
 const reportResult = {
@@ -357,7 +358,7 @@ test("direct mark entry sends Back to results to search", async () => {
   render(<App />);
 
   await screen.findByRole("heading", { name: "TURTLE MARK" });
-  fireEvent.click(screen.getByRole("link", { name: "← Back to results" }));
+  fireEvent.click(screen.getByRole("link", { name: "Back to results" }));
 
   await waitFor(() => expect(window.location.pathname).toBe("/search"));
   expect(screen.getByRole("searchbox", { name: "Search trademarks" })).toBeTruthy();
@@ -377,12 +378,31 @@ test("search detail Back returns to the app-stored search entry", async () => {
   await waitFor(() => expect(window.location.pathname).toBe("/marks/70000001"));
   await screen.findByRole("heading", { name: "TURTLE MARK" });
 
-  fireEvent.click(screen.getByRole("link", { name: "← Back to results" }));
+  fireEvent.click(screen.getByRole("link", { name: "Back to results" }));
 
   await waitFor(() => expect(window.location.pathname).toBe("/search"));
   expect(new URLSearchParams(window.location.search).get("q")).toBe("turtle");
   expect(await screen.findByRole("link", { name: turtleMarkLinkPattern })).toBeTruthy();
   expect(searchInputs).toHaveLength(1);
+});
+
+test("compact menu exposes primary navigation on small screens", async () => {
+  signedIn = true;
+  render(<App />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Menu" }));
+  const currentSearchItem = await screen.findByRole("menuitem", { name: "Search" });
+  expect(currentSearchItem.getAttribute("aria-current")).toBe("page");
+  expect(currentSearchItem.className.split(" ")).toContain("bg-accent");
+  expect(screen.getByRole("menuitem", { name: "Filed previous week" })).toBeTruthy();
+  expect(screen.getByRole("menuitem", { name: "Published for opposition" })).toBeTruthy();
+  const accountItem = screen.getByRole("menuitem", { name: "Account" });
+  expect(accountItem.getAttribute("aria-current")).toBeNull();
+  expect(accountItem.className.split(" ")).not.toContain("bg-accent");
+
+  fireEvent.click(screen.getByRole("menuitem", { name: "Status" }));
+  await waitFor(() => expect(window.location.pathname).toBe("/status"));
+  expect(await screen.findByRole("heading", { name: "Jul 18, 2026" })).toBeTruthy();
 });
 
 test("Reports presets navigate to the generated result route", async () => {
@@ -454,7 +474,7 @@ test("report detail Back restores the generated page and document scroll", async
   fireEvent.click(reportMark);
   await waitFor(() => expect(window.location.pathname).toBe("/marks/70000001"));
   scrollOffset = 0;
-  fireEvent.click(await screen.findByRole("link", { name: "← Back to results" }));
+  fireEvent.click(await screen.findByRole("link", { name: "Back to results" }));
 
   await waitFor(() => expect(window.location.pathname).toBe("/reports"));
   expect(new URLSearchParams(window.location.search).get("offset")).toBe("25");
@@ -532,7 +552,7 @@ test("a failed replacement keeps its source results through detail and Back", as
 
   fireEvent.click(screen.getByRole("link", { name: turtleMarkLinkPattern }));
   await screen.findByRole("heading", { name: "TURTLE MARK" });
-  fireEvent.click(screen.getByRole("link", { name: "← Back to results" }));
+  fireEvent.click(screen.getByRole("link", { name: "Back to results" }));
 
   await waitFor(() => expect(window.location.pathname).toBe("/search"));
   expect(new URLSearchParams(window.location.search).get("q")).toBe("replacement");

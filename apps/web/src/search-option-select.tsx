@@ -1,3 +1,5 @@
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowDown01Icon } from "@hugeicons-pro/core-stroke-rounded";
 import { useCallback } from "react";
 
 import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "@/components/ui/menu";
@@ -9,16 +11,11 @@ interface SearchOption<T extends string> {
 
 function SelectChevron() {
   return (
-    <svg
+    <HugeiconsIcon
       aria-hidden="true"
-      className="block shrink-0 text-muted-foreground transition-transform duration-[120ms] ease-out group-data-[popup-open]:rotate-180 max-[48rem]:col-start-2 max-[48rem]:row-start-2"
-      fill="none"
-      height="5"
-      viewBox="0 0 8 5"
-      width="8"
-    >
-      <path d="M.5.5 4 4 7.5.5" stroke="currentColor" />
-    </svg>
+      className="block size-3.5 shrink-0 text-muted-foreground transition-transform duration-[120ms] ease-out group-data-[popup-open]:rotate-180 max-[48rem]:col-start-2 max-[48rem]:row-start-2"
+      icon={ArrowDown01Icon}
+    />
   );
 }
 
@@ -49,7 +46,7 @@ export function SearchOptionSelect<T extends string>({
     <Menu>
       <MenuTrigger
         aria-label={`${label}: ${selected.label}`}
-        className="group grid min-h-11 min-w-44 cursor-pointer grid-cols-[auto_auto_auto] items-center gap-[0.65rem] border-0 border-border border-r bg-transparent px-4 py-[0.45rem] text-left font-[650] text-[0.75rem] text-inherit uppercase tracking-[0.09em] hover:bg-accent focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2 data-[popup-open]:bg-accent max-[48rem]:min-h-14 max-[48rem]:w-full max-[48rem]:min-w-0 max-[48rem]:grid-cols-[minmax(0,1fr)_auto] max-[48rem]:content-start max-[48rem]:gap-x-3 max-[48rem]:gap-y-[0.35rem] max-[48rem]:border-r-0 max-[48rem]:border-b max-[48rem]:px-4 max-[48rem]:py-3"
+        className="group grid min-h-11 min-w-44 flex-auto cursor-pointer grid-cols-[auto_auto_auto] items-center gap-[0.65rem] border-0 border-border border-r bg-transparent px-4 py-[0.45rem] text-left font-[650] text-[0.75rem] text-inherit uppercase tracking-[0.09em] hover:bg-accent focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2 data-[popup-open]:bg-accent max-[48rem]:min-h-14 max-[48rem]:w-full max-[48rem]:min-w-0 max-[48rem]:grid-cols-[minmax(0,1fr)_auto] max-[48rem]:content-start max-[48rem]:gap-x-3 max-[48rem]:gap-y-[0.35rem] max-[48rem]:border-r-0 max-[48rem]:border-b max-[48rem]:px-4 max-[48rem]:py-3"
         name={name}
       >
         <span className="max-[48rem]:col-span-full">{label}</span>

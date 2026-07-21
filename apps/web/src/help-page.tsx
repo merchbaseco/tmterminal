@@ -17,7 +17,7 @@ const searchModes = [
 
 export function HelpPage() {
   return (
-    <main className="page-shell isolate min-h-[calc(100dvh-3.75rem)] pt-[clamp(2rem,5vw,5rem)] pb-[clamp(3rem,7vw,7rem)]">
+    <main className="page-shell isolate min-h-[calc(100dvh-var(--topbar-height,4.5rem))] pt-[clamp(2rem,5vw,5rem)] pb-[clamp(3rem,7vw,7rem)]">
       <header className="border-border border-b pb-[clamp(2rem,4vw,4rem)]">
         <p className="m-0 font-[650] text-[0.75rem] uppercase tracking-[0.1em]">Help</p>
         <h1 className="mt-3 mb-0 font-black text-[clamp(4rem,10vw,10rem)] leading-[0.78] tracking-[-0.055em]">

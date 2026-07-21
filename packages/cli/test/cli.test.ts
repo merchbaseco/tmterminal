@@ -41,6 +41,7 @@ const markFixture = {
     },
   },
   statusEvents: [],
+  type: "design",
 } satisfies TmturtleRouterOutputs["marks"]["get"];
 
 const searchPage = {

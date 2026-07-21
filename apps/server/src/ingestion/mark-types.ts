@@ -15,6 +15,8 @@ export interface SourceContributor {
   product: string;
 }
 
+export type MarkType = "design" | "other" | "text" | "typeset";
+
 export interface MarkClass {
   internationalCode: string | null;
   statusCode: string | null;

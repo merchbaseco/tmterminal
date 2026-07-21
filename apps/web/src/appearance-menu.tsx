@@ -1,4 +1,5 @@
-import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ComputerIcon, Moon02Icon, Sun03Icon } from "@hugeicons-pro/core-stroke-rounded";
 import { useCallback, useLayoutEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,11 @@ const appearanceLabels: Record<Appearance, string> = {
   dark: "Dark",
   light: "Light",
   system: "System",
+};
+const appearanceIcons: Record<Appearance, typeof Sun03Icon> = {
+  dark: Moon02Icon,
+  light: Sun03Icon,
+  system: ComputerIcon,
 };
 
 function savedAppearance(): Appearance {
@@ -47,9 +53,7 @@ export function AppearanceMenu() {
         aria-label={`Appearance: ${label}`}
         render={<Button size="icon" variant="ghost" />}
       >
-        {appearance === "light" ? <SunIcon /> : null}
-        {appearance === "dark" ? <MoonIcon /> : null}
-        {appearance === "system" ? <MonitorIcon /> : null}
+        <HugeiconsIcon icon={appearanceIcons[appearance]} />
       </MenuTrigger>
       <MenuPopup align="end">
         <MenuRadioGroup onValueChange={changeAppearance} value={appearance}>

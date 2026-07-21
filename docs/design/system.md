@@ -17,6 +17,13 @@ Use stock [COSS UI](https://coss.com/ui/) components and existing local
 `apps/web/src/components/ui/*` copies. Do not customize vendored internals or
 build parallel primitives.
 
+Icons come from HugeIcons (`@hugeicons/react` with the
+`@hugeicons-pro/core-stroke-rounded` set). Use them only where they improve
+recognition, hierarchy, or affordance — search, disclosures, navigation,
+appearance, and compact actions — and never as a substitute for necessary text
+labels. Installing the scoped icon package requires `HUGEICONS_LICENSE_KEY` in
+the environment (see the root `bunfig.toml` registry scope).
+
 Working order:
 
 1. Reuse an existing local primitive.
@@ -49,21 +56,33 @@ the user explicitly chooses; persist only that choice. Root tokens and the
 
 ## Brand
 
-The turtle is a logomark, not a UI mascot. Dark surfaces may use the transparent
-chartreuse mark. Light surfaces preserve its near-black field instead of
-inverting it. Additional mascot illustration is deferred.
+The turtle is a logomark, not a UI mascot. The header presents it as a compact
+rounded chip no taller than the adjacent controls. Dark surfaces may use the
+transparent chartreuse mark. Light surfaces preserve its near-black field
+instead of inverting it; in dark mode the field keeps a hairline border so the
+chip stays defined. Additional mascot illustration is deferred.
 
 ## Layout
 
 - The header and every page use one 120rem maximum-width shell with identical
-  responsive horizontal padding. Full-bleed header rules may span the viewport;
-  navigation, mastheads, and page content share the same inner edges.
+  responsive horizontal padding. The header stays borderless and uses vertical
+  space to separate itself from the page; navigation, mastheads, and page
+  content share the same inner edges.
 - The empty search masthead fills the brand state and leaves the layout once a
   query is active.
 - Search controls remain prominent and aligned.
+- The empty-search masthead and legal footer use whitespace rather than
+  separator rules.
+- Mark detail uses rules only between major sections. Tables, record facts, and
+  status rows use alignment and whitespace rather than internal boxes or row
+  dividers.
 - Each filter cell is one complete trigger: label, value, and chevron share the
   hit target.
 - Results use one document scroll; never introduce a nested results viewport.
+- Desktop navigation stays text-only and uses compact rounded pills with subtle
+  borders and a soft current-page fill. Below 48rem the header collapses to one
+  compact menu (stock COSS Menu with a HugeIcons trigger) covering the same
+  destinations, including the three report presets.
 - Desktop filters may stay inline. Mobile filters use a stock disclosure.
 - Long lists may use TanStack Virtual over document scroll; TanStack Table is
   not required for editorial rows.

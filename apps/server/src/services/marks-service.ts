@@ -11,7 +11,7 @@ import { markStatusForCode } from "../search/status-policy.ts";
 export function createMarksService(database: postgres.Sql): MarksService {
   const repository = createMarkRepository(database);
 
-  function publicMark(materialization: ProjectedMark): MarkDetail {
+  function publicMark(materialization: ProjectedMark & { type: MarkDetail["type"] }): MarkDetail {
     const { contributors, kind: _kind, versions, ...mark } = materialization;
     return {
       ...mark,

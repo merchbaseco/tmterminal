@@ -1,3 +1,5 @@
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowDown01Icon, Search01Icon } from "@hugeicons-pro/core-stroke-rounded";
 import { type InfiniteData, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
@@ -6,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { AppRouter } from "../../server/src/api/router.ts";
+import { LegalFooter } from "./legal-footer.tsx";
 import { MarkResultContent } from "./mark-result-content.tsx";
 import { SearchOptionSelect } from "./search-option-select.tsx";
 import { trpcErrorCode } from "./trpc-error-code.ts";
@@ -231,7 +234,7 @@ export function SearchPage({
     }
     document.documentElement.style.setProperty(
       "--page-scroll-padding",
-      "calc(var(--topbar-height, 3.75rem) + 7.5rem)"
+      "calc(var(--topbar-height, 4.5rem) + 7.5rem)"
     );
     return () => {
       document.documentElement.style.removeProperty("--page-scroll-padding");
@@ -289,14 +292,14 @@ export function SearchPage({
   return (
     <main
       className={cn(
-        "page-shell isolate flex min-h-[calc(100dvh-3.75rem)] flex-col pt-[clamp(1.25rem,2vw,2rem)]",
+        "page-shell isolate flex min-h-[calc(100dvh-var(--topbar-height,4.5rem))] flex-col pt-[clamp(1.25rem,2vw,2rem)]",
         state.query && "pt-0"
       )}
     >
       {state.query ? (
         <h1 className="sr-only">Trademark search results for “{state.query}”</h1>
       ) : (
-        <header className="border-border border-b pb-[clamp(1.5rem,4vw,3rem)]">
+        <header>
           <p className="mb-4 font-[650] text-base">Trademark search for Print on Demand sellers.</p>
           <h1 className="m-0 max-w-[10ch] font-black text-[clamp(2.75rem,min(12.5vw,18dvh),14rem)] leading-[0.78] tracking-[-0.055em]">
             TRADEMARK
@@ -308,14 +311,14 @@ export function SearchPage({
 
       <div
         className={cn(
-          state.query && "sticky top-[var(--topbar-height,3.75rem)] z-10 bg-background pt-4"
+          state.query && "sticky top-[var(--topbar-height,4.5rem)] z-10 bg-background pt-4"
         )}
       >
         <form
           className={cn(
-            "grid grid-cols-[minmax(0,1fr)_auto] gap-3 px-0 pt-[clamp(1.5rem,4vw,3.5rem)] pb-5 [--search-control-height:clamp(3.5rem,7vw,5.5rem)] max-[48rem]:grid-cols-1 [&>[data-slot=button]]:h-[var(--search-control-height)] [&>[data-slot=button]]:px-[clamp(1.5rem,3vw,2.5rem)] [&>[data-slot=button]]:text-[clamp(1.125rem,1.5vw,1.4rem)] [&_[data-slot=input-control]]:h-[var(--search-control-height)] [&_[data-slot=input-control]]:rounded-[var(--radius)] [&_[data-slot=input]]:h-full [&_[data-slot=input]]:px-[clamp(1rem,2vw,1.5rem)] [&_[data-slot=input]]:py-0 [&_[data-slot=input]]:font-semibold [&_[data-slot=input]]:text-[clamp(1.25rem,3vw,2.4rem)] [&_[data-slot=input]]:leading-none [&_[data-slot=input]]:tracking-[-0.035em]",
+            "grid grid-cols-[minmax(0,1fr)_auto] gap-3 px-0 pt-[clamp(1.5rem,4vw,3.5rem)] pb-5 [--search-control-height:clamp(3.5rem,7vw,5.5rem)] max-[48rem]:grid-cols-1 [&>[data-slot=button]]:h-[var(--search-control-height)] [&>[data-slot=button]]:px-[clamp(1.5rem,3vw,2.5rem)] [&>[data-slot=button]]:text-[clamp(1.125rem,1.5vw,1.4rem)] [&_[data-slot=input-control]]:h-[var(--search-control-height)] [&_[data-slot=input-control]]:rounded-[var(--radius)] [&_[data-slot=input]]:h-full [&_[data-slot=input]]:py-0 [&_[data-slot=input]]:pr-[clamp(1rem,2vw,1.5rem)] [&_[data-slot=input]]:pl-[clamp(2.75rem,4.5vw,3.75rem)] [&_[data-slot=input]]:font-semibold [&_[data-slot=input]]:text-[clamp(1.25rem,3vw,2.4rem)] [&_[data-slot=input]]:leading-none [&_[data-slot=input]]:tracking-[-0.035em]",
             state.query &&
-              "pt-1 pb-3 [--search-control-height:2.75rem] [&_[data-slot=input]]:text-xl"
+              "pt-1 pb-3 [--search-control-height:2.75rem] [&_[data-slot=input]]:pl-10 [&_[data-slot=input]]:text-xl [&_[data-slot=search-icon]]:left-3 [&_[data-slot=search-icon]]:size-[1.15rem]"
           )}
           // biome-ignore lint/performance/noJsxPropsBind: The local submit handler reads this page's draft query.
           onSubmit={submit}
@@ -323,18 +326,26 @@ export function SearchPage({
           <label className="sr-only" htmlFor="trademark-search">
             Search trademarks
           </label>
-          <Input
-            id="trademark-search"
-            maxLength={200}
-            name="query"
-            // biome-ignore lint/performance/noJsxPropsBind: This local input directly owns the draft query.
-            onChange={(event) => setDraftQuery(event.target.value)}
-            placeholder="Search a word mark"
-            required
-            size="lg"
-            type="search"
-            value={draftQuery}
-          />
+          <div className="relative min-w-0">
+            <HugeiconsIcon
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1/2 left-[clamp(1rem,2vw,1.5rem)] z-10 size-[clamp(1.25rem,2vw,1.6rem)] -translate-y-1/2 text-muted-foreground"
+              data-slot="search-icon"
+              icon={Search01Icon}
+            />
+            <Input
+              id="trademark-search"
+              maxLength={200}
+              name="query"
+              // biome-ignore lint/performance/noJsxPropsBind: This local input directly owns the draft query.
+              onChange={(event) => setDraftQuery(event.target.value)}
+              placeholder="Search a word mark"
+              required
+              size="lg"
+              type="search"
+              value={draftQuery}
+            />
+          </div>
           <Button size="xl" type="submit">
             Search
           </Button>
@@ -350,6 +361,14 @@ export function SearchPage({
             variant="outline"
           >
             Filters and sort
+            <HugeiconsIcon
+              aria-hidden="true"
+              className={cn(
+                "size-4 text-muted-foreground transition-transform duration-[120ms] ease-out",
+                filtersOpen && "rotate-180"
+              )}
+              icon={ArrowDown01Icon}
+            />
           </Button>
         ) : null}
         <section
@@ -364,7 +383,7 @@ export function SearchPage({
           {/* biome-ignore lint/a11y/useSemanticElements: A native fieldset legend sits off-grid and breaks the shared filter baseline. */}
           <div
             aria-labelledby="search-match-label"
-            className="flex min-h-11 flex-nowrap items-center gap-[0.65rem] border-0 border-border border-r px-4 py-[0.45rem] font-[650] text-[0.75rem] uppercase tracking-[0.09em] max-[48rem]:col-span-full max-[48rem]:grid max-[48rem]:min-h-14 max-[48rem]:grid-cols-[auto_auto] max-[48rem]:content-start max-[48rem]:border-r-0 max-[48rem]:border-b max-[48rem]:px-4 max-[48rem]:py-3 [&_input]:accent-primary [&_label]:flex [&_label]:items-center [&_label]:gap-[0.4rem]"
+            className="flex min-h-11 flex-auto flex-nowrap items-center gap-[0.65rem] border-0 border-border border-r px-4 py-[0.45rem] font-[650] text-[0.75rem] uppercase tracking-[0.09em] max-[48rem]:col-span-full max-[48rem]:grid max-[48rem]:min-h-14 max-[48rem]:grid-cols-[auto_auto] max-[48rem]:content-start max-[48rem]:border-r-0 max-[48rem]:border-b max-[48rem]:px-4 max-[48rem]:py-3 [&_input]:accent-primary [&_label]:flex [&_label]:items-center [&_label]:gap-[0.4rem]"
             role="group"
           >
             <span className="max-[48rem]:col-span-full" id="search-match-label">
@@ -478,7 +497,7 @@ export function SearchPage({
       {data && total > 0 && (!query.error || conflict || replacementFailure) ? (
         <section aria-label="Search results">
           <div className="flex min-h-10 items-center font-[650] text-[0.75rem] uppercase tracking-[0.09em] [&_p]:m-0">
-            <p className="flex flex-wrap gap-x-[0.6rem] gap-y-1 [&>span+span]:font-extrabold [&>span+span]:before:mr-[0.6rem] [&>span+span]:before:text-muted-foreground [&>span+span]:before:content-['·']">
+            <p className="flex flex-wrap gap-x-[0.6rem] gap-y-1 [&>span+span]:font-extrabold [&>span:not(:last-child)]:after:ml-[0.6rem] [&>span:not(:last-child)]:after:font-normal [&>span:not(:last-child)]:after:text-muted-foreground [&>span:not(:last-child)]:after:content-['·']">
               <span>
                 {total} {total === 1 ? "result" : "results"}
               </span>
@@ -486,7 +505,7 @@ export function SearchPage({
               <span>{data.pages[0]?.liveMatchCounts.partial ?? 0} live partial</span>
             </p>
           </div>
-          <div className="border-border border-y" key={restorationKey}>
+          <div className="border-border border-t" key={restorationKey}>
             <ol
               aria-label="Trademark results"
               className="relative m-0 w-full list-none p-0"
@@ -534,12 +553,7 @@ export function SearchPage({
           ) : null}
         </section>
       ) : null}
-      <footer className="relative left-1/2 mt-auto w-dvw -translate-x-1/2 border-border border-t text-muted-foreground/70">
-        <p className="page-shell my-0 py-8">
-          Trademark data is informational, not legal advice. Verify critical decisions with the
-          USPTO or qualified counsel.
-        </p>
-      </footer>
+      <LegalFooter />
     </main>
   );
 }

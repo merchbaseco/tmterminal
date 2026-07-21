@@ -93,7 +93,7 @@
     color: var(--foreground);
     scroll-padding-top: var(
       --page-scroll-padding,
-      var(--topbar-height, 3.75rem)
+      var(--topbar-height, 4.5rem)
     );
     background: var(--background);
   }

@@ -191,7 +191,7 @@ export function StatusPage({
   return (
     <main
       aria-busy={!(status || error)}
-      className="page-shell isolate min-h-[calc(100dvh-3.75rem)] pt-[clamp(1.25rem,3vw,2.5rem)] pb-[clamp(2rem,5vw,5.5rem)]"
+      className="page-shell isolate min-h-[calc(100dvh-var(--topbar-height,4.5rem))] pt-[clamp(1.25rem,3vw,2.5rem)] pb-[clamp(2rem,5vw,5.5rem)]"
     >
       {error === "load" ? (
         <p className="m-0 py-8 text-destructive-foreground" role="alert">
@@ -390,7 +390,7 @@ function Attention({ status }: { status: Outputs["status"] }) {
         <ul className="mt-4 mb-0 grid list-none gap-3 p-0">
           {status.attention.items.map((item) => (
             <li
-              className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 border border-foreground p-4"
+              className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 border border-border p-4"
               key={item.artifactId}
             >
               <strong>{item.filename}</strong>

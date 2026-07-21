@@ -74,7 +74,7 @@ test("filed preset renders its resolved week and reuses customer mark rows", asy
   expect(await screen.findByRole("heading", { name: "FILED" })).toBeTruthy();
   expect(screen.getByText("Jul 6–12, 2026")).toBeTruthy();
   expect(screen.getByRole("link", { name: weeklyTurtleLinkPattern })).toBeTruthy();
-  expect(screen.getByText("Filed previous week")).toBeTruthy();
+  expect(screen.getByText("Reports / Previous week")).toBeTruthy();
   expect(screen.getByText(legalDisclaimerPattern)).toBeTruthy();
   expect(inputs[0]).toMatchObject({ event: "filed", offset: 0, window: "previous-week" });
 });

@@ -1,0 +1,2 @@
+[install.scopes]
+"@hugeicons-pro" = { token = "$HUGEICONS_LICENSE_KEY", url = "https://npm.hugeicons.com/" }

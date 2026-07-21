@@ -334,13 +334,11 @@ test("downloads once, validates, applies in bounded transactions, and removes th
       unresolved_record_count: 0,
     },
   ]);
-  expect((await createMarksService(database).getBySerialNumber("74668071"))?.mark.wordMark).toBe(
-    "ANNUAL SHIRT"
-  );
-  expect(
-    (await createMarksService(database).getBySerialNumber("74668071"))?.provenance.versions
-      .projection
-  ).toBe("uspto-projection-v2");
+  expect(await createMarksService(database).getBySerialNumber("74668071")).toMatchObject({
+    mark: { wordMark: "ANNUAL SHIRT" },
+    provenance: { versions: { projection: "uspto-projection-v2" } },
+    type: "typeset",
+  });
 });
 
 test("a completed file remains applied when ZIP cleanup needs another attempt", async () => {

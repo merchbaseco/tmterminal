@@ -34,6 +34,8 @@
         "@base-ui/react": "1.6.0",
         "@clerk/react": "6.12.3",
         "@fontsource-variable/archivo": "5.2.8",
+        "@hugeicons-pro/core-stroke-rounded": "4.2.3",
+        "@hugeicons/react": "1.1.9",
         "@tanstack/react-query": "5.101.2",
         "@tanstack/react-virtual": "3.14.6",
         "@trpc/client": "11.18.0",
@@ -218,6 +220,10 @@
     "@fontsource-variable/archivo": ["@fontsource-variable/archivo@5.2.8", "", {}, "sha512-R8EotpKHEsKv7d7oiUyjyPENRi2gtAlwdTlzDCOs5BfX/LJP7jvUYJ4fF/qyd3rnbgk3r1xp33g1P57bYJfhzQ=="],
 
     "@happy-dom/global-registrator": ["@happy-dom/global-registrator@20.10.6", "", { "dependencies": { "@types/node": ">=20.0.0", "happy-dom": "^20.10.6" } }, "sha512-Nu/IjRkkNxmeG2ywWsyJSO4d1BrWTqVzxCPL+gXj0b97klhmjd6wLzt6Bx/laNpkZ3WLW7zNCqmtMIbIlahqug=="],
+
+    "@hugeicons-pro/core-stroke-rounded": ["@hugeicons-pro/core-stroke-rounded@4.2.3", "https://npm.hugeicons.com/@hugeicons-pro/core-stroke-rounded/-/core-stroke-rounded-4.2.3.tgz", {}, "sha512-erycUN00FfmlIx+PSJWISuDnyUGE9isxyEZnv054CN7We94Bt74nyTeSDR5dBoBR6LF+77ypHd4CXmU14WvuCQ=="],
+
+    "@hugeicons/react": ["@hugeicons/react@1.1.9", "", { "peerDependencies": { "react": ">=16.0.0" } }, "sha512-O+lWSWjbijoAvMCxn4K2bQWCGN5+mP1y5j+X99j23mXMj+s0X25fs71T6t9YJLaBodwmZdaewD27dzS/PiboQw=="],
 
     "@humanfs/core": ["@humanfs/core@0.19.2", "", { "dependencies": { "@humanfs/types": "^0.15.0" } }, "sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA=="],
 
