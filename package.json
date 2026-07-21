@@ -23,6 +23,7 @@
     "lint:changed": "ultracite check --changed --since=${LINT_BASE:-origin/main}",
     "lint:fix": "ultracite fix",
     "source:repair": "docker compose exec -T worker bun run --cwd apps/server source:repair",
+    "source:import": "./scripts/source-import",
     "test": "bun test apps/server/test/unit packages/http-client/test packages/cli/test scripts/dev-contract.test.ts && bun test apps/web/test && ./scripts/deployment-contract.test",
     "test:fixtures": "bun test scripts/uspto-fixtures.test.ts",
     "test:integration": "bun test apps/server/test/integration",

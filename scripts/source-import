@@ -1,0 +1,29 @@
+#!/bin/sh
+set -eu
+
+usage="Usage: bun run source:import <product> <zip-path>"
+
+if [ "$#" -ne 2 ] || [ ! -f "$2" ]; then
+  echo "$usage" >&2
+  exit 1
+fi
+
+product=$1
+source_path=$(cd "$(dirname "$2")" && pwd -P)/$(basename "$2")
+filename=$(basename "$source_path")
+TMTURTLE_REVISION=$(git rev-parse HEAD)
+export TMTURTLE_REVISION
+
+worker_container=$(docker compose ps --all --quiet worker)
+if [ -n "$worker_container" ]; then
+  worker_state=$(docker inspect --format '{{.State.Status}}' "$worker_container")
+  if [ "$worker_state" != "exited" ]; then
+    echo "Stop the worker before importing a source ZIP" >&2
+    exit 1
+  fi
+fi
+
+docker compose run --rm --no-deps \
+  --volume "$source_path:/imports/$filename:ro" \
+  worker bun run --cwd apps/server source:repair \
+  --product "$product" --filename "$filename" --import "/imports/$filename"

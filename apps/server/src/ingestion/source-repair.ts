@@ -16,6 +16,7 @@ interface SourceArtifactRow {
   downloadRequestCount: number;
   downloadResponseState: unknown;
   downloadState: "complete" | "downloading" | "failed" | "pending" | "unavailable";
+  expectedBytes: string;
   filename: string;
   id: string;
   objectKey: string | null;
@@ -44,6 +45,7 @@ export interface SourceRepairFacts {
   downloadRequestCount: number;
   downloadResponseState: unknown;
   downloadState: SourceArtifactRow["downloadState"];
+  expectedBytes: string;
   filename: string;
   hasRetainedZip: boolean;
   id: string;
@@ -121,6 +123,78 @@ export function repairSourceArtifact(
   });
 }
 
+export function importSourceArtifact(
+  artifactStore: ArtifactStore,
+  database: postgres.Sql,
+  input: {
+    body: ReadableStream<Uint8Array>;
+    filename: string;
+    product: string;
+  }
+) {
+  return reserveImport(database, input).then(async ({ artifactId, expectedBytes }) => {
+    let stored: Awaited<ReturnType<ArtifactStore["put"]>>;
+    try {
+      stored = await artifactStore.put(input.body, expectedBytes);
+    } catch (error) {
+      await failImport(database, artifactId, error);
+      throw error;
+    }
+    return database.begin(async (transaction) => {
+      await lockIngestion(transaction);
+      const completed = await transaction<Array<{ id: string }>>`
+        update source_artifact set download_state = 'complete', download_error = null,
+          download_response_state = null, projection_state = 'pending', projection_error = null,
+          sha256 = ${stored.sha256}, bytes = ${stored.bytes}, object_key = ${stored.objectKey},
+          downloaded_at = now(), updated_at = now()
+        where id = ${artifactId} and download_state = 'downloading'
+        returning id
+      `;
+      if (completed.length !== 1) {
+        throw new Error(`Source artifact import reservation was lost: ${artifactId}`);
+      }
+      const imported = await readSourceArtifact(transaction, input);
+      if (!imported) {
+        throw new Error(`Source artifact disappeared during import: ${artifactId}`);
+      }
+      return facts(imported, await readSourceLane(transaction), true);
+    });
+  });
+}
+
+function reserveImport(database: postgres.Sql, input: { filename: string; product: string }) {
+  return database.begin(async (transaction) => {
+    await lockIngestion(transaction);
+    const artifact = await readSourceArtifact(transaction, input, true);
+    if (!artifact) {
+      throw new Error(`Source artifact not found: ${input.product}/${input.filename}`);
+    }
+    authorizeImport(artifact);
+    const expectedBytes = Number(artifact.expectedBytes);
+    if (!Number.isSafeInteger(expectedBytes) || expectedBytes < 0) {
+      throw new Error(`Source artifact ${artifact.id} has an invalid expected byte count`);
+    }
+    await transaction`
+      update source_artifact set download_state = 'downloading', download_error = null,
+        download_request_count = download_request_count + 1, download_response_state = null,
+        projection_state = 'pending', projection_error = null, updated_at = now()
+      where id = ${artifact.id}
+    `;
+    return { artifactId: artifact.id, expectedBytes };
+  });
+}
+
+function failImport(database: postgres.Sql, artifactId: string, error: unknown) {
+  const message = error instanceof Error ? error.message.slice(0, 500) : "Manual import failed";
+  return database.begin(async (transaction) => {
+    await lockIngestion(transaction);
+    await transaction`
+      update source_artifact set download_state = 'failed', download_error = ${message},
+        updated_at = now() where id = ${artifactId} and download_state = 'downloading'
+    `;
+  });
+}
+
 function authorizeReacquisition(artifact: SourceArtifactRow) {
   if (artifact.objectKey !== null) {
     throw new Error("Reacquisition is forbidden while a retained ZIP exists; use replay");
@@ -137,6 +211,15 @@ function authorizeReacquisition(artifact: SourceArtifactRow) {
     throw new Error(
       `Reacquisition would exceed the conservative ${maximumZipRequests}-request ZIP limit`
     );
+  }
+}
+
+function authorizeImport(artifact: SourceArtifactRow) {
+  if (artifact.objectKey !== null || artifact.sha256 !== null) {
+    throw new Error("Import is forbidden while retained or previously retained bytes exist");
+  }
+  if (artifact.downloadState !== "failed" && artifact.downloadState !== "unavailable") {
+    throw new Error(`Import requires a blocked download, not ${artifact.downloadState}`);
   }
 }
 
@@ -159,7 +242,8 @@ async function readSourceArtifact(
     select bytes::text, download_error as "downloadError",
       download_request_count as "downloadRequestCount",
       download_response_state as "downloadResponseState", download_state as "downloadState",
-      filename, id, object_key as "objectKey", physical_record_count as "physicalRecordCount",
+      expected_bytes::text as "expectedBytes", filename, id, object_key as "objectKey",
+      physical_record_count as "physicalRecordCount",
       product, projected_mark_count as "projectedMarkCount",
       projection_error as "projectionError", projection_state as "projectionState",
       projection_version as "projectionVersion", sha256,

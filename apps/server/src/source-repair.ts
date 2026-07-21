@@ -1,43 +1,62 @@
+import { basename } from "node:path";
+
 import { createDatabaseClient } from "./db/client.ts";
 import { createLocalArtifactStore } from "./ingestion/local-artifact-store.ts";
-import { inspectSourceArtifact, repairSourceArtifact } from "./ingestion/source-repair.ts";
+import {
+  importSourceArtifact,
+  inspectSourceArtifact,
+  repairSourceArtifact,
+  type SourceRepairFacts,
+} from "./ingestion/source-repair.ts";
 
 interface Input {
-  action: "inspect" | "reacquire" | "replay";
+  action: "import" | "inspect" | "reacquire" | "replay";
   filename: string;
+  importPath: string | null;
   product: string;
 }
 
+const usage =
+  "Usage: bun run source:repair --product <product> --filename <filename> [--reacquire|--replay|--import <path>]";
+
 function parseInput(args: string[]): Input {
-  if (
-    (args.length !== 4 && args.length !== 5) ||
-    args[0] !== "--product" ||
-    args[2] !== "--filename"
-  ) {
-    throw new Error(
-      "Usage: bun run source:repair --product <product> --filename <filename> [--reacquire|--replay]"
-    );
+  if (args[0] !== "--product" || args[2] !== "--filename") {
+    throw new Error(usage);
   }
-  const [, productValue, , filenameValue, actionFlag] = args;
+  const [, productValue, , filenameValue, actionFlag, importPathValue] = args;
   const product = productValue?.trim();
   const filename = filenameValue?.trim();
-  if (
-    !(product && filename) ||
-    (actionFlag !== undefined && actionFlag !== "--reacquire" && actionFlag !== "--replay")
-  ) {
-    throw new Error(
-      "Usage: bun run source:repair --product <product> --filename <filename> [--reacquire|--replay]"
-    );
+  if (!(product && filename)) {
+    throw new Error(usage);
   }
   let action: Input["action"] = "inspect";
+  let importPath: string | null = null;
   if (actionFlag === "--reacquire") {
     action = "reacquire";
   } else if (actionFlag === "--replay") {
     action = "replay";
+  } else if (actionFlag === "--import" && importPathValue) {
+    action = "import";
+    importPath = importPathValue;
+  } else if (actionFlag !== undefined) {
+    throw new Error(usage);
+  }
+  let expectedLength = 5;
+  if (action === "import") {
+    expectedLength = 6;
+  } else if (action === "inspect") {
+    expectedLength = 4;
+  }
+  if (args.length !== expectedLength) {
+    throw new Error(usage);
+  }
+  if (importPath && basename(importPath) !== filename) {
+    throw new Error("Imported file name must exactly match the Source Artifact filename");
   }
   return {
     action,
     filename,
+    importPath,
     product,
   };
 }
@@ -55,10 +74,27 @@ const artifactStore = createLocalArtifactStore(
 
 try {
   const identity = { filename: input.filename, product: input.product };
-  const result =
-    input.action === "inspect"
-      ? await inspectSourceArtifact(artifactStore, database, identity)
-      : await repairSourceArtifact(artifactStore, database, { ...identity, action: input.action });
+  let result: SourceRepairFacts;
+  if (input.action === "inspect") {
+    result = await inspectSourceArtifact(artifactStore, database, identity);
+  } else if (input.action === "import") {
+    if (!input.importPath) {
+      throw new Error(usage);
+    }
+    const file = Bun.file(input.importPath);
+    if (!(await file.exists())) {
+      throw new Error(`Imported file not found: ${input.importPath}`);
+    }
+    result = await importSourceArtifact(artifactStore, database, {
+      ...identity,
+      body: file.stream(),
+    });
+  } else {
+    result = await repairSourceArtifact(artifactStore, database, {
+      ...identity,
+      action: input.action,
+    });
+  }
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 } finally {
   await database.end({ timeout: 1 });
