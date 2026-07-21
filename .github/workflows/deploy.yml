@@ -24,6 +24,8 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: Deploy exact main revision
+        env:
+          HUGEICONS_LICENSE_KEY: ${{ secrets.HUGEICONS_LICENSE_KEY }}
         working-directory: /Users/zknicker/srv/tmturtle
         run: |
           set -euo pipefail

@@ -90,6 +90,7 @@ if (
 fi
 
 deployment_workflow="$root/.github/workflows/deploy.yml"
+grep -qF 'HUGEICONS_LICENSE_KEY: ${{ secrets.HUGEICONS_LICENSE_KEY }}' "$deployment_workflow"
 worker_stop_line="$(grep -nF 'docker compose --project-name tmturtle --env-file .env stop worker' "$deployment_workflow" | cut -d: -f1)"
 stack_start_line="$(grep -nF 'docker compose --project-name tmturtle --env-file .env up --detach --remove-orphans --wait' "$deployment_workflow" | cut -d: -f1)"
 test -n "$worker_stop_line"
