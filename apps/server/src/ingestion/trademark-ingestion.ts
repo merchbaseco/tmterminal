@@ -261,10 +261,11 @@ export function createTrademarkIngestion(options: {
     } catch (error) {
       return options.database.begin(async (transaction) => {
         await lockIngestion(transaction);
-        const responseState = sourceResponseState(error);
+        const observedAt = now();
+        const responseState = storedSourceResponseState(error, observedAt);
         await transaction`
           update source_artifact set download_state = 'failed', download_error = ${safeError(error)},
-            download_response_state = ${responseState ? transaction.json({ ...responseState }) : null}, updated_at = ${now()}
+            download_response_state = ${responseState ? transaction.json(responseState) : null}, updated_at = ${observedAt}
           where id = ${artifact.id}
         `;
         return {
@@ -812,8 +813,18 @@ function headerEligibility(error: SourceHttpError, now: Date) {
   return candidates.length === 0 ? null : new Date(Math.max(...candidates));
 }
 
-function sourceResponseState(error: unknown) {
-  return error instanceof SourceHttpError ? error.responseState : null;
+function storedSourceResponseState(error: unknown, observedAt: Date) {
+  if (!(error instanceof SourceHttpError)) {
+    return null;
+  }
+  const state = { ...error.responseState };
+  if (state.providerRequestCount !== undefined && state.retryAfterSeconds !== undefined) {
+    state.observedAt = observedAt.toISOString();
+    state.retryNotBefore = new Date(
+      observedAt.getTime() + state.retryAfterSeconds * 1000
+    ).toISOString();
+  }
+  return state;
 }
 
 function safeError(error: unknown) {

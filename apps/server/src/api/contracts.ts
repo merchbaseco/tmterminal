@@ -167,9 +167,13 @@ export interface OperatorArtifact {
     contentLength?: string;
     contentType?: string;
     etag?: string;
+    observedAt?: string;
+    providerRequestCount?: number;
     rateLimitReset?: string;
     requestId?: string;
     retryAfter?: string;
+    retryAfterSeconds?: number;
+    retryNotBefore?: string;
     status: number;
   } | null;
   downloadState: "complete" | "downloading" | "failed" | "pending" | "unavailable";
@@ -219,6 +223,8 @@ export interface OperatorSyncStatus extends PublicSourceStatus {
       artifactId: string;
       filename: string;
       httpStatus: number | null;
+      providerRequestCount: number | null;
+      retryNotBefore: string | null;
       stage: "application" | "download";
       updatedAt: string;
     }>;

@@ -83,6 +83,9 @@ function artifactState(artifact: Artifact) {
 }
 
 function attentionMessage(item: AttentionItem) {
+  if (item.httpStatus === 429 && item.providerRequestCount && item.retryNotBefore) {
+    return `The USPTO temporarily blocked this file after ${count(item.providerRequestCount)} requests. Try again after ${timestamp(item.retryNotBefore)}.`;
+  }
   if (item.httpStatus === 429) {
     return "The USPTO rate-limited this download. It needs a new download attempt.";
   }

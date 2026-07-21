@@ -6,6 +6,8 @@ export interface OperatorAttentionRow {
   artifactId: string;
   filename: string;
   httpStatus: number | null;
+  providerRequestCount: number | null;
+  retryNotBefore: Date | null;
   stage: "application" | "download";
   updatedAt: Date;
 }
@@ -123,6 +125,10 @@ export function readOperatorAttentionArtifacts(
       case when projection_state = 'failed' then 'application' else 'download' end as stage,
       case when projection_state = 'failed' then null
         else (download_response_state ->> 'status')::int end as "httpStatus",
+      case when projection_state = 'failed' then null
+        else (download_response_state ->> 'providerRequestCount')::int end as "providerRequestCount",
+      case when projection_state = 'failed' then null
+        else (download_response_state ->> 'retryNotBefore')::timestamptz end as "retryNotBefore",
       updated_at as "updatedAt"
     from source_artifact
     where projection_state = 'failed'

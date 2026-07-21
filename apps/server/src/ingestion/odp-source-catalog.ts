@@ -11,6 +11,8 @@ import {
 type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 const odpOrigin = "https://api.uspto.gov";
 const odpDataOrigin = "https://data.uspto.gov";
+const maximumErrorBodyBytes = 4096;
+const maximumRetryAfterSeconds = 365 * 24 * 60 * 60;
 const odpDownloadUrl = z.url().refine((value) => new URL(value).origin === odpOrigin);
 const odpDataDownloadUrl = z.url().refine((value) => new URL(value).origin === odpDataOrigin);
 const odpTimestamp = z
@@ -19,6 +21,8 @@ const odpTimestamp = z
   .transform((value) => `${value.slice(0, 10)}T${value.slice(11)}Z`)
   .pipe(z.iso.datetime({ offset: true }));
 const odpReleaseDate = odpTimestamp.transform((value) => value.slice(0, 10)).pipe(z.iso.date());
+const quotaUriPattern = /\bURI\b/i;
+const quotaValuesPattern = /requested\s+(\d+)\s+times\b[\s\S]*?\bwait\s+(\d+)\s+seconds\b/i;
 
 const fileSchema = z.object({
   fileDataFromDate: z.iso.date(),
@@ -68,6 +72,76 @@ function responseState(response: Response): SourceResponseState {
     if (value) {
       state.rateLimitReset = value;
     }
+  }
+  return state;
+}
+
+async function fileQuotaState(response: Response) {
+  const body = await boundedResponseText(response);
+  if (!body) {
+    return {};
+  }
+  let message: unknown;
+  try {
+    message = JSON.parse(body);
+  } catch {
+    return {};
+  }
+  if (typeof message !== "string" || !quotaUriPattern.test(message)) {
+    return {};
+  }
+  const match = quotaValuesPattern.exec(message);
+  const providerRequestCount = Number(match?.[1]);
+  const retryAfterSeconds = Number(match?.[2]);
+  if (
+    !Number.isSafeInteger(providerRequestCount) ||
+    providerRequestCount < 1 ||
+    !Number.isSafeInteger(retryAfterSeconds) ||
+    retryAfterSeconds < 1 ||
+    retryAfterSeconds > maximumRetryAfterSeconds
+  ) {
+    return {};
+  }
+  return { providerRequestCount, retryAfterSeconds };
+}
+
+async function boundedResponseText(response: Response) {
+  if (!response.body) {
+    return null;
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let byteCount = 0;
+  try {
+    let chunk = await reader.read();
+    while (!chunk.done) {
+      byteCount += chunk.value.byteLength;
+      if (byteCount > maximumErrorBodyBytes) {
+        return reader.cancel().then(
+          () => null,
+          () => null
+        );
+      }
+      chunks.push(chunk.value);
+      // biome-ignore lint/performance/noAwaitInLoops: A response stream must be read sequentially.
+      chunk = await reader.read();
+    }
+    const bytes = new Uint8Array(byteCount);
+    let offset = 0;
+    for (const storedChunk of chunks) {
+      bytes.set(storedChunk, offset);
+      offset += storedChunk.byteLength;
+    }
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+async function rejectedDownloadState(response: Response) {
+  const state = responseState(response);
+  if (response.status === 429) {
+    Object.assign(state, await fileQuotaState(response));
   }
   return state;
 }
@@ -226,7 +300,7 @@ export function createOdpSourceCatalog(options: {
       if (redirect.status !== 302) {
         throw new SourceHttpError(
           `USPTO ODP download redirect failed with HTTP ${redirect.status}`,
-          responseState(redirect),
+          await rejectedDownloadState(redirect),
           "download-redirect"
         );
       }

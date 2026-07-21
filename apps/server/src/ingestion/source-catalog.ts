@@ -2,9 +2,13 @@ export interface SourceResponseState {
   contentLength?: string;
   contentType?: string;
   etag?: string;
+  observedAt?: string;
+  providerRequestCount?: number;
   rateLimitReset?: string;
   requestId?: string;
   retryAfter?: string;
+  retryAfterSeconds?: number;
+  retryNotBefore?: string;
   status: number;
 }
 

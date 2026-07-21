@@ -83,6 +83,7 @@ export function createOperatorSyncService(database: postgres.Sql): OperatorSyncS
           attention: {
             items: attentionItems.map((item) => ({
               ...item,
+              retryNotBefore: item.retryNotBefore?.toISOString() ?? null,
               updatedAt: item.updatedAt.toISOString(),
             })),
             total: summary.attentionCount,
