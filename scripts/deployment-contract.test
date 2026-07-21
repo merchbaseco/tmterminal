@@ -62,6 +62,33 @@ test "$(compose_revision 4100 4101)" = "tmturtle-4100|development-tmturtle-4100|
 test "$(compose_revision 4200 4201)" = "tmturtle-4200|development-tmturtle-4200|4102"
 test "$(compose_revision 4100 4101 production-sha)" = "tmturtle-4100|production-sha|4102"
 
+printf '%s\n' '#!/bin/sh' \
+  'if test "$*" = "compose ps --all --quiet worker"; then test -n "${FAKE_WORKER_STATE:-}" && printf '\''worker-id\n'\''; exit 0; fi' \
+  'if test "$1" = "inspect"; then printf '\''%s\n'\'' "$FAKE_WORKER_STATE"; exit 0; fi' \
+  'printf '\''%s|%s\n'\'' "$TMTURTLE_REVISION" "$*"' > "$fake_bin/docker"
+chmod +x "$fake_bin/docker"
+touch "$repository/apc260714.zip"
+import_revision="$(git -C "$repository" rev-parse HEAD)"
+import_call="$({
+  cd "$repository"
+  PATH="$fake_bin:$PATH" "$root/scripts/source-import" TRTDXFAP "$repository/apc260714.zip"
+})"
+case "$import_call" in
+  "$import_revision|compose run --rm --no-deps --volume "*) ;;
+  *)
+    echo "source import did not pin the checkout revision" >&2
+    exit 1
+    ;;
+esac
+if (
+  cd "$repository"
+  PATH="$fake_bin:$PATH" FAKE_WORKER_STATE=restarting \
+    "$root/scripts/source-import" TRTDXFAP "$repository/apc260714.zip"
+) >/dev/null 2>&1; then
+  echo "source import accepted a restarting worker" >&2
+  exit 1
+fi
+
 deployment_workflow="$root/.github/workflows/deploy.yml"
 worker_stop_line="$(grep -nF 'docker compose --project-name tmturtle --env-file .env stop worker' "$deployment_workflow" | cut -d: -f1)"
 stack_start_line="$(grep -nF 'docker compose --project-name tmturtle --env-file .env up --detach --remove-orphans --wait' "$deployment_workflow" | cut -d: -f1)"

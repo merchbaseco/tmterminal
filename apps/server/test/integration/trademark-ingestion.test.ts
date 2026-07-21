@@ -8,8 +8,13 @@ import postgres from "postgres";
 
 import { migrateDatabase } from "../../src/db/migrate.ts";
 import { annualBaselineV1Artifacts } from "../../src/ingestion/annual-baseline-v1.ts";
+import { createLocalArtifactStore } from "../../src/ingestion/local-artifact-store.ts";
 import { SourceHttpError, SourceTransportError } from "../../src/ingestion/source-catalog.ts";
-import { inspectSourceArtifact, repairSourceArtifact } from "../../src/ingestion/source-repair.ts";
+import {
+  importSourceArtifact,
+  inspectSourceArtifact,
+  repairSourceArtifact,
+} from "../../src/ingestion/source-repair.ts";
 import { createTrademarkIngestion } from "../../src/ingestion/trademark-ingestion.ts";
 import { createMarksService } from "../../src/services/marks-service.ts";
 import { resetTestDatabase } from "./test-database.ts";
@@ -1017,6 +1022,151 @@ test("one-file repair re-arms only the approved download after provider backoff"
     { download_request_count: 1, download_state: "pending", filename: "annual-01.zip" },
     { download_request_count: 1, download_state: "failed", filename: "annual-02.zip" },
   ]);
+});
+
+test("one-file import retains exact blocked bytes and queues normal application", async () => {
+  await database`insert into source_lane (id, status) values ('uspto-odp', 'ready')`;
+  await seedArtifact(1, "pending");
+  const directory = await mkdtemp(join(tmpdir(), "tmturtle-import-"));
+  const path = join(directory, "annual-01.zip");
+  const bytes = "valid";
+  await writeFile(path, bytes);
+  await database`
+    update source_artifact set expected_bytes = ${bytes.length}, download_state = 'failed',
+      download_request_count = 2, download_error = 'HTTP 429',
+      download_response_state = '{"status":429}'::jsonb, sha256 = null
+    where filename = 'annual-01.zip'
+  `;
+  const localStore = createLocalArtifactStore(join(directory, "artifacts"));
+
+  try {
+    expect(
+      await importSourceArtifact(localStore, database, {
+        body: Bun.file(path).stream(),
+        filename: "annual-01.zip",
+        product: "TRTYRAP",
+      })
+    ).toMatchObject({
+      bytes: String(bytes.length),
+      downloadError: null,
+      downloadRequestCount: 3,
+      downloadResponseState: null,
+      downloadState: "complete",
+      hasRetainedZip: true,
+      projectionState: "pending",
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+    });
+
+    const imported = createTrademarkIngestion({
+      artifactStore: localStore,
+      database,
+      extractXml: () => Promise.resolve(Readable.from([sourceDocument(validRecord)])),
+      retry: { baseMs: 1, jitter: () => 0, maxMs: 2 },
+      sourceCatalog: unavailableSource,
+    });
+    expect(await imported.reconcile()).toMatchObject({
+      action: "projected",
+      filename: "annual-01.zip",
+      projectedMarkCount: 1,
+    });
+    expect([
+      ...(await database`
+        select download_request_count, download_state, object_key, projection_state
+        from source_artifact where filename = 'annual-01.zip'
+      `),
+    ]).toEqual([
+      {
+        download_request_count: 3,
+        download_state: "complete",
+        object_key: null,
+        projection_state: "complete",
+      },
+    ]);
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+});
+
+test("one-file import rejects bytes that differ from the catalog size", async () => {
+  await database`insert into source_lane (id, status) values ('uspto-odp', 'ready')`;
+  await seedArtifact(1, "pending");
+  await database`
+    update source_artifact set expected_bytes = 6, download_state = 'failed',
+      download_request_count = 2, sha256 = null where filename = 'annual-01.zip'
+  `;
+  const directory = await mkdtemp(join(tmpdir(), "tmturtle-import-mismatch-"));
+  const path = join(directory, "annual-01.zip");
+  await writeFile(path, "valid");
+  const localStore = createLocalArtifactStore(join(directory, "artifacts"));
+
+  try {
+    await expect(
+      importSourceArtifact(localStore, database, {
+        body: Bun.file(path).stream(),
+        filename: "annual-01.zip",
+        product: "TRTYRAP",
+      })
+    ).rejects.toThrow("Artifact expected 6 bytes, received 5");
+    expect([
+      ...(await database`
+        select download_error, download_request_count, download_state, object_key
+        from source_artifact where filename = 'annual-01.zip'
+      `),
+    ]).toEqual([
+      {
+        download_error: "Artifact expected 6 bytes, received 5",
+        download_request_count: 3,
+        download_state: "failed",
+        object_key: null,
+      },
+    ]);
+    expect([...(await Array.fromAsync(localStore.listObjectKeys()))]).toEqual([]);
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+});
+
+test("one-file import rejects a lost reservation", async () => {
+  await database`insert into source_lane (id, status) values ('uspto-odp', 'ready')`;
+  await seedArtifact(1, "pending");
+  const directory = await mkdtemp(join(tmpdir(), "tmturtle-import-race-"));
+  const path = join(directory, "annual-01.zip");
+  const bytes = "valid";
+  await writeFile(path, bytes);
+  await database`
+    update source_artifact set expected_bytes = ${bytes.length}, download_state = 'failed',
+      sha256 = null where filename = 'annual-01.zip'
+  `;
+  const localStore = createLocalArtifactStore(join(directory, "artifacts"));
+  const racingStore = {
+    ...localStore,
+    put: async (...args: Parameters<typeof localStore.put>) => {
+      const stored = await localStore.put(...args);
+      await database`
+        update source_artifact set download_state = 'failed'
+        where filename = 'annual-01.zip'
+      `;
+      return stored;
+    },
+  };
+
+  try {
+    await expect(
+      importSourceArtifact(racingStore, database, {
+        body: Bun.file(path).stream(),
+        filename: "annual-01.zip",
+        product: "TRTYRAP",
+      })
+    ).rejects.toThrow("Source artifact import reservation was lost");
+    expect([
+      ...(await database`
+        select download_request_count, download_state, object_key
+        from source_artifact where filename = 'annual-01.zip'
+      `),
+    ]).toEqual([{ download_request_count: 1, download_state: "failed", object_key: null }]);
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
 });
 
 test("repair rejects cleaned history and a stale retained pointer", async () => {
