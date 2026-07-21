@@ -266,33 +266,72 @@ function SourceFiles({
         <h2 className="m-0 font-bold text-base">Source files</h2>
         <p className="m-0 text-muted-foreground">{artifacts.total} files</p>
       </div>
-      <ol aria-label="Source files" className="m-0 list-none p-0">
-        {artifacts.items.map((artifact) => {
-          const state = artifactState(artifact);
-          return (
-            <li
-              className="grid grid-cols-[minmax(16rem,1.5fr)_minmax(10rem,0.7fr)_minmax(9rem,0.65fr)_auto] items-center gap-6 border-border border-b py-3 max-[60rem]:grid-cols-[minmax(0,1fr)_auto] max-[60rem]:gap-x-4 max-[60rem]:gap-y-1"
-              key={artifact.artifactId}
-            >
-              <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
-                {artifact.filename}
-              </strong>
-              <span className={state.tone}>{state.label}</span>
-              <span className="text-muted-foreground tabular-nums max-[60rem]:col-start-1">
-                {count(artifact.physicalRecordCount)} records → {count(artifact.projectedMarkCount)}{" "}
-                marks
-              </span>
-              <time
-                className="text-right text-muted-foreground"
-                dateTime={artifact.updatedAt}
-                title={timestamp(artifact.updatedAt)}
+      <div className="overflow-x-auto">
+        <table
+          aria-label="Source files"
+          className="w-full min-w-[56rem] table-fixed border-collapse"
+        >
+          <colgroup>
+            <col className="w-[45%]" />
+            <col className="w-[24%]" />
+            <col className="w-[21%]" />
+            <col className="w-[10%]" />
+          </colgroup>
+          <thead>
+            <tr className="border-border border-b">
+              <th
+                className="py-3 text-left font-[650] text-xs uppercase tracking-[0.1em]"
+                scope="col"
               >
-                {relativeTimestamp(artifact.updatedAt)}
-              </time>
-            </li>
-          );
-        })}
-      </ol>
+                File
+              </th>
+              <th
+                className="py-3 text-left font-[650] text-xs uppercase tracking-[0.1em]"
+                scope="col"
+              >
+                Status
+              </th>
+              <th
+                className="py-3 text-left font-[650] text-xs uppercase tracking-[0.1em]"
+                scope="col"
+              >
+                Processed
+              </th>
+              <th
+                className="py-3 text-right font-[650] text-xs uppercase tracking-[0.1em]"
+                scope="col"
+              >
+                Updated
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {artifacts.items.map((artifact) => {
+              const state = artifactState(artifact);
+              return (
+                <tr className="border-border border-b" key={artifact.artifactId}>
+                  <th
+                    className="overflow-hidden text-ellipsis whitespace-nowrap py-3 pr-6 text-left font-bold"
+                    scope="row"
+                  >
+                    {artifact.filename}
+                  </th>
+                  <td className={`whitespace-nowrap py-3 pr-6 ${state.tone}`}>{state.label}</td>
+                  <td className="whitespace-nowrap py-3 pr-6 text-muted-foreground tabular-nums">
+                    {count(artifact.physicalRecordCount)} records →{" "}
+                    {count(artifact.projectedMarkCount)} marks
+                  </td>
+                  <td className="whitespace-nowrap py-3 text-right text-muted-foreground">
+                    <time dateTime={artifact.updatedAt} title={timestamp(artifact.updatedAt)}>
+                      {relativeTimestamp(artifact.updatedAt)}
+                    </time>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
       {pageLoading ? (
         <p className="m-0 border-border border-b py-8 text-muted-foreground" role="status">
           Loading more source files…

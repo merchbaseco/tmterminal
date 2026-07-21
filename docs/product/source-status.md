@@ -48,7 +48,7 @@ status response.
 
 ### Source Files
 
-One ledger keeps a durable row for every discovered source file. It supports:
+One semantic table keeps a durable row for every discovered source file. It supports:
 
 - All, Needs attention, In progress, and Complete filters;
 - filename and coverage;

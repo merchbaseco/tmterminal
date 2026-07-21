@@ -109,7 +109,13 @@ test("presents the latest processed source and cleaned-up files", async () => {
   expect(screen.getByText("Nothing needs attention.")).toBeTruthy();
   expect(screen.getByText("Complete · Cleaned up")).toBeTruthy();
   expect(screen.getByText("155,000 records → 12,345 marks")).toBeTruthy();
-  expect(screen.getByRole("list", { name: "Source files" })).toBeTruthy();
+  expect(screen.getByRole("table", { name: "Source files" })).toBeTruthy();
+  expect(screen.getAllByRole("columnheader").map((heading) => heading.textContent)).toEqual([
+    "File",
+    "Status",
+    "Processed",
+    "Updated",
+  ]);
   expect(screen.getByRole("region", { name: "Trademark catalog" })).toBeTruthy();
   expect(screen.getByText("1,206,290")).toBeTruthy();
   expect(screen.getByText("396,199")).toBeTruthy();
@@ -213,7 +219,7 @@ test("explains a rate-limited source file without implying existing data is unav
   render(<StatusPage api={failedApi} operatorApi={failedApi} />);
   expect(await screen.findByText(structuredQuotaPattern)).toBeTruthy();
   expect(screen.queryByText(searchablePattern)).toBeNull();
-  expect(screen.getByText("Needs attention", { selector: "span" })).toBeTruthy();
+  expect(screen.getByText("Needs attention", { selector: "td" })).toBeTruthy();
   expect(screen.queryByText("429 from a provider endpoint")).toBeNull();
   expect(screen.queryByText("Corpus sync")).toBeNull();
 });
