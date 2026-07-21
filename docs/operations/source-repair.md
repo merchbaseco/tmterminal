@@ -36,6 +36,19 @@ Replay retained bytes without contacting USPTO:
 bun run source:repair --product TRTDXFAP --filename apc260714.zip --replay
 ```
 
+Import one exact ZIP obtained manually from the signed-in ODP portal without
+making another API request:
+
+```bash
+bun run source:import TRTDXFAP /path/to/apc260714.zip
+```
+
+The host command requires the worker to be stopped and mounts only that ZIP
+read-only into a one-off worker container. Its basename and byte count must
+exactly match the catalog row. Import records one additional provider request,
+retains the ZIP in the artifact store, and queues ordinary application. Start
+the worker afterward to process and clean up the file.
+
 Run one action at a time and wait for the worker to finish it before repairing
 another file.
 
@@ -81,6 +94,11 @@ If the file has never retained bytes, the agent reports how many provider
 requests have already been spent for it. Explicit reacquisition creates exactly
 one new Download Request. No automated loop or provider-lane retry follows a
 failure.
+
+A manually downloaded official ZIP may be imported instead of reacquired. Keep
+it unextracted and unrenamed, verify it against the catalog byte count, and
+import only the matching product-plus-filename row. The manual portal download
+counts as one Download Request even though the worker did not contact USPTO.
 
 A cleaned file with a prior digest, or an official reissue under the same
 product and filename, requires content-revision support. Land that exact code
