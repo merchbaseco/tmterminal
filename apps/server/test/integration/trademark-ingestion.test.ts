@@ -1,11 +1,15 @@
 import { afterAll, beforeEach, expect, test } from "bun:test";
-import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Readable } from "node:stream";
 import postgres from "postgres";
 
 import { migrateDatabase } from "../../src/db/migrate.ts";
 import { annualBaselineV1Artifacts } from "../../src/ingestion/annual-baseline-v1.ts";
 import { SourceHttpError, SourceTransportError } from "../../src/ingestion/source-catalog.ts";
+import { inspectSourceArtifact, repairSourceArtifact } from "../../src/ingestion/source-repair.ts";
 import { createTrademarkIngestion } from "../../src/ingestion/trademark-ingestion.ts";
 import { createMarksService } from "../../src/services/marks-service.ts";
 import { resetTestDatabase } from "./test-database.ts";
@@ -966,6 +970,152 @@ test("a failed download is recorded once and is never requested automatically ag
       where filename = 'annual-01.zip'
     `),
   ]).toEqual([{ download_request_count: 1, download_state: "failed" }]);
+});
+
+test("one-file repair re-arms only the approved download after provider backoff", async () => {
+  await database`
+    insert into source_lane (id, status, next_eligible_at)
+    values ('uspto-odp', 'backoff', now() - interval '1 second')
+  `;
+  await seedArtifact(1, "pending");
+  await seedArtifact(2, "pending");
+  await database`
+    update source_artifact set download_state = 'failed', download_request_count = 1,
+      download_error = 'HTTP 429', download_response_state = '{"status":429}'::jsonb,
+      sha256 = null
+  `;
+
+  expect(
+    await inspectSourceArtifact(store, database, {
+      filename: "annual-01.zip",
+      product: "TRTYRAP",
+    })
+  ).toMatchObject({
+    downloadRequestCount: 1,
+    downloadState: "failed",
+    hasRetainedZip: false,
+    sourceLaneStatus: "backoff",
+  });
+  expect(
+    await repairSourceArtifact(store, database, {
+      action: "reacquire",
+      filename: "annual-01.zip",
+      product: "TRTYRAP",
+    })
+  ).toMatchObject({
+    downloadError: null,
+    downloadRequestCount: 1,
+    downloadResponseState: null,
+    downloadState: "pending",
+  });
+  expect([
+    ...(await database`
+      select filename, download_request_count, download_state from source_artifact
+      order by filename
+    `),
+  ]).toEqual([
+    { download_request_count: 1, download_state: "pending", filename: "annual-01.zip" },
+    { download_request_count: 1, download_state: "failed", filename: "annual-02.zip" },
+  ]);
+});
+
+test("repair rejects cleaned history and a stale retained pointer", async () => {
+  await database`insert into source_lane (id, status) values ('uspto-odp', 'ready')`;
+  await seedArtifact(1, "complete");
+  await database`
+    update source_artifact set download_request_count = 1 where filename = 'annual-01.zip'
+  `;
+  await expect(
+    repairSourceArtifact(store, database, {
+      action: "reacquire",
+      filename: "annual-01.zip",
+      product: "TRTYRAP",
+    })
+  ).rejects.toThrow("requires content-revision support");
+
+  await seedArtifact(2, "complete", "sha256/stale");
+  await database`
+    update source_artifact set bytes = 1 where filename = 'annual-02.zip'
+  `;
+  await expect(
+    inspectSourceArtifact(
+      { ...store, openFile: () => Promise.reject(new Error("missing retained ZIP")) },
+      database,
+      { filename: "annual-02.zip", product: "TRTYRAP" }
+    )
+  ).rejects.toThrow("missing retained ZIP");
+});
+
+test("repair rejects retained bytes whose SHA-256 no longer matches", async () => {
+  await database`insert into source_lane (id, status) values ('uspto-odp', 'ready')`;
+  const directory = await mkdtemp(join(tmpdir(), "tmturtle-repair-"));
+  const path = join(directory, "annual.zip");
+  await writeFile(path, "wrong");
+  await seedArtifact(1, "complete", "sha256/stale");
+  await database`
+    update source_artifact set bytes = 5, projection_state = 'failed'
+    where filename = 'annual-01.zip'
+  `;
+  try {
+    await expect(
+      repairSourceArtifact({ ...store, openFile: () => Promise.resolve(path) }, database, {
+        action: "replay",
+        filename: "annual-01.zip",
+        product: "TRTYRAP",
+      })
+    ).rejects.toThrow("retained ZIP SHA-256 does not match");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+});
+
+test("repair reports and respects a stopped USPTO lane", async () => {
+  await database`
+    insert into source_lane (id, status, current_error)
+    values ('uspto-odp', 'stopped', 'Provider authorization failed')
+  `;
+  await seedArtifact(1, "pending");
+  await database`
+    update source_artifact set download_state = 'failed' where filename = 'annual-01.zip'
+  `;
+  expect(
+    await inspectSourceArtifact(store, database, {
+      filename: "annual-01.zip",
+      product: "TRTYRAP",
+    })
+  ).toMatchObject({
+    sourceLaneError: "Provider authorization failed",
+    sourceLaneStatus: "stopped",
+  });
+  await expect(
+    repairSourceArtifact(store, database, {
+      action: "reacquire",
+      filename: "annual-01.zip",
+      product: "TRTYRAP",
+    })
+  ).rejects.toThrow("requires an available USPTO lane");
+
+  const directory = await mkdtemp(join(tmpdir(), "tmturtle-replay-"));
+  const path = join(directory, "annual.zip");
+  const bytes = "valid";
+  await writeFile(path, bytes);
+  await database`
+    update source_artifact set download_state = 'complete', object_key = 'sha256/valid',
+      bytes = ${bytes.length}, sha256 = ${createHash("sha256").update(bytes).digest("hex")},
+      projection_state = 'failed'
+    where filename = 'annual-01.zip'
+  `;
+  try {
+    expect(
+      await repairSourceArtifact({ ...store, openFile: () => Promise.resolve(path) }, database, {
+        action: "replay",
+        filename: "annual-01.zip",
+        product: "TRTYRAP",
+      })
+    ).toMatchObject({ projectionState: "pending", sourceLaneStatus: "stopped" });
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
 });
 
 test("restart skips unavailable legacy bytes and downloads the next pending artifact", async () => {
