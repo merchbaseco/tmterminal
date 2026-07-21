@@ -60,7 +60,7 @@ test("derives every search mode and page type from the server router", async () 
             items: [],
             limit: 25,
             liveMatchCounts: { exact: 0, partial: 0 },
-            meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
+            meta: { dataVersion: "7" },
             offset: 0,
             total: 0,
           },
@@ -97,7 +97,7 @@ test("derives every search mode and page type from the server router", async () 
     items: [],
     limit: 25,
     liveMatchCounts: { exact: 0, partial: 0 },
-    meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
+    meta: { dataVersion: "7" },
     offset: 0,
     total: 0,
   });
@@ -122,18 +122,18 @@ test("derives latest, text matching, and report contracts from the server router
       let data: unknown = {
         items: [],
         limit: 25,
-        meta: { dataThroughDate: null, dataVersion: "0" },
+        meta: { dataVersion: "0" },
         offset: 0,
         total: 0,
       };
       if (path.endsWith("marks.match-text")) {
-        data = { matches: [], meta: { dataThroughDate: null, dataVersion: "0" } };
+        data = { matches: [], meta: { dataVersion: "0" } };
       } else if (path.endsWith("reports.run")) {
         data = {
           from: "2026-07-06",
           items: [],
           limit: 25,
-          meta: { dataThroughDate: null, dataVersion: "0" },
+          meta: { dataVersion: "0" },
           offset: 0,
           to: "2026-07-12",
           total: 0,

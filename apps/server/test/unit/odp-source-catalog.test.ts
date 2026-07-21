@@ -8,6 +8,7 @@ import {
 } from "../../src/ingestion/source-catalog.ts";
 
 const fixture = await Bun.file(new URL("../fixtures/odp-product.json", import.meta.url)).json();
+const downloadIdentity = { filename: "apc240925.zip", product: "TRTDXFAP" };
 
 test("maps the official ODP product shape to data artifacts", async () => {
   const catalog = createOdpSourceCatalog({
@@ -117,7 +118,7 @@ test("classifies an interrupted download body as a transport failure", async () 
     },
   });
 
-  const download = await catalog.download("https://api.uspto.gov/files/apc240925.zip");
+  const download = await catalog.download(downloadIdentity);
   await expect(download.body.getReader().read()).rejects.toBeInstanceOf(SourceTransportError);
 });
 
@@ -151,13 +152,13 @@ test("follows the USPTO data redirect without forwarding the credential", async 
     },
   });
 
-  await catalog.download("https://api.uspto.gov/files/apc240925.zip");
+  await catalog.download(downloadIdentity);
 
   expect(requests).toEqual([
     {
       apiKey: "must-not-be-forwarded",
       redirect: "manual",
-      url: "https://api.uspto.gov/files/apc240925.zip",
+      url: "https://api.uspto.gov/api/v1/datasets/products/files/TRTDXFAP/apc240925.zip",
     },
     { apiKey: null, redirect: "manual", url: "https://data.uspto.gov/apc240925.zip" },
   ]);
@@ -168,17 +169,23 @@ test("normalizes a bounded download-redirect quota response", async () => {
     "This URI has been requested 15 times. Please wait 604800 seconds before trying again.";
   const catalog = createOdpSourceCatalog({
     apiKey: "test-key",
-    fetch: () => Promise.resolve(Response.json(providerMessage, { status: 429 })),
+    fetch: () =>
+      Promise.resolve(
+        Response.json(providerMessage, {
+          headers: { "content-type": "application/json" },
+          status: 429,
+        })
+      ),
   });
 
   try {
-    await catalog.download("https://api.uspto.gov/files/apc240925.zip");
+    await catalog.download(downloadIdentity);
     throw new Error("expected request rejection");
   } catch (error) {
     expect(error).toBeInstanceOf(SourceHttpError);
     expect((error as SourceHttpError).phase).toBe("download-redirect");
     expect((error as SourceHttpError).responseState).toEqual({
-      contentType: "application/json;charset=utf-8",
+      contentType: "application/json",
       providerRequestCount: 15,
       retryAfterSeconds: 604_800,
       status: 429,
@@ -198,10 +205,16 @@ test("falls back when a download-redirect quota body is unusable", async () => {
     bodies.map(async (body) => {
       const catalog = createOdpSourceCatalog({
         apiKey: "test-key",
-        fetch: () => Promise.resolve(new Response(body, { status: 429 })),
+        fetch: () =>
+          Promise.resolve(
+            new Response(body, {
+              headers: body === null ? undefined : { "content-type": "text/plain" },
+              status: 429,
+            })
+          ),
       });
       try {
-        await catalog.download("https://api.uspto.gov/files/apc240925.zip");
+        await catalog.download(downloadIdentity);
         throw new Error("expected request rejection");
       } catch (error) {
         expect(error).toBeInstanceOf(SourceHttpError);
@@ -210,7 +223,12 @@ test("falls back when a download-redirect quota body is unusable", async () => {
     })
   );
 
-  expect(states).toEqual([{ status: 429 }, { status: 429 }, { status: 429 }, { status: 429 }]);
+  expect(states).toEqual([
+    { status: 429 },
+    { contentType: "text/plain", status: 429 },
+    { contentType: "text/plain", status: 429 },
+    { contentType: "text/plain", status: 429 },
+  ]);
 });
 
 test("identifies a data-origin 429 as a provider throttle", async () => {
@@ -227,7 +245,7 @@ test("identifies a data-origin 429 as a provider throttle", async () => {
   });
 
   try {
-    await catalog.download("https://api.uspto.gov/files/apc240925.zip");
+    await catalog.download(downloadIdentity);
     throw new Error("expected request rejection");
   } catch (error) {
     expect(error).toBeInstanceOf(SourceHttpError);
@@ -249,8 +267,6 @@ test("rejects redirects outside the USPTO data origin without forwarding the cre
     },
   });
 
-  await expect(
-    catalog.download("https://api.uspto.gov/files/apc240925.zip")
-  ).rejects.toBeInstanceOf(SourceContractError);
+  await expect(catalog.download(downloadIdentity)).rejects.toBeInstanceOf(SourceContractError);
   expect(requests).toBe(1);
 });

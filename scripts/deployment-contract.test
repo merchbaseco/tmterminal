@@ -96,4 +96,11 @@ test -n "$worker_stop_line"
 test -n "$stack_start_line"
 test "$worker_stop_line" -lt "$stack_start_line"
 
+deployment_smoke="$root/scripts/deployment-smoke"
+grep -qF 'current_error is null and last_heartbeat_at' "$deployment_smoke"
+if grep -qF 'source_lane' "$deployment_smoke"; then
+  echo "deployment smoke still depends on the retired source lane" >&2
+  exit 1
+fi
+
 echo "Deployment shell contracts passed"

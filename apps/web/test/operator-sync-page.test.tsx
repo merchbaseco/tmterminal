@@ -58,24 +58,26 @@ function api(): OperatorSyncApi {
     artifacts: async ({ limit, offset }) => ({
       items: [
         {
+          applicationCompletedAt: "2026-07-18T12:00:00.000Z",
+          applicationState: "complete",
+          appliedRecordCount: 155_000,
           artifactId: "artifact-1",
           bytes: 123,
-          downloadError: "Retained ZIP unavailable from pre-retention ingestion",
+          currentError: null,
           downloadedAt: "2026-07-18T11:30:00.000Z",
           downloadResponseState: { status: 200 },
-          downloadState: "unavailable",
+          downloadState: "downloaded",
           filename: "apc18840407-20251231-01.zip",
+          parserVersion: "uspto-projection-v2",
           physicalRecordCount: 155_000,
+          processingDisposition: "required",
           product: "TRTYRAP",
           projectedMarkCount: 12_345,
-          projectionCompletedAt: "2026-07-18T12:00:00.000Z",
-          projectionError: null,
-          projectionState: "complete",
-          projectionVersion: "uspto-projection-v1",
           sha256: "a".repeat(64),
           sourceFromDate: "1884-04-07",
           sourceToDate: "2026-07-18",
           storageState: "cleaned-up",
+          unresolvedRecordCount: 0,
           updatedAt: "2026-07-18T12:00:00.000Z",
         },
       ],
@@ -90,7 +92,6 @@ function api(): OperatorSyncApi {
         registeredMarkCount: 585_549,
         totalMarkCount: 1_206_290,
       },
-      provider: { status: "ready" },
       source: {
         currentArtifact: null,
         lastActivityAt: "2026-07-18T12:05:00.000Z",
@@ -126,6 +127,29 @@ test("presents the latest processed source and cleaned-up files", async () => {
   expect(screen.queryByText("Complete through")).toBeNull();
   expect(screen.queryByText("a".repeat(12))).toBeNull();
   expect(screen.queryByText("Retained ZIP unavailable from pre-retention ingestion")).toBeNull();
+});
+
+test("explains source files displaced by broad coverage", async () => {
+  const sourceApi = api();
+  sourceApi.artifacts = async ({ limit, offset }) => {
+    const page = await api().artifacts({ limit, offset });
+    const [source] = page.items;
+    if (!source) {
+      throw new Error("Source fixture is unavailable");
+    }
+    return {
+      ...page,
+      items: [
+        { ...source, artifactId: "deferred", processingDisposition: "deferred" as const },
+        { ...source, artifactId: "covered", processingDisposition: "covered" as const },
+      ],
+      total: 2,
+    };
+  };
+
+  render(<StatusPage api={sourceApi} operatorApi={sourceApi} />);
+  expect(await screen.findByText("Not required · Selected broad source pending")).toBeTruthy();
+  expect(screen.getByText("Not downloaded · Covered by newer source data")).toBeTruthy();
 });
 
 test("charts thirty days of processed source records", async () => {
@@ -189,9 +213,9 @@ test("explains a rate-limited source file without implying existing data is unav
       ...page,
       items: page.items.map((artifact) => ({
         ...artifact,
-        downloadError: "429 from a provider endpoint",
-        downloadState: "failed" as const,
-        projectionState: "pending" as const,
+        applicationState: "pending" as const,
+        currentError: "429 from a provider endpoint",
+        downloadState: "blocked" as const,
         storageState: "not-downloaded" as const,
       })),
     };
@@ -206,6 +230,7 @@ test("explains a rate-limited source file without implying existing data is unav
             artifactId: "artifact-1",
             filename: "apc18840407-20251231-01.zip",
             httpStatus: 429,
+            message: null,
             providerRequestCount: 15,
             retryNotBefore: "2026-07-25T12:00:00.000Z",
             stage: "download" as const,
@@ -236,6 +261,7 @@ test("falls back to generic rate-limit copy without structured provider facts", 
             artifactId: "artifact-1",
             filename: "apc18840407-20251231-01.zip",
             httpStatus: 429,
+            message: null,
             providerRequestCount: null,
             retryNotBefore: null,
             stage: "download" as const,
@@ -255,6 +281,34 @@ test("falls back to generic rate-limit copy without structured provider facts", 
   ).toBeTruthy();
 });
 
+test("shows an ingestion worker failure to operators", async () => {
+  const failedApi = api();
+  failedApi.status = async () => {
+    const status = await api().status();
+    return {
+      ...status,
+      attention: {
+        items: [
+          {
+            artifactId: "worker",
+            filename: "Ingestion worker",
+            httpStatus: null,
+            message: "Artifact storage is unavailable.",
+            providerRequestCount: null,
+            retryNotBefore: null,
+            stage: "worker" as const,
+            updatedAt: "2026-07-18T12:00:00.000Z",
+          },
+        ],
+        total: 1,
+      },
+    };
+  };
+
+  render(<StatusPage api={failedApi} operatorApi={failedApi} />);
+  expect(await screen.findByText("Artifact storage is unavailable.")).toBeTruthy();
+});
+
 test("shows the current file as quiet background work", async () => {
   const processingApi = api();
   processingApi.status = async () => {
@@ -263,7 +317,7 @@ test("shows the current file as quiet background work", async () => {
       ...status,
       source: {
         ...status.source,
-        currentArtifact: { filename: "apc-20260719.zip", state: "processing" as const },
+        currentArtifact: { filename: "apc-20260719.zip", state: "applying" as const },
       },
     };
   };

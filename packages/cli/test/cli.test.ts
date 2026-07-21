@@ -36,7 +36,7 @@ const markFixture = {
     versions: {
       authorityPolicy: "uspto-authority-v1",
       normalization: "uspto-normalization-v1",
-      projection: "uspto-projection-v1",
+      projection: "uspto-projection-v2",
       sourceProfile: "uspto-application-xml-v2.0-v1",
     },
   },
@@ -61,7 +61,7 @@ const searchPage = {
   ],
   limit: 25,
   liveMatchCounts: { exact: 0, partial: 1 },
-  meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
+  meta: { dataVersion: "7" },
   offset: 25,
   total: 26,
 } satisfies TmturtleRouterOutputs["marks"]["search"];
@@ -685,7 +685,7 @@ test("marks match preserves listing text and the explicit type filter", async ()
   const inputs: unknown[] = [];
   const data = {
     matches: [{ end: 13, mark: searchPage.items[0], start: 3 }],
-    meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
+    meta: { dataVersion: "7" },
   };
   const result = await runCli(
     ["marks", "match", "--text", "🐢 Cafe\u0301", "--type", "text"],
@@ -723,7 +723,7 @@ test("marks match reads stdin without silently truncating it", async () => {
                 inputs.push(input);
                 return Promise.resolve({
                   matches: [],
-                  meta: { dataThroughDate: null, dataVersion: "0" },
+                  meta: { dataVersion: "0" },
                 });
               },
             },
@@ -787,7 +787,7 @@ test("reports run maps a pinned previous-week continuation", async () => {
     from: "2026-07-06",
     items: [],
     limit: 25,
-    meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
+    meta: { dataVersion: "7" },
     offset: 25,
     to: "2026-07-12",
     total: 26,
@@ -888,15 +888,11 @@ test("reports run maps the current opposition-status view without a window", asy
 test("sync status preserves the authenticated freshness envelope", async () => {
   const data = {
     activeState: "idle",
-    completeThroughDate: null,
     dataVersion: 0,
-    degraded: false,
-    degradedSince: null,
     failedCount: 0,
     lastSuccessfulUpdateAt: null,
+    latestProcessedDate: null,
     pendingCount: 91,
-    stale: false,
-    staleSince: null,
   };
   const result = await runCli(
     ["sync", "status"],

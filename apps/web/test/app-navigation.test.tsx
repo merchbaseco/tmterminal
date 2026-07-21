@@ -94,7 +94,7 @@ const searchResult = {
   items: [searchItem],
   limit: 25 as const,
   liveMatchCounts: { exact: 1, partial: 0 },
-  meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
+  meta: { dataVersion: "7" },
   offset: 0,
   total: 1,
 };
@@ -129,7 +129,7 @@ const mark = {
     versions: {
       authorityPolicy: "uspto-authority-v1" as const,
       normalization: "uspto-normalization-v1" as const,
-      projection: "uspto-projection-v1" as const,
+      projection: "uspto-projection-v2" as const,
       sourceProfile: "uspto-application-xml-v2.0-v1" as const,
     },
   },

@@ -119,7 +119,7 @@ function resultPage(offset: number, count: number, total: number): SearchPageRes
       exact: total > 0 ? 1 : 0,
       partial: Math.max(total - 1, 0),
     },
-    meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
+    meta: { dataVersion: "7" },
     offset,
     total,
   };

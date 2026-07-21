@@ -8,7 +8,13 @@ import {
   type TrademarkProjection,
 } from "../../src/ingestion/trademark-projection.ts";
 
-const coordinate = { filename: "annual.zip", product: "TRTYRAP" as const, sha256: "a".repeat(64) };
+const coordinate = {
+  contentRevision: 1,
+  filename: "annual.zip",
+  parserVersion: "uspto-projection-v2",
+  product: "TRTYRAP" as const,
+  sha256: "a".repeat(64),
+};
 const validVersion =
   "<version><version-no>2.0</version-no><version-date>20041108</version-date></version>";
 function documentBody(
@@ -33,9 +39,16 @@ function document(
 function collect(projections: MarkUpsertProjection[]) {
   return (batch: TrademarkProjection[]) => {
     projections.push(...batch.filter((item) => item.kind === "upsert"));
-    return Promise.resolve(batch.length);
+    return Promise.resolve(batchResult(batch.length));
   };
 }
+
+const batchResult = (appliedRecordCount = 0) => ({
+  appliedRecordCount,
+  firstError: null,
+  materialChangeCount: appliedRecordCount,
+  unresolvedRecordCount: 0,
+});
 
 test("streams an authentic annual Class 025 record into a direct projection", async () => {
   const record = await readFile(
@@ -48,7 +61,11 @@ test("streams an authentic annual Class 025 record into a direct projection", as
     onBatch: collect(projections),
     xml: document(record),
   });
-  expect(result).toEqual({ materialChangeCount: 1, physicalRecordCount: 1, projectedMarkCount: 1 });
+  expect(result).toMatchObject({
+    materialChangeCount: 1,
+    physicalRecordCount: 1,
+    projectedMarkCount: 1,
+  });
   expect(projections[0]).toMatchObject({
     classes: [{ internationalCode: "025", statusCode: "6", statusDate: "1995-07-06" }],
     coordinate: { physicalRecordIndex: 1 },
@@ -73,7 +90,11 @@ test("normalizes an authentic malformed optional class date without dropping Cla
     onBatch: collect(projections),
     xml: document(record),
   });
-  expect(result).toEqual({ materialChangeCount: 1, physicalRecordCount: 1, projectedMarkCount: 1 });
+  expect(result).toMatchObject({
+    materialChangeCount: 1,
+    physicalRecordCount: 1,
+    projectedMarkCount: 1,
+  });
   expect(projections[0]).toMatchObject({
     classes: [{ internationalCode: "025", statusCode: "6", statusDate: null }],
     serialNumber: "74800000",
@@ -81,26 +102,51 @@ test("normalizes an authentic malformed optional class date without dropping Cla
   });
 });
 
-test("projects every authentic repeated international code for one classification", async () => {
+test("does not treat a pre-1973 United States primary code as International Class 025", async () => {
   const record = await readFile(
     "fixtures/uspto/records/annual-2025-repeated-international-codes-tx-71060608.xml",
     "utf8"
   );
-  const projections: MarkUpsertProjection[] = [];
+  const decisions: TrademarkProjection[] = [];
   const result = await streamTrademarkProjections({
     coordinate,
-    onBatch: collect(projections),
+    onBatch: (batch) => {
+      decisions.push(...batch);
+      return Promise.resolve(batchResult(batch.length));
+    },
     xml: document(record),
   });
-  expect(result).toEqual({ materialChangeCount: 1, physicalRecordCount: 1, projectedMarkCount: 1 });
-  expect(projections[0]).toMatchObject({
-    classes: [
-      { internationalCode: "006", statusCode: "6", statusDate: "1983-03-01" },
-      { internationalCode: "020", statusCode: "6", statusDate: "1983-03-01" },
-    ],
-    serialNumber: "71060608",
-    wordMark: "SARGENT",
+  expect(result).toMatchObject({
+    materialChangeCount: 1,
+    physicalRecordCount: 1,
+    projectedMarkCount: 0,
   });
+  expect(decisions).toEqual([
+    expect.objectContaining({ kind: "observe", serialNumber: "71060608" }),
+  ]);
+});
+
+test("primary-class-only selection changes alter the snapshot identity", async () => {
+  const project = async (primaryCode: string) => {
+    const projections: TrademarkProjection[] = [];
+    const record = `<case-file><serial-number>12345678</serial-number><transaction-date>20250103</transaction-date><case-file-header><filing-date>20200101</filing-date><mark-identification>SHIRT</mark-identification></case-file-header><classifications><primary-code>${primaryCode}</primary-code><status-code>6</status-code></classifications></case-file>`;
+    await streamTrademarkProjections({
+      coordinate,
+      onBatch: (batch) => {
+        projections.push(...batch);
+        return Promise.resolve(batchResult(batch.length));
+      },
+      xml: document(record),
+    });
+    return projections[0];
+  };
+
+  const tracked = await project("025");
+  const untracked = await project("026");
+  expect(tracked?.kind).toBe("upsert");
+  expect(tracked).toMatchObject({ classes: [{ internationalCode: "025" }] });
+  expect(untracked?.kind).toBe("observe");
+  expect(tracked?.snapshotHash).not.toBe(untracked?.snapshotHash);
 });
 
 test("deduplicates identical status events while preserving distinct transitions", async () => {
@@ -119,9 +165,30 @@ test("deduplicates identical status events while preserving distinct transitions
   expect(projections[0]?.statusEvents.map(({ code }) => code)).toEqual(["DOCK", "CNRT"]);
 });
 
+test("status event order does not change logical snapshot identity", async () => {
+  const first =
+    "<case-file-event-statement><code>DOCK</code><date>20250101</date></case-file-event-statement>";
+  const second =
+    "<case-file-event-statement><code>CNRT</code><date>20250102</date></case-file-event-statement>";
+  const project = async (events: string) => {
+    const projections: MarkUpsertProjection[] = [];
+    const record = `<case-file><serial-number>12345678</serial-number><transaction-date>20250103</transaction-date><case-file-header><mark-identification>SHIRT</mark-identification></case-file-header><case-file-event-statements>${events}</case-file-event-statements><classifications><international-code>025</international-code></classifications></case-file>`;
+    await streamTrademarkProjections({
+      coordinate,
+      onBatch: collect(projections),
+      xml: document(record),
+    });
+    return projections[0]?.snapshotHash;
+  };
+
+  expect(await project(first + second)).toBe(await project(second + first));
+});
+
 test("projects a synthetic Class 025 record under documented 00 transport framing", async () => {
   const dailyCoordinate = {
+    contentRevision: 1,
     filename: "synthetic-daily.xml",
+    parserVersion: "uspto-projection-v2",
     product: "TRTDXFAP" as const,
     sha256: "b".repeat(64),
   };
@@ -134,31 +201,41 @@ test("projects a synthetic Class 025 record under documented 00 transport framin
     xml: document(record, validVersion, "trademark-applications-daily", "00"),
   });
 
-  expect(result).toEqual({ materialChangeCount: 1, physicalRecordCount: 1, projectedMarkCount: 1 });
+  expect(result).toMatchObject({
+    materialChangeCount: 1,
+    physicalRecordCount: 1,
+    projectedMarkCount: 1,
+  });
   expect(projections).toEqual([
     expect.objectContaining({ serialNumber: "12345678", wordMark: "PROTOCOL TEST MARK" }),
   ]);
 });
 
-test("projects an authentic NA record without Class 025 as a removal", async () => {
+test("records recency without deleting a mark that is no longer Class 025", async () => {
   const record = await readFile("fixtures/uspto/records/daily-na-98763166.xml", "utf8");
   const decisions: TrademarkProjection[] = [];
   const result = await streamTrademarkProjections({
     coordinate: {
+      contentRevision: 1,
       filename: "apc240925.zip",
+      parserVersion: "uspto-projection-v2",
       product: "TRTDXFAP",
       sha256: "b".repeat(64),
     },
     onBatch: (batch) => {
       decisions.push(...batch);
-      return Promise.resolve(batch.length);
+      return Promise.resolve(batchResult(batch.length));
     },
     xml: document(record, validVersion, "trademark-applications-daily", "NA"),
   });
 
-  expect(result).toEqual({ materialChangeCount: 1, physicalRecordCount: 1, projectedMarkCount: 0 });
+  expect(result).toMatchObject({
+    materialChangeCount: 1,
+    physicalRecordCount: 1,
+    projectedMarkCount: 0,
+  });
   expect(decisions).toEqual([
-    expect.objectContaining({ kind: "remove", serialNumber: "98763166" }),
+    expect.objectContaining({ kind: "observe", serialNumber: "98763166" }),
   ]);
 });
 
@@ -173,16 +250,24 @@ test("validates the authentic annual part 49 maximum record without selecting it
     onBatch: collect(projections),
     xml: document(record),
   });
-  expect(result).toEqual({ materialChangeCount: 0, physicalRecordCount: 1, projectedMarkCount: 0 });
+  expect(result).toMatchObject({
+    materialChangeCount: 1,
+    physicalRecordCount: 1,
+    projectedMarkCount: 0,
+  });
   expect(projections).toEqual([]);
 });
 
-test("rejects a malformed physical record before selection", async () => {
+test("reports a malformed physical record without rejecting the document", async () => {
   const record =
     "<case-file><transaction-date>20250101</transaction-date><case-file-header><mark-identification>SHIRT</mark-identification></case-file-header><classifications><primary-code>025</primary-code></classifications></case-file>";
   await expect(
-    streamTrademarkProjections({ coordinate, onBatch: async () => 0, xml: document(record) })
-  ).rejects.toThrow("serial-number");
+    streamTrademarkProjections({
+      coordinate,
+      onBatch: async () => batchResult(),
+      xml: document(record),
+    })
+  ).resolves.toMatchObject({ physicalRecordCount: 1, unresolvedRecordCount: 1 });
 });
 
 test("rejects the wrong source document root", async () => {
@@ -193,7 +278,7 @@ test("rejects the wrong source document root", async () => {
   await expect(
     streamTrademarkProjections({
       coordinate,
-      onBatch: async () => 0,
+      onBatch: async () => batchResult(),
       xml: Readable.from([preamble, documentBody(record, validVersion, "unexpected-root")]),
     })
   ).rejects.toThrow("trademark-applications-daily");
@@ -205,27 +290,35 @@ test("accepts the authentic annual declaration and internal DTD before the root"
   await expect(
     streamTrademarkProjections({
       coordinate,
-      onBatch: async () => 0,
+      onBatch: async () => batchResult(),
       xml: Readable.from([preamble, documentBody("")]),
     })
-  ).resolves.toEqual({ materialChangeCount: 0, physicalRecordCount: 0, projectedMarkCount: 0 });
+  ).resolves.toMatchObject({
+    materialChangeCount: 0,
+    physicalRecordCount: 0,
+    projectedMarkCount: 0,
+  });
 });
 
 test("rejects missing, duplicate, and unsupported source versions", async () => {
   await expect(
-    streamTrademarkProjections({ coordinate, onBatch: async () => 0, xml: document("", "") })
+    streamTrademarkProjections({
+      coordinate,
+      onBatch: async () => batchResult(),
+      xml: document("", ""),
+    })
   ).rejects.toThrow("version-no must occur exactly once");
   await expect(
     streamTrademarkProjections({
       coordinate,
-      onBatch: async () => 0,
+      onBatch: async () => batchResult(),
       xml: document("", `${validVersion}${validVersion}`),
     })
   ).rejects.toThrow("version-no must occur exactly once");
   await expect(
     streamTrademarkProjections({
       coordinate,
-      onBatch: async () => 0,
+      onBatch: async () => batchResult(),
       xml: document(
         "",
         "<version><version-no>1.0</version-no><version-date>20041108</version-date></version>"
@@ -234,18 +327,35 @@ test("rejects missing, duplicate, and unsupported source versions", async () => 
   ).rejects.toThrow("Unsupported USPTO XML version");
 });
 
+test("rejects records before document version without applying a batch", async () => {
+  let batchCount = 0;
+  await expect(
+    streamTrademarkProjections({
+      coordinate,
+      onBatch: () => {
+        batchCount += 1;
+        return Promise.resolve(batchResult());
+      },
+      xml: Readable.from([
+        `<trademark-applications-daily><application-information><file-segments><file-segment>1</file-segment><action-keys><action-key>TX</action-key><case-file /></action-keys></file-segments></application-information>${validVersion}</trademark-applications-daily>`,
+      ]),
+    })
+  ).rejects.toThrow("version-no must occur exactly once before records");
+  expect(batchCount).toBe(0);
+});
+
 test("rejects missing, duplicate, and unsupported source version dates", async () => {
   await expect(
     streamTrademarkProjections({
       coordinate,
-      onBatch: async () => 0,
+      onBatch: async () => batchResult(),
       xml: document("", "<version><version-no>2.0</version-no></version>"),
     })
   ).rejects.toThrow("version-date must occur exactly once");
   await expect(
     streamTrademarkProjections({
       coordinate,
-      onBatch: async () => 0,
+      onBatch: async () => batchResult(),
       xml: document(
         "",
         "<version><version-no>2.0</version-no><version-date>20041108</version-date><version-date>20041108</version-date></version>"
@@ -255,7 +365,7 @@ test("rejects missing, duplicate, and unsupported source version dates", async (
   await expect(
     streamTrademarkProjections({
       coordinate,
-      onBatch: async () => 0,
+      onBatch: async () => batchResult(),
       xml: document(
         "",
         "<version><version-no>2.0</version-no><version-date>20251231</version-date></version>"
@@ -264,12 +374,19 @@ test("rejects missing, duplicate, and unsupported source version dates", async (
   ).rejects.toThrow("Unsupported USPTO XML version date");
 });
 
-test("rejects an eight-digit optional date that is not a calendar date", async () => {
+test("reports an eight-digit record date that is not a calendar date", async () => {
   const record =
     "<case-file><serial-number>12345678</serial-number><transaction-date>20250230</transaction-date><case-file-header><mark-identification>SHIRT</mark-identification><status-code>700</status-code></case-file-header><classifications><primary-code>025</primary-code><international-code>025</international-code></classifications></case-file>";
   await expect(
-    streamTrademarkProjections({ coordinate, onBatch: async () => 0, xml: document(record) })
-  ).rejects.toThrow("transaction-date is not a calendar date");
+    streamTrademarkProjections({
+      coordinate,
+      onBatch: async () => batchResult(),
+      xml: document(record),
+    })
+  ).resolves.toMatchObject({
+    firstError: expect.stringContaining("transaction-date is not a calendar date"),
+    unresolvedRecordCount: 1,
+  });
 });
 
 test("flushes direct projections in fixed batches", async () => {
@@ -280,14 +397,17 @@ test("flushes direct projections in fixed batches", async () => {
     coordinate,
     onBatch: (batch) => {
       sizes.push(batch.length);
-      return Promise.resolve(batch.length);
+      return Promise.resolve(batchResult(batch.length));
     },
-    xml: document(Array.from({ length: 101 }, (_, index) => record(index + 1)).join("")),
+    xml: document(Array.from({ length: 251 }, (_, index) => record(index + 1)).join("")),
   });
   expect(result).toEqual({
-    materialChangeCount: 101,
-    physicalRecordCount: 101,
-    projectedMarkCount: 101,
+    appliedRecordCount: 251,
+    firstError: null,
+    materialChangeCount: 251,
+    physicalRecordCount: 251,
+    projectedMarkCount: 251,
+    unresolvedRecordCount: 0,
   });
-  expect(sizes).toEqual([100, 1]);
+  expect(sizes).toEqual([250, 1]);
 });

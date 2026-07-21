@@ -30,7 +30,7 @@ const result = {
     },
   ],
   limit: 25 as const,
-  meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
+  meta: { dataVersion: "7" },
   offset: 0,
   to: "2026-07-12",
   total: 1,
@@ -203,7 +203,7 @@ test("keeps the legal disclaimer in empty and loading report states", async () =
         Promise.resolve({
           ...result,
           items: [],
-          meta: { ...result.meta, dataThroughDate: result.to },
+          meta: result.meta,
           total: 0,
         }),
     },

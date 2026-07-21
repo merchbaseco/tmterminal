@@ -56,7 +56,7 @@ function mark(
     versions: {
       authorityPolicy: "uspto-authority-v1",
       normalization: "uspto-normalization-v1",
-      projection: "uspto-projection-v1",
+      projection: "uspto-projection-v2",
       sourceProfile: "uspto-application-xml-v2.0-v1",
     },
   };
@@ -241,19 +241,19 @@ beforeAll(async () => {
   await repository.replace(mark("20000031", "PAGINATION UNREGISTERED"));
   await database`
     update data_state
-    set complete_through_date = '2026-07-10', version = 7
+    set version = 7
     where id = 'uspto'
   `;
   await database`
     insert into source_artifact (
-      id, product, filename, download_url, expected_bytes, source_from_date, source_to_date, updated_at
+      id, product, filename, expected_bytes, source_from_date, source_to_date, updated_at
     ) values
-      ('81000000-0000-4000-8000-000000000001', 'TEST', 'source-part-01.zip',
-        'https://example.test/01.zip', 1, '2026-01-01', '2026-01-01', '2026-07-18T03:00:00Z'),
-      ('81000000-0000-4000-8000-000000000002', 'TEST', 'source-part-02.zip',
-        'https://example.test/02.zip', 1, '2026-01-02', '2026-01-02', '2026-07-18T02:00:00Z'),
-      ('81000000-0000-4000-8000-000000000003', 'TEST', 'source-part-03.zip',
-        'https://example.test/03.zip', 1, '2026-01-03', '2026-01-03', '2026-07-18T01:00:00Z')
+      ('81000000-0000-4000-8000-000000000001', 'TRTDXFAP', 'source-part-01.zip',
+        1, '2026-01-01', '2026-01-01', '2026-07-18T03:00:00Z'),
+      ('81000000-0000-4000-8000-000000000002', 'TRTDXFAP', 'source-part-02.zip',
+        1, '2026-01-02', '2026-01-02', '2026-07-18T02:00:00Z'),
+      ('81000000-0000-4000-8000-000000000003', 'TRTDXFAP', 'source-part-03.zip',
+        1, '2026-01-03', '2026-01-03', '2026-07-18T01:00:00Z')
   `;
   server = await buildServer({
     databaseUrl,
@@ -334,10 +334,10 @@ test("operator artifact pagination orders source files newest first", async () =
   `;
   await database`
     insert into source_artifact (
-      id, product, filename, download_url, expected_bytes, source_from_date, source_to_date
+      id, product, filename, expected_bytes, source_from_date, source_to_date
     ) values (
-      '81000000-0000-4000-8000-000000000004', 'TEST', 'source-part-04.zip',
-      'https://example.test/04.zip', 1, '2026-01-04', '2026-01-04'
+      '81000000-0000-4000-8000-000000000004', 'TRTDXFAP', 'source-part-04.zip',
+      1, '2026-01-04', '2026-01-04'
     )
   `;
   const first = await operatorArtifacts({ limit: 2, offset: 0 });
@@ -354,13 +354,15 @@ test("operator artifact pagination orders source files newest first", async () =
 
 test("operator status presents processed cleanup and actionable source failures", async () => {
   await database`
-    update source_artifact set download_state = 'complete', projection_state = 'complete',
+    update source_artifact set download_state = 'downloaded', application_state = 'complete',
       physical_record_count = 155000, projected_mark_count = 221, sha256 = ${"a".repeat(64)},
-      projection_completed_at = current_timestamp, updated_at = '2026-07-18T04:00:00Z'
+      application_completed_at = current_timestamp, applied_record_count = 155000,
+      updated_at = '2026-07-18T04:00:00Z'
     where filename = 'source-part-01.zip'
   `;
   await database`
-    update source_artifact set download_state = 'failed', download_error = 'provider rejected download',
+    update source_artifact set download_state = 'blocked', application_state = 'needs_attention',
+      current_error = 'provider rejected download',
       download_response_state = jsonb_build_object(
         'status', 429,
         'providerRequestCount', 15,
@@ -414,16 +416,41 @@ test("operator status presents processed cleanup and actionable source failures"
     projectedMarkCount: 221,
     storageState: "cleaned-up",
   });
+});
 
+test("operator status includes a stopped ingestion worker", async () => {
   await database`
-    update source_artifact set download_state = 'unavailable'
-    where filename = 'source-part-01.zip'
+    update worker_status set current_error = 'artifact disk is full',
+      last_heartbeat_at = current_timestamp where id = 'uspto'
   `;
-  const [legacyApplied] = (await service.artifacts({ limit: 25, offset: 0 })).items.filter(
-    (item) => item.filename === "source-part-01.zip"
-  );
-  expect(legacyApplied).toMatchObject({ storageState: "cleaned-up" });
-  expect((await service.status()).attention.total).toBe(1);
+  try {
+    const status = await createOperatorSyncService(database).status();
+    expect(status.attention.items[0]).toMatchObject({
+      artifactId: "worker",
+      filename: "Ingestion worker",
+      message: "artifact disk is full",
+      stage: "worker",
+    });
+    expect(status.attention.total).toBe(2);
+  } finally {
+    await database`update worker_status set current_error = null where id = 'uspto'`;
+  }
+});
+
+test("operator status reports a worker that never heartbeated", async () => {
+  await database`
+    update worker_status set current_error = null, last_heartbeat_at = null,
+      updated_at = current_timestamp - interval '6 minutes' where id = 'uspto'
+  `;
+
+  const status = await createOperatorSyncService(database).status();
+
+  expect(status.attention.items[0]).toMatchObject({
+    artifactId: "worker",
+    filename: "Ingestion worker",
+    message: "The ingestion worker has not reported activity in more than five minutes.",
+    stage: "worker",
+  });
 });
 
 test("report presets use milestone dates and the current opposition status", async () => {
@@ -532,7 +559,7 @@ test("latest returns source transaction activity in stable pages", async () => {
   expect(first.statusCode).toBe(200);
   expect(first.json().result.data).toMatchObject({
     limit: 25,
-    meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
+    meta: { dataVersion: "7" },
     offset: 0,
     total: 123,
   });
@@ -573,7 +600,6 @@ test("text matching returns every live overlap with JavaScript UTF-16 offsets", 
 
   expect(response.statusCode).toBe(200);
   expect(response.json().result.data.meta).toEqual({
-    dataThroughDate: "2026-07-10",
     dataVersion: "7",
   });
   expect(
@@ -652,7 +678,7 @@ test("Multi normalizes one literal Unicode query and keeps exact and partial ind
     items: [{ match: "exact", serialNumber: "10000002", wordMark: "Cafe\u0301" }],
     limit: 25,
     liveMatchCounts: { exact: 1, partial: 0 },
-    meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
+    meta: { dataVersion: "7" },
     offset: 0,
     total: 1,
   });
@@ -704,7 +730,7 @@ test("Split searches every adjacent Unicode word-token combination in stable rel
       { match: "exact", serialNumber: "11000005" },
       { match: "exact", serialNumber: "11000006" },
     ],
-    meta: { dataThroughDate: "2026-07-10", dataVersion: "7" },
+    meta: { dataVersion: "7" },
     total: 7,
   });
   expect(
@@ -838,6 +864,17 @@ test("exact lookups return not found when an identity is absent", async () => {
   expect(absentSerial.json().error.data.code).toBe("NOT_FOUND");
   expect(absentRegistration.statusCode).toBe(404);
   expect(absentRegistration.json().error.data.code).toBe("NOT_FOUND");
+});
+
+test("exact mark detail reports the stored parser provenance", async () => {
+  const response = await server.inject({
+    headers: { authorization: "Bearer clerk-session" },
+    method: "GET",
+    url: `/api/trpc/marks.get?input=${encodeURIComponent(JSON.stringify({ serialNumber: "10000001" }))}`,
+  });
+
+  expect(response.statusCode).toBe(200);
+  expect(response.json().result.data.provenance.versions.projection).toBe("uspto-projection-v1");
 });
 
 test("Multi partial treats percent, underscore, and the escape character literally", async () => {

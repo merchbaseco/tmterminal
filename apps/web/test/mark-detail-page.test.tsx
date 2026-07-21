@@ -54,7 +54,7 @@ const mark = {
     versions: {
       authorityPolicy: "uspto-authority-v1" as const,
       normalization: "uspto-normalization-v1" as const,
-      projection: "uspto-projection-v1" as const,
+      projection: "uspto-projection-v2" as const,
       sourceProfile: "uspto-application-xml-v2.0-v1" as const,
     },
   },
