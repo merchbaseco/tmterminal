@@ -1,4 +1,4 @@
-import type { TmturtleRouterInputs } from "@merchbase/tmturtle-http-client";
+import type { TmturtleRouterInputs } from "@tmturtle/http-client";
 import { Command, CommanderError, InvalidArgumentError, Option } from "commander";
 
 import { BadRequestError } from "./cli-error.js";

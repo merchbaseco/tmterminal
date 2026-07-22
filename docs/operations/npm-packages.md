@@ -7,7 +7,7 @@ read_when:
 
 # npm Packages
 
-Release `@merchbase/tmturtle-http-client` and `@merchbase/tmturtle-cli` at one
+Release `@tmturtle/http-client` and `@tmturtle/cli` at one
 shared `X.Y.Z`. The CLI tag `cli-vX.Y.Z` is the release boundary.
 
 ## Changelog
@@ -36,8 +36,8 @@ Commit the release metadata, create annotated tag `cli-vX.Y.Z`, then push
 The repo-root ignored `.env` may contain `NPM_TOKEN`. Pass it directly through
 npm's registry auth option; exporting `NPM_TOKEN` alone is insufficient.
 
-Publish `@merchbase/tmturtle-http-client` first. Confirm its registry version,
-then publish `@merchbase/tmturtle-cli` and confirm that version. Never republish
+Publish `@tmturtle/http-client` first. Confirm its registry version, then
+publish `@tmturtle/cli` and confirm that version. Never republish
 an existing version.
 
 ## GitHub Release

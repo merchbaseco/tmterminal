@@ -9,7 +9,7 @@ reports, and reads service status.
 The CLI requires Bun 1.3.5 or newer.
 
 ```sh
-bun add --global @merchbase/tmturtle-cli
+bun add --global @tmturtle/cli
 ```
 
 Store a Trademark Turtle API key in macOS Keychain:

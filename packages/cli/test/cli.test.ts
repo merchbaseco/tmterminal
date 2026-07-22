@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { TmturtleRouterOutputs } from "@merchbase/tmturtle-http-client";
+import type { TmturtleRouterOutputs } from "@tmturtle/http-client";
 
 import { type CliClient, type CliDependencies, runCli } from "../src/run.ts";
 

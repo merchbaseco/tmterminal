@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { createTmturtleClient } from "@merchbase/tmturtle-http-client";
+import { createTmturtleClient } from "@tmturtle/http-client";
 
 import packageJson from "../package.json" with { type: "json" };
 import { createMacOsKeychain } from "./keychain.js";

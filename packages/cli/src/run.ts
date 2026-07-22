@@ -1,4 +1,4 @@
-import type { TmturtleClient } from "@merchbase/tmturtle-http-client";
+import type { TmturtleClient } from "@tmturtle/http-client";
 
 import { BadRequestError, CliError } from "./cli-error.js";
 import { type CliCommand, parseCli } from "./program.js";

@@ -1,5 +1,5 @@
 {
-  "name": "@merchbase/tmturtle-cli",
+  "name": "@tmturtle/cli",
   "version": "1.0.0",
   "description": "Command-line access to Trademark Turtle search, reports, and service status",
   "repository": {
@@ -25,7 +25,7 @@
     "prepack": "bun run build"
   },
   "devDependencies": {
-    "@merchbase/tmturtle-http-client": "workspace:*",
+    "@tmturtle/http-client": "workspace:*",
     "commander": "15.0.0"
   }
 }

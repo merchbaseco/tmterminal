@@ -22,7 +22,7 @@
     "lint": "ultracite check",
     "lint:changed": "ultracite check --changed --since=${LINT_BASE:-origin/main}",
     "lint:fix": "ultracite fix",
-    "release:check": "bun run release:version-check && bun run --cwd packages/http-client build && bun run --cwd packages/cli build && bun test packages/http-client/test && bun test packages/cli/test && npm --workspace @merchbase/tmturtle-http-client pack --dry-run && npm --workspace @merchbase/tmturtle-cli pack --dry-run",
+    "release:check": "bun run release:version-check && bun run --cwd packages/http-client build && bun run --cwd packages/cli build && bun test packages/http-client/test && bun test packages/cli/test && npm --workspace @tmturtle/http-client pack --dry-run && npm --workspace @tmturtle/cli pack --dry-run",
     "release:version-check": "bun run scripts/check-release-versions.ts",
     "source:repair": "docker compose exec -T worker bun run --cwd apps/server source:repair",
     "source:import": "./scripts/source-import",

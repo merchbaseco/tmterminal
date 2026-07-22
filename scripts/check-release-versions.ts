@@ -16,11 +16,11 @@ const requireVersion = (name: string, version: string | undefined) => {
 };
 
 const cliVersion = requireVersion(
-  "@merchbase/tmturtle-cli",
+  "@tmturtle/cli",
   readPackageJson("packages/cli/package.json").version
 );
 const httpClientVersion = requireVersion(
-  "@merchbase/tmturtle-http-client",
+  "@tmturtle/http-client",
   readPackageJson("packages/http-client/package.json").version
 );
 

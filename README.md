@@ -24,8 +24,8 @@ Trademark data is informational, not legal advice. Verify consequential decision
 | --- | --- |
 | [Website](https://tmturtle.merchbase.co) | Interactive search, reports, trademark detail, API-key management, public status, and help. |
 | HTTP API | Typed integrations with Trademark Turtle search, reports, exact lookups, and text matching. |
-| `@merchbase/tmturtle-http-client` | TypeScript applications that want typed Trademark Turtle input and output contracts. |
-| `@merchbase/tmturtle-cli` (`tt`) | JSON-first shell automation and agentic workflows. |
+| `@tmturtle/http-client` | TypeScript applications that want typed Trademark Turtle input and output contracts. |
+| `@tmturtle/cli` (`tt`) | JSON-first shell automation and agentic workflows. |
 
 The website uses MerchBase authentication. The HTTP API, client, and CLI use Trademark Turtle API keys. MerchBase consumes the same API as every other client.
 

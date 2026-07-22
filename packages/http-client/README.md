@@ -6,13 +6,13 @@ text matching, reports, account context, and service status.
 ## Install
 
 ```sh
-bun add @merchbase/tmturtle-http-client
+bun add @tmturtle/http-client
 ```
 
 ## Use
 
 ```ts
-import { createTmturtleClient } from "@merchbase/tmturtle-http-client";
+import { createTmturtleClient } from "@tmturtle/http-client";
 
 const client = createTmturtleClient({
   apiKey: process.env.TMTURTLE_API_KEY!,

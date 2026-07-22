@@ -8,7 +8,7 @@ read_when:
 # HTTP API
 
 One tRPC router defines the service contract. Inputs and outputs flow into
-`@merchbase/tmturtle-http-client`; clients do not duplicate DTOs.
+`@tmturtle/http-client`; clients do not duplicate DTOs.
 
 This page describes the executable contract on `origin/main`. Target-only source
 status and Repair behavior stays in product and ingestion docs until the
@@ -131,7 +131,7 @@ that source ingestion is incomplete.
 
 ## HTTP Client
 
-`@merchbase/tmturtle-http-client` exports:
+`@tmturtle/http-client` exports:
 
 - `createTmturtleClient({ baseUrl, apiKey })`
 - `TmturtleClient`
