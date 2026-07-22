@@ -12,7 +12,7 @@ command maps to one API-key-authorized procedure.
 
 ## Rules
 
-- Resource-first, verb-second commands.
+- Flat, task-first commands for the common trademark workflows.
 - One API page per invocation; no hidden auto-pagination.
 - JSON output and no prompts for normal commands.
 - No aliases or compatibility command shapes.
@@ -23,7 +23,7 @@ command maps to one API-key-authorized procedure.
 ## Authentication
 
 ```text
-tt auth set --stdin [--base-url <origin>]
+tt [--base-url <origin>] auth set --stdin
 tt auth status
 tt auth clear
 ```
@@ -39,8 +39,8 @@ Credential precedence:
 
 Base URL precedence:
 
-1. `TMTURTLE_BASE_URL`
-2. `~/.tmturtle/config.json`
+1. Global `--base-url <origin>`
+2. `TMTURTLE_BASE_URL`
 3. `https://tmturtle.merchbase.co`
 
 An invalid selected credential fails. The CLI never falls back to another
@@ -50,18 +50,18 @@ credential source, key suffix, and account context without the token.
 ## Commands
 
 ```text
-tt marks search <query> [--mode multi|split|wildcard] [--match both|exact|partial] [--status live|dead] [--type design|typeset|text|other] [--registered yes|no] [--sort relevance|newest-activity|oldest-activity] [--limit 25] [--offset 0] [--data-version <version>]
-tt marks get <serial-number>
-tt marks get-by-registration <registration-number>
-tt marks match --text <text> [--type design|typeset|text|other]
-tt marks match --stdin [--type design|typeset|text|other]
-tt marks latest [--limit 25] [--offset 0] [--data-version <version>]
+tt search <query> [--mode multi|split|wildcard] [--match both|exact|partial] [--status all|live|dead] [--type all|design|typeset|text|other] [--registered all|yes|no] [--sort relevance|newest-activity|oldest-activity] [--offset 0] [--data-version <version>]
+tt get --serial <eight-digit-number>
+tt get --registration <seven-digit-number>
+tt match --text <text> [--type all|design|typeset|text|other]
+tt match --stdin [--type all|design|typeset|text|other]
+tt latest [--offset 0] [--data-version <version>]
 
 tt reports run --event filed --window previous-week [filters and page options] [--from YYYY-MM-DD --to YYYY-MM-DD]
 tt reports run --event registered --window previous-week [filters and page options] [--from YYYY-MM-DD --to YYYY-MM-DD]
 tt reports run --event published-for-opposition [filters and page options]
 
-tt sync status
+tt status
 ```
 
 `--match` is valid only for Multi. Split requires at least one Unicode word
@@ -70,7 +70,7 @@ requires at least three consecutive literal Unicode word characters. `%`, `_`,
 and `\` remain literal. Validation fails before HTTP when the command can prove
 an input is invalid.
 
-`--text` and `--stdin` are mutually exclusive. `marks match` sends the selected
+`--text` and `--stdin` are mutually exclusive. `match` sends the selected
 text unchanged and returns every live overlap. Spans are half-open JavaScript
 UTF-16 offsets, so `text.slice(start, end)` recovers the source text. Input is
 limited to 4,096 UTF-16 code units and 128 Unicode word tokens; it is rejected,
@@ -106,4 +106,5 @@ Filed and registered continuations also pass the first response's resolved
 `from`, and `to` together so crossing a week boundary returns `CONFLICT` rather
 than silently changing the report window.
 
-External streaming and hidden pagination are outside v1.
+Every command requests the fixed 25-item API page. External streaming and
+hidden pagination are outside v1.

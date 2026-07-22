@@ -62,8 +62,8 @@ that it was saved. Revocation is immediate and idempotent.
 | Surface | Role |
 | --- | --- |
 | Website | Private search, reports, mark detail, and account management plus public Status and Help pages. |
-| `@tmturtle/http-client` | Typed programmatic access derived from the server router. |
-| `@tmturtle/cli` / `tt` | JSON-first shell automation over API-key-authorized procedures. |
+| `@merchbase/tmturtle-http-client` | Typed programmatic access derived from the server router. |
+| `@merchbase/tmturtle-cli` / `tt` | JSON-first shell automation over API-key-authorized procedures. |
 | MerchBase | Downstream consumer that owns its own adapter and product policy. |
 
 The server and website are private applications. Only the HTTP client and CLI

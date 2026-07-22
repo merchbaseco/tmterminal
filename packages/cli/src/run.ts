@@ -1,13 +1,12 @@
-import type { TmturtleClient } from "@tmturtle/http-client";
+import type { TmturtleClient } from "@merchbase/tmturtle-http-client";
 
 import { BadRequestError, CliError } from "./cli-error.js";
-import { parseLatest, parseMatchText, parseReport, parseSearch } from "./command-inputs.js";
+import { type CliCommand, parseCli } from "./program.js";
 
 const defaultOrigin = "https://tmturtle.merchbase.co";
 const tokenPattern =
   /^ttk_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_[A-Za-z0-9_-]{43}$/;
-const registrationNumberPattern = /^\d{7}$/;
-const serialNumberPattern = /^\d{8}$/;
+const unicodeWordTokens = /[\p{Letter}\p{Mark}\p{Number}]+/gu;
 
 export interface Keychain {
   clear: (origin: string) => Promise<void>;
@@ -15,14 +14,14 @@ export interface Keychain {
   set: (origin: string, token: string) => Promise<void>;
 }
 
-export type CliClient = Pick<TmturtleClient, "account" | "marks" | "reports" | "sync">;
+export type CliClient = Pick<TmturtleClient, "account" | "reports" | "status" | "trademarks">;
 
 export interface CliDependencies {
-  config: { baseUrl?: string };
   createClient: (options: { apiKey: string; baseUrl: string }) => CliClient;
   env: Record<string, string | undefined>;
   keychain: Keychain;
   stdin: string;
+  version: string;
 }
 
 export interface CliResult {
@@ -65,10 +64,8 @@ export function failureResult(code: string, message: string): CliResult {
   };
 }
 
-function configuredOrigin(dependencies: CliDependencies) {
-  return normalizeOrigin(
-    dependencies.env.TMTURTLE_BASE_URL ?? dependencies.config.baseUrl ?? defaultOrigin
-  );
+function configuredOrigin(dependencies: CliDependencies, explicitOrigin?: string) {
+  return normalizeOrigin(explicitOrigin ?? dependencies.env.TMTURTLE_BASE_URL ?? defaultOrigin);
 }
 
 async function credential(dependencies: CliDependencies, origin: string) {
@@ -82,8 +79,8 @@ async function credential(dependencies: CliDependencies, origin: string) {
   return { source: "keychain" as const, token };
 }
 
-async function authenticatedClient(dependencies: CliDependencies) {
-  const origin = configuredOrigin(dependencies);
+async function authenticatedClient(dependencies: CliDependencies, explicitOrigin?: string) {
+  const origin = configuredOrigin(dependencies, explicitOrigin);
   const selected = await credential(dependencies, origin);
   const client = dependencies.createClient({ apiKey: selected.token, baseUrl: origin });
   return { client, origin, selected };
@@ -98,125 +95,89 @@ function remoteFailure(error: unknown) {
   return typeof code === "string" ? failureResult(code, error.message) : null;
 }
 
-async function runAuthCommand(args: string[], dependencies: CliDependencies) {
-  if (args[1] === "set") {
-    const withOrigin = args.length === 5 && args[2] === "--stdin" && args[3] === "--base-url";
-    const withoutOrigin = args.length === 3 && args[2] === "--stdin";
-    if (!(withOrigin || withoutOrigin)) {
-      throw new BadRequestError("Usage: tt auth set --stdin [--base-url <origin>]");
-    }
-    const token = dependencies.stdin.trim();
-    if (!tokenPattern.test(token)) {
-      throw new BadRequestError("Invalid Trademark Turtle API key");
-    }
-    const [, , , , explicitOrigin] = args;
-    const origin = withOrigin
-      ? normalizeOrigin(explicitOrigin ?? "")
-      : configuredOrigin(dependencies);
-    await dependencies.keychain.set(origin, token);
-    return success({ origin });
+function matchInput(invocation: Extract<CliCommand, { kind: "match" }>, stdin: string) {
+  const text = invocation.readsStdin ? stdin : (invocation.text ?? "");
+  if (text.trim().length === 0) {
+    throw new BadRequestError("Match text is required");
   }
-  if (args.length === 2 && args[1] === "status") {
-    const { client, origin, selected } = await authenticatedClient(dependencies);
-    const account = await client.account.me.query();
-    if (account.credential.type !== "api-key") {
-      throw new CliError(
-        "INTERNAL_ERROR",
-        "API key validation returned an invalid credential context"
-      );
-    }
-    // biome-ignore assist/source/useSortedKeys: JSON field order is part of the CLI envelope contract.
-    return success({
-      origin,
-      credentialSource: selected.source,
-      keySuffix: account.credential.suffix,
-      accountId: account.accountId,
-    });
+  if (text.length > 4096) {
+    throw new BadRequestError("Match text must contain at most 4096 UTF-16 code units");
   }
-  if (args.length === 2 && args[1] === "clear") {
-    const origin = configuredOrigin(dependencies);
-    await dependencies.keychain.clear(origin);
-    return success({ origin });
+  if ((text.match(unicodeWordTokens) ?? []).length > 128) {
+    throw new BadRequestError("Match text must contain at most 128 Unicode word tokens");
   }
-  throw new BadRequestError("Unknown command");
-}
-
-async function runMarksCommand(args: string[], dependencies: CliDependencies) {
-  if (args.length === 3 && args[1] === "get") {
-    const [, , serialNumber] = args;
-    if (!(serialNumber && serialNumberPattern.test(serialNumber))) {
-      throw new BadRequestError("Serial number must be exactly 8 digits");
-    }
-    const { client } = await authenticatedClient(dependencies);
-    return success(await client.marks.get.query({ serialNumber }));
-  }
-  if (args.length === 3 && args[1] === "get-by-registration") {
-    const [, , registrationNumber] = args;
-    if (!(registrationNumber && registrationNumberPattern.test(registrationNumber))) {
-      throw new BadRequestError("Registration number must be exactly 7 digits");
-    }
-    const { client } = await authenticatedClient(dependencies);
-    return success(await client.marks["get-by-registration"].query({ registrationNumber }));
-  }
-  if (args[1] === "search") {
-    const input = parseSearch(args);
-    const { client } = await authenticatedClient(dependencies);
-    return success(await client.marks.search.query(input));
-  }
-  if (args[1] === "latest") {
-    const input = parseLatest(args);
-    const { client } = await authenticatedClient(dependencies);
-    return success(await client.marks.latest.query(input));
-  }
-  if (args[1] === "match") {
-    const input = parseMatchText(args, dependencies.stdin);
-    const { client } = await authenticatedClient(dependencies);
-    return success(await client.marks["match-text"].query(input));
-  }
-  throw new BadRequestError("Unknown command");
-}
-
-async function runReportsCommand(args: string[], dependencies: CliDependencies) {
-  if (args[1] !== "run") {
-    throw new BadRequestError("Unknown command");
-  }
-  const input = parseReport(args);
-  const { client } = await authenticatedClient(dependencies);
-  return success(await client.reports.run.query(input));
-}
-
-async function runSyncCommand(args: string[], dependencies: CliDependencies) {
-  if (!(args.length === 2 && args[1] === "status")) {
-    throw new BadRequestError("Unknown command");
-  }
-  const { client } = await authenticatedClient(dependencies);
-  return success(await client.sync.status.query());
+  return { text, type: invocation.type };
 }
 
 export async function runCli(args: string[], dependencies: CliDependencies): Promise<CliResult> {
   try {
-    if (args[0] === "auth") {
-      return await runAuthCommand(args, dependencies);
-    }
-    if (args[0] === "marks") {
-      return await runMarksCommand(args, dependencies);
-    }
-    if (args[0] === "reports") {
-      return await runReportsCommand(args, dependencies);
-    }
-    if (args[0] === "sync") {
-      return await runSyncCommand(args, dependencies);
+    const parsed = await parseCli(args, dependencies.version);
+    if (parsed.kind === "text") {
+      return { exitCode: 0, stderr: "", stdout: parsed.text };
     }
 
-    throw new BadRequestError("Unknown command");
+    const invocation = parsed.command;
+    if (invocation.kind === "auth-set") {
+      const origin = configuredOrigin(dependencies, parsed.baseUrl);
+      const token = dependencies.stdin.trim();
+      if (!tokenPattern.test(token)) {
+        throw new BadRequestError("Invalid Trademark Turtle API key");
+      }
+      await dependencies.keychain.set(origin, token);
+      return success({ origin });
+    }
+    if (invocation.kind === "auth-clear") {
+      const origin = configuredOrigin(dependencies, parsed.baseUrl);
+      await dependencies.keychain.clear(origin);
+      return success({ origin });
+    }
+
+    const authenticated = await authenticatedClient(dependencies, parsed.baseUrl);
+    switch (invocation.kind) {
+      case "auth-status": {
+        const account = await authenticated.client.account.me.query();
+        if (account.credential.type !== "api-key") {
+          throw new CliError(
+            "INTERNAL_ERROR",
+            "API key validation returned an invalid credential context"
+          );
+        }
+        // biome-ignore assist/source/useSortedKeys: JSON field order is part of the CLI envelope contract.
+        return success({
+          origin: authenticated.origin,
+          credentialSource: authenticated.selected.source,
+          keySuffix: account.credential.suffix,
+          accountId: account.accountId,
+        });
+      }
+      case "get":
+        return success(await authenticated.client.trademarks.get.query(invocation.input));
+      case "get-by-registration":
+        return success(
+          await authenticated.client.trademarks.getByRegistration.query(invocation.input)
+        );
+      case "latest":
+        return success(await authenticated.client.trademarks.latest.query(invocation.input));
+      case "match":
+        return success(
+          await authenticated.client.trademarks.matchText.query(
+            matchInput(invocation, dependencies.stdin)
+          )
+        );
+      case "report":
+        return success(await authenticated.client.reports.run.query(invocation.input));
+      case "search":
+        return success(await authenticated.client.trademarks.search.query(invocation.input));
+      case "status":
+        return success(await authenticated.client.status.query());
+      default:
+        throw new CliError("INTERNAL_ERROR", "Unsupported command");
+    }
   } catch (error) {
     if (error instanceof CliError) {
       return failureResult(error.code, error.message);
     }
     const remote = remoteFailure(error);
-    if (remote) {
-      return remote;
-    }
-    return failureResult("INTERNAL_ERROR", "Command failed");
+    return remote ?? failureResult("INTERNAL_ERROR", "Command failed");
   }
 }

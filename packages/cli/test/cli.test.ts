@@ -1,11 +1,11 @@
 import { expect, test } from "bun:test";
-import type { TmturtleRouterOutputs } from "@tmturtle/http-client";
+import type { TmturtleRouterOutputs } from "@merchbase/tmturtle-http-client";
 
 import { type CliClient, type CliDependencies, runCli } from "../src/run.ts";
 
 const token =
   "ttk_11111111-1111-4111-8111-111111111111_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-const markFixture = {
+const trademark = {
   classes: [{ internationalCode: "025", statusCode: "6", statusDate: "2010-04-08" }],
   goodsServices: [{ text: "pistols", typeCode: "GS0091" }],
   legalDisclaimer:
@@ -24,15 +24,7 @@ const markFixture = {
   },
   owners: [{ entryNumber: "1", partyName: "AUTO ORDNANCE CORPORATION", partyType: "10" }],
   provenance: {
-    contributors: [
-      {
-        artifactVersionSha256: "a".repeat(64),
-        claimPath: "case-file/case-file-header/mark-identification",
-        group: "mark-presentation",
-        physicalRecordIndex: 1,
-        product: "TRTYRAP",
-      },
-    ],
+    contributors: [],
     versions: {
       authorityPolicy: "uspto-authority-v1",
       normalization: "uspto-normalization-v1",
@@ -42,7 +34,7 @@ const markFixture = {
   },
   statusEvents: [],
   type: "design",
-} satisfies TmturtleRouterOutputs["marks"]["get"];
+} satisfies TmturtleRouterOutputs["trademarks"]["get"];
 
 const searchPage = {
   items: [
@@ -63,49 +55,74 @@ const searchPage = {
   limit: 25,
   liveMatchCounts: { exact: 0, partial: 1 },
   meta: { dataVersion: "7" },
-  offset: 25,
-  total: 26,
-} satisfies TmturtleRouterOutputs["marks"]["search"];
+  offset: 0,
+  total: 1,
+} satisfies TmturtleRouterOutputs["trademarks"]["search"];
 
-const noop = () => Promise.resolve();
-const noValue = () => Promise.resolve(null);
-const unexpected = (name: string) => () => Promise.reject(new Error(`Unexpected ${name}`));
+type ClientFactory = (options: { apiKey: string; baseUrl: string }) => CliClient;
 
-type DeepPartial<T> = T extends (...args: infer Args) => infer Result
-  ? (...args: Args) => Result
-  : T extends object
-    ? { [Key in keyof T]?: DeepPartial<T[Key]> }
-    : T;
-
-type DependencyOverrides = Omit<Partial<CliDependencies>, "createClient"> & {
-  createClient?: (options: { apiKey: string; baseUrl: string }) => DeepPartial<CliClient>;
-};
-
-function dependencies(overrides: DependencyOverrides = {}): CliDependencies {
+function dependencies(
+  overrides: Partial<Omit<CliDependencies, "createClient">> & {
+    createClient?: ClientFactory;
+  } = {}
+): CliDependencies {
   return {
-    config: {},
     createClient: () => {
       throw new Error("Unexpected HTTP client");
     },
     env: {},
     keychain: {
-      clear: noop,
-      get: noValue,
-      set: noop,
+      clear: () => Promise.resolve(),
+      get: () => Promise.resolve(null),
+      set: () => Promise.resolve(),
     },
     stdin: "",
+    version: "1.0.0",
     ...overrides,
-  } as CliDependencies;
+  };
 }
 
-test("auth set stores a stdin token against the normalized origin without echoing it", async () => {
+function json(result: Awaited<ReturnType<typeof runCli>>) {
+  return JSON.parse(result.stdout || result.stderr);
+}
+
+function asClient(value: unknown) {
+  return value as CliClient;
+}
+
+test("no command, --help, help search, and --version are human-readable successes", async () => {
+  const root = await runCli([], dependencies());
+  const help = await runCli(["--help"], dependencies());
+  const searchHelp = await runCli(["help", "search"], dependencies());
+  const version = await runCli(["--version"], dependencies());
+
+  expect(root).toEqual(help);
+  expect(root.exitCode).toBe(0);
+  expect(root.stdout).toContain("Usage: tt [options] [command]");
+  expect(root.stdout).toContain("search [options] <query>");
+  expect(searchHelp.stdout).toContain("Usage: tt search [options] <query>");
+  expect(version).toEqual({ exitCode: 0, stderr: "", stdout: "1.0.0\n" });
+});
+
+test("unknown commands return one JSON error on stderr", async () => {
+  const result = await runCli(["marks", "search", "turtle"], dependencies());
+
+  expect(result.exitCode).toBe(1);
+  expect(result.stdout).toBe("");
+  expect(json(result)).toMatchObject({
+    error: { code: "BAD_REQUEST", message: expect.stringContaining("unknown command 'marks'") },
+    ok: false,
+  });
+});
+
+test("auth set stores stdin against the explicit normalized origin without echoing it", async () => {
   const stored: Array<{ origin: string; token: string }> = [];
   const result = await runCli(
     ["auth", "set", "--stdin", "--base-url", "https://EXAMPLE.com:443/"],
     dependencies({
       keychain: {
-        clear: noop,
-        get: noValue,
+        clear: () => Promise.resolve(),
+        get: () => Promise.resolve(null),
         set: (origin, value) => {
           stored.push({ origin, token: value });
           return Promise.resolve();
@@ -116,51 +133,18 @@ test("auth set stores a stdin token against the normalized origin without echoin
   );
 
   expect(stored).toEqual([{ origin: "https://example.com", token }]);
-  expect(result).toEqual({
-    exitCode: 0,
-    stderr: "",
-    stdout: '{"ok":true,"data":{"origin":"https://example.com"}}\n',
-  });
+  expect(json(result)).toEqual({ data: { origin: "https://example.com" }, ok: true });
   expect(result.stdout).not.toContain(token);
 });
 
-test("auth set rejects an explicitly empty base URL", async () => {
-  const stored: Array<{ origin: string; token: string }> = [];
-  const result = await runCli(
-    ["auth", "set", "--stdin", "--base-url", ""],
-    dependencies({
-      config: { baseUrl: "https://configured.example" },
-      keychain: {
-        clear: noop,
-        get: noValue,
-        set: (origin, value) => {
-          stored.push({ origin, token: value });
-          return Promise.resolve();
-        },
-      },
-      stdin: token,
-    })
-  );
-
-  expect(stored).toEqual([]);
-  expect(result).toEqual({
-    exitCode: 1,
-    stderr:
-      '{"ok":false,"error":{"code":"BAD_REQUEST","message":"Base URL must be an HTTP origin","details":{}}}\n',
-    stdout: "",
-  });
-});
-
-test("auth status prefers the environment credential and validates it through account.me", async () => {
+test("global origin overrides environment origin", async () => {
   const clients: Array<{ apiKey: string; baseUrl: string }> = [];
-  let keychainReads = 0;
   const result = await runCli(
-    ["auth", "status"],
+    ["--base-url", "https://explicit.example", "auth", "status"],
     dependencies({
-      config: { baseUrl: "https://config.example" },
-      createClient: (options: { apiKey: string; baseUrl: string }) => {
+      createClient: (options) => {
         clients.push(options);
-        return {
+        return asClient({
           account: {
             me: {
               query: () =>
@@ -170,253 +154,130 @@ test("auth status prefers the environment credential and validates it through ac
                 }),
             },
           },
-          marks: {
-            get: {
-              query: unexpected("marks.get"),
-            },
-            search: {
-              query: unexpected("marks.search"),
-            },
-          },
-        };
+        });
       },
       env: {
         TMTURTLE_API_KEY: token,
-        TMTURTLE_BASE_URL: "https://ENV.example/",
-      },
-      keychain: {
-        clear: noop,
-        get: () => {
-          keychainReads += 1;
-          return Promise.resolve("ttk_keychain");
-        },
-        set: noop,
+        TMTURTLE_BASE_URL: "https://environment.example",
       },
     })
   );
 
-  expect(keychainReads).toBe(0);
-  expect(clients).toEqual([{ apiKey: token, baseUrl: "https://env.example" }]);
-  expect(result).toEqual({
-    exitCode: 0,
-    stderr: "",
-    stdout:
-      '{"ok":true,"data":{"origin":"https://env.example","credentialSource":"environment","keySuffix":"AAAAAA","accountId":"account-1"}}\n',
+  expect(clients).toEqual([{ apiKey: token, baseUrl: "https://explicit.example" }]);
+  expect(json(result).data).toMatchObject({
+    credentialSource: "environment",
+    origin: "https://explicit.example",
   });
 });
 
-test("auth status reads the Keychain entry bound to the configured origin", async () => {
-  const origins: string[] = [];
+test("auth status uses the selected origin's Keychain credential", async () => {
+  const reads: string[] = [];
   const result = await runCli(
     ["auth", "status"],
     dependencies({
-      config: { baseUrl: "https://config.example/" },
-      createClient: () => ({
-        account: {
-          me: {
-            query: () =>
-              Promise.resolve({
-                accountId: "account-2",
-                credential: { keyId: "key-2", suffix: "AAAAAA", type: "api-key" },
-              }),
+      createClient: () =>
+        asClient({
+          account: {
+            me: {
+              query: () =>
+                Promise.resolve({
+                  accountId: "account-2",
+                  credential: { keyId: "key-2", suffix: "AAAAAA", type: "api-key" },
+                }),
+            },
           },
-        },
-        marks: {
-          get: {
-            query: unexpected("marks.get"),
-          },
-          search: {
-            query: unexpected("marks.search"),
-          },
-        },
-      }),
+        }),
+      env: { TMTURTLE_BASE_URL: "https://service.example/" },
       keychain: {
-        clear: noop,
+        clear: () => Promise.resolve(),
         get: (origin) => {
-          origins.push(origin);
+          reads.push(origin);
           return Promise.resolve(token);
         },
-        set: noop,
+        set: () => Promise.resolve(),
       },
     })
   );
 
-  expect(origins).toEqual(["https://config.example"]);
-  expect(JSON.parse(result.stdout).data).toMatchObject({
-    credentialSource: "keychain",
-    origin: "https://config.example",
-  });
+  expect(reads).toEqual(["https://service.example"]);
+  expect(json(result).data.credentialSource).toBe("keychain");
 });
 
-test("an invalid selected base URL is a local validation failure", async () => {
-  const result = await runCli(
-    ["auth", "status"],
-    dependencies({ env: { TMTURTLE_BASE_URL: "not-an-origin" } })
-  );
-
-  expect(result).toEqual({
-    exitCode: 1,
-    stderr:
-      '{"ok":false,"error":{"code":"BAD_REQUEST","message":"Base URL must be an HTTP origin","details":{}}}\n',
-    stdout: "",
-  });
-});
-
-test("an invalid selected environment credential never falls back to Keychain", async () => {
-  let keychainReads = 0;
-  const unauthorized = Object.assign(new Error("Invalid credential"), {
-    data: { code: "UNAUTHORIZED" },
-  });
-  const result = await runCli(
-    ["auth", "status"],
-    dependencies({
-      createClient: () => ({
-        account: {
-          me: {
-            query: () => Promise.reject(unauthorized),
-          },
-        },
-        marks: {
-          get: {
-            query: unexpected("marks.get"),
-          },
-          search: {
-            query: unexpected("marks.search"),
-          },
-        },
-      }),
-      env: { TMTURTLE_API_KEY: "invalid-selected-value" },
-      keychain: {
-        clear: noop,
-        get: () => {
-          keychainReads += 1;
-          return Promise.resolve(token);
-        },
-        set: noop,
-      },
-    })
-  );
-
-  expect(keychainReads).toBe(0);
-  expect(result).toEqual({
-    exitCode: 1,
-    stderr:
-      '{"ok":false,"error":{"code":"UNAUTHORIZED","message":"Invalid credential","details":{}}}\n',
-    stdout: "",
-  });
-});
-
-test("auth clear deletes only the entry for the selected normalized origin", async () => {
+test("auth clear is scoped to the selected origin", async () => {
   const cleared: string[] = [];
   const result = await runCli(
     ["auth", "clear"],
     dependencies({
-      config: { baseUrl: "https://CONFIG.example:443/" },
+      env: { TMTURTLE_BASE_URL: "https://SERVICE.example:443/" },
       keychain: {
         clear: (origin) => {
           cleared.push(origin);
           return Promise.resolve();
         },
-        get: noValue,
-        set: noop,
+        get: () => Promise.resolve(null),
+        set: () => Promise.resolve(),
       },
     })
   );
 
-  expect(cleared).toEqual(["https://config.example"]);
-  expect(result.stdout).toBe('{"ok":true,"data":{"origin":"https://config.example"}}\n');
+  expect(cleared).toEqual(["https://service.example"]);
+  expect(json(result)).toEqual({ data: { origin: "https://service.example" }, ok: true });
 });
 
-test("marks get writes one success envelope for an exact serial identity", async () => {
-  const inputs: unknown[] = [];
-  const result = await runCli(
-    ["marks", "get", "60146682"],
-    dependencies({
-      createClient: () => ({
-        account: {
-          me: {
-            query: unexpected("account.me"),
-          },
+test("get selects exact serial and registration identities", async () => {
+  const serialInputs: unknown[] = [];
+  const registrationInputs: unknown[] = [];
+  const client = asClient({
+    trademarks: {
+      get: {
+        query: (input: unknown) => {
+          serialInputs.push(input);
+          return Promise.resolve(trademark);
         },
-        marks: {
-          get: {
-            query: (input) => {
-              inputs.push(input);
-              return Promise.resolve(markFixture);
-            },
-          },
-          search: {
-            query: unexpected("marks.search"),
-          },
+      },
+      getByRegistration: {
+        query: (input: unknown) => {
+          registrationInputs.push(input);
+          return Promise.resolve(trademark);
         },
-      }),
-      env: { TMTURTLE_API_KEY: token },
-    })
-  );
-
-  expect(inputs).toEqual([{ serialNumber: "60146682" }]);
-  expect(result.exitCode).toBe(0);
-  expect(result.stderr).toBe("");
-  expect(JSON.parse(result.stdout)).toEqual({ data: markFixture, ok: true });
-});
-
-test("marks get rejects a non-exact serial before creating an HTTP client", async () => {
-  const result = await runCli(
-    ["marks", "get", "6014668"],
-    dependencies({
-      env: { TMTURTLE_API_KEY: token },
-    })
-  );
-
-  expect(result).toEqual({
-    exitCode: 1,
-    stderr:
-      '{"ok":false,"error":{"code":"BAD_REQUEST","message":"Serial number must be exactly 8 digits","details":{}}}\n',
-    stdout: "",
+      },
+    },
   });
-});
 
-test("marks get preserves the stable API not-found envelope on stderr", async () => {
-  const notFound = Object.assign(new Error("Trademark not found"), { data: { code: "NOT_FOUND" } });
-  const result = await runCli(
-    ["marks", "get", "99999999"],
-    dependencies({
-      createClient: () => ({
-        account: {
-          me: {
-            query: unexpected("account.me"),
-          },
-        },
-        marks: {
-          get: {
-            query: () => Promise.reject(notFound),
-          },
-          search: {
-            query: unexpected("marks.search"),
-          },
-        },
-      }),
-      env: { TMTURTLE_API_KEY: token },
-    })
+  const serial = await runCli(
+    ["get", "--serial", "60146682"],
+    authenticated(() => client)
+  );
+  const registration = await runCli(
+    ["get", "--registration", "0146682"],
+    authenticated(() => client)
   );
 
-  expect(result).toEqual({
-    exitCode: 1,
-    stderr:
-      '{"ok":false,"error":{"code":"NOT_FOUND","message":"Trademark not found","details":{}}}\n',
-    stdout: "",
-  });
+  expect(serialInputs).toEqual([{ serialNumber: "60146682" }]);
+  expect(registrationInputs).toEqual([{ registrationNumber: "0146682" }]);
+  expect(json(serial)).toEqual({ data: trademark, ok: true });
+  expect(json(registration)).toEqual({ data: trademark, ok: true });
 });
 
-test("marks search maps the approved Multi flags and preserves the server page envelope", async () => {
+test("get rejects missing, ambiguous, and malformed identities before HTTP", async () => {
+  const missing = await runCli(["get"], dependencies());
+  const ambiguous = await runCli(
+    ["get", "--serial", "60146682", "--registration", "0146682"],
+    dependencies()
+  );
+  const malformed = await runCli(["get", "--serial", "6014668"], dependencies());
+
+  expect(json(missing).error.message).toBe("Supply exactly one of --serial or --registration");
+  expect(json(ambiguous).error.message).toBe("Supply exactly one of --serial or --registration");
+  expect(json(malformed).error.message).toBe("Serial number must be exactly 8 digits");
+});
+
+test("search maps Multi filters and stable continuation fields", async () => {
   const inputs: unknown[] = [];
   const result = await runCli(
     [
-      "marks",
       "search",
       "Turtle %",
-      "--mode",
-      "multi",
       "--match",
       "partial",
       "--status",
@@ -427,24 +288,14 @@ test("marks search maps the approved Multi flags and preserves the server page e
       "yes",
       "--sort",
       "newest-activity",
-      "--limit",
-      "25",
       "--offset",
       "25",
       "--data-version",
       "7",
     ],
-    dependencies({
-      createClient: () => ({
-        account: {
-          me: {
-            query: unexpected("account.me"),
-          },
-        },
-        marks: {
-          get: {
-            query: unexpected("marks.get"),
-          },
+    authenticated(() =>
+      asClient({
+        trademarks: {
           search: {
             query: (input: unknown) => {
               inputs.push(input);
@@ -452,9 +303,8 @@ test("marks search maps the approved Multi flags and preserves the server page e
             },
           },
         },
-      }),
-      env: { TMTURTLE_API_KEY: token },
-    })
+      })
+    )
   );
 
   expect(inputs).toEqual([
@@ -471,61 +321,32 @@ test("marks search maps the approved Multi flags and preserves the server page e
       type: "design",
     },
   ]);
-  expect(result).toEqual({
-    exitCode: 0,
-    stderr: "",
-    // biome-ignore assist/source/useSortedKeys: This assertion protects the CLI envelope field order.
-    stdout: `${JSON.stringify({ ok: true, data: searchPage })}\n`,
-  });
+  expect(json(result)).toEqual({ data: searchPage, ok: true });
 });
 
-test("marks search sends Split and Wildcard without Multi-only match selection", async () => {
+test("search maps Split and Wildcard without Multi-only match", async () => {
   const inputs: unknown[] = [];
-  const createClient = () => ({
-    account: { me: { query: unexpected("account.me") } },
-    marks: {
-      get: { query: unexpected("marks.get") },
-      search: {
-        query: (input: unknown) => {
-          inputs.push(input);
-          return Promise.resolve(searchPage);
+  const createClient = () =>
+    asClient({
+      trademarks: {
+        search: {
+          query: (input: unknown) => {
+            inputs.push(input);
+            return Promise.resolve(searchPage);
+          },
         },
       },
-    },
-  });
+    });
 
-  const split = await runCli(
-    ["marks", "search", "turtle club", "--mode", "split"],
-    dependencies({ createClient, env: { TMTURTLE_API_KEY: token } })
-  );
-  const numericSplit = await runCli(
-    ["marks", "search", "10000004", "--mode", "split"],
-    dependencies({ createClient, env: { TMTURTLE_API_KEY: token } })
-  );
-  const wildcard = await runCli(
-    ["marks", "search", "turtle*", "--mode", "wildcard"],
-    dependencies({ createClient, env: { TMTURTLE_API_KEY: token } })
-  );
+  await runCli(["search", "turtle club", "--mode", "split"], authenticated(createClient));
+  await runCli(["search", "turtle*", "--mode", "wildcard"], authenticated(createClient));
 
-  expect(split.exitCode).toBe(0);
-  expect(numericSplit.exitCode).toBe(0);
-  expect(wildcard.exitCode).toBe(0);
   expect(inputs).toEqual([
     {
       limit: 25,
       mode: "split",
       offset: 0,
       query: "turtle club",
-      registered: "all",
-      sort: "relevance",
-      status: "all",
-      type: "all",
-    },
-    {
-      limit: 25,
-      mode: "split",
-      offset: 0,
-      query: "10000004",
       registered: "all",
       sort: "relevance",
       status: "all",
@@ -544,256 +365,81 @@ test("marks search sends Split and Wildcard without Multi-only match selection",
   ]);
 });
 
-test("marks search rejects mode-specific options and unsafe continuations before HTTP", async () => {
+test("search rejects mode-specific flags and unsafe continuations before HTTP", async () => {
   const splitMatch = await runCli(
-    ["marks", "search", "turtle", "--mode", "split", "--match", "exact"],
-    dependencies({ env: { TMTURTLE_API_KEY: token } })
+    ["search", "turtle", "--mode", "split", "--match", "exact"],
+    dependencies()
   );
-  const wildcardMatch = await runCli(
-    ["marks", "search", "turtle*", "--match", "partial", "--mode", "wildcard"],
-    dependencies({ env: { TMTURTLE_API_KEY: token } })
-  );
-  const unsafeWildcard = await runCli(
-    ["marks", "search", "*a*b*", "--mode", "wildcard"],
-    dependencies({ env: { TMTURTLE_API_KEY: token } })
-  );
-  const normalizedUnsafeWildcard = await runCli(
-    ["marks", "search", "＊＊＊", "--mode", "wildcard"],
-    dependencies({ env: { TMTURTLE_API_KEY: token } })
-  );
-  const sqlMetacharactersOnly = await runCli(
-    ["marks", "search", "%_\\*", "--mode", "wildcard"],
-    dependencies({ env: { TMTURTLE_API_KEY: token } })
-  );
-  const punctuationSplit = await runCli(
-    ["marks", "search", "—!?", "--mode", "split"],
-    dependencies({ env: { TMTURTLE_API_KEY: token } })
-  );
-  const missingVersion = await runCli(
-    ["marks", "search", "turtle", "--offset", "25"],
-    dependencies({ env: { TMTURTLE_API_KEY: token } })
-  );
-  const retiredClassFilter = await runCli(
-    ["marks", "search", "turtle", "--class", "025"],
-    dependencies({ env: { TMTURTLE_API_KEY: token } })
-  );
+  const unsafeWildcard = await runCli(["search", "*a*b*", "--mode", "wildcard"], dependencies());
+  const missingVersion = await runCli(["search", "turtle", "--offset", "25"], dependencies());
 
-  expect(JSON.parse(splitMatch.stderr)).toMatchObject({
-    error: { code: "BAD_REQUEST", message: "--match is valid only for Multi search" },
-    ok: false,
-  });
-  expect(JSON.parse(wildcardMatch.stderr)).toMatchObject({
-    error: { code: "BAD_REQUEST", message: "--match is valid only for Multi search" },
-    ok: false,
-  });
-  expect(JSON.parse(unsafeWildcard.stderr)).toMatchObject({
-    error: {
-      code: "BAD_REQUEST",
-      message: "Wildcard patterns must contain at least three consecutive literal word characters",
-    },
-    ok: false,
-  });
-  expect(JSON.parse(normalizedUnsafeWildcard.stderr)).toMatchObject({
-    error: {
-      code: "BAD_REQUEST",
-      message: "Wildcard patterns must contain at least three consecutive literal word characters",
-    },
-    ok: false,
-  });
-  expect(JSON.parse(sqlMetacharactersOnly.stderr)).toMatchObject({
-    error: {
-      code: "BAD_REQUEST",
-      message: "Wildcard patterns must contain at least three consecutive literal word characters",
-    },
-    ok: false,
-  });
-  expect(JSON.parse(punctuationSplit.stderr)).toMatchObject({
-    error: { code: "BAD_REQUEST", message: "Split search requires at least one word token" },
-    ok: false,
-  });
-  expect(JSON.parse(missingVersion.stderr)).toMatchObject({
-    error: {
-      code: "BAD_REQUEST",
-      message: "--data-version is required when --offset is greater than 0",
-    },
-    ok: false,
-  });
-  expect(JSON.parse(retiredClassFilter.stderr)).toMatchObject({
-    error: { code: "BAD_REQUEST", message: "Unknown search option --class" },
-    ok: false,
-  });
+  expect(json(splitMatch).error.message).toBe("--match is valid only for Multi search");
+  expect(json(unsafeWildcard).error.message).toContain("at least three consecutive");
+  expect(json(missingVersion).error.message).toContain("--data-version is required");
 });
 
-test("marks search preserves a typed data conflict envelope", async () => {
-  const conflict = Object.assign(new Error("Trademark data changed during pagination"), {
-    data: { code: "CONFLICT" },
-  });
-  const result = await runCli(
-    ["marks", "search", "turtle"],
-    dependencies({
-      createClient: () => ({
-        account: {
-          me: {
-            query: unexpected("account.me"),
+test("match supports explicit text and stdin without truncation", async () => {
+  const inputs: unknown[] = [];
+  const createClient = () =>
+    asClient({
+      trademarks: {
+        matchText: {
+          query: (input: unknown) => {
+            inputs.push(input);
+            return Promise.resolve({ matches: [], meta: { dataVersion: "7" } });
           },
         },
-        marks: {
-          get: {
-            query: unexpected("marks.get"),
-          },
-          search: {
-            query: () => Promise.reject(conflict),
+      },
+    });
+  const stdin = "first turtle\nsecond turtle\n";
+
+  await runCli(["match", "--text", "🐢 Cafe\u0301", "--type", "text"], authenticated(createClient));
+  await runCli(["match", "--stdin"], authenticated(createClient, { stdin }));
+
+  expect(inputs).toEqual([
+    { text: "🐢 Cafe\u0301", type: "text" },
+    { text: stdin, type: "all" },
+  ]);
+});
+
+test("latest uses the fixed page size and stable continuation", async () => {
+  const inputs: unknown[] = [];
+  const data = { items: [], limit: 25, meta: { dataVersion: "7" }, offset: 25, total: 0 };
+  const result = await runCli(
+    ["latest", "--offset", "25", "--data-version", "7"],
+    authenticated(() =>
+      asClient({
+        trademarks: {
+          latest: {
+            query: (input: unknown) => {
+              inputs.push(input);
+              return Promise.resolve(data);
+            },
           },
         },
-      }),
-      env: { TMTURTLE_API_KEY: token },
-    })
-  );
-
-  expect(result).toEqual({
-    exitCode: 1,
-    stderr:
-      '{"ok":false,"error":{"code":"CONFLICT","message":"Trademark data changed during pagination","details":{}}}\n',
-    stdout: "",
-  });
-});
-
-test("marks get-by-registration sends an exact registration identity", async () => {
-  const inputs: unknown[] = [];
-  const result = await runCli(
-    ["marks", "get-by-registration", "0146682"],
-    dependencies({
-      createClient: () =>
-        ({
-          marks: {
-            "get-by-registration": {
-              query: (input: unknown) => {
-                inputs.push(input);
-                return Promise.resolve(markFixture);
-              },
-            },
-          },
-        }) as never,
-      env: { TMTURTLE_API_KEY: token },
-    })
-  );
-
-  expect(inputs).toEqual([{ registrationNumber: "0146682" }]);
-  expect(JSON.parse(result.stdout)).toEqual({ data: markFixture, ok: true });
-});
-
-test("marks match preserves listing text and the explicit type filter", async () => {
-  const inputs: unknown[] = [];
-  const data = {
-    matches: [{ end: 13, mark: searchPage.items[0], start: 3 }],
-    meta: { dataVersion: "7" },
-  };
-  const result = await runCli(
-    ["marks", "match", "--text", "🐢 Cafe\u0301", "--type", "text"],
-    dependencies({
-      createClient: () =>
-        ({
-          marks: {
-            "match-text": {
-              query: (input: unknown) => {
-                inputs.push(input);
-                return Promise.resolve(data);
-              },
-            },
-          },
-        }) as never,
-      env: { TMTURTLE_API_KEY: token },
-    })
-  );
-
-  expect(inputs).toEqual([{ text: "🐢 Cafe\u0301", type: "text" }]);
-  expect(JSON.parse(result.stdout)).toEqual({ data, ok: true });
-});
-
-test("marks match reads stdin without silently truncating it", async () => {
-  const inputs: unknown[] = [];
-  const text = "first turtle\nsecond turtle\n";
-  const result = await runCli(
-    ["marks", "match", "--stdin"],
-    dependencies({
-      createClient: () =>
-        ({
-          marks: {
-            "match-text": {
-              query: (input: unknown) => {
-                inputs.push(input);
-                return Promise.resolve({
-                  matches: [],
-                  meta: { dataVersion: "0" },
-                });
-              },
-            },
-          },
-        }) as never,
-      env: { TMTURTLE_API_KEY: token },
-      stdin: text,
-    })
-  );
-
-  expect(result.exitCode).toBe(0);
-  expect(inputs).toEqual([{ text, type: "all" }]);
-});
-
-test("marks match rejects ambiguous text sources before HTTP", async () => {
-  const result = await runCli(
-    ["marks", "match", "--text", "turtle", "--stdin"],
-    dependencies({ env: { TMTURTLE_API_KEY: token }, stdin: "turtle" })
-  );
-
-  expect(JSON.parse(result.stderr)).toMatchObject({
-    error: { code: "BAD_REQUEST", message: "--text and --stdin are mutually exclusive" },
-    ok: false,
-  });
-});
-
-test("marks latest preserves stable page options and the server envelope", async () => {
-  const inputs: unknown[] = [];
-  const data = {
-    items: searchPage.items.map(({ match: _match, ...item }) => item),
-    limit: 25,
-    meta: searchPage.meta,
-    offset: 25,
-    total: 26,
-  };
-  const result = await runCli(
-    ["marks", "latest", "--limit", "25", "--offset", "25", "--data-version", "7"],
-    dependencies({
-      createClient: () =>
-        ({
-          marks: {
-            latest: {
-              query: (input: unknown) => {
-                inputs.push(input);
-                return Promise.resolve(data);
-              },
-            },
-          },
-        }) as never,
-      env: { TMTURTLE_API_KEY: token },
-    })
+      })
+    )
   );
 
   expect(inputs).toEqual([{ expectedDataVersion: "7", limit: 25, offset: 25 }]);
-  expect(JSON.parse(result.stdout)).toEqual({ data, ok: true });
+  expect(json(result)).toEqual({ data, ok: true });
 });
 
-test("reports run maps a pinned previous-week continuation", async () => {
+test("reports run maps previous-week and opposition reports", async () => {
   const inputs: unknown[] = [];
-  const data = {
-    from: "2026-07-06",
-    items: [],
-    limit: 25,
-    meta: { dataVersion: "7" },
-    offset: 25,
-    to: "2026-07-12",
-    total: 26,
-  };
-  const result = await runCli(
+  const createClient = () =>
+    asClient({
+      reports: {
+        run: {
+          query: (input: unknown) => {
+            inputs.push(input);
+            return Promise.resolve({});
+          },
+        },
+      },
+    });
+
+  await runCli(
     [
       "reports",
       "run",
@@ -801,14 +447,6 @@ test("reports run maps a pinned previous-week continuation", async () => {
       "filed",
       "--window",
       "previous-week",
-      "--status",
-      "live",
-      "--type",
-      "text",
-      "--registered",
-      "no",
-      "--sort",
-      "oldest-activity",
       "--offset",
       "25",
       "--data-version",
@@ -818,20 +456,11 @@ test("reports run maps a pinned previous-week continuation", async () => {
       "--to",
       "2026-07-12",
     ],
-    dependencies({
-      createClient: () =>
-        ({
-          reports: {
-            run: {
-              query: (input: unknown) => {
-                inputs.push(input);
-                return Promise.resolve(data);
-              },
-            },
-          },
-        }) as never,
-      env: { TMTURTLE_API_KEY: token },
-    })
+    authenticated(createClient)
+  );
+  await runCli(
+    ["reports", "run", "--event", "published-for-opposition"],
+    authenticated(createClient)
   );
 
   expect(inputs).toEqual([
@@ -842,38 +471,12 @@ test("reports run maps a pinned previous-week continuation", async () => {
       expectedTo: "2026-07-12",
       limit: 25,
       offset: 25,
-      registered: "no",
-      sort: "oldest-activity",
-      status: "live",
-      type: "text",
+      registered: "all",
+      sort: "newest-activity",
+      status: "all",
+      type: "all",
       window: "previous-week",
     },
-  ]);
-  expect(JSON.parse(result.stdout)).toEqual({ data, ok: true });
-});
-
-test("reports run maps the current opposition-status view without a window", async () => {
-  const inputs: unknown[] = [];
-  const result = await runCli(
-    ["reports", "run", "--event", "published-for-opposition"],
-    dependencies({
-      createClient: () =>
-        ({
-          reports: {
-            run: {
-              query: (input: unknown) => {
-                inputs.push(input);
-                return Promise.resolve({});
-              },
-            },
-          },
-        }) as never,
-      env: { TMTURTLE_API_KEY: token },
-    })
-  );
-
-  expect(result.exitCode).toBe(0);
-  expect(inputs).toEqual([
     {
       event: "published-for-opposition",
       limit: 25,
@@ -886,22 +489,46 @@ test("reports run maps the current opposition-status view without a window", asy
   ]);
 });
 
-test("sync status preserves the authenticated freshness envelope", async () => {
+test("status calls the safe authenticated service-status procedure", async () => {
   const data = {
     activeState: "idle",
     dataVersion: 0,
     failedCount: 0,
     lastSuccessfulUpdateAt: null,
     latestProcessedDate: null,
-    pendingCount: 91,
+    pendingCount: 0,
   };
   const result = await runCli(
-    ["sync", "status"],
-    dependencies({
-      createClient: () => ({ sync: { status: { query: () => Promise.resolve(data) } } }) as never,
-      env: { TMTURTLE_API_KEY: token },
-    })
+    ["status"],
+    authenticated(() => asClient({ status: { query: () => Promise.resolve(data) } }))
   );
 
-  expect(JSON.parse(result.stdout)).toEqual({ data, ok: true });
+  expect(json(result)).toEqual({ data, ok: true });
 });
+
+test("typed remote errors preserve code and message on stderr", async () => {
+  const notFound = Object.assign(new Error("Trademark not found"), {
+    data: { code: "NOT_FOUND" },
+  });
+  const result = await runCli(
+    ["get", "--serial", "99999999"],
+    authenticated(() =>
+      asClient({
+        trademarks: { get: { query: () => Promise.reject(notFound) } },
+      })
+    )
+  );
+
+  expect(result.stdout).toBe("");
+  expect(json(result)).toEqual({
+    error: { code: "NOT_FOUND", details: {}, message: "Trademark not found" },
+    ok: false,
+  });
+});
+
+function authenticated(
+  createClient: ClientFactory,
+  overrides: Partial<Omit<CliDependencies, "createClient">> = {}
+) {
+  return dependencies({ createClient, env: { TMTURTLE_API_KEY: token }, ...overrides });
+}

@@ -4,7 +4,7 @@ const service = "co.merchbase.tmturtle";
 
 export type SecurityCommand = (
   args: string[],
-  stdin?: string,
+  stdin?: string
 ) => Promise<{ exitCode: number; stderr: string; stdout: string }>;
 
 const passwordPromptScript = `
@@ -32,15 +32,18 @@ expect {
 `;
 
 async function security(args: string[], stdin?: string) {
-  const command = stdin === undefined
-    ? ["/usr/bin/security", ...args]
-    : ["/usr/bin/expect", "-c", passwordPromptScript];
+  const command =
+    stdin === undefined
+      ? ["/usr/bin/security", ...args]
+      : ["/usr/bin/expect", "-c", passwordPromptScript];
   const child = Bun.spawn(command, {
     stderr: "pipe",
     stdin: "pipe",
     stdout: "pipe",
   });
-  if (stdin) child.stdin.write(`${stdin.trimEnd()}\n${args.join("\n")}\n`);
+  if (stdin) {
+    child.stdin.write(`${stdin.trimEnd()}\n${args.join("\n")}\n`);
+  }
   child.stdin.end();
   const [exitCode, stderr, stdout] = await Promise.all([
     child.exited,
@@ -58,20 +61,31 @@ export function createMacOsKeychain(command: SecurityCommand = security): Keycha
   return {
     async clear(origin) {
       const result = await command(["delete-generic-password", "-a", origin, "-s", service]);
-      if (result.exitCode !== 0) throw failed(result);
+      if (result.exitCode === 44) {
+        return;
+      }
+      if (result.exitCode !== 0) {
+        throw failed(result);
+      }
     },
     async get(origin) {
       const result = await command(["find-generic-password", "-a", origin, "-s", service, "-w"]);
-      if (result.exitCode === 44) return null;
-      if (result.exitCode !== 0) throw failed(result);
+      if (result.exitCode === 44) {
+        return null;
+      }
+      if (result.exitCode !== 0) {
+        throw failed(result);
+      }
       return result.stdout.trim();
     },
     async set(origin, token) {
       const result = await command(
         ["add-generic-password", "-a", origin, "-s", service, "-U", "-w"],
-        `${token}\n`,
+        `${token}\n`
       );
-      if (result.exitCode !== 0) throw failed(result);
+      if (result.exitCode !== 0) {
+        throw failed(result);
+      }
     },
   };
 }

@@ -13,7 +13,7 @@ afterEach(() => {
   server = undefined;
 });
 
-test("calls the typed marks router with the configured API key", async () => {
+test("calls the trademark API with the configured API key", async () => {
   const authorizations: string[] = [];
   server = Bun.serve({
     fetch(request) {
@@ -33,13 +33,14 @@ test("calls the typed marks router with the configured API key", async () => {
     hostname: "127.0.0.1",
     port: 0,
   });
-  const input: TmturtleRouterInputs["marks"]["get"] = { serialNumber: "60146682" };
+  const input: TmturtleRouterInputs["trademarks"]["get"] = { serialNumber: "60146682" };
   const client = createTmturtleClient({
     apiKey: "ttk_test_secret",
     baseUrl: `http://127.0.0.1:${server.port}`,
   });
 
-  const result: TmturtleRouterOutputs["marks"]["get"] = await client.marks.get.query(input);
+  const result: TmturtleRouterOutputs["trademarks"]["get"] =
+    await client.trademarks.get.query(input);
 
   expect(result.mark).toMatchObject({
     registrationNumber: "0146682",
@@ -70,17 +71,17 @@ test("derives every search mode and page type from the server router", async () 
     hostname: "127.0.0.1",
     port: 0,
   });
-  const multi: TmturtleRouterInputs["marks"]["search"] = {
+  const multi: TmturtleRouterInputs["trademarks"]["search"] = {
     match: "both",
     mode: "multi",
     query: "turtle",
     status: "live",
   };
-  const split: TmturtleRouterInputs["marks"]["search"] = {
+  const split: TmturtleRouterInputs["trademarks"]["search"] = {
     mode: "split",
     query: "turtle club",
   };
-  const wildcard: TmturtleRouterInputs["marks"]["search"] = {
+  const wildcard: TmturtleRouterInputs["trademarks"]["search"] = {
     mode: "wildcard",
     query: "turtle*",
   };
@@ -89,9 +90,10 @@ test("derives every search mode and page type from the server router", async () 
     baseUrl: `http://127.0.0.1:${server.port}`,
   });
 
-  const page: TmturtleRouterOutputs["marks"]["search"] = await client.marks.search.query(multi);
-  await client.marks.search.query(split);
-  await client.marks.search.query(wildcard);
+  const page: TmturtleRouterOutputs["trademarks"]["search"] =
+    await client.trademarks.search.query(multi);
+  await client.trademarks.search.query(split);
+  await client.trademarks.search.query(wildcard);
 
   expect(page).toEqual({
     items: [],
@@ -148,8 +150,11 @@ test("derives latest, text matching, and report contracts from the server router
     apiKey: "ttk_test_secret",
     baseUrl: `http://127.0.0.1:${server.port}`,
   });
-  const latestInput: TmturtleRouterInputs["marks"]["latest"] = { limit: 25, offset: 0 };
-  const matchInput: TmturtleRouterInputs["marks"]["match-text"] = {
+  const latestInput: TmturtleRouterInputs["trademarks"]["latest"] = {
+    limit: 25,
+    offset: 0,
+  };
+  const matchInput: TmturtleRouterInputs["trademarks"]["matchText"] = {
     text: "turtle club",
     type: "text",
   };
@@ -158,10 +163,10 @@ test("derives latest, text matching, and report contracts from the server router
     window: "previous-week",
   };
 
-  const latest: TmturtleRouterOutputs["marks"]["latest"] =
-    await client.marks.latest.query(latestInput);
-  const matches: TmturtleRouterOutputs["marks"]["match-text"] =
-    await client.marks["match-text"].query(matchInput);
+  const latest: TmturtleRouterOutputs["trademarks"]["latest"] =
+    await client.trademarks.latest.query(latestInput);
+  const matches: TmturtleRouterOutputs["trademarks"]["matchText"] =
+    await client.trademarks.matchText.query(matchInput);
   const report: TmturtleRouterOutputs["reports"]["run"] =
     await client.reports.run.query(reportInput);
 
@@ -173,4 +178,36 @@ test("derives latest, text matching, and report contracts from the server router
     "/api/trpc/marks.match-text",
     "/api/trpc/reports.run",
   ]);
+});
+
+test("exposes safe service status without leaking the internal sync namespace", async () => {
+  const paths: string[] = [];
+  server = Bun.serve({
+    fetch(request) {
+      paths.push(new URL(request.url).pathname);
+      return Response.json({
+        result: {
+          data: {
+            activeState: "idle",
+            dataVersion: 7,
+            failedCount: 0,
+            lastSuccessfulUpdateAt: null,
+            latestProcessedDate: "2026-07-21",
+            pendingCount: 0,
+          },
+        },
+      });
+    },
+    hostname: "127.0.0.1",
+    port: 0,
+  });
+  const client = createTmturtleClient({
+    apiKey: "ttk_test_secret",
+    baseUrl: `http://127.0.0.1:${server.port}`,
+  });
+
+  const result: TmturtleRouterOutputs["status"] = await client.status.query();
+
+  expect(result.latestProcessedDate).toBe("2026-07-21");
+  expect(paths).toEqual(["/api/trpc/sync.status"]);
 });

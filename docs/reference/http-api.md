@@ -8,7 +8,7 @@ read_when:
 # HTTP API
 
 One tRPC router defines the service contract. Inputs and outputs flow into
-`@tmturtle/http-client`; clients do not duplicate DTOs.
+`@merchbase/tmturtle-http-client`; clients do not duplicate DTOs.
 
 This page describes the executable contract on `origin/main`. Target-only source
 status and Repair behavior stays in product and ingestion docs until the
@@ -26,7 +26,11 @@ implementation changes the router.
 | Operator source status and artifact pages | Clerk session plus operator role. |
 | `/api/health` | Anonymous; process and database readiness only. |
 
-## Marks
+## Trademarks
+
+The published client uses the customer-facing `trademarks` namespace. It maps
+to the service's internal `marks` procedures without exposing those transport
+names to callers.
 
 | Procedure | Contract |
 | --- | --- |
@@ -38,7 +42,8 @@ implementation changes the router.
 
 ## Sync
 
-`sync.status` returns the authenticated safe summary used by `tt sync status`:
+The published client's top-level `status` procedure maps to `sync.status` and
+returns the authenticated safe summary used by `tt status`:
 worker activity, Latest Processed, Data Version, last successful update, and
 pending/failed counts. A worker heartbeat older than five minutes reports a
 failed active state. The summary does not expose filenames or repair actions.
@@ -126,7 +131,7 @@ that source ingestion is incomplete.
 
 ## HTTP Client
 
-`@tmturtle/http-client` exports:
+`@merchbase/tmturtle-http-client` exports:
 
 - `createTmturtleClient({ baseUrl, apiKey })`
 - `TmturtleClient`

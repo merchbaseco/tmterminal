@@ -1,21 +1,31 @@
 {
-  "name": "@tmturtle/cli",
-  "version": "0.0.0",
-  "type": "module",
-  "files": ["dist"],
-  "bin": {
-    "tt": "./dist/tt.js"
+  "name": "@merchbase/tmturtle-cli",
+  "version": "1.0.0",
+  "description": "Command-line access to Trademark Turtle search, reports, and service status",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/merchbaseco/tmturtle.git",
+    "directory": "packages/cli"
   },
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
+  "homepage": "https://github.com/merchbaseco/tmturtle#readme",
+  "bugs": "https://github.com/merchbaseco/tmturtle/issues",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "bin": {
+    "tt": "dist/tt.js"
   },
   "scripts": {
-    "build": "bun build src/index.ts src/tt.ts --outdir dist --target bun && tsc -p tsconfig.build.json"
+    "build": "rm -rf dist && bun build src/tt.ts --outdir dist --target bun",
+    "prepack": "bun run build"
   },
-  "dependencies": {
-    "@tmturtle/http-client": "workspace:*"
+  "devDependencies": {
+    "@merchbase/tmturtle-http-client": "workspace:*",
+    "commander": "15.0.0"
   }
 }

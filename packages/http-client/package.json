@@ -1,8 +1,21 @@
 {
-  "name": "@tmturtle/http-client",
-  "version": "0.0.0",
+  "name": "@merchbase/tmturtle-http-client",
+  "version": "1.0.0",
+  "description": "Typed HTTP client for the Trademark Turtle API",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/merchbaseco/tmturtle.git",
+    "directory": "packages/http-client"
+  },
+  "homepage": "https://github.com/merchbaseco/tmturtle#readme",
+  "bugs": "https://github.com/merchbaseco/tmturtle/issues",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.mts",
@@ -10,7 +23,8 @@
     }
   },
   "scripts": {
-    "build": "tsdown src/index.ts --format esm --dts --clean"
+    "build": "tsdown src/index.ts --format esm --dts --clean",
+    "prepack": "bun run build"
   },
   "dependencies": {
     "@trpc/client": "11.18.0",
