@@ -76,6 +76,7 @@ function dependencies(
       get: () => Promise.resolve(null),
       set: () => Promise.resolve(),
     },
+    promptSecret: () => Promise.reject(new Error("Unexpected interactive prompt")),
     stdin: "",
     version: "1.0.0",
     ...overrides,
@@ -135,6 +136,35 @@ test("auth set stores stdin against the explicit normalized origin without echoi
   expect(stored).toEqual([{ origin: "https://example.com", token }]);
   expect(json(result)).toEqual({ data: { origin: "https://example.com" }, ok: true });
   expect(result.stdout).not.toContain(token);
+});
+
+test("auth set prompts for a hidden API key when stdin is not selected", async () => {
+  const stored: string[] = [];
+  let prompts = 0;
+  const result = await runCli(
+    ["auth", "set"],
+    dependencies({
+      keychain: {
+        clear: () => Promise.resolve(),
+        get: () => Promise.resolve(null),
+        set: (_origin: string, value: string) => {
+          stored.push(value);
+          return Promise.resolve();
+        },
+      },
+      promptSecret: () => {
+        prompts += 1;
+        return Promise.resolve(token);
+      },
+    })
+  );
+
+  expect(prompts).toBe(1);
+  expect(stored).toEqual([token]);
+  expect(json(result)).toEqual({
+    data: { origin: "https://tmturtle.merchbase.co" },
+    ok: true,
+  });
 });
 
 test("global origin overrides environment origin", async () => {

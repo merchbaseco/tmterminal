@@ -14,7 +14,7 @@ type ReportInput = TmturtleRouterInputs["reports"]["run"];
 
 export type CliCommand =
   | { kind: "auth-clear" }
-  | { kind: "auth-set" }
+  | { kind: "auth-set"; readsStdin: boolean }
   | { kind: "auth-status" }
   | { input: TmturtleRouterInputs["trademarks"]["get"]; kind: "get" }
   | {
@@ -211,10 +211,10 @@ export async function parseCli(args: string[], version: string): Promise<ParsedC
   const auth = program.command("auth").description("Manage the selected API credential");
   auth
     .command("set")
-    .description("Store an API key read from stdin")
-    .requiredOption("--stdin", "Read the API key from stdin")
-    .action(() => {
-      command = { kind: "auth-set" };
+    .description("Store an API key in macOS Keychain")
+    .option("--stdin", "Read the API key from stdin instead of prompting")
+    .action((options: { stdin?: boolean }) => {
+      command = { kind: "auth-set", readsStdin: options.stdin === true };
     });
   auth
     .command("status")

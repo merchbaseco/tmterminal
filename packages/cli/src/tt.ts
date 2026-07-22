@@ -4,6 +4,7 @@ import { createTmturtleClient } from "@tmturtle/http-client";
 
 import packageJson from "../package.json" with { type: "json" };
 import { createMacOsKeychain } from "./keychain.js";
+import { readHiddenApiKey } from "./prompt.js";
 import { type CliResult, failureResult, runCli } from "./run.js";
 
 function write(output: CliResult) {
@@ -24,6 +25,7 @@ try {
     createClient: createTmturtleClient,
     env: process.env,
     keychain: createMacOsKeychain(),
+    promptSecret: readHiddenApiKey,
     stdin: args.includes("--stdin") ? await new Response(Bun.stdin.stream()).text() : "",
     version: packageJson.version,
   });

@@ -1,6 +1,6 @@
 {
   "name": "@tmturtle/http-client",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Typed HTTP client for the Trademark Turtle API",
   "repository": {
     "type": "git",

@@ -23,14 +23,15 @@ command maps to one API-key-authorized procedure.
 ## Authentication
 
 ```text
+tt [--base-url <origin>] auth set
 tt [--base-url <origin>] auth set --stdin
 tt auth status
 tt auth clear
 ```
 
-`auth set` reads one trimmed `ttk_...` token from stdin and stores it in macOS
-Keychain. Secrets never enter positional arguments, flags, config files, normal
-output, or logs.
+`auth set` prompts for one hidden `ttk_...` token and stores it in macOS
+Keychain. `--stdin` selects non-interactive input for scripts. Secrets never
+enter positional arguments, flags, config files, normal output, or logs.
 
 Credential precedence:
 

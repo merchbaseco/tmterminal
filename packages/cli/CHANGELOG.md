@@ -1,5 +1,10 @@
 # Trademark Turtle CLI Changelog
 
+## v1.0.1 - 2026-07-22
+
+- `tt auth set` now opens a hidden interactive prompt, while `--stdin` remains
+  available for scripts and agent workflows.
+
 ## v1.0.0 - 2026-07-22
 
 - Search United States trademarks with Exact, Multi, Split, and Wildcard modes.

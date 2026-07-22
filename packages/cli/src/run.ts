@@ -20,6 +20,7 @@ export interface CliDependencies {
   createClient: (options: { apiKey: string; baseUrl: string }) => CliClient;
   env: Record<string, string | undefined>;
   keychain: Keychain;
+  promptSecret: () => Promise<string>;
   stdin: string;
   version: string;
 }
@@ -119,7 +120,9 @@ export async function runCli(args: string[], dependencies: CliDependencies): Pro
     const invocation = parsed.command;
     if (invocation.kind === "auth-set") {
       const origin = configuredOrigin(dependencies, parsed.baseUrl);
-      const token = dependencies.stdin.trim();
+      const token = (
+        invocation.readsStdin ? dependencies.stdin : await dependencies.promptSecret()
+      ).trim();
       if (!tokenPattern.test(token)) {
         throw new BadRequestError("Invalid Trademark Turtle API key");
       }

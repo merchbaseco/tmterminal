@@ -12,7 +12,13 @@ The CLI requires Bun 1.3.5 or newer.
 bun add --global @tmturtle/cli
 ```
 
-Store a Trademark Turtle API key in macOS Keychain:
+Store a Trademark Turtle API key interactively in macOS Keychain:
+
+```sh
+tt auth set
+```
+
+For non-interactive setup:
 
 ```sh
 printf '%s' "$TMTURTLE_API_KEY" | tt auth set --stdin
