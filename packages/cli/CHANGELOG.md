@@ -1,5 +1,9 @@
 # Trademark Turtle CLI Changelog
 
+## v1.0.2 - 2026-07-22
+
+- API keys entered through `tt auth set` remain hidden in real terminals.
+
 ## v1.0.1 - 2026-07-22
 
 - `tt auth set` now opens a hidden interactive prompt, while `--stdin` remains

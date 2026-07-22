@@ -29,6 +29,7 @@ test("interactive API key input is hidden from terminal output", async () => {
   await expect(answer).resolves.toBe("ttk_hidden_secret");
   expect(outputText).toBe("API key: \n");
   expect(rawModes).toEqual([true, false]);
+  expect(input.isPaused()).toBe(true);
 });
 
 test("non-interactive API key input requires the explicit stdin mode", async () => {
@@ -60,6 +61,7 @@ test("interactive cancellation restores terminal input", async () => {
 
   await expect(answer).rejects.toThrow("API key input cancelled");
   expect(rawModes).toEqual([true, false]);
+  expect(input.isPaused()).toBe(true);
 });
 
 test("interactive end-of-input cancels without waiting", async () => {
@@ -80,4 +82,5 @@ test("interactive end-of-input cancels without waiting", async () => {
 
   await expect(answer).rejects.toThrow("API key input cancelled");
   expect(rawModes).toEqual([true, false]);
+  expect(input.isPaused()).toBe(true);
 });

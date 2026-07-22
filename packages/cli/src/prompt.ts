@@ -1,47 +1,76 @@
-import { createInterface } from "node:readline/promises";
-import { Writable } from "node:stream";
-
 import { BadRequestError } from "./cli-error.js";
 
 interface TerminalInput extends NodeJS.ReadableStream {
+  isRaw?: boolean;
   isTTY?: boolean;
+  readableFlowing?: boolean | null;
+  setRawMode?: (enabled: boolean) => void;
 }
 
 interface TerminalOutput extends NodeJS.WritableStream {
   isTTY?: boolean;
 }
 
-export async function readHiddenApiKey(
+export function readHiddenApiKey(
   input: TerminalInput = process.stdin,
   output: TerminalOutput = process.stderr
 ) {
-  if (!(input.isTTY && output.isTTY)) {
-    throw new BadRequestError("Interactive input requires a terminal; use --stdin instead");
+  if (!(input.isTTY && output.isTTY && input.setRawMode)) {
+    return Promise.reject(
+      new BadRequestError("Interactive input requires a terminal; use --stdin instead")
+    );
   }
 
-  output.write("API key: ");
-  const silentOutput = new Writable({
-    write(_chunk, _encoding, callback) {
-      callback();
-    },
+  const wasFlowing = input.readableFlowing === true;
+  const wasRaw = input.isRaw === true;
+  input.setRawMode(true);
+
+  return new Promise<string>((resolve, reject) => {
+    const bytes: number[] = [];
+
+    const finish = (result: { error?: Error; value?: string }) => {
+      input.removeListener("data", onData);
+      input.removeListener("end", onEnd);
+      input.removeListener("error", onError);
+      if (!wasRaw) {
+        input.setRawMode?.(false);
+      }
+      if (!wasFlowing) {
+        input.pause();
+      }
+      output.write("\n");
+
+      if (result.error) {
+        reject(result.error);
+      } else {
+        resolve(result.value ?? "");
+      }
+    };
+    const cancel = () => finish({ error: new BadRequestError("API key input cancelled") });
+    const onData = (chunk: Buffer | string) => {
+      for (const byte of Buffer.from(chunk)) {
+        if (byte === 3 || byte === 4) {
+          cancel();
+          return;
+        }
+        if (byte === 10 || byte === 13) {
+          finish({ value: Buffer.from(bytes).toString("utf8") });
+          return;
+        }
+        if (byte === 8 || byte === 127) {
+          bytes.pop();
+          continue;
+        }
+        bytes.push(byte);
+      }
+    };
+    const onEnd = () => cancel();
+    const onError = (error: Error) => finish({ error });
+
+    input.on("data", onData);
+    input.once("end", onEnd);
+    input.once("error", onError);
+    input.resume();
+    output.write("API key: ");
   });
-  const prompt = createInterface({ input, output: silentOutput, terminal: true });
-  const cancellation = new AbortController();
-  const cancel = () => cancellation.abort();
-  prompt.once("SIGINT", cancel);
-  prompt.once("close", cancel);
-
-  try {
-    return await prompt.question("", { signal: cancellation.signal });
-  } catch (error) {
-    if (cancellation.signal.aborted) {
-      throw new BadRequestError("API key input cancelled", { cause: error });
-    }
-    throw error;
-  } finally {
-    prompt.off("SIGINT", cancel);
-    prompt.off("close", cancel);
-    prompt.close();
-    output.write("\n");
-  }
 }
