@@ -13,18 +13,19 @@ Date: 2026-07-14
 
 ## Context
 
-Direct search, reports, mark detail, source visibility, basic product help, and
-API-key self-service are useful without requiring MerchBase. A headless-only
-service would make those jobs unnecessarily difficult, while a full SaaS
-marketing and dashboard surface would distract from the trademark service.
+Direct search, mark detail, source visibility, basic product help, and API-key
+self-service are useful without requiring MerchBase. Programmatic reports remain
+available through the API and CLI. A headless-only service would make the core
+interactive jobs unnecessarily difficult, while a full SaaS marketing and
+dashboard surface would distract from the trademark service.
 
 ## Decision
 
 V1 includes a private Vite/React website using shared MerchBase Clerk
-authentication. It exposes authenticated search, reports, mark detail, and
-API-key management; Status and Help are public. Source errors, file details, and
-repair remain operator-only. Stock COSS UI and the documented visual system keep
-the surface narrow.
+authentication. It exposes authenticated search, mark detail, and API-key
+management; Status and Help are public. Source errors, file details, and repair
+remain operator-only. Stock COSS UI and the documented visual system keep the
+surface narrow.
 
 ## Consequences
 

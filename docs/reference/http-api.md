@@ -22,7 +22,7 @@ implementation changes the router.
 | Trademark reads | Clerk session or API key. |
 | Safe sync status | Clerk session or API key. |
 | Account identity | Clerk session or API key. |
-| API-key list, create, revoke | Clerk session. |
+| API-key list, create, revoke, delete | Clerk session. |
 | Operator source status and artifact pages | Clerk session plus operator role. |
 | `/api/health` | Anonymous; process and database readiness only. |
 
@@ -64,6 +64,12 @@ Reports use the same filters, items, count, and paging behavior as search, with
 Data Version, `from`, and `to` together so a week-boundary change returns
 `CONFLICT`.
 
+Every response also returns an `overview` for the complete filtered report:
+`dimension` is `date` for previous-week reports and `type` for
+published-for-opposition, and each bucket returns its key plus total, live, and
+dead counts. Date overviews include all seven resolved dates, including zero
+count days; type overviews include Design, Typeset, Text, and Other.
+
 ## Pagination
 
 Filtering, sorting, count, and offset happen on the server. Paged responses use:
@@ -95,22 +101,26 @@ changes while paging.
 | `account.api-keys.list` | Name, suffix, creation, last use, and status. |
 | `account.api-keys.create` | Create a named key and return its raw token exactly once. |
 | `account.api-keys.revoke` | Idempotently revoke one key owned by the account. |
+| `account.api-keys.delete` | Permanently delete one revoked key owned by the account. |
 
 API-key token shape is `ttk_<key-id>_<secret>`. The database stores only the
 secret hash and display suffix. Verification uses timing-safe comparison;
-revoked rows remain for audit and last-used updates are coalesced.
+last-used updates are coalesced. Revoked rows remain as account history until
+the owning Clerk user deletes them; active keys cannot be deleted.
 
 ## Source Operations
 
-`GET /api/status` returns Latest Processed, 30 days of source-record processing
-activity, aggregate Class 025 catalog counts, and quiet current work. It exposes
-no issue details, source-file ledger, credentials, or repair actions.
+`GET /api/status` returns Latest Processed, 30 days of new trademark
+applications and latest application updates, the aggregate Class 025 catalog
+total, the earliest non-null catalog filing date, and quiet current work. It
+exposes no issue details, source-file ledger, credentials, or repair actions.
 
 Current private operator procedures are `ops.sync.status` and
-`ops.sync.artifacts`. They return Latest Processed, 30 days of source-record
-processing throughput, catalog totals, active issues, current work, provider
-state, and stable read-only source-file pages. The procedures have no mutation
-or Repair procedure yet and are not exported by the public HTTP client or CLI.
+`ops.sync.artifacts`. They return Latest Processed, trademark activity, catalog
+totals, active issues, current work, provider state, and stable read-only
+source-file pages. Artifact pages retain their per-file source-record and
+projected-mark counts. The procedures have no mutation or Repair procedure yet
+and are not exported by the public HTTP client or CLI.
 
 ## Errors
 

@@ -94,7 +94,8 @@ stable UTF-16 offsets. It never silently truncates matches.
 ## Reports
 
 Reports are typed result sets, not stored searches or custom dashboards. They
-reuse result rows, filters, sorting, count, and pagination.
+reuse result rows, filters, sorting, count, and pagination. The HTTP client and
+CLI expose them for programmatic use; the website does not present report pages.
 
 | Preset | Meaning |
 | --- | --- |
@@ -105,13 +106,18 @@ reuse result rows, filters, sorting, count, and pagination.
 The defining report constraint is fixed; status, type, registration, and sort
 remain adjustable.
 
+Each report includes a compact overview of its complete result set, independent
+of the current result page. Previous-week reports group counts by each day in
+the resolved Monday-through-Sunday window. Published-for-opposition groups the
+current result set by mark type. The overview and list use the same defining
+report constraint and adjustable filters.
+
 ## Routes And URL State
 
 ```text
 /                         search composition
 /search?...               shareable search state
 /marks/:serial-number     mark detail
-/reports?...              generated report
 /account                  Account and API-key management
 /status                   public status; operator details for approved admins
 /help                     public search and data help
@@ -123,13 +129,15 @@ Loaded infinite-scroll depth is navigation state, not URL state.
 ## Help
 
 The public Help page explains Multi, Split, and Wildcard search; result status,
-type, identity, and filters; the three reports; the USPTO source; and the legal
-disclaimer. It uses customer language and does not expose parser or source-file
-internals.
+type, identity, and filters; the USPTO source; and the legal disclaimer. It uses
+customer language and does not expose parser or source-file internals.
 
 ## States
 
 - Initial results use three typographic skeleton rows.
+- Mark detail uses a structural document skeleton that preserves its final grid,
+  static line boxes, section labels, and five-row history preview while the
+  record loads.
 - Loading more uses one inline spinner row.
 - Empty results say `No matching marks` and offer Clear filters.
 - Validation stays beneath the search field.

@@ -18,15 +18,23 @@ operator-only in v1.
 
 ## Summary
 
-The page leads with two things:
+The page leads with:
 
-- **Latest Processed.** Newest source coverage date whose validated safe records
-  have been applied.
-- **Records processed.** A dated 30-day chart shows how many USPTO source
-  records Trademark Turtle successfully processed each day.
-- **Catalog snapshot.** Total Class 025 trademarks, live trademarks, registered
-  trademarks, and the rolling 30-day source-record count appear as a compact
-  stat row.
+- **Trademark activity.** A dated 30-day chart shows new applications by filing
+  date and application updates by each current mark's latest USPTO transaction
+  date. The window ends on Latest Processed rather than adding empty future
+  dates. A later update moves a mark into its newer date bucket; this is a
+  current catalog activity view, not an append-only event ledger. The chart
+  replaces a display masthead and begins at the shared page-start position. Its
+  header metrics align to the site shell, while the borderless plot runs across
+  the viewport without an internal grid. Hovering coordinates both line
+  highlights, the themed value panel, crosshair, and animated date ticker. The
+  accessible page heading remains `Status`.
+- **Catalog snapshot.** Total Class 025 trademarks, new applications in the
+  30-day window, and application updates in the same window appear as compact
+  metrics above the chart. Total includes live and inactive records and shows
+  the year of the earliest non-null filing date. A compact green `Live` signal
+  sits at the far right of the metric row.
 - **Needs Attention.** Active system failures, blocked downloads, and
   application issues with the affected file, a plain-language problem, and the
   required action. A recognized USPTO file cooldown includes its provider
@@ -37,20 +45,23 @@ corpus health, complete frontier, queue percentage, annual section, or daily
 section. Processing throughput and source-file issues stay separate; neither
 implies that the rest of the database is unavailable.
 
-Latest Processed, processing activity, the catalog snapshot, and quiet current
-work are public. They contain no credentials, source errors, or repair details.
+The latest processed date, trademark activity, catalog snapshot, and quiet
+current work are public. They contain no credentials, source errors, or repair
+details. The page does not render Latest Processed as a standalone summary row.
 
 ## Operator Details
 
 Needs Attention and Source Files render only after the server confirms the
-Clerk account has the operator role. They are never included in the anonymous
+Clerk account has the operator role. They share one source-ledger surface.
+Accurate All and Errors counts form the ledger filter; active issues
+expand inline above the file rows. They are never included in the anonymous
 status response.
 
 ### Source Files
 
 One semantic table keeps a durable row for every discovered source file. It supports:
 
-- All, Needs attention, In progress, and Complete filters;
+- All and Errors filters;
 - filename and coverage;
 - download and application state;
 - physical, applied, and unresolved record counts;

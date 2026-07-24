@@ -15,7 +15,7 @@ products.
 ## Users
 
 - Print-on-demand sellers checking listing text and clothing word marks.
-- Authenticated website users searching, reading reports, and inspecting marks.
+- Authenticated website users searching and inspecting marks.
 - MerchBase and other trusted products using the HTTP client.
 - Developers and power users using the JSON-first `tt` CLI.
 
@@ -24,11 +24,11 @@ products.
 - Search word marks with Multi, Split, and Wildcard semantics.
 - Resolve exact serial and registration identities.
 - Match listing text against known marks.
-- Browse recent activity and generated reports.
+- Query recent activity and typed report result sets through programmatic clients.
 - Inspect mark identity, ownership, classes, goods, status, and provenance.
 - Inspect public source freshness and recent processing activity.
 - Inspect active ingestion issues as an operator.
-- Create and revoke API keys.
+- Create, revoke, and delete API keys.
 
 Trademark data is informational, not legal advice. Users verify consequential
 decisions with the USPTO or qualified counsel.
@@ -55,13 +55,14 @@ preserves the query, and executes it after authentication.
 
 API-key self-service lists name, suffix, creation, last use, and status. Creation
 asks for a name, shows the raw token exactly once, and requires acknowledgement
-that it was saved. Revocation is immediate and idempotent.
+that it was saved. Revocation is immediate and idempotent. A user may permanently
+delete a revoked key from account history; active keys must be revoked first.
 
 ## Clients
 
 | Surface | Role |
 | --- | --- |
-| Website | Private search, reports, mark detail, and account management plus public Status and Help pages. |
+| Website | Private search, mark detail, and account management plus public Status and Help pages. |
 | `@tmturtle/http-client` | Typed programmatic access derived from the server router. |
 | `@tmturtle/cli` / `tt` | JSON-first shell automation over API-key-authorized procedures. |
 | MerchBase | Downstream consumer that owns its own adapter and product policy. |

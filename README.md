@@ -11,7 +11,7 @@ Trademark Turtle gives sellers one place to:
 - search word marks using Multi, Split, or Wildcard matching;
 - look up an exact serial or registration number;
 - check listing text against known trademarks;
-- browse recent filings, registrations, and marks published for opposition;
+- retrieve recent filings, registrations, and marks published for opposition through the API or CLI;
 - review a mark's status, owner, classes, goods and services, and source history.
 
 Searches run against Trademark Turtle's current best-known view of the USPTO record. New source files update that view as they are processed; ingestion never takes the existing database offline.
@@ -22,7 +22,7 @@ Trademark data is informational, not legal advice. Verify consequential decision
 
 | Interface | Best for |
 | --- | --- |
-| [Website](https://tmturtle.merchbase.co) | Interactive search, reports, trademark detail, API-key management, public status, and help. |
+| [Website](https://tmturtle.merchbase.co) | Interactive search, trademark detail, API-key management, public status, and help. |
 | HTTP API | Typed integrations with Trademark Turtle search, reports, exact lookups, and text matching. |
 | `@tmturtle/http-client` | TypeScript applications that want typed Trademark Turtle input and output contracts. |
 | `@tmturtle/cli` (`tt`) | JSON-first shell automation and agentic workflows. |
@@ -42,7 +42,7 @@ Trademark Turtle is a Bun and TypeScript workspace:
 | Path | Purpose |
 | --- | --- |
 | `apps/server` | Authenticated HTTP API, PostgreSQL persistence, and USPTO ingestion worker. |
-| `apps/web` | React website for search, reports, trademark detail, and operations. |
+| `apps/web` | React website for search, trademark detail, account access, and operations. |
 | `packages/http-client` | Typed programmatic client derived from the server contract. |
 | `packages/cli` | The `tt` command-line interface. |
 | `docs` | Product, architecture, reference, and operations documentation. |
