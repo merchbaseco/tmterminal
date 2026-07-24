@@ -6,6 +6,9 @@ import { migrateDatabase } from "../../src/db/migrate.ts";
 import { resetTestDatabase } from "./test-database.ts";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
+const apiKeyTokenPattern = /^ttk_[0-9a-f-]+_[A-Za-z0-9_-]+$/;
+const apiKeyTokenSearchPattern = /ttk_[0-9a-f-]+_[A-Za-z0-9_-]+/;
+const sha256Pattern = /^[0-9a-f]{64}$/;
 
 if (!databaseUrl) {
   throw new Error("TEST_DATABASE_URL is required for PostgreSQL integration tests");
@@ -32,14 +35,14 @@ describe("account authentication", () => {
 
     try {
       const first = await server.inject({
+        headers: { authorization: "Bearer alice-session" },
         method: "GET",
         url: "/api/trpc/account.me",
-        headers: { authorization: "Bearer alice-session" },
       });
       const second = await server.inject({
+        headers: { authorization: "Bearer alice-session" },
         method: "GET",
         url: "/api/trpc/account.me",
-        headers: { authorization: "Bearer alice-session" },
       });
 
       expect(first.statusCode).toBe(200);
@@ -63,41 +66,41 @@ describe("account authentication", () => {
 
     try {
       const created = await server.inject({
-        method: "POST",
-        url: "/api/trpc/account.api-keys.create",
         headers: {
           authorization: "Bearer alice-session",
           "content-type": "application/json",
         },
+        method: "POST",
         payload: { name: "MerchBase" },
+        url: "/api/trpc/account.api-keys.create",
       });
 
       expect(created.statusCode).toBe(200);
       expect(created.json().result.data).toEqual({
         key: {
-          id: expect.any(String),
-          name: "MerchBase",
-          suffix: expect.any(String),
           createdAt: expect.any(String),
+          id: expect.any(String),
           lastUsedAt: null,
+          name: "MerchBase",
           status: "active",
+          suffix: expect.any(String),
         },
-        token: expect.stringMatching(/^ttk_[0-9a-f-]+_[A-Za-z0-9_-]+$/),
+        token: expect.stringMatching(apiKeyTokenPattern),
       });
 
       const authenticated = await server.inject({
+        headers: { authorization: `Bearer ${created.json().result.data.token}` },
         method: "GET",
         url: "/api/trpc/account.me",
-        headers: { authorization: `Bearer ${created.json().result.data.token}` },
       });
 
       expect(authenticated.statusCode).toBe(200);
       expect(authenticated.json().result.data).toEqual({
         accountId: expect.any(String),
         credential: {
-          type: "api-key",
           keyId: created.json().result.data.key.id,
           suffix: created.json().result.data.key.suffix,
+          type: "api-key",
         },
       });
     } finally {
@@ -114,19 +117,19 @@ describe("account authentication", () => {
 
     try {
       const created = await server.inject({
-        method: "POST",
-        url: "/api/trpc/account.api-keys.create",
         headers: {
           authorization: "Bearer storage-session",
           "content-type": "application/json",
         },
+        method: "POST",
         payload: { name: "Storage proof" },
+        url: "/api/trpc/account.api-keys.create",
       });
       const { key, token } = created.json().result.data;
       const listed = await server.inject({
+        headers: { authorization: "Bearer storage-session" },
         method: "GET",
         url: "/api/trpc/account.api-keys.list",
-        headers: { authorization: "Bearer storage-session" },
       });
       const [stored] = await database<[{ secretHash: string; revokedAt: Date | null }]>`
         select secret_hash as "secretHash", revoked_at as "revokedAt"
@@ -137,14 +140,17 @@ describe("account authentication", () => {
       expect(listed.statusCode).toBe(200);
       expect(listed.body).not.toContain(token);
       expect(listed.json().result.data).toEqual([key]);
-      expect(stored).toEqual({ secretHash: expect.stringMatching(/^[0-9a-f]{64}$/), revokedAt: null });
+      expect(stored).toEqual({
+        revokedAt: null,
+        secretHash: expect.stringMatching(sha256Pattern),
+      });
       expect(stored?.secretHash).not.toContain(token.slice(`ttk_${key.id}_`.length));
     } finally {
       await server.close();
     }
   });
 
-  test("retains idempotently revoked keys and rejects them for authentication", async () => {
+  test("revokes keys idempotently and deletes only revoked history", async () => {
     const server = await buildServer({
       databaseUrl,
       logger: false,
@@ -153,42 +159,65 @@ describe("account authentication", () => {
 
     try {
       const created = await server.inject({
-        method: "POST",
-        url: "/api/trpc/account.api-keys.create",
         headers: {
           authorization: "Bearer revoke-session",
           "content-type": "application/json",
         },
+        method: "POST",
         payload: { name: "Revoke proof" },
+        url: "/api/trpc/account.api-keys.create",
       });
       const { key, token } = created.json().result.data;
-      const revoke = () =>
+      const deleteKey = () =>
         server.inject({
-          method: "POST",
-          url: "/api/trpc/account.api-keys.revoke",
           headers: {
             authorization: "Bearer revoke-session",
             "content-type": "application/json",
           },
+          method: "POST",
           payload: { id: key.id },
+          url: "/api/trpc/account.api-keys.delete",
+        });
+      const activeDelete = await deleteKey();
+      const revoke = () =>
+        server.inject({
+          headers: {
+            authorization: "Bearer revoke-session",
+            "content-type": "application/json",
+          },
+          method: "POST",
+          payload: { id: key.id },
+          url: "/api/trpc/account.api-keys.revoke",
         });
       const first = await revoke();
       const second = await revoke();
       const rejected = await server.inject({
+        headers: { authorization: `Bearer ${token}` },
         method: "GET",
         url: "/api/trpc/account.me",
-        headers: { authorization: `Bearer ${token}` },
       });
       const [audit] = await database<[{ revokedAt: Date }]>`
         select revoked_at as "revokedAt" from api_key where id = ${key.id}
       `;
+      const deleted = await deleteKey();
+      const deletedAgain = await deleteKey();
+      const listed = await server.inject({
+        headers: { authorization: "Bearer revoke-session" },
+        method: "GET",
+        url: "/api/trpc/account.api-keys.list",
+      });
 
+      expect(activeDelete.statusCode).toBe(404);
       expect(first.statusCode).toBe(200);
       expect(second.json()).toEqual(first.json());
       expect(first.json().result.data.status).toBe("revoked");
       expect(rejected.statusCode).toBe(401);
       expect(rejected.json().error.data.code).toBe("UNAUTHORIZED");
       expect(audit?.revokedAt).toBeInstanceOf(Date);
+      expect(deleted.statusCode).toBe(200);
+      expect(deleted.json().result.data).toEqual({ id: key.id });
+      expect(deletedAgain.statusCode).toBe(404);
+      expect(listed.json().result.data).toEqual([]);
     } finally {
       await server.close();
     }
@@ -198,50 +227,57 @@ describe("account authentication", () => {
     const server = await buildServer({
       databaseUrl,
       logger: false,
-      verifyClerkToken: async (token) => {
-        if (token === "owner-session") return "user_owner";
-        if (token === "other-session") return "user_other";
-        return null;
+      verifyClerkToken: (token) => {
+        if (token === "owner-session") {
+          return Promise.resolve("user_owner");
+        }
+        if (token === "other-session") {
+          return Promise.resolve("user_other");
+        }
+        return Promise.resolve(null);
       },
     });
 
     try {
       const created = await server.inject({
-        method: "POST",
-        url: "/api/trpc/account.api-keys.create",
         headers: {
           authorization: "Bearer owner-session",
           "content-type": "application/json",
         },
+        method: "POST",
         payload: { name: "Boundary proof" },
+        url: "/api/trpc/account.api-keys.create",
       });
       const { key, token } = created.json().result.data;
       const crossAccount = await server.inject({
-        method: "POST",
-        url: "/api/trpc/account.api-keys.revoke",
         headers: {
           authorization: "Bearer other-session",
           "content-type": "application/json",
         },
+        method: "POST",
         payload: { id: key.id },
+        url: "/api/trpc/account.api-keys.revoke",
       });
       const keyManagement = await server.inject({
+        headers: { authorization: `Bearer ${token}` },
         method: "GET",
         url: "/api/trpc/account.api-keys.list",
-        headers: { authorization: `Bearer ${token}` },
       });
       const invalid = await server.inject({
+        headers: {
+          authorization:
+            "Bearer ttk_00000000-0000-0000-0000-000000000000_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        },
         method: "GET",
         url: "/api/trpc/account.me",
-        headers: { authorization: "Bearer ttk_00000000-0000-0000-0000-000000000000_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" },
       });
       const dual = await server.inject({
-        method: "GET",
-        url: "/api/trpc/account.me",
         headers: {
           authorization: `Bearer ${token}`,
           cookie: "__session=owner-session",
         },
+        method: "GET",
+        url: "/api/trpc/account.me",
       });
 
       expect(crossAccount.statusCode).toBe(404);
@@ -266,19 +302,21 @@ describe("account authentication", () => {
           env: { ...process.env, DATABASE_URL: databaseUrl },
           stderr: "pipe",
           stdout: "pipe",
-        },
+        }
       );
       const [exitCode, stdout, stderr] = await Promise.all([
         child.exited,
         new Response(child.stdout).text(),
         new Response(child.stderr).text(),
       ]);
-      const token = stdout.match(/ttk_[0-9a-f-]+_[A-Za-z0-9_-]+/)?.[0];
+      const token = stdout.match(apiKeyTokenSearchPattern)?.[0];
 
       expect(exitCode).toBe(0);
-      expect(token).toBeDefined();
-      expect(stderr).not.toContain(token ?? "missing-token");
-      return token!;
+      if (!token) {
+        throw new Error("Host API-key command did not return a token");
+      }
+      expect(stderr).not.toContain(token);
+      return token;
     }
 
     const firstToken = await createHostKey();
@@ -287,14 +325,14 @@ describe("account authentication", () => {
 
     try {
       const first = await server.inject({
+        headers: { authorization: `Bearer ${firstToken}` },
         method: "GET",
         url: "/api/trpc/account.me",
-        headers: { authorization: `Bearer ${firstToken}` },
       });
       const second = await server.inject({
+        headers: { authorization: `Bearer ${secondToken}` },
         method: "GET",
         url: "/api/trpc/account.me",
-        headers: { authorization: `Bearer ${secondToken}` },
       });
 
       expect(first.statusCode).toBe(200);

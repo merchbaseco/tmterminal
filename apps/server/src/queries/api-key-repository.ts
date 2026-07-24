@@ -2,24 +2,25 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypt
 import type postgres from "postgres";
 
 const missingSecretHash = "0".repeat(64);
-const tokenPattern = /^ttk_([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})_([A-Za-z0-9_-]{43})$/;
+const tokenPattern =
+  /^ttk_([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})_([A-Za-z0-9_-]{43})$/;
 
-export type ApiKeyView = {
+export interface ApiKeyView {
   createdAt: Date;
   id: string;
   lastUsedAt: Date | null;
   name: string;
   status: "active" | "revoked";
   suffix: string;
-};
+}
 
-type StoredApiKey = {
+interface StoredApiKey {
   accountId: string;
   id: string;
   revokedAt: Date | null;
   secretHash: string;
   suffix: string;
-};
+}
 
 function hashSecret(secret: string) {
   return createHash("sha256").update(secret).digest("hex");
@@ -54,7 +55,7 @@ export async function createApiKey(database: postgres.Sql, accountId: string, na
 
 export async function authenticateApiKey(
   database: postgres.Sql,
-  token: string,
+  token: string
 ): Promise<{ accountId: string; keyId: string; suffix: string } | null> {
   const match = token.match(tokenPattern);
   const id = match?.[1];
@@ -73,7 +74,7 @@ export async function authenticateApiKey(
     : [];
   const validSecret = safeHashMatch(hashSecret(secret), stored?.secretHash ?? missingSecretHash);
 
-  if (!stored || !validSecret || stored.revokedAt) {
+  if (!(stored && validSecret) || stored.revokedAt) {
     return null;
   }
 
@@ -87,7 +88,7 @@ export async function authenticateApiKey(
   return { accountId: stored.accountId, keyId: stored.id, suffix: stored.suffix };
 }
 
-export async function listApiKeys(database: postgres.Sql, accountId: string) {
+export function listApiKeys(database: postgres.Sql, accountId: string) {
   return database<ApiKeyView[]>`
     select
       id,
@@ -116,4 +117,15 @@ export async function revokeApiKey(database: postgres.Sql, accountId: string, id
       'revoked' as status
   `;
   return key ?? null;
+}
+
+export async function deleteRevokedApiKey(database: postgres.Sql, accountId: string, id: string) {
+  const [deleted] = await database<[{ id: string }]>`
+    delete from api_key
+    where id = ${id}
+      and account_id = ${accountId}
+      and revoked_at is not null
+    returning id
+  `;
+  return deleted ?? null;
 }

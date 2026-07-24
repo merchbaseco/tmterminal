@@ -27,9 +27,20 @@ export async function readOperatorArtifacts(
   database: postgres.Sql | postgres.TransactionSql,
   input: OperatorPageInput
 ) {
-  const [count] = await database<
-    Array<{ total: number }>
-  >`select count(*)::int as total from source_artifact`;
+  const filter = input.filter ?? "all";
+  const [counts] = await database<
+    Array<{
+      all: number;
+      needsAttention: number;
+    }>
+  >`
+    select count(*)::int as all,
+      count(*) filter (
+        where processing_disposition = 'required'
+          and (application_state = 'needs_attention' or download_state = 'blocked')
+      )::int as "needsAttention"
+    from source_artifact
+  `;
   const items = await database<ArtifactRow[]>`
     select application_completed_at as "applicationCompletedAt",
       application_state as "applicationState", applied_record_count as "appliedRecordCount",
@@ -44,10 +55,23 @@ export async function readOperatorArtifacts(
         else 'not-downloaded' end as "storageState",
       unresolved_record_count as "unresolvedRecordCount",
       updated_at as "updatedAt"
-    from source_artifact order by source_to_date desc, filename desc
+    from source_artifact
+    where ${filter} = 'all'
+      or (${filter} = 'needs-attention'
+        and processing_disposition = 'required'
+        and (application_state = 'needs_attention' or download_state = 'blocked'))
+    order by source_to_date desc, filename desc
     limit ${input.limit} offset ${input.offset}
   `;
-  return { items, total: count?.total ?? 0 };
+  const resolvedCounts = counts ?? {
+    all: 0,
+    needsAttention: 0,
+  };
+  const totalByFilter = {
+    all: resolvedCounts.all,
+    "needs-attention": resolvedCounts.needsAttention,
+  };
+  return { counts: resolvedCounts, items, total: totalByFilter[filter] };
 }
 
 interface OperatorSourceSummaryRow {
@@ -72,16 +96,14 @@ export async function readOperatorSourceSummary(database: postgres.Sql | postgre
 }
 
 interface OperatorCatalogSummaryRow {
-  liveMarkCount: number;
-  registeredMarkCount: number;
+  earliestFilingDate: string | null;
   totalMarkCount: number;
 }
 
 export async function readOperatorCatalogSummary(database: postgres.Sql | postgres.TransactionSql) {
   const [summary] = await database<OperatorCatalogSummaryRow[]>`
     select count(*)::int as "totalMarkCount",
-      count(*) filter (where search_status = 'live')::int as "liveMarkCount",
-      count(*) filter (where registration_number is not null)::int as "registeredMarkCount"
+      min(filing_date)::text as "earliestFilingDate"
     from mark
   `;
   if (!summary) {
@@ -90,32 +112,46 @@ export async function readOperatorCatalogSummary(database: postgres.Sql | postgr
   return summary;
 }
 
-interface OperatorProcessingActivityRow {
-  count: number;
+interface TrademarkApplicationActivityRow {
+  applicationUpdates: number;
   date: string;
+  newApplications: number;
 }
 
-export function readOperatorProcessingActivity(database: postgres.Sql | postgres.TransactionSql) {
-  return database<OperatorProcessingActivityRow[]>`
-    with days as (
+export function readTrademarkApplicationActivity(
+  database: postgres.Sql | postgres.TransactionSql,
+  latestProcessedDate: string | null
+) {
+  return database<TrademarkApplicationActivityRow[]>`
+    with bounds as (
+      select coalesce(
+        ${latestProcessedDate}::date,
+        (current_timestamp at time zone 'UTC')::date
+      ) as end_date
+    ), days as (
       select generate_series(
-        (current_timestamp at time zone 'UTC')::date - 29,
-        (current_timestamp at time zone 'UTC')::date,
+        bounds.end_date - 29,
+        bounds.end_date,
         interval '1 day'
       )::date as day
-    ), processed as (
-      select (application_completed_at at time zone 'UTC')::date as day,
-        sum(applied_record_count)::int as count
-      from source_artifact
-      where applied_record_count > 0 and application_completed_at is not null
-        and (application_completed_at at time zone 'UTC')::date between
-          (current_timestamp at time zone 'UTC')::date - 29
-          and (current_timestamp at time zone 'UTC')::date
-      group by (application_completed_at at time zone 'UTC')::date
+      from bounds
+    ), application_updates as (
+      select source_transaction_date as day, count(*)::int as count
+      from mark, bounds
+      where source_transaction_date between bounds.end_date - 29 and bounds.end_date
+      group by source_transaction_date
+    ), new_applications as (
+      select filing_date as day, count(*)::int as count
+      from mark, bounds
+      where filing_date between bounds.end_date - 29 and bounds.end_date
+      group by filing_date
     )
-    select days.day::text as date, coalesce(processed.count, 0)::int as count
+    select days.day::text as date,
+      coalesce(application_updates.count, 0)::int as "applicationUpdates",
+      coalesce(new_applications.count, 0)::int as "newApplications"
     from days
-    left join processed on processed.day = days.day
+    left join application_updates on application_updates.day = days.day
+    left join new_applications on new_applications.day = days.day
     order by days.day
   `;
 }

@@ -28,7 +28,6 @@ import type { TrademarkProjection } from "../../src/ingestion/trademark-projecti
 import { readDataSnapshot } from "../../src/queries/data-snapshot.ts";
 import {
   readOperatorAttentionArtifacts,
-  readOperatorProcessingActivity,
   readOperatorSourceSummary,
 } from "../../src/queries/operator-sync-repository.ts";
 import { createMarksService } from "../../src/services/marks-service.ts";
@@ -1366,10 +1365,6 @@ test("status describes source progress without gating the database", async () =>
       return readDataSnapshot(transaction);
     })
   ).toEqual({ dataVersion: "0" });
-  expect(await readOperatorProcessingActivity(database)).toContainEqual({
-    count: 10,
-    date: today.date,
-  });
   expect(
     await createMarksService(database).search({
       limit: 25,

@@ -4,6 +4,7 @@ import { searchInputSchema } from "../../src/api/search-input.ts";
 import { buildServer } from "../../src/api/server.ts";
 import { migrateDatabase } from "../../src/db/migrate.ts";
 import type { ProjectedMark } from "../../src/ingestion/mark-types.ts";
+import { readTrademarkApplicationActivity } from "../../src/queries/operator-sync-repository.ts";
 import { runReport } from "../../src/queries/reports.ts";
 import { buildSearchQueries } from "../../src/queries/search.ts";
 import { createOperatorSyncService } from "../../src/services/operator-sync-service.ts";
@@ -313,8 +314,9 @@ test("public status exposes catalog activity without operator diagnostics", asyn
   const status = response.json();
 
   expect(response.statusCode).toBe(200);
+  expect(status.catalog.earliestFilingDate).toBe("2026-01-01");
   expect(status.catalog.totalMarkCount).toBeGreaterThan(0);
-  expect(status.source.processingActivity).toHaveLength(30);
+  expect(status.source.applicationActivity).toHaveLength(30);
   expect(status.attention).toBeUndefined();
   expect(status.provider).toBeUndefined();
 
@@ -325,6 +327,15 @@ test("public status exposes catalog activity without operator diagnostics", asyn
     )}`,
   });
   expect(privateResponse.statusCode).toBe(401);
+});
+
+test("trademark activity separates new applications from application updates", async () => {
+  const activity = await readTrademarkApplicationActivity(database, "2026-07-11");
+  const julyTenth = activity.find((point) => point.date === "2026-07-10");
+
+  expect(activity).toHaveLength(30);
+  expect(julyTenth?.applicationUpdates).toBeGreaterThan(0);
+  expect(julyTenth?.newApplications).toBe(0);
 });
 
 test("operator artifact pagination orders source files newest first", async () => {
@@ -375,30 +386,24 @@ test("operator status presents processed cleanup and actionable source failures"
   `;
   const service = createOperatorSyncService(database);
 
-  const [status, page] = await Promise.all([
+  const [status, page, attentionPage] = await Promise.all([
     service.status(),
     service.artifacts({ limit: 25, offset: 0 }),
+    service.artifacts({ filter: "needs-attention", limit: 25, offset: 0 }),
   ]);
-  const [catalog] = await database<
-    Array<{ liveMarkCount: number; registeredMarkCount: number; totalMarkCount: number }>
-  >`
-    select count(*)::int as "totalMarkCount",
-      count(*) filter (where search_status = 'live')::int as "liveMarkCount",
-      count(*) filter (where registration_number is not null)::int as "registeredMarkCount"
-    from mark
+  const [catalog] = await database<Array<{ totalMarkCount: number }>>`
+    select count(*)::int as "totalMarkCount" from mark
   `;
-  const [clock] = await database<Array<{ today: string }>>`
-    select (current_timestamp at time zone 'UTC')::date::text as today
-  `;
-  if (!clock) {
-    throw new Error("PostgreSQL clock is unavailable");
-  }
 
   expect(status.source.latestProcessedDate).toBe("2026-01-01");
+  expect(status.catalog.earliestFilingDate).toBe("2026-01-01");
   expect(status.catalog).toMatchObject(catalog ?? {});
-  expect(status.source.processingActivity).toHaveLength(30);
-  expect(status.source.processingActivity[0]?.count).toBe(0);
-  expect(status.source.processingActivity.at(-1)).toEqual({ count: 155_000, date: clock.today });
+  expect(status.source.applicationActivity).toHaveLength(30);
+  expect(status.source.applicationActivity.at(-1)).toEqual({
+    applicationUpdates: 0,
+    date: "2026-01-01",
+    newApplications: 0,
+  });
   expect(status.attention).toMatchObject({
     items: [
       {
@@ -411,6 +416,12 @@ test("operator status presents processed cleanup and actionable source failures"
     ],
     total: 1,
   });
+  expect(page.counts).toEqual({
+    all: 4,
+    needsAttention: 1,
+  });
+  expect(attentionPage.total).toBe(1);
+  expect(attentionPage.items.map((item) => item.filename)).toEqual(["source-part-02.zip"]);
   expect(page.items.find((item) => item.filename === "source-part-01.zip")).toMatchObject({
     physicalRecordCount: 155_000,
     projectedMarkCount: 221,
@@ -462,6 +473,18 @@ test("report presets use milestone dates and the current opposition status", asy
   expect(filed.statusCode).toBe(200);
   expect(filed.json().result.data).toMatchObject({
     from: window.from,
+    overview: {
+      buckets: [
+        { count: 27, dead: 0, key: window.from, live: 27 },
+        { count: 0, dead: 0, live: 0 },
+        { count: 0, dead: 0, live: 0 },
+        { count: 0, dead: 0, live: 0 },
+        { count: 0, dead: 0, live: 0 },
+        { count: 0, dead: 0, live: 0 },
+        { count: 1, dead: 1, key: window.to, live: 0 },
+      ],
+      dimension: "date",
+    },
     to: window.to,
     total: 28,
   });
@@ -469,11 +492,32 @@ test("report presets use milestone dates and the current opposition status", asy
   expect(filed.json().result.data.items[0]?.goodsServicesExcerpt).toBe("shirts and sweatshirts");
   expect(registered.json().result.data).toMatchObject({
     items: [{ serialNumber: "50000002" }],
+    overview: {
+      buckets: [
+        { count: 0, dead: 0, live: 0 },
+        { count: 0, dead: 0, live: 0 },
+        { count: 0, dead: 0, live: 0 },
+        { count: 0, dead: 0, live: 0 },
+        { count: 0, dead: 0, live: 0 },
+        { count: 0, dead: 0, live: 0 },
+        { count: 1, dead: 0, key: window.to, live: 1 },
+      ],
+      dimension: "date",
+    },
     total: 1,
   });
   expect(opposition.json().result.data).toMatchObject({
     from: null,
     items: [{ serialNumber: "50000003" }],
+    overview: {
+      buckets: [
+        { count: 0, dead: 0, key: "design", live: 0 },
+        { count: 0, dead: 0, key: "typeset", live: 0 },
+        { count: 1, dead: 0, key: "text", live: 1 },
+        { count: 0, dead: 0, key: "other", live: 0 },
+      ],
+      dimension: "type",
+    },
     to: null,
     total: 1,
   });

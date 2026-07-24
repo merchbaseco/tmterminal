@@ -1,0 +1,1 @@
+CREATE INDEX "mark_source_transaction_date_idx" ON "mark" USING btree ("source_transaction_date");

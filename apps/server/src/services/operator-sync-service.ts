@@ -6,9 +6,9 @@ import {
   readOperatorArtifacts,
   readOperatorAttentionArtifacts,
   readOperatorCatalogSummary,
-  readOperatorProcessingActivity,
   readOperatorSourceSummary,
   readOperatorWorkerAttention,
+  readTrademarkApplicationActivity,
 } from "../queries/operator-sync-repository.ts";
 
 const safeError = (value: string | null) =>
@@ -21,16 +21,19 @@ async function readPublicStatus(database: postgres.TransactionSql) {
     readOperatorSourceSummary(database),
     readOperatorCatalogSummary(database),
   ]);
-  const processingActivity = await readOperatorProcessingActivity(database);
+  const applicationActivity = await readTrademarkApplicationActivity(
+    database,
+    source.latestProcessedDate
+  );
   return {
     attentionCount: source.attentionCount,
     status: {
       catalog,
       source: {
+        applicationActivity,
         currentArtifact: facts.currentArtifact,
         lastActivityAt: source.lastActivityAt?.toISOString() ?? null,
         latestProcessedDate: source.latestProcessedDate,
-        processingActivity,
       },
     },
   } as const;
@@ -43,6 +46,7 @@ export function createOperatorSyncService(database: postgres.Sql): OperatorSyncS
         await transaction`set transaction isolation level repeatable read`;
         const page = await readOperatorArtifacts(transaction, input);
         return {
+          counts: page.counts,
           items: page.items.map((item) => ({
             ...item,
             applicationCompletedAt: item.applicationCompletedAt?.toISOString() ?? null,

@@ -19,6 +19,7 @@ export interface PublicApiKey {
 
 export interface AccountService {
   createApiKey: (name: string) => Promise<{ key: PublicApiKey; token: string }>;
+  deleteApiKey: (id: string) => Promise<{ id: string } | null>;
   listApiKeys: () => Promise<PublicApiKey[]>;
   revokeApiKey: (id: string) => Promise<PublicApiKey | null>;
 }
@@ -127,6 +128,15 @@ export interface ReportInput {
 export interface ReportPage extends MarkPage {
   from: string | null;
   items: Omit<SearchPage["items"][number], "match">[];
+  overview: {
+    buckets: Array<{
+      count: number;
+      dead: number;
+      key: string;
+      live: number;
+    }>;
+    dimension: "date" | "type";
+  };
   to: string | null;
 }
 
@@ -191,27 +201,35 @@ export interface OperatorArtifact {
 }
 
 export interface OperatorPageInput {
+  filter?: "all" | "needs-attention";
   limit: number;
   offset: number;
 }
 
+export interface OperatorArtifactPage extends BoundedPage<OperatorArtifact> {
+  counts: {
+    all: number;
+    needsAttention: number;
+  };
+}
+
 export interface PublicSourceStatus {
   catalog: {
-    liveMarkCount: number;
-    registeredMarkCount: number;
+    earliestFilingDate: string | null;
     totalMarkCount: number;
   };
   source: {
+    applicationActivity: Array<{
+      applicationUpdates: number;
+      date: string;
+      newApplications: number;
+    }>;
     currentArtifact: {
       filename: string;
       state: "applying" | "discovering" | "downloading";
     } | null;
     lastActivityAt: string | null;
     latestProcessedDate: string | null;
-    processingActivity: Array<{
-      count: number;
-      date: string;
-    }>;
   };
 }
 
@@ -232,7 +250,7 @@ export interface OperatorSyncStatus extends PublicSourceStatus {
 }
 
 export interface OperatorSyncService {
-  artifacts: (input: OperatorPageInput) => Promise<BoundedPage<OperatorArtifact>>;
+  artifacts: (input: OperatorPageInput) => Promise<OperatorArtifactPage>;
   publicStatus: () => Promise<PublicSourceStatus>;
   status: () => Promise<OperatorSyncStatus>;
 }

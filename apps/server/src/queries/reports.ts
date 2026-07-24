@@ -2,9 +2,21 @@ import type postgres from "postgres";
 
 import type { ReportInput, ReportPage } from "../api/contracts.ts";
 import { assertDataVersion, DataVersionConflictError, readDataSnapshot } from "./data-snapshot.ts";
-import { markFilterConditions, markSummarySql } from "./mark-page.ts";
+import { markFilterConditions, markSummarySql, markTypeSql } from "./mark-page.ts";
 
 type QueryValue = number | string;
+type OverviewBucket = ReportPage["overview"]["buckets"][number];
+const reportTypes = ["design", "typeset", "text", "other"] as const;
+
+function reportOverviewExpression(event: ReportInput["event"]) {
+  if (event === "filed") {
+    return "m.filing_date";
+  }
+  if (event === "registered") {
+    return "m.registration_date";
+  }
+  return markTypeSql;
+}
 
 export function previousWeekRange(today = new Date()) {
   const from = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
@@ -39,6 +51,7 @@ export function buildReportQueries(
   const direction = input.sort === "oldest-activity" ? "asc" : "desc";
   const limitParameter = `$${values.length + 1}`;
   const offsetParameter = `$${values.length + 2}`;
+  const overviewExpression = reportOverviewExpression(input.event);
 
   return {
     count: {
@@ -53,6 +66,16 @@ export function buildReportQueries(
         order by m.source_transaction_date ${direction} nulls last, m.serial_number
         limit ${limitParameter} offset ${offsetParameter}`,
       values: [...values, input.limit, input.offset],
+    },
+    overview: {
+      text: `select (${overviewExpression})::text as key,
+          count(*)::int as count,
+          count(*) filter (where m.search_status = 'dead')::int as dead,
+          count(*) filter (where m.search_status = 'live')::int as live
+        from mark m where ${predicate}
+        group by ${overviewExpression}
+        order by ${overviewExpression}`,
+      values,
     },
   };
 }
@@ -82,6 +105,10 @@ export function runReport(
     if (!count) {
       throw new Error("Report count query returned no row");
     }
+    const overviewBuckets = await transaction.unsafe<OverviewBucket[]>(
+      queries.overview.text,
+      queries.overview.values
+    );
     const items = await transaction.unsafe<ReportPage["items"]>(
       queries.items.text,
       queries.items.values
@@ -92,8 +119,38 @@ export function runReport(
       limit: input.limit,
       meta: snapshot,
       offset: input.offset,
+      overview: resolveOverview(input.event, range, overviewBuckets),
       to: range?.to ?? null,
       total: count.total,
     };
   });
+}
+
+function resolveOverview(
+  event: ReportInput["event"],
+  range: ReturnType<typeof previousWeekRange> | null,
+  buckets: OverviewBucket[]
+): ReportPage["overview"] {
+  const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+  if (range && event !== "published-for-opposition") {
+    return {
+      buckets: dateKeys(range).map((key) => byKey.get(key) ?? { count: 0, dead: 0, key, live: 0 }),
+      dimension: "date",
+    };
+  }
+  return {
+    buckets: reportTypes.map((key) => byKey.get(key) ?? { count: 0, dead: 0, key, live: 0 }),
+    dimension: "type",
+  };
+}
+
+function dateKeys(range: ReturnType<typeof previousWeekRange>) {
+  const cursor = new Date(`${range.from}T00:00:00Z`);
+  const end = new Date(`${range.to}T00:00:00Z`);
+  const keys: string[] = [];
+  while (cursor <= end) {
+    keys.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return keys;
 }

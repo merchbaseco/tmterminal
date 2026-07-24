@@ -39,6 +39,7 @@ const operatorProcedure = t.procedure.use(({ ctx, next }) => {
 });
 
 const operatorPageInput = z.object({
+  filter: z.enum(["all", "needs-attention"]).default("all"),
   limit: z.number().int().min(1).max(100).default(25),
   offset: z.number().int().min(0).default(0),
 });
@@ -48,6 +49,13 @@ const accountRouter = t.router({
     create: clerkProcedure
       .input(z.object({ name: z.string().trim().min(1).max(80) }))
       .mutation(({ ctx, input }) => ctx.account.createApiKey(input.name)),
+    delete: clerkProcedure.input(z.object({ id: z.uuid() })).mutation(async ({ ctx, input }) => {
+      const deleted = await ctx.account.deleteApiKey(input.id);
+      if (!deleted) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Revoked API key not found" });
+      }
+      return deleted;
+    }),
     list: clerkProcedure.query(({ ctx }) => ctx.account.listApiKeys()),
     revoke: clerkProcedure.input(z.object({ id: z.uuid() })).mutation(async ({ ctx, input }) => {
       const key = await ctx.account.revokeApiKey(input.id);

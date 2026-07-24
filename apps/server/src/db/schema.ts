@@ -187,6 +187,7 @@ export const mark = pgTable(
       table.sourceTransactionDate,
       table.serialNumber
     ),
+    index("mark_source_transaction_date_idx").on(table.sourceTransactionDate),
     index("mark_word_mark_normalized_trgm_idx").using(
       "gin",
       sql`${table.wordMarkNormalized} gin_trgm_ops`
