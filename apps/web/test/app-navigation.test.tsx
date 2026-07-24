@@ -308,7 +308,7 @@ test("system appearance follows a dark system preference", async () => {
     onchange: null,
     removeEventListener: () => undefined,
     removeListener: () => undefined,
-  })) as typeof window.matchMedia;
+  })) as unknown as typeof window.matchMedia;
 
   render(<App />);
 
@@ -332,7 +332,7 @@ test("signed-out system appearance follows preference changes", async () => {
     onchange: null,
     removeEventListener: () => undefined,
     removeListener: () => undefined,
-  })) as typeof window.matchMedia;
+  })) as unknown as typeof window.matchMedia;
 
   render(<App />);
   expect(document.documentElement.classList.contains("dark")).toBe(false);
