@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 
 import type { AppRouter } from "../../server/src/api/router.ts";
 import { LegalFooter } from "./legal-footer.tsx";
+import { MarkDetailSkeleton } from "./mark-detail-skeleton.tsx";
 
 type MarkDetail = inferRouterOutputs<AppRouter>["marks"]["get"];
 
@@ -150,7 +151,7 @@ export function MarkDetailPage({
 
   if (error) {
     return (
-      <main className="page-shell isolate flex min-h-[calc(100dvh-var(--topbar-height,4.5rem))] flex-col pt-[clamp(1rem,2vw,2rem)]">
+      <main className="page-shell page-start isolate flex min-h-[calc(100dvh-var(--topbar-height,4.5rem))] flex-col">
         <a
           className="inline-flex items-center gap-1.5 text-inherit underline decoration-border underline-offset-[0.3em]"
           href="/search"
@@ -167,14 +168,7 @@ export function MarkDetailPage({
   }
 
   if (!mark) {
-    return (
-      <main
-        aria-busy="true"
-        className="page-shell isolate flex min-h-[calc(100dvh-var(--topbar-height,4.5rem))] flex-col pt-[clamp(1rem,2vw,2rem)]"
-      >
-        <p>Loading trademark…</p>
-      </main>
-    );
+    return <MarkDetailSkeleton onBack={handleBack} />;
   }
 
   const ownerNames = distinctOwnerNames(mark.owners);
@@ -192,7 +186,7 @@ export function MarkDetailPage({
   const unpairedClassCodes = classCodes.filter((code) => !pairedClassCodes.has(code));
 
   return (
-    <main className="page-shell isolate flex min-h-[calc(100dvh-var(--topbar-height,4.5rem))] flex-col pt-[clamp(1rem,2vw,2rem)]">
+    <main className="page-shell page-start isolate flex min-h-[calc(100dvh-var(--topbar-height,4.5rem))] flex-col">
       <a
         className="inline-flex items-center gap-1.5 text-inherit underline decoration-border underline-offset-[0.3em]"
         href="/search"
@@ -202,16 +196,14 @@ export function MarkDetailPage({
         Back to results
       </a>
 
-      <header className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-8 pt-[clamp(1.25rem,2vw,1.75rem)] pb-[clamp(2rem,4vw,3rem)] max-[48rem]:grid-cols-1">
-        <div>
-          <p className="mb-[0.85rem] font-[650] text-[0.75rem] uppercase tracking-[0.1em]">
-            United States trademark record
-          </p>
-          <h1 className="wrap-anywhere m-0 font-black text-[clamp(3.25rem,7vw,6rem)] leading-[0.78] tracking-[-0.055em]">
+      <header className="mt-[clamp(1.25rem,2vw,1.75rem)] grid grid-cols-[minmax(0,1fr)_16.25rem] items-stretch border-border border-y max-[48rem]:grid-cols-1">
+        <div className="flex flex-col justify-end py-[clamp(2rem,4vw,3rem)] pr-[clamp(1.5rem,3vw,3rem)] max-[48rem]:pr-0">
+          <p className="utility-label mb-[0.85rem]">United States trademark record</p>
+          <h1 className="display-masthead wrap-anywhere m-0 text-[clamp(3.25rem,7vw,6rem)]">
             {mark.mark.wordMark ?? "Untitled mark"}
           </h1>
         </div>
-        <div className="grid min-w-52 gap-[0.4rem] border-border border-l py-3 pl-4 text-base max-[48rem]:min-w-0 max-[48rem]:border-t max-[48rem]:border-l-0 max-[48rem]:pl-0 [&>p:not(:first-child)]:text-muted-foreground [&_p]:m-0">
+        <div className="grid min-w-64 content-end gap-[0.4rem] border-border border-l py-[clamp(2rem,4vw,3rem)] pl-[clamp(1.5rem,3vw,3rem)] text-base max-[48rem]:min-w-0 max-[48rem]:border-t max-[48rem]:border-l-0 max-[48rem]:pl-0 [&>p:not(:first-child)]:text-muted-foreground [&_p]:m-0">
           <p className="flex items-center">
             <strong
               className={cn(
@@ -228,12 +220,10 @@ export function MarkDetailPage({
               ? `Status date ${mark.mark.statusDate}`
               : "Status date unavailable"}
           </p>
-          <p className="font-[650] text-[0.75rem] uppercase tracking-[0.1em]">
-            USPTO status {mark.mark.statusCode ?? "unknown"}
-          </p>
+          <p className="utility-label">USPTO status {mark.mark.statusCode ?? "unknown"}</p>
           <p className="pt-2">
             <Button
-              className="max-[48rem]:w-full"
+              className="pill-button max-[48rem]:w-full"
               render={
                 <a
                   href={officialRecordHref(mark.mark.serialNumber)}
@@ -253,88 +243,95 @@ export function MarkDetailPage({
 
       <section
         aria-labelledby="goods-heading"
-        className="grid gap-4 border-border border-t py-[clamp(1.5rem,3vw,2.25rem)]"
+        className="grid grid-cols-[minmax(12rem,0.5fr)_minmax(0,2fr)] border-border border-b max-[48rem]:grid-cols-1"
       >
-        <h2 className="m-0 font-[650] text-[0.75rem] uppercase tracking-[0.1em]" id="goods-heading">
+        <h2
+          className="utility-label m-0 border-border border-r py-[clamp(1.5rem,3vw,2.25rem)] pr-[clamp(1.5rem,3vw,3rem)] max-[48rem]:border-r-0 max-[48rem]:pb-0"
+          id="goods-heading"
+        >
           Goods/services
         </h2>
-        <table
-          aria-label="Goods and services by class"
-          className="w-full table-fixed border-collapse"
-        >
-          <colgroup>
-            <col className="w-20 sm:w-28" />
-            <col />
-          </colgroup>
-          <thead>
-            <tr>
-              <th className="whitespace-nowrap pb-2 text-left font-medium text-muted-foreground">
-                Class
-              </th>
-              <th className="whitespace-nowrap pb-2 text-left font-medium text-muted-foreground">
-                Description
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {goodsServices.map((goods) => {
-              const classCode = goodsServiceClassCode(goods.typeCode, classCodeSet);
-              return (
-                <tr key={`${goods.typeCode ?? "goods"}-${goods.text ?? "description-unavailable"}`}>
-                  <td className="py-3 pr-4 align-top">
-                    <div className="inline-flex min-h-6 min-w-12 items-center justify-center rounded-[2px] border border-border px-[0.45rem] py-[0.15rem] font-bold text-[0.75rem] tabular-nums tracking-[0.1em]">
-                      {classCode ? (
-                        <>
-                          <span className="sr-only">International class </span>
-                          {classCode}
-                        </>
-                      ) : (
-                        <>
-                          <span className="sr-only">International class not recorded</span>
-                          <span aria-hidden="true">—</span>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                  <td className="wrap-anywhere py-3 align-top text-base">
-                    {goods.text ?? "Description unavailable"}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {unpairedClassCodes.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-3 pt-1">
-            <p className="m-0 font-medium text-muted-foreground text-sm">
-              {pairedClassCodes.size > 0 ? "Other classes in record" : "International classes"}
-            </p>
-            <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
-              {unpairedClassCodes.map((code) => (
-                <li
-                  className="inline-flex min-h-6 min-w-12 items-center justify-center rounded-[2px] border border-border px-[0.45rem] py-[0.15rem] font-bold text-[0.75rem] tabular-nums tracking-[0.1em]"
-                  key={code}
-                >
-                  <span className="sr-only">International class </span>
-                  {code}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
+        <div className="grid gap-4 py-[clamp(1.5rem,3vw,2.25rem)] pl-[clamp(1.5rem,3vw,3rem)] max-[48rem]:pl-0">
+          <table
+            aria-label="Goods and services by class"
+            className="w-full table-fixed border-collapse"
+          >
+            <colgroup>
+              <col className="w-20 sm:w-28" />
+              <col />
+            </colgroup>
+            <thead>
+              <tr>
+                <th className="whitespace-nowrap pb-2 text-left font-medium text-muted-foreground">
+                  Class
+                </th>
+                <th className="whitespace-nowrap pb-2 text-left font-medium text-muted-foreground">
+                  Description
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {goodsServices.map((goods) => {
+                const classCode = goodsServiceClassCode(goods.typeCode, classCodeSet);
+                return (
+                  <tr
+                    key={`${goods.typeCode ?? "goods"}-${goods.text ?? "description-unavailable"}`}
+                  >
+                    <td className="py-3 pr-4 align-top">
+                      <div className="inline-flex min-h-6 min-w-12 items-center justify-center rounded-[2px] border border-border px-[0.45rem] py-[0.15rem] font-bold text-[0.75rem] tabular-nums leading-none tracking-[0.1em]">
+                        {classCode ? (
+                          <>
+                            <span className="sr-only">International class </span>
+                            {classCode}
+                          </>
+                        ) : (
+                          <>
+                            <span className="sr-only">International class not recorded</span>
+                            <span aria-hidden="true">—</span>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                    <td className="wrap-anywhere py-3 align-top text-base">
+                      {goods.text ?? "Description unavailable"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {unpairedClassCodes.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <p className="m-0 font-medium text-muted-foreground text-sm">
+                {pairedClassCodes.size > 0 ? "Other classes in record" : "International classes"}
+              </p>
+              <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
+                {unpairedClassCodes.map((code) => (
+                  <li
+                    className="inline-flex min-h-6 min-w-12 items-center justify-center rounded-[2px] border border-border px-[0.45rem] py-[0.15rem] font-bold text-[0.75rem] tabular-nums leading-none tracking-[0.1em]"
+                    key={code}
+                  >
+                    <span className="sr-only">International class </span>
+                    {code}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
       </section>
 
       <section
         aria-labelledby="record-heading"
-        className="grid gap-3 border-border border-t py-[clamp(1.25rem,2.5vw,1.75rem)]"
+        className="grid grid-cols-[minmax(12rem,0.5fr)_minmax(0,2fr)] border-border border-b max-[48rem]:grid-cols-1"
       >
         <h2
-          className="m-0 font-[650] text-[0.75rem] uppercase tracking-[0.1em]"
+          className="utility-label m-0 border-border border-r py-[clamp(1.5rem,3vw,2.25rem)] pr-[clamp(1.5rem,3vw,3rem)] max-[48rem]:border-r-0 max-[48rem]:pb-0"
           id="record-heading"
         >
           Record
         </h2>
-        <dl className="[&_dd]:wrap-anywhere m-0 grid grid-cols-[5fr_3fr_3fr_3fr_3fr] gap-x-6 gap-y-5 tabular-nums max-[64rem]:grid-cols-2 [&>div]:grid [&>div]:content-start [&>div]:gap-[0.4rem] [&_dd:not(.record-owner)]:whitespace-nowrap [&_dd]:m-0 [&_dd]:text-base [&_dd]:text-muted-foreground [&_dt]:font-[650] [&_dt]:text-[0.75rem] [&_dt]:text-muted-foreground [&_dt]:uppercase [&_dt]:tracking-[0.1em]">
+        <dl className="[&_dd]:wrap-anywhere [&_dt]:utility-label m-0 grid grid-cols-[5fr_3fr_3fr_3fr_3fr] gap-x-6 gap-y-5 py-[clamp(1.5rem,3vw,2.25rem)] pl-[clamp(1.5rem,3vw,3rem)] tabular-nums max-[64rem]:grid-cols-2 max-[48rem]:pl-0 [&>div]:grid [&>div]:content-start [&>div]:gap-[0.4rem] [&_dd:not(.record-owner)]:whitespace-nowrap [&_dd]:m-0 [&_dd]:text-base [&_dd]:text-muted-foreground [&_dt]:text-muted-foreground">
           <div className="max-[64rem]:col-span-2">
             <dt>Owner</dt>
             <dd className="record-owner grid gap-1">
@@ -358,7 +355,7 @@ export function MarkDetailPage({
               {mark.mark.serialNumber}
               <button
                 aria-label="Copy serial number"
-                className="inline-flex size-6 cursor-pointer items-center justify-center rounded-[2px] text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary"
+                className="inline-flex size-6 cursor-pointer items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary"
                 onClick={copySerialNumber}
                 type="button"
               >
@@ -406,21 +403,20 @@ function StatusHistorySection({ statusEvents }: { statusEvents: MarkDetail["stat
   return (
     <section
       aria-labelledby="history-heading"
-      className="grid grid-cols-[minmax(12rem,1fr)_minmax(0,3fr)] gap-[clamp(1.5rem,4vw,3rem)] border-border border-t py-[clamp(1.5rem,3vw,2.25rem)] max-[48rem]:grid-cols-1"
+      className="grid grid-cols-[minmax(12rem,0.5fr)_minmax(0,2fr)] border-border border-b max-[48rem]:grid-cols-1"
     >
-      <div className="grid content-start gap-[0.65rem]">
-        <h2
-          className="m-0 font-[650] text-[0.75rem] uppercase tracking-[0.1em]"
-          id="history-heading"
-        >
+      <div className="grid content-start gap-[0.65rem] border-border border-r py-[clamp(1.5rem,3vw,2.25rem)] pr-[clamp(1.5rem,3vw,3rem)] max-[48rem]:border-r-0 max-[48rem]:pb-0">
+        <h2 className="utility-label m-0" id="history-heading">
           Status history
         </h2>
-        <p className="m-0 text-[0.75rem] text-muted-foreground">Reported by the USPTO.</p>
+        <p className="m-0 text-muted-foreground text-sm">Reported by the USPTO.</p>
       </div>
       {sortedEvents.length === 0 ? (
-        <p className="col-start-2 m-0 max-[48rem]:col-start-1">No status events reported.</p>
+        <p className="col-start-2 m-0 py-[clamp(1.5rem,3vw,2.25rem)] pl-[clamp(1.5rem,3vw,3rem)] max-[48rem]:col-start-1 max-[48rem]:pl-0">
+          No status events reported.
+        </p>
       ) : (
-        <div className="col-start-2 max-[48rem]:col-start-1">
+        <div className="col-start-2 py-[clamp(1.5rem,3vw,2.25rem)] pl-[clamp(1.5rem,3vw,3rem)] max-[48rem]:col-start-1 max-[48rem]:pl-0">
           <ol
             aria-label="Status history"
             className="m-0 grid list-none gap-3 p-0 [&_li]:flex [&_li]:justify-between [&_li]:gap-4 [&_p]:m-0 [&_p]:font-medium [&_time]:shrink-0 [&_time]:text-muted-foreground [&_time]:tabular-nums"
@@ -439,7 +435,7 @@ function StatusHistorySection({ statusEvents }: { statusEvents: MarkDetail["stat
             <Button
               aria-controls="status-history-list"
               aria-expanded={historyOpen}
-              className="mt-4 w-full"
+              className="pill-button mt-4 w-full"
               // biome-ignore lint/performance/noJsxPropsBind: The disclosure owns this section's local boolean.
               onClick={() => setHistoryOpen((open) => !open)}
               variant="outline"

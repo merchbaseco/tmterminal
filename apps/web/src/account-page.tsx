@@ -1,5 +1,5 @@
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Copy01Icon, MoreVerticalIcon } from "@hugeicons-pro/core-stroke-rounded";
+import { Copy01Icon, Delete02Icon } from "@hugeicons-pro/core-stroke-rounded";
 import type { inferRouterOutputs } from "@trpc/server";
 import { type ChangeEvent, type FormEvent, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -15,10 +15,9 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@/components/ui/menu";
-import { cn } from "@/lib/utils";
 import type { AppRouter } from "../../server/src/api/router.ts";
 import { LegalFooter } from "./legal-footer.tsx";
+import { PageMasthead } from "./page-masthead.tsx";
 
 type RouterOutputs = inferRouterOutputs<AppRouter>;
 type ApiKey = RouterOutputs["account"]["api-keys"]["list"][number];
@@ -26,36 +25,14 @@ type CreatedApiKey = RouterOutputs["account"]["api-keys"]["create"];
 
 export interface AccountApi {
   create: (name: string) => Promise<CreatedApiKey>;
+  delete: (id: string) => Promise<{ id: string }>;
   list: () => Promise<ApiKey[]>;
   revoke: (id: string) => Promise<ApiKey>;
 }
 
-interface ApiKeyActionsProps {
-  id: string;
-  name: string;
-  onRevoke: (id: string) => Promise<void>;
-}
-
-function ApiKeyActions({ id, name, onRevoke }: ApiKeyActionsProps) {
-  const revoke = useCallback(() => {
-    onRevoke(id);
-  }, [id, onRevoke]);
-
-  return (
-    <Menu>
-      <MenuTrigger
-        aria-label={`Actions for ${name}`}
-        render={<Button size="icon" variant="ghost" />}
-      >
-        <HugeiconsIcon icon={MoreVerticalIcon} />
-      </MenuTrigger>
-      <MenuPopup align="end">
-        <MenuItem onClick={revoke} variant="destructive">
-          Revoke
-        </MenuItem>
-      </MenuPopup>
-    </Menu>
-  );
+interface KeyAction {
+  key: ApiKey;
+  type: "delete" | "revoke";
 }
 
 function formatDate(value: string | null) {
@@ -65,7 +42,81 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
 }
 
-export function AccountPage({ api, email }: { api: AccountApi; email: string | null }) {
+function describeKeyAction(action: KeyAction | null) {
+  if (!action) {
+    return "";
+  }
+  if (action.type === "delete") {
+    return `“${action.key.name}” will be permanently removed from account history. This cannot be undone.`;
+  }
+  return `“${action.key.name}” will stop working immediately. This cannot be undone.`;
+}
+
+function ApiKeyRow({
+  keyRecord,
+  onDelete,
+  onRevoke,
+}: {
+  keyRecord: ApiKey;
+  onDelete?: (key: ApiKey) => void;
+  onRevoke?: (key: ApiKey) => void;
+}) {
+  const revoke = useCallback(() => {
+    onRevoke?.(keyRecord);
+  }, [keyRecord, onRevoke]);
+
+  const deleteKey = useCallback(() => {
+    onDelete?.(keyRecord);
+  }, [keyRecord, onDelete]);
+
+  return (
+    <article className="grid grid-cols-[minmax(10rem,5fr)_minmax(16rem,8fr)_auto] items-stretch border-border border-b last:border-b-0 max-[48rem]:grid-cols-1">
+      <div className="grid min-w-0 content-center gap-1 px-6 py-5 max-[48rem]:pb-2">
+        <p className="m-0 truncate font-semibold text-base">{keyRecord.name}</p>
+        <p className="m-0 text-muted-foreground tabular-nums">••••{keyRecord.suffix}</p>
+      </div>
+      <dl className="m-0 grid grid-cols-2 gap-6 px-6 py-5 max-[48rem]:pt-2">
+        <div className="grid content-center gap-1">
+          <dt className="utility-label text-foreground">Created</dt>
+          <dd className="m-0 text-base text-muted-foreground">{formatDate(keyRecord.createdAt)}</dd>
+        </div>
+        <div className="grid content-center gap-1">
+          <dt className="utility-label text-foreground">Last used</dt>
+          <dd className="m-0 text-base text-muted-foreground">
+            {formatDate(keyRecord.lastUsedAt)}
+          </dd>
+        </div>
+      </dl>
+      {onRevoke ? (
+        <div className="flex items-center justify-end px-6 py-5 max-[48rem]:justify-start max-[48rem]:pt-2">
+          <Button
+            aria-label={`Revoke ${keyRecord.name}`}
+            className="pill-button"
+            onClick={revoke}
+            variant="destructive-outline"
+          >
+            Revoke
+          </Button>
+        </div>
+      ) : null}
+      {onDelete ? (
+        <div className="flex items-center justify-end px-6 py-5 max-[48rem]:justify-start max-[48rem]:pt-2">
+          <Button
+            aria-label={`Delete ${keyRecord.name}`}
+            className="pill-button"
+            onClick={deleteKey}
+            size="icon"
+            variant="destructive-outline"
+          >
+            <HugeiconsIcon aria-hidden="true" icon={Delete02Icon} />
+          </Button>
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+export function AccountPage({ api }: { api: AccountApi }) {
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +124,9 @@ export function AccountPage({ api, email }: { api: AccountApi; email: string | n
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [issuedToken, setIssuedToken] = useState<string | null>(null);
+  const [keyAction, setKeyAction] = useState<KeyAction | null>(null);
+  const [keyActionPending, setKeyActionPending] = useState(false);
+  const [keyActionError, setKeyActionError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -117,18 +171,58 @@ export function AccountPage({ api, email }: { api: AccountApi; email: string | n
     [api, name]
   );
 
-  const revokeKey = useCallback(
-    async (id: string) => {
-      setError(null);
-      try {
-        const revoked = await api.revoke(id);
-        setKeys((current) => current.map((key) => (key.id === id ? revoked : key)));
-      } catch {
-        setError("API key could not be revoked.");
+  const confirmKeyAction = useCallback(async () => {
+    if (!keyAction) {
+      return;
+    }
+    setKeyActionPending(true);
+    setKeyActionError(null);
+    try {
+      if (keyAction.type === "revoke") {
+        const revoked = await api.revoke(keyAction.key.id);
+        setKeys((current) => current.map((key) => (key.id === keyAction.key.id ? revoked : key)));
+      } else {
+        const deleted = await api.delete(keyAction.key.id);
+        setKeys((current) => current.filter((key) => key.id !== deleted.id));
+      }
+      setKeyAction(null);
+    } catch {
+      setKeyActionError(
+        keyAction.type === "revoke"
+          ? "API key could not be revoked. Try again."
+          : "API key could not be deleted. Try again."
+      );
+    } finally {
+      setKeyActionPending(false);
+    }
+  }, [api, keyAction]);
+
+  const openRevoke = useCallback((key: ApiKey) => {
+    setKeyActionError(null);
+    setKeyAction({ key, type: "revoke" });
+  }, []);
+
+  const openDelete = useCallback((key: ApiKey) => {
+    setKeyActionError(null);
+    setKeyAction({ key, type: "delete" });
+  }, []);
+
+  const changeKeyActionOpen = useCallback(
+    (open: boolean) => {
+      if (!(open || keyActionPending)) {
+        setKeyActionError(null);
+        setKeyAction(null);
       }
     },
-    [api]
+    [keyActionPending]
   );
+
+  const cancelKeyAction = useCallback(() => {
+    if (!keyActionPending) {
+      setKeyActionError(null);
+      setKeyAction(null);
+    }
+  }, [keyActionPending]);
 
   const acknowledgeToken = useCallback(() => {
     setIssuedToken(null);
@@ -156,140 +250,189 @@ export function AccountPage({ api, email }: { api: AccountApi; email: string | n
     [creating, issuedToken]
   );
 
+  const activeKeys = keys.filter((key) => key.status === "active");
+  const revokedKeys = keys.filter((key) => key.status === "revoked");
+
   return (
-    <main className="page-shell isolate flex min-h-[calc(100dvh-var(--topbar-height,4.5rem))] flex-col py-[clamp(2rem,5vw,5.5rem)]">
-      <section className="grid grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)] items-end gap-8 max-[90rem]:grid-cols-1">
-        <div>
-          <p className="mb-[0.85rem] font-[650] text-[0.75rem] uppercase tracking-[0.1em]">
-            Account / Access
-          </p>
-          <h1 className="m-0 font-black text-[clamp(3.25rem,13vw,13rem)] leading-[0.78] tracking-[-0.055em]">
-            ACCOUNT
-          </h1>
-        </div>
-        <p className="m-0 max-w-[27rem] text-base">
-          Your MerchBase sign-in and the credentials that call the service.
-        </p>
-      </section>
+    <main className="page-shell page-start isolate flex min-h-[calc(100dvh-var(--topbar-height,4.5rem))] flex-col pb-[clamp(2rem,5vw,5.5rem)]">
+      <PageMasthead description="Your keys. Your call." title="ACCESS CONTROL" />
 
-      {email ? (
-        <dl className="mt-[clamp(3rem,8vw,7rem)] border-border border-y py-4">
-          <div className="grid gap-1">
-            <dt className="font-[650] text-[0.75rem] text-muted-foreground uppercase tracking-[0.1em]">
-              Signed in as
-            </dt>
-            <dd className="m-0 text-base">{email}</dd>
+      <section aria-label="Account access" className="mt-[clamp(2.5rem,5vw,4.5rem)]">
+        <div className="flex items-end justify-between gap-8 max-[48rem]:grid max-[48rem]:gap-6">
+          <div className="grid min-w-0 gap-2">
+            <h2 className="section-title m-0 text-balance">API keys</h2>
+            <p className="m-0 max-w-[48ch] text-pretty text-base text-muted-foreground">
+              Create one key per trusted service. Revoke it as soon as it is no longer needed.
+            </p>
           </div>
-        </dl>
-      ) : null}
+          <Dialog onOpenChange={changeCreateOpen} open={createOpen}>
+            <DialogTrigger render={<Button className="pill-button max-[48rem]:w-full" />}>
+              Create API key
+            </DialogTrigger>
+            <DialogPopup
+              className="max-w-lg rounded-xl border-border bg-popover shadow-none before:hidden sm:data-ending-style:translate-y-2 sm:data-starting-style:translate-y-2 sm:data-ending-style:scale-100 sm:data-starting-style:scale-100"
+              closeProps={{ className: "absolute end-4 top-4 rounded-full" }}
+              showCloseButton={!(issuedToken || creating)}
+            >
+              {issuedToken ? (
+                <>
+                  <DialogHeader className="gap-2 p-6 pr-16 pb-4">
+                    <DialogTitle className="section-title text-balance">
+                      Save your API key
+                    </DialogTitle>
+                    <DialogDescription className="max-w-[42ch] text-pretty text-base sm:text-sm">
+                      This token will not be shown again.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogPanel className="px-6 pt-0 pb-6">
+                    <div className="border-border/70 border-y py-4">
+                      <code
+                        className="wrap-anywhere block select-all font-sans tabular-nums"
+                        data-testid="issued-token"
+                      >
+                        {issuedToken}
+                      </code>
+                    </div>
+                  </DialogPanel>
+                  <DialogFooter className="px-6 pt-0 pb-6" variant="bare">
+                    <Button
+                      className="pill-button w-full sm:w-auto"
+                      onClick={copyIssuedToken}
+                      variant="outline"
+                    >
+                      <HugeiconsIcon aria-hidden="true" icon={Copy01Icon} />
+                      Copy
+                    </Button>
+                    <Button className="pill-button w-full sm:w-auto" onClick={acknowledgeToken}>
+                      I saved this key
+                    </Button>
+                  </DialogFooter>
+                </>
+              ) : (
+                <form className="contents" onSubmit={createKey}>
+                  <DialogHeader className="gap-2 p-6 pr-16 pb-4">
+                    <DialogTitle className="section-title text-balance">Create API key</DialogTitle>
+                    <DialogDescription className="max-w-[42ch] text-pretty text-base sm:text-sm">
+                      Name the person, service, or integration that will use it.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogPanel className="px-6 pt-0 pb-6">
+                    <Field>
+                      <FieldLabel>Name</FieldLabel>
+                      <Input
+                        autoComplete="off"
+                        className="rounded-xl bg-background shadow-none before:hidden"
+                        maxLength={80}
+                        name="name"
+                        onChange={changeName}
+                        required
+                        size="lg"
+                        type="text"
+                        value={name}
+                      />
+                    </Field>
+                  </DialogPanel>
+                  <DialogFooter className="px-6 pt-0 pb-6" variant="bare">
+                    <Button
+                      className="pill-button w-full sm:w-auto"
+                      loading={creating}
+                      type="submit"
+                    >
+                      Create key
+                    </Button>
+                  </DialogFooter>
+                </form>
+              )}
+            </DialogPopup>
+          </Dialog>
+        </div>
 
-      <div
-        className={cn(
-          "flex items-center justify-between border-border border-y py-3",
-          email ? "mt-[clamp(2rem,4vw,3.5rem)]" : "mt-[clamp(3rem,8vw,7rem)]"
-        )}
-      >
-        <p className="m-0 font-[650] text-[0.75rem] uppercase tracking-[0.1em]">
-          API keys — {keys.length} total
-        </p>
-        <Dialog onOpenChange={changeCreateOpen} open={createOpen}>
-          <DialogTrigger render={<Button />}>Create API key</DialogTrigger>
-          <DialogPopup showCloseButton={!(issuedToken || creating)}>
-            {issuedToken ? (
-              <>
-                <DialogHeader>
-                  <DialogTitle>Save this key now</DialogTitle>
-                  <DialogDescription>
-                    Trademark Turtle will not show this token again.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogPanel>
-                  <code
-                    className="wrap-anywhere block select-all bg-muted p-4 font-sans"
-                    data-testid="issued-token"
-                  >
-                    {issuedToken}
-                  </code>
-                </DialogPanel>
-                <DialogFooter>
-                  <Button onClick={copyIssuedToken} variant="outline">
-                    <HugeiconsIcon aria-hidden="true" icon={Copy01Icon} />
-                    Copy
-                  </Button>
-                  <Button onClick={acknowledgeToken}>I saved this key</Button>
-                </DialogFooter>
-              </>
-            ) : (
-              <form onSubmit={createKey}>
-                <DialogHeader>
-                  <DialogTitle>Create API key</DialogTitle>
-                  <DialogDescription>Use a name that identifies the caller.</DialogDescription>
-                </DialogHeader>
-                <DialogPanel>
-                  <Field>
-                    <FieldLabel>Name</FieldLabel>
-                    <Input
-                      autoComplete="off"
-                      maxLength={80}
-                      onChange={changeName}
-                      required
-                      value={name}
-                    />
-                  </Field>
-                </DialogPanel>
-                <DialogFooter>
-                  <Button loading={creating} type="submit">
-                    Create key
-                  </Button>
-                </DialogFooter>
-              </form>
-            )}
-          </DialogPopup>
-        </Dialog>
-      </div>
+        <div className="mt-[clamp(2rem,4vw,3.5rem)] border-border border-t">
+          {error ? (
+            <p className="m-0 border-border border-b py-4 text-destructive-foreground" role="alert">
+              {error}
+            </p>
+          ) : null}
 
-      {error ? (
-        <p className="m-0 py-8 text-destructive-foreground" role="alert">
-          {error}
-        </p>
-      ) : null}
-
-      <section aria-busy={loading} aria-label="API keys" className="border-border border-b">
-        {loading ? <p className="m-0 py-8">Loading API keys…</p> : null}
-        {!loading && keys.length === 0 ? <p className="m-0 py-8">No API keys yet.</p> : null}
-        {keys.map((key) => (
-          <article
-            className="grid grid-cols-[minmax(11rem,1.2fr)_minmax(28rem,2fr)_auto] items-center gap-8 border-border border-t py-5 first:border-t-0 max-[48rem]:grid-cols-1 max-[48rem]:gap-4"
-            key={key.id}
-          >
-            <div className="grid gap-[0.3rem]">
-              <strong className="text-base">{key.name}</strong>
-              <span className="text-[0.75rem] text-muted-foreground uppercase tracking-[0.1em]">
-                {key.status}
-              </span>
+          <div className="grid grid-cols-[minmax(15rem,4fr)_minmax(0,9fr)] border-border border-b max-[48rem]:grid-cols-1">
+            <div className="grid content-start gap-2 border-border border-r py-5 pr-[clamp(1.5rem,3vw,3rem)] max-[48rem]:border-r-0 max-[48rem]:border-b max-[48rem]:pr-0">
+              <p className="utility-label m-0 text-primary">Active</p>
+              <p className="m-0 text-base text-muted-foreground tabular-nums">
+                {activeKeys.length} {activeKeys.length === 1 ? "key" : "keys"}
+              </p>
             </div>
-            <dl className="m-0 grid grid-cols-3 gap-4 max-[64rem]:grid-cols-2 [&>div]:grid [&>div]:gap-[0.35rem] [&_dd]:m-0 [&_dd]:text-base [&_dt]:text-[0.75rem] [&_dt]:text-muted-foreground [&_dt]:uppercase [&_dt]:tracking-[0.1em]">
-              <div>
-                <dt>Suffix</dt>
-                <dd>••••{key.suffix}</dd>
+            <div aria-busy={loading} className="min-w-0">
+              {loading ? <p className="m-0 px-6 py-8">Loading API keys…</p> : null}
+              {!loading && activeKeys.length === 0 ? (
+                <p className="m-0 px-6 py-8 text-muted-foreground">
+                  No active keys. Create one when a service needs access.
+                </p>
+              ) : null}
+              {activeKeys.map((key) => (
+                <ApiKeyRow key={key.id} keyRecord={key} onRevoke={openRevoke} />
+              ))}
+            </div>
+          </div>
+
+          {!loading && revokedKeys.length > 0 ? (
+            <div className="grid grid-cols-[minmax(15rem,4fr)_minmax(0,9fr)] border-border border-b max-[48rem]:grid-cols-1">
+              <div className="grid content-start gap-2 border-border border-r py-5 pr-[clamp(1.5rem,3vw,3rem)] max-[48rem]:border-r-0 max-[48rem]:border-b max-[48rem]:pr-0">
+                <p className="utility-label m-0 text-muted-foreground">Revoked history</p>
+                <p className="m-0 text-base text-muted-foreground tabular-nums">
+                  {revokedKeys.length} {revokedKeys.length === 1 ? "key" : "keys"}
+                </p>
               </div>
-              <div>
-                <dt>Created</dt>
-                <dd>{formatDate(key.createdAt)}</dd>
+              <div className="min-w-0">
+                {revokedKeys.map((key) => (
+                  <ApiKeyRow key={key.id} keyRecord={key} onDelete={openDelete} />
+                ))}
               </div>
-              <div>
-                <dt>Last used</dt>
-                <dd>{formatDate(key.lastUsedAt)}</dd>
-              </div>
-            </dl>
-            {key.status === "active" ? (
-              <ApiKeyActions id={key.id} name={key.name} onRevoke={revokeKey} />
-            ) : (
-              <span aria-hidden="true" />
-            )}
-          </article>
-        ))}
+            </div>
+          ) : null}
+        </div>
       </section>
+
+      <Dialog onOpenChange={changeKeyActionOpen} open={Boolean(keyAction)}>
+        <DialogPopup
+          className="max-w-lg rounded-xl border-border bg-popover shadow-none before:hidden sm:data-ending-style:translate-y-2 sm:data-starting-style:translate-y-2 sm:data-ending-style:scale-100 sm:data-starting-style:scale-100"
+          closeProps={{ className: "absolute end-4 top-4 rounded-full" }}
+          showCloseButton={!keyActionPending}
+        >
+          <DialogHeader className="gap-2 p-6 pr-16 pb-4">
+            <DialogTitle className="section-title text-balance">
+              {keyAction?.type === "delete" ? "Delete API key?" : "Revoke API key?"}
+            </DialogTitle>
+            <DialogDescription className="max-w-[42ch] text-pretty text-base sm:text-sm">
+              {describeKeyAction(keyAction)}
+            </DialogDescription>
+          </DialogHeader>
+          {keyActionError ? (
+            <DialogPanel className="px-6 pt-0 pb-4">
+              <p className="m-0 text-destructive-foreground" role="alert">
+                {keyActionError}
+              </p>
+            </DialogPanel>
+          ) : null}
+          <DialogFooter className="px-6 pt-0 pb-6" variant="bare">
+            <Button
+              className="pill-button w-full sm:w-auto"
+              disabled={keyActionPending}
+              onClick={cancelKeyAction}
+              variant="outline"
+            >
+              Cancel
+            </Button>
+            <Button
+              className="pill-button w-full sm:w-auto"
+              loading={keyActionPending}
+              onClick={confirmKeyAction}
+              variant="destructive"
+            >
+              {keyAction?.type === "delete" ? "Delete key" : "Revoke key"}
+            </Button>
+          </DialogFooter>
+        </DialogPopup>
+      </Dialog>
       <LegalFooter />
     </main>
   );

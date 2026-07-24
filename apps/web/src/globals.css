@@ -22,31 +22,67 @@
   --destructive-foreground: #a22820;
   --border: #c9c9bf;
   --input: #aaa9a0;
-  --ring: #707068;
+  --ring: #687600;
   --radius: 0.35rem;
+  --chart-1: var(--ring);
+  --chart-2: var(--muted-foreground);
+  --chart-3: var(--foreground);
+  --chart-4: var(--primary);
+  --chart-5: var(--border);
+  --chart-background: var(--background);
+  --chart-foreground: var(--foreground);
+  --chart-foreground-muted: var(--muted-foreground);
+  --chart-line-primary: var(--ring);
+  --chart-line-secondary: #087f99;
+  --chart-crosshair: var(--foreground);
+  --chart-grid: var(--border);
+  --chart-brush-border: var(--chart-grid);
+  --chart-tooltip-background: var(--foreground);
+  --chart-tooltip-foreground: var(--background);
+  --chart-tooltip-muted: var(--secondary);
+  --chart-marker-background: var(--background);
+  --chart-marker-border: var(--border);
+  --chart-marker-foreground: var(--foreground);
+  --chart-label: var(--muted-foreground);
+  --chart-scale-01: oklch(0.98 0.003 106);
+  --chart-scale-02: oklch(0.92 0.008 106);
+  --chart-scale-03: oklch(0.82 0.015 106);
+  --chart-scale-04: oklch(0.68 0.02 106);
+  --chart-scale-05: oklch(0.55 0.025 106);
+  --chart-scale-pattern-color: oklch(0.96 0.005 106);
   color-scheme: light;
 }
 
 .dark {
-  --background: #151616;
-  --foreground: #f1f1e9;
+  --background: #0d0e0e;
+  --foreground: #f1f2ef;
   --card: var(--background);
   --card-foreground: var(--foreground);
-  --popover: #20201d;
+  --popover: #131414;
   --popover-foreground: var(--foreground);
   --primary: #d7f52a;
   --primary-foreground: #171714;
-  --secondary: #292925;
+  --secondary: #1b1c1c;
   --secondary-foreground: var(--foreground);
-  --muted: #292925;
-  --muted-foreground: #aaa99f;
-  --accent: #30302b;
+  --muted: #1b1c1c;
+  --muted-foreground: #969793;
+  --accent: #232424;
   --accent-foreground: var(--foreground);
   --destructive: #e05247;
   --destructive-foreground: #ff8d84;
-  --border: #3b3b35;
-  --input: #4b4b44;
-  --ring: #aaa99f;
+  --border: #2d2e2e;
+  --input: #393a3a;
+  --ring: var(--primary);
+  --chart-line-secondary: #61d6f5;
+  --chart-tooltip-background: var(--popover);
+  --chart-tooltip-foreground: var(--popover-foreground);
+  --chart-tooltip-muted: var(--muted-foreground);
+  --chart-scale-01: oklch(0.28 0.03 270);
+  --chart-scale-02: oklch(0.38 0.04 270);
+  --chart-scale-03: oklch(0.48 0.05 270);
+  --chart-scale-04: oklch(0.58 0.06 270);
+  --chart-scale-05: oklch(0.68 0.07 270);
+  --chart-scale-pattern-color: oklch(0.145 0 0);
   color-scheme: dark;
 }
 
@@ -78,6 +114,29 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
   --radius-2xl: calc(var(--radius) * 1.8);
+  --color-chart-scale-pattern-color: var(--chart-scale-pattern-color);
+  --color-chart-scale-05: var(--chart-scale-05);
+  --color-chart-scale-04: var(--chart-scale-04);
+  --color-chart-scale-03: var(--chart-scale-03);
+  --color-chart-scale-02: var(--chart-scale-02);
+  --color-chart-scale-01: var(--chart-scale-01);
+  --color-chart-label: var(--chart-label);
+  --color-chart-marker-foreground: var(--chart-marker-foreground);
+  --color-chart-marker-border: var(--chart-marker-border);
+  --color-chart-marker-background: var(--chart-marker-background);
+  --color-chart-tooltip-muted: var(--chart-tooltip-muted);
+  --color-chart-tooltip-foreground: var(--chart-tooltip-foreground);
+  --color-chart-tooltip-background: var(--chart-tooltip-background);
+  --color-chart-grid: var(--chart-grid);
+  --color-chart-crosshair: var(--chart-crosshair);
+  --color-chart-foreground-muted: var(--chart-foreground-muted);
+  --color-chart-foreground: var(--chart-foreground);
+  --color-chart-background: var(--chart-background);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
 }
 
 @utility page-shell {
@@ -85,6 +144,70 @@
   max-width: 120rem;
   padding-inline: clamp(1rem, 3vw, 3rem);
   margin-inline: auto;
+}
+
+@utility page-start {
+  padding-top: clamp(1.5rem, 2vw, 2rem);
+}
+
+@utility display-masthead {
+  font-weight: 900;
+  line-height: 0.78;
+  letter-spacing: -0.055em;
+}
+
+@utility utility-label {
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+@utility section-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 2rem;
+  letter-spacing: -0.025em;
+}
+
+@utility pill-button {
+  border-radius: 9999px !important;
+
+  &::before {
+    border-radius: inherit !important;
+  }
+}
+
+@utility topbar-control {
+  background-color: color-mix(in oklab, var(--background) 76%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+@utility topbar-control-active {
+  background-color: color-mix(in oklab, var(--accent) 88%, transparent);
+}
+
+[data-slot="input-control"]:has([data-slot="input"]:focus-visible) {
+  box-shadow: none;
+}
+
+[data-slot="input-control"]:has([data-slot="input"]:focus-visible):not(
+  :has([aria-invalid="true"])
+) {
+  border-color: var(--ring);
+}
+
+[data-slot="input-control"]:has([data-slot="input"]:focus-visible)::before {
+  box-shadow: none;
+}
+
+/* Chrome renders hovered autocomplete previews through the input's first line. */
+[data-slot="trademark-search-form"] [data-slot="input"]::first-line {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.035em;
 }
 
 @layer base {

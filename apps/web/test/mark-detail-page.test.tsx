@@ -80,6 +80,22 @@ const mark = {
   type: "design" as const,
 };
 
+test("renders the mark document skeleton while detail loads", () => {
+  const api: MarkApi = { get: () => new Promise(() => undefined) };
+
+  render(<MarkDetailPage api={api} onBack={noop} serialNumber="60146682" />);
+
+  expect(screen.getByRole("status", { name: "Loading trademark" })).toBeTruthy();
+  expect(document.querySelector('main[aria-busy="true"]')).toBeTruthy();
+  expect(screen.getByRole("link", { name: "Back to results" })).toBeTruthy();
+  const skeleton = screen.getByTestId("mark-detail-skeleton");
+  expect(within(skeleton).getByText("Goods/services")).toBeTruthy();
+  expect(within(skeleton).getByText("Record")).toBeTruthy();
+  expect(within(skeleton).getByText("Status history")).toBeTruthy();
+  expect(screen.queryByRole("region", { name: "Goods/services" })).toBeNull();
+  expect(screen.queryByText("Loading trademark…")).toBeNull();
+});
+
 test("renders the mark as one actionable detail document", async () => {
   const api: MarkApi = { get: async () => mark };
 

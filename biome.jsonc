@@ -5,6 +5,8 @@
     "includes": [
       "!!apps/server/drizzle/meta",
       "!!apps/server/drizzle/**/*.sql",
+      "!!apps/web/src/components/charts",
+      "!!apps/web/src/components/shimmering-text.tsx",
       "!!apps/web/src/components/ui",
       "!!fixtures/uspto/records",
       "!!fixtures/uspto/prologs"

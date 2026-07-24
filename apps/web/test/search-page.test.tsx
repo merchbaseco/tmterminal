@@ -10,7 +10,7 @@ HTMLElement.prototype.getBoundingClientRect = function () {
     return new DOMRect(0, 0, 1200, 640);
   }
   if (this.dataset.testid === "search-result-row") {
-    return new DOMRect(0, 0, 1200, 64);
+    return new DOMRect(0, 0, 1200, 84);
   }
   return getBoundingClientRect.call(this);
 };
@@ -74,7 +74,7 @@ class TestResizeObserver implements ResizeObserver {
     this.active = false;
   }
   observe(target: Element) {
-    const blockSize = (target as HTMLElement).dataset.testid === "search-result-row" ? 64 : 640;
+    const blockSize = (target as HTMLElement).dataset.testid === "search-result-row" ? 84 : 640;
     queueMicrotask(() => {
       // biome-ignore lint/suspicious/noUnnecessaryConditions: disconnect can run before this queued callback.
       if (!this.active) {
@@ -241,8 +241,14 @@ test("search controls and result facts use customer-facing language", async () =
   expect(
     screen.getByRole("heading", { name: "Trademark search results for “turtle”" })
   ).toBeTruthy();
-  expect(screen.getByText("1 live exact")).toBeTruthy();
-  expect(screen.getByText("0 live partial")).toBeTruthy();
+  expect(
+    within(required(screen.getByText("Live exact").parentElement, "live exact stat")).getByText("1")
+  ).toBeTruthy();
+  expect(
+    within(required(screen.getByText("Live partial").parentElement, "live partial stat")).getByText(
+      "0"
+    )
+  ).toBeTruthy();
   expect(screen.queryByText("Data through")).toBeNull();
   expect(screen.queryByText("Exact match")).toBeNull();
   expect(screen.getAllByText("Live").length).toBeGreaterThan(0);

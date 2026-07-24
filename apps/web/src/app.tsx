@@ -1,18 +1,15 @@
-import { Show, SignInButton, UserButton, useAuth, useClerk, useUser } from "@clerk/react";
+import { Show, SignInButton, useAuth, useClerk } from "@clerk/react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ArrowDown01Icon,
-  Cancel01Icon,
-  Menu01Icon,
-  Search01Icon,
-} from "@hugeicons-pro/core-stroke-rounded";
+import { Cancel01Icon, Menu01Icon, Search01Icon } from "@hugeicons-pro/core-stroke-rounded";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createTRPCClient, httpLink } from "@trpc/client";
 import {
   type ChangeEvent,
   type FormEvent,
+  lazy,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
+  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -22,26 +19,19 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Menu,
-  MenuGroup,
-  MenuGroupLabel,
-  MenuLinkItem,
-  MenuPopup,
-  MenuSeparator,
-  MenuTrigger,
-} from "@/components/ui/menu";
+import { Menu, MenuLinkItem, MenuPopup, MenuTrigger } from "@/components/ui/menu";
 import { cn } from "@/lib/utils";
 import turtleLogo from "../../../assets/brand/turtle-mark.svg";
 import type { AppRouter } from "../../server/src/api/router.ts";
+import { AccountMenu } from "./account-menu.tsx";
 import { type AccountApi, AccountPage } from "./account-page.tsx";
-import { AppearanceMenu } from "./appearance-menu.tsx";
+import { appearanceChangedEvent, applyAppearance, savedAppearance } from "./appearance.ts";
 import { DevAutoSignIn } from "./dev-auto-sign-in.tsx";
 import { HelpPage } from "./help-page.tsx";
 import { type MarkApi, MarkDetailPage } from "./mark-detail-page.tsx";
-import { type OperatorSyncApi, type PublicStatusApi, StatusPage } from "./operator-sync-page.tsx";
-import { type ReportsApi, ReportsPage } from "./reports-page.tsx";
+import type { OperatorSyncApi, PublicStatusApi } from "./operator-sync-page.tsx";
 import { type SearchApi, SearchPage } from "./search-page.tsx";
+import { StatusPageSkeleton } from "./status-page-skeleton.tsx";
 
 interface BrowserLocation {
   pathname: string;
@@ -50,6 +40,26 @@ interface BrowserLocation {
 }
 
 const markPath = /^\/marks\/(\d{8})$/;
+const StatusPage = lazy(async () => {
+  const module = await import("./operator-sync-page.tsx");
+  return { default: module.StatusPage };
+});
+
+function AppearanceSync() {
+  useLayoutEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => applyAppearance(savedAppearance(), media.matches);
+
+    apply();
+    media.addEventListener("change", apply);
+    window.addEventListener(appearanceChangedEvent, apply);
+    return () => {
+      media.removeEventListener("change", apply);
+      window.removeEventListener(appearanceChangedEvent, apply);
+    };
+  }, []);
+  return null;
+}
 
 const publicStatusApi: PublicStatusApi = {
   async status() {
@@ -60,6 +70,24 @@ const publicStatusApi: PublicStatusApi = {
     return response.json();
   },
 };
+
+function StatusRoute({ operatorApi }: { operatorApi?: OperatorSyncApi }) {
+  return (
+    <Suspense
+      fallback={
+        <main
+          aria-busy="true"
+          className="page-shell page-start isolate min-h-[calc(100dvh-var(--topbar-height,4.5rem))]"
+        >
+          <h1 className="sr-only">Status</h1>
+          <StatusPageSkeleton />
+        </main>
+      }
+    >
+      <StatusPage api={publicStatusApi} operatorApi={operatorApi} />
+    </Suspense>
+  );
+}
 
 function browserLocation(): BrowserLocation {
   const { state } = window.history;
@@ -94,7 +122,6 @@ function plainPrimaryClick(event: ReactMouseEvent) {
 
 function SignedInApp({ location }: { location: BrowserLocation }) {
   const { getToken } = useAuth();
-  const { user } = useUser();
   const client = useMemo(
     () =>
       createTRPCClient<AppRouter>({
@@ -113,6 +140,7 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
   const accountApi = useMemo<AccountApi>(
     () => ({
       create: (name) => client.account["api-keys"].create.mutate({ name }),
+      delete: (id) => client.account["api-keys"].delete.mutate({ id }),
       list: () => client.account["api-keys"].list.query(),
       revoke: (id) => client.account["api-keys"].revoke.mutate({ id }),
     }),
@@ -128,10 +156,6 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
     () => ({
       search: (input) => client.marks.search.query(input),
     }),
-    [client]
-  );
-  const reportsApi = useMemo<ReportsApi>(
-    () => ({ run: (input) => client.reports.run.query(input) }),
     [client]
   );
   const operatorApi = useMemo<OperatorSyncApi>(
@@ -180,6 +204,7 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
         state: { ...location.state, searchScrollOffset: scrollOffset },
       });
       setBrowserLocation(`/marks/${serialNumber}`, { state: { tmturtleSearchEntry: true } });
+      window.scrollTo(0, 0);
     },
     [location.pathname, location.search, location.state]
   );
@@ -194,28 +219,12 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
   let page: ReactNode;
   if (markRoute?.[1]) {
     page = <MarkDetailPage api={markApi} onBack={handleMarkBack} serialNumber={markRoute[1]} />;
-  } else if (location.pathname === "/reports") {
-    page = (
-      <ReportsPage
-        api={reportsApi}
-        key={location.search}
-        onNavigate={handleSearchNavigate}
-        onOpenMark={handleOpenMark}
-        restoreScrollOffset={restoreScrollOffset}
-        search={location.search}
-      />
-    );
   } else if (location.pathname === "/status") {
-    page = (
-      <StatusPage
-        api={publicStatusApi}
-        operatorApi={operator || import.meta.env.DEV ? operatorApi : undefined}
-      />
-    );
+    page = <StatusRoute operatorApi={operator || import.meta.env.DEV ? operatorApi : undefined} />;
   } else if (location.pathname === "/help") {
     page = <HelpPage />;
   } else if (location.pathname === "/account") {
-    page = <AccountPage api={accountApi} email={user?.primaryEmailAddress?.emailAddress ?? null} />;
+    page = <AccountPage api={accountApi} />;
   } else {
     const replacementSourceSearch =
       typeof location.state.searchReplacementSource === "string"
@@ -243,9 +252,9 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
 }
 
 const navItemClassName =
-  "inline-flex h-8 cursor-pointer items-center rounded-full border border-border bg-transparent px-3 font-medium text-foreground no-underline hover:bg-accent focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2";
+  "topbar-control hover:topbar-control-active inline-flex h-8 cursor-pointer items-center rounded-full border border-border px-3 font-medium text-foreground no-underline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2";
 
-const activeNavItemClassName = "border-transparent bg-accent";
+const activeNavItemClassName = "topbar-control-active border-transparent";
 
 function TopBar({ pathname }: { pathname: string }) {
   const headerRef = useRef<HTMLElement>(null);
@@ -255,6 +264,7 @@ function TopBar({ pathname }: { pathname: string }) {
     }
     event.preventDefault();
     setBrowserLocation(event.currentTarget.getAttribute("href") ?? "/search");
+    window.scrollTo(0, 0);
   }, []);
 
   useLayoutEffect(() => {
@@ -278,7 +288,7 @@ function TopBar({ pathname }: { pathname: string }) {
   }, []);
 
   return (
-    <header className="sticky top-0 z-30 bg-background" ref={headerRef}>
+    <header className="sticky top-0 z-30" ref={headerRef}>
       <div className="page-shell grid min-h-[4.5rem] grid-cols-[1fr_auto_auto] items-center py-3 max-[48rem]:grid-cols-[1fr_auto] max-[48rem]:gap-y-1">
         <a
           aria-label="Trademark Turtle home"
@@ -308,37 +318,6 @@ function TopBar({ pathname }: { pathname: string }) {
             >
               Search
             </a>
-            <Menu>
-              <MenuTrigger
-                aria-current={pathname === "/reports" ? "page" : undefined}
-                className={cn(
-                  navItemClassName,
-                  "group gap-1 pr-2.5 font-inherit",
-                  pathname === "/reports" && activeNavItemClassName
-                )}
-              >
-                Reports
-                <HugeiconsIcon
-                  aria-hidden="true"
-                  className="size-3.5 text-muted-foreground transition-transform duration-[120ms] ease-out group-data-[popup-open]:rotate-180"
-                  icon={ArrowDown01Icon}
-                />
-              </MenuTrigger>
-              <MenuPopup align="start">
-                <MenuLinkItem href="/reports?event=filed&window=previous-week" onClick={navigate}>
-                  Filed previous week
-                </MenuLinkItem>
-                <MenuLinkItem
-                  href="/reports?event=registered&window=previous-week"
-                  onClick={navigate}
-                >
-                  Registered previous week
-                </MenuLinkItem>
-                <MenuLinkItem href="/reports?event=published-for-opposition" onClick={navigate}>
-                  Published for opposition
-                </MenuLinkItem>
-              </MenuPopup>
-            </Menu>
           </Show>
           <a
             aria-current={pathname === "/status" ? "page" : undefined}
@@ -369,23 +348,15 @@ function TopBar({ pathname }: { pathname: string }) {
         </nav>
         <Show when="signed-in">
           <div className="ml-3.5 flex items-center gap-2 max-[48rem]:col-start-2 max-[48rem]:row-start-1 max-[48rem]:ml-2">
-            <AppearanceMenu />
-            <UserButton
-              appearance={{
-                elements: {
-                  userButtonAvatarBox: "h-8 w-8 rounded-[var(--radius)] border border-border",
-                },
-              }}
-            />
+            <AccountMenu />
             <MobileNavMenu navigate={navigate} pathname={pathname} signedIn />
           </div>
         </Show>
         <Show when="signed-out">
           <div className="ml-3.5 flex items-center gap-2 max-[48rem]:col-start-2 max-[48rem]:row-start-1 max-[48rem]:ml-2">
             <SignInButton mode="modal">
-              <Button>Sign in</Button>
+              <Button className="pill-button">Sign in</Button>
             </SignInButton>
-            <AppearanceMenu />
             <MobileNavMenu navigate={navigate} pathname={pathname} signedIn={false} />
           </div>
         </Show>
@@ -409,7 +380,13 @@ function MobileNavMenu({
       <MenuTrigger
         aria-label="Menu"
         className="group min-[48rem]:hidden"
-        render={<Button size="icon" variant="ghost" />}
+        render={
+          <Button
+            className="pill-button topbar-control hover:topbar-control-active border-border"
+            size="icon"
+            variant="ghost"
+          />
+        }
       >
         <HugeiconsIcon
           aria-hidden="true"
@@ -424,33 +401,14 @@ function MobileNavMenu({
       </MenuTrigger>
       <MenuPopup align="end">
         {signedIn ? (
-          <>
-            <MenuLinkItem
-              aria-current={pathname === "/" || pathname === "/search" ? "page" : undefined}
-              className={currentItemClass(pathname === "/" || pathname === "/search")}
-              href="/search"
-              onClick={navigate}
-            >
-              Search
-            </MenuLinkItem>
-            <MenuSeparator />
-            <MenuGroup>
-              <MenuGroupLabel>Reports</MenuGroupLabel>
-              <MenuLinkItem href="/reports?event=filed&window=previous-week" onClick={navigate}>
-                Filed previous week
-              </MenuLinkItem>
-              <MenuLinkItem
-                href="/reports?event=registered&window=previous-week"
-                onClick={navigate}
-              >
-                Registered previous week
-              </MenuLinkItem>
-              <MenuLinkItem href="/reports?event=published-for-opposition" onClick={navigate}>
-                Published for opposition
-              </MenuLinkItem>
-            </MenuGroup>
-            <MenuSeparator />
-          </>
+          <MenuLinkItem
+            aria-current={pathname === "/" || pathname === "/search" ? "page" : undefined}
+            className={currentItemClass(pathname === "/" || pathname === "/search")}
+            href="/search"
+            onClick={navigate}
+          >
+            Search
+          </MenuLinkItem>
         ) : null}
         <MenuLinkItem
           aria-current={pathname === "/status" ? "page" : undefined}
@@ -517,7 +475,7 @@ function SignedOutSearch({ search }: { search: string }) {
   return (
     <main className="page-shell isolate grid min-h-[calc(100dvh-var(--topbar-height,4.5rem))] content-center gap-8 py-[clamp(2rem,5vw,5.5rem)]">
       <p className="mb-0 font-[650] text-base">Trademark search for Print on Demand sellers.</p>
-      <h1 className="m-0 font-black text-[clamp(2.75rem,12.5vw,14rem)] leading-[0.78] tracking-[-0.055em]">
+      <h1 className="display-masthead m-0 text-[clamp(2.75rem,12.5vw,14rem)]">
         TRADEMARK
         <br />
         TURTLE
@@ -526,13 +484,14 @@ function SignedOutSearch({ search }: { search: string }) {
         Sign in with your MerchBase account to run your search.
       </p>
       <form
-        className="grid max-w-[70rem] grid-cols-[minmax(0,1fr)_auto] gap-3 p-0 [--search-control-height:clamp(3.5rem,7vw,5.5rem)] max-[48rem]:grid-cols-1 [&>[data-slot=button]]:h-[var(--search-control-height)] [&>[data-slot=button]]:px-[clamp(1.5rem,3vw,2.5rem)] [&>[data-slot=button]]:text-[clamp(1.125rem,1.5vw,1.4rem)] [&_[data-slot=input-control]]:h-[var(--search-control-height)] [&_[data-slot=input-control]]:rounded-[var(--radius)] [&_[data-slot=input]]:h-full [&_[data-slot=input]]:py-0 [&_[data-slot=input]]:pr-[clamp(1rem,2vw,1.5rem)] [&_[data-slot=input]]:pl-[clamp(2.75rem,4.5vw,3.75rem)] [&_[data-slot=input]]:font-semibold [&_[data-slot=input]]:text-[clamp(1.25rem,3vw,2.4rem)] [&_[data-slot=input]]:leading-none [&_[data-slot=input]]:tracking-[-0.035em]"
+        className="grid grid-cols-[minmax(0,1fr)_clamp(13rem,18vw,16rem)] gap-0 border border-border p-0 [--search-control-height:4.25rem] **:data-[slot=search-icon]:left-3 **:data-[slot=search-icon]:size-[1.15rem] **:data-[slot=input-control]:h-[var(--search-control-height)] **:data-[slot=input]:h-full *:data-[slot=button]:h-[var(--search-control-height)] *:data-[slot=button]:w-full **:data-[slot=input-control]:border-0 *:data-[slot=button]:border-0 *:data-[slot=button]:border-border *:data-[slot=button]:border-l **:data-[slot=input-control]:bg-transparent *:data-[slot=button]:px-[clamp(1.5rem,3vw,2.5rem)] **:data-[slot=input]:py-0 **:data-[slot=input]:pr-[clamp(1rem,2vw,1.5rem)] **:data-[slot=input]:pl-10 **:data-[slot=input]:font-semibold **:data-[slot=input]:text-xl *:data-[slot=button]:text-[clamp(1.125rem,1.5vw,1.4rem)] **:data-[slot=input]:leading-none **:data-[slot=input]:tracking-[-0.035em] **:data-[slot=input-control]:shadow-none *:data-[slot=button]:shadow-none max-[48rem]:grid-cols-[minmax(0,1fr)_7.5rem] has-[input:focus-visible]:[&>[data-slot=button]]:border-l-transparent [&_[data-slot=input-control]::before]:shadow-none"
+        data-slot="trademark-search-form"
         onSubmit={handleSubmit}
       >
         <label className="sr-only" htmlFor="signed-out-search">
           Search trademarks
         </label>
-        <div className="relative min-w-0">
+        <div className="relative min-w-0 before:pointer-events-none before:absolute before:inset-0 before:z-20 before:border before:border-transparent before:content-[''] has-[input:focus-visible]:before:border-ring">
           <HugeiconsIcon
             aria-hidden="true"
             className="pointer-events-none absolute top-1/2 left-[clamp(1rem,2vw,1.5rem)] z-10 size-[clamp(1.25rem,2vw,1.6rem)] -translate-y-1/2 text-muted-foreground"
@@ -540,8 +499,10 @@ function SignedOutSearch({ search }: { search: string }) {
             icon={Search01Icon}
           />
           <Input
+            className="rounded-none before:rounded-none"
             id="signed-out-search"
             maxLength={200}
+            name="query"
             onChange={handleChange}
             placeholder="Search a word mark"
             required
@@ -550,7 +511,7 @@ function SignedOutSearch({ search }: { search: string }) {
             value={query}
           />
         </div>
-        <Button size="xl" type="submit">
+        <Button className="rounded-none before:rounded-none" size="xl" type="submit">
           Search
         </Button>
       </form>
@@ -568,13 +529,14 @@ export function App() {
   );
   let signedOutPage: ReactNode = <SignedOutSearch search={location.search} />;
   if (location.pathname === "/status") {
-    signedOutPage = <StatusPage api={publicStatusApi} />;
+    signedOutPage = <StatusRoute />;
   } else if (location.pathname === "/help") {
     signedOutPage = <HelpPage />;
   }
 
   return (
     <QueryClientProvider client={queryClient}>
+      <AppearanceSync />
       <Show when="signed-in">
         <SignedInApp location={location} />
       </Show>

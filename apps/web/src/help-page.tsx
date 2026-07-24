@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { PageMasthead } from "./page-masthead.tsx";
 
 const searchModes = [
   {
@@ -17,26 +18,20 @@ const searchModes = [
 
 export function HelpPage() {
   return (
-    <main className="page-shell isolate min-h-[calc(100dvh-var(--topbar-height,4.5rem))] pt-[clamp(2rem,5vw,5rem)] pb-[clamp(3rem,7vw,7rem)]">
-      <header className="border-border border-b pb-[clamp(2rem,4vw,4rem)]">
-        <p className="m-0 font-[650] text-[0.75rem] uppercase tracking-[0.1em]">Help</p>
-        <h1 className="mt-3 mb-0 font-black text-[clamp(4rem,10vw,10rem)] leading-[0.78] tracking-[-0.055em]">
-          SEARCH WITH
-          <br />
-          CONFIDENCE
-        </h1>
-        <p className="mt-6 mb-0 max-w-[48rem] text-muted-foreground">
-          Trademark Turtle searches official United States trademark records for International Class
-          025—the clothing category used by print-on-demand sellers.
-        </p>
-      </header>
+    <main className="page-shell page-start isolate min-h-[calc(100dvh-var(--topbar-height,4.5rem))] pb-[clamp(3rem,7vw,7rem)]">
+      <PageMasthead
+        description="Know the result before you make the call."
+        title="SEARCH SMARTER"
+      />
 
-      <section className="grid grid-cols-[minmax(12rem,0.45fr)_minmax(0,1fr)] gap-x-12 border-border border-b py-[clamp(2rem,4vw,3.5rem)] max-[48rem]:grid-cols-1 max-[48rem]:gap-y-5">
-        <h2 className="m-0 font-bold text-base">Search modes</h2>
-        <dl className="m-0 grid gap-6">
+      <section className="mt-[clamp(2.5rem,5vw,4.5rem)] grid grid-cols-[minmax(12rem,0.45fr)_minmax(0,1fr)] border-border border-y max-[48rem]:grid-cols-1">
+        <h2 className="m-0 border-border border-r py-[clamp(2rem,4vw,3.5rem)] pr-[clamp(1.5rem,3vw,3rem)] font-semibold text-base max-[48rem]:border-r-0 max-[48rem]:pr-0 max-[48rem]:pb-0">
+          Search modes
+        </h2>
+        <dl className="m-0 grid gap-6 py-[clamp(2rem,4vw,3.5rem)] pl-[clamp(1.5rem,3vw,3rem)] max-[48rem]:pt-5 max-[48rem]:pl-0">
           {searchModes.map((mode) => (
             <div key={mode.name}>
-              <dt className="font-bold">{mode.name}</dt>
+              <dt className="font-semibold">{mode.name}</dt>
               <dd className="m-0 mt-1 max-w-[46rem] text-muted-foreground">{mode.text}</dd>
             </div>
           ))}
@@ -61,13 +56,6 @@ export function HelpPage() {
         </p>
       </HelpSection>
 
-      <HelpSection title="Reports">
-        <p>
-          Reports show marks filed last week, registered last week, or currently published for
-          opposition. Every report has its own shareable URL and uses the same filters as search.
-        </p>
-      </HelpSection>
-
       <HelpSection title="Data and limitations">
         <p>
           Trademark Turtle processes USPTO source files as they are published. The Status page shows
@@ -86,9 +74,13 @@ export function HelpPage() {
 
 function HelpSection({ children, title }: { children: ReactNode; title: string }) {
   return (
-    <section className="grid grid-cols-[minmax(12rem,0.45fr)_minmax(0,1fr)] gap-x-12 border-border border-b py-[clamp(2rem,4vw,3.5rem)] max-[48rem]:grid-cols-1 max-[48rem]:gap-y-5">
-      <h2 className="m-0 font-bold text-base">{title}</h2>
-      <div className="grid max-w-[48rem] gap-4 text-muted-foreground [&_p]:m-0">{children}</div>
+    <section className="grid grid-cols-[minmax(12rem,0.45fr)_minmax(0,1fr)] border-border border-b max-[48rem]:grid-cols-1">
+      <h2 className="m-0 border-border border-r py-[clamp(2rem,4vw,3.5rem)] pr-[clamp(1.5rem,3vw,3rem)] font-semibold text-base max-[48rem]:border-r-0 max-[48rem]:pr-0 max-[48rem]:pb-0">
+        {title}
+      </h2>
+      <div className="grid max-w-[48rem] gap-4 py-[clamp(2rem,4vw,3.5rem)] pl-[clamp(1.5rem,3vw,3rem)] text-muted-foreground max-[48rem]:pt-5 max-[48rem]:pl-0 [&_p]:m-0">
+        {children}
+      </div>
     </section>
   );
 }

@@ -15,9 +15,9 @@ interface MarkResult {
 const statusLabels = { dead: "Dead", live: "Live", unknown: "Status unavailable" } as const;
 const statusChipLabels = { dead: "Dead", live: "Live", unknown: "Unknown" } as const;
 const statusChipClasses = {
-  dead: "text-muted-foreground",
+  dead: "border-border text-muted-foreground",
   live: "border-primary bg-primary text-primary-foreground",
-  unknown: "border-dashed text-muted-foreground",
+  unknown: "border-border border-dashed text-muted-foreground",
 } as const;
 const typeLabels = {
   design: "Design",
@@ -52,35 +52,36 @@ export function MarkResultContent({
 
   return (
     <>
-      <div className="grid min-w-0 gap-[0.1rem]" data-slot="result-main">
+      <div
+        className="grid min-w-0 content-center gap-1 px-4 py-3 max-[48rem]:py-4"
+        data-slot="result-main"
+      >
         <div className="flex min-w-0 items-baseline gap-3">
           <a
             aria-label={`${item.wordMark}, ${statusLabels[item.status]}, serial number ${item.serialNumber}`}
-            className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-extrabold text-[1.5rem] text-inherit leading-[1.1] tracking-[-0.03em] no-underline after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-primary focus-visible:after:-outline-offset-2"
+            className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-2xl text-inherit tracking-[-0.025em] no-underline after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-primary focus-visible:after:-outline-offset-2"
             href={`/marks/${item.serialNumber}`}
             onClick={open}
           >
             {item.wordMark}
           </a>
           {contextLabel ? (
-            <span className="shrink-0 font-bold text-[0.75rem] text-muted-foreground uppercase tracking-[0.1em]">
-              {contextLabel}
-            </span>
+            <p className="m-0 shrink-0 font-medium text-muted-foreground text-sm">{contextLabel}</p>
           ) : null}
         </div>
-        <p className="flex min-w-0 flex-wrap gap-x-[0.55rem] font-medium text-base text-muted-foreground tracking-normal min-[48rem]:flex-nowrap min-[48rem]:overflow-hidden min-[48rem]:whitespace-nowrap [&>span:first-child]:min-w-0 min-[48rem]:[&>span:first-child]:overflow-hidden min-[48rem]:[&>span:first-child]:text-ellipsis min-[48rem]:[&>span:last-child]:min-w-0 min-[48rem]:[&>span:last-child]:overflow-hidden min-[48rem]:[&>span:last-child]:text-ellipsis min-[48rem]:[&>span:not(:first-child):not(:last-child)]:shrink-0 [&>span:not(:last-child)]:after:ml-[0.55rem] [&>span:not(:last-child)]:after:content-['·']">
+        <p className="m-0 flex min-w-0 flex-wrap gap-x-[0.55rem] text-base text-muted-foreground min-[48rem]:flex-nowrap min-[48rem]:overflow-hidden min-[48rem]:whitespace-nowrap [&>span:first-child]:min-w-0 min-[48rem]:[&>span:first-child]:overflow-hidden min-[48rem]:[&>span:first-child]:text-ellipsis min-[48rem]:[&>span:last-child]:min-w-0 min-[48rem]:[&>span:last-child]:overflow-hidden min-[48rem]:[&>span:last-child]:text-ellipsis min-[48rem]:[&>span:not(:first-child):not(:last-child)]:shrink-0 [&>span:not(:last-child)]:after:ml-[0.55rem] [&>span:not(:last-child)]:after:content-['·']">
           <span>{item.owner ?? "Owner unavailable"}</span>
           <span>{typeLabels[item.type]}</span>
           {classLabel ? <span>{classLabel}</span> : null}
         </p>
       </div>
       <div
-        className="grid min-w-[6.5rem] justify-items-end gap-[0.3rem] whitespace-nowrap tabular-nums max-[48rem]:min-w-[4.5rem]"
+        className="grid min-w-[10rem] content-center justify-items-end gap-1.5 whitespace-nowrap border-border border-l px-4 py-3 tabular-nums max-[48rem]:min-w-[6.5rem] max-[48rem]:py-4"
         data-slot="result-meta"
       >
         <span
           className={cn(
-            "inline-flex min-h-6 items-center rounded-[2px] border border-current px-[0.45rem] py-[0.15rem] font-bold text-[0.75rem] uppercase leading-none tracking-[0.1em]",
+            "inline-flex min-h-6 items-center rounded-sm border px-2 py-0.5 font-semibold text-xs uppercase tracking-[0.1em]",
             statusChipClasses[item.status]
           )}
           data-slot="result-status"
@@ -89,9 +90,9 @@ export function MarkResultContent({
           {statusChipLabels[item.status]}
         </span>
         {item.statusDate ? (
-          <time className="text-base text-muted-foreground" dateTime={item.statusDate}>
-            {item.statusDate}
-          </time>
+          <p className="m-0 text-base text-muted-foreground">
+            <time dateTime={item.statusDate}>{item.statusDate}</time>
+          </p>
         ) : null}
       </div>
     </>

@@ -13,7 +13,7 @@ function SelectChevron() {
   return (
     <HugeiconsIcon
       aria-hidden="true"
-      className="block size-3.5 shrink-0 text-muted-foreground transition-transform duration-[120ms] ease-out group-data-[popup-open]:rotate-180 max-[48rem]:col-start-2 max-[48rem]:row-start-2"
+      className="col-start-2 row-start-2 size-3.5 shrink-0 text-muted-foreground transition-transform duration-[120ms] ease-out group-data-[popup-open]:rotate-180"
       icon={ArrowDown01Icon}
     />
   );
@@ -46,11 +46,11 @@ export function SearchOptionSelect<T extends string>({
     <Menu>
       <MenuTrigger
         aria-label={`${label}: ${selected.label}`}
-        className="group grid min-h-11 min-w-44 flex-auto cursor-pointer grid-cols-[auto_auto_auto] items-center gap-[0.65rem] border-0 border-border border-r bg-transparent px-4 py-[0.45rem] text-left font-[650] text-[0.75rem] text-inherit uppercase tracking-[0.09em] hover:bg-accent focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2 data-[popup-open]:bg-accent max-[48rem]:min-h-14 max-[48rem]:w-full max-[48rem]:min-w-0 max-[48rem]:grid-cols-[minmax(0,1fr)_auto] max-[48rem]:content-start max-[48rem]:gap-x-3 max-[48rem]:gap-y-[0.35rem] max-[48rem]:border-r-0 max-[48rem]:border-b max-[48rem]:px-4 max-[48rem]:py-3"
+        className="group grid min-h-16 w-full min-w-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] content-center gap-x-3 gap-y-1 border-0 border-border border-r bg-transparent px-4 py-3 text-left text-inherit hover:bg-accent focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2 data-[popup-open]:bg-accent max-[48rem]:border-b"
         name={name}
       >
-        <span className="max-[48rem]:col-span-full">{label}</span>
-        <span className="whitespace-nowrap font-bold text-base text-foreground normal-case tracking-normal">
+        <span className="utility-label col-span-full text-muted-foreground">{label}</span>
+        <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-base text-foreground">
           {selected.label}
         </span>
         <SelectChevron />
@@ -63,7 +63,7 @@ export function SearchOptionSelect<T extends string>({
         <MenuRadioGroup onValueChange={changeValue} value={value}>
           {options.map((option) => (
             <MenuRadioItem
-              className="min-h-11 whitespace-nowrap rounded-none border-border border-b px-4 py-[0.45rem] font-bold text-[0.75rem] uppercase tracking-[0.09em] last:border-b-0 data-[checked]:data-[highlighted]:bg-primary data-[checked]:bg-primary data-[highlighted]:bg-accent data-[checked]:text-primary-foreground"
+              className="min-h-11 whitespace-nowrap rounded-none border-border border-b px-4 py-2.5 last:border-b-0 data-[checked]:data-[highlighted]:bg-primary data-[checked]:bg-primary data-[highlighted]:bg-accent data-[checked]:text-primary-foreground"
               closeOnClick
               key={option.value}
               value={option.value}

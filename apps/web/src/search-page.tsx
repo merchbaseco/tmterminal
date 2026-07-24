@@ -37,6 +37,7 @@ interface SearchState {
 }
 
 const matchLabels = { exact: "", partial: "Partial" } as const;
+const countFormatter = new Intl.NumberFormat("en-US");
 const registeredOptions = [
   { label: "All", value: "all" },
   { label: "Yes", value: "yes" },
@@ -212,7 +213,7 @@ export function SearchPage({
   const items = data?.pages.flatMap((page) => page.items) ?? [];
   const virtualizer = useWindowVirtualizer({
     count: items.length,
-    estimateSize: () => 72,
+    estimateSize: () => 84,
     getItemKey: (index) => items[index]?.serialNumber ?? index,
     initialRect: { height: 640, width: 1200 },
     overscan: 3,
@@ -292,8 +293,8 @@ export function SearchPage({
   return (
     <main
       className={cn(
-        "page-shell isolate flex min-h-[calc(100dvh-var(--topbar-height,4.5rem))] flex-col pt-[clamp(1.25rem,2vw,2rem)]",
-        state.query && "pt-0"
+        "page-shell isolate flex min-h-[calc(100dvh-var(--topbar-height,4.5rem))] flex-col [--search-side-column:clamp(13rem,18vw,16rem)]",
+        !state.query && "page-start"
       )}
     >
       {state.query ? (
@@ -301,7 +302,7 @@ export function SearchPage({
       ) : (
         <header>
           <p className="mb-4 font-[650] text-base">Trademark search for Print on Demand sellers.</p>
-          <h1 className="m-0 max-w-[10ch] font-black text-[clamp(2.75rem,min(12.5vw,18dvh),14rem)] leading-[0.78] tracking-[-0.055em]">
+          <h1 className="display-masthead m-0 max-w-[10ch] text-[clamp(2.75rem,min(12.5vw,18dvh),14rem)]">
             TRADEMARK
             <br />
             TURTLE
@@ -311,22 +312,21 @@ export function SearchPage({
 
       <div
         className={cn(
-          state.query && "sticky top-[var(--topbar-height,4.5rem)] z-10 bg-background pt-4"
+          state.query
+            ? "page-start sticky top-[var(--topbar-height,4.5rem)] z-10 bg-background"
+            : "pt-[clamp(1.5rem,4vw,3.5rem)] pb-5"
         )}
       >
         <form
-          className={cn(
-            "grid grid-cols-[minmax(0,1fr)_auto] gap-3 px-0 pt-[clamp(1.5rem,4vw,3.5rem)] pb-5 [--search-control-height:clamp(3.5rem,7vw,5.5rem)] max-[48rem]:grid-cols-1 [&>[data-slot=button]]:h-[var(--search-control-height)] [&>[data-slot=button]]:px-[clamp(1.5rem,3vw,2.5rem)] [&>[data-slot=button]]:text-[clamp(1.125rem,1.5vw,1.4rem)] [&_[data-slot=input-control]]:h-[var(--search-control-height)] [&_[data-slot=input-control]]:rounded-[var(--radius)] [&_[data-slot=input]]:h-full [&_[data-slot=input]]:py-0 [&_[data-slot=input]]:pr-[clamp(1rem,2vw,1.5rem)] [&_[data-slot=input]]:pl-[clamp(2.75rem,4.5vw,3.75rem)] [&_[data-slot=input]]:font-semibold [&_[data-slot=input]]:text-[clamp(1.25rem,3vw,2.4rem)] [&_[data-slot=input]]:leading-none [&_[data-slot=input]]:tracking-[-0.035em]",
-            state.query &&
-              "pt-1 pb-3 [--search-control-height:2.75rem] [&_[data-slot=input]]:pl-10 [&_[data-slot=input]]:text-xl [&_[data-slot=search-icon]]:left-3 [&_[data-slot=search-icon]]:size-[1.15rem]"
-          )}
+          className="grid grid-cols-[minmax(0,1fr)_var(--search-side-column)] gap-0 border border-border px-0 [--search-control-height:4.25rem] **:data-[slot=search-icon]:left-3 **:data-[slot=search-icon]:size-[1.15rem] **:data-[slot=input-control]:h-[var(--search-control-height)] **:data-[slot=input]:h-full *:data-[slot=button]:h-[var(--search-control-height)] *:data-[slot=button]:w-full **:data-[slot=input-control]:border-0 *:data-[slot=button]:border-0 *:data-[slot=button]:border-border *:data-[slot=button]:border-l **:data-[slot=input-control]:bg-transparent *:data-[slot=button]:px-[clamp(1.5rem,3vw,2.5rem)] **:data-[slot=input]:py-0 **:data-[slot=input]:pr-[clamp(1rem,2vw,1.5rem)] **:data-[slot=input]:pl-10 **:data-[slot=input]:font-semibold **:data-[slot=input]:text-xl *:data-[slot=button]:text-[clamp(1.125rem,1.5vw,1.4rem)] **:data-[slot=input]:leading-none **:data-[slot=input]:tracking-[-0.035em] **:data-[slot=input-control]:shadow-none *:data-[slot=button]:shadow-none max-[48rem]:grid-cols-[minmax(0,1fr)_7.5rem] has-[input:focus-visible]:[&>[data-slot=button]]:border-l-transparent [&_[data-slot=input-control]::before]:shadow-none"
+          data-slot="trademark-search-form"
           // biome-ignore lint/performance/noJsxPropsBind: The local submit handler reads this page's draft query.
           onSubmit={submit}
         >
           <label className="sr-only" htmlFor="trademark-search">
             Search trademarks
           </label>
-          <div className="relative min-w-0">
+          <div className="relative min-w-0 before:pointer-events-none before:absolute before:inset-0 before:z-20 before:border before:border-transparent before:content-[''] has-[input:focus-visible]:before:border-ring">
             <HugeiconsIcon
               aria-hidden="true"
               className="pointer-events-none absolute top-1/2 left-[clamp(1rem,2vw,1.5rem)] z-10 size-[clamp(1.25rem,2vw,1.6rem)] -translate-y-1/2 text-muted-foreground"
@@ -334,6 +334,7 @@ export function SearchPage({
               icon={Search01Icon}
             />
             <Input
+              className="rounded-none before:rounded-none"
               id="trademark-search"
               maxLength={200}
               name="query"
@@ -346,7 +347,7 @@ export function SearchPage({
               value={draftQuery}
             />
           </div>
-          <Button size="xl" type="submit">
+          <Button className="rounded-none before:rounded-none" size="xl" type="submit">
             Search
           </Button>
         </form>
@@ -355,7 +356,7 @@ export function SearchPage({
           <Button
             aria-controls="search-options"
             aria-expanded={filtersOpen}
-            className="mb-3 hidden w-full max-[48rem]:inline-flex"
+            className="pill-button mb-3 hidden w-full max-[48rem]:inline-flex"
             // biome-ignore lint/performance/noJsxPropsBind: This mobile disclosure owns one local boolean.
             onClick={() => setFiltersOpen((open) => !open)}
             variant="outline"
@@ -374,68 +375,73 @@ export function SearchPage({
         <section
           aria-label="Search options"
           className={cn(
-            "flex flex-wrap items-end border-border border-y max-[48rem]:hidden max-[48rem]:grid-cols-2 max-[48rem]:items-stretch",
+            "grid grid-cols-[minmax(0,1fr)_var(--search-side-column)] items-stretch border border-border border-t-0 max-[48rem]:hidden max-[48rem]:grid-cols-2 min-[48rem]:[&_[name=sort]]:border-l",
             filtersOpen && "max-[48rem]:grid"
           )}
           hidden={!state.query}
           id="search-options"
         >
-          {/* biome-ignore lint/a11y/useSemanticElements: A native fieldset legend sits off-grid and breaks the shared filter baseline. */}
-          <div
-            aria-labelledby="search-match-label"
-            className="flex min-h-11 flex-auto flex-nowrap items-center gap-[0.65rem] border-0 border-border border-r px-4 py-[0.45rem] font-[650] text-[0.75rem] uppercase tracking-[0.09em] max-[48rem]:col-span-full max-[48rem]:grid max-[48rem]:min-h-14 max-[48rem]:grid-cols-[auto_auto] max-[48rem]:content-start max-[48rem]:border-r-0 max-[48rem]:border-b max-[48rem]:px-4 max-[48rem]:py-3 [&_input]:accent-primary [&_label]:flex [&_label]:items-center [&_label]:gap-[0.4rem]"
-            role="group"
-          >
-            <span className="max-[48rem]:col-span-full" id="search-match-label">
-              Match
-            </span>
-            <label>
-              <input
-                checked={state.exact}
-                disabled={state.exact && !state.partial}
-                name="exact"
-                // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
-                onChange={(event) => updateState({ exact: event.target.checked })}
-                type="checkbox"
-              />
-              Exact
-            </label>
-            <label>
-              <input
-                checked={state.partial}
-                disabled={state.partial && !state.exact}
-                name="partial"
-                // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
-                onChange={(event) => updateState({ partial: event.target.checked })}
-                type="checkbox"
-              />
-              Partial
-            </label>
+          <div className="grid min-w-0 grid-cols-[minmax(14rem,1.4fr)_repeat(3,minmax(7rem,1fr))] max-[48rem]:contents min-[48rem]:[&_[name=registered]]:border-r-0">
+            {/* biome-ignore lint/a11y/useSemanticElements: A native fieldset legend sits off-grid and breaks the shared filter baseline. */}
+            <div
+              aria-labelledby="search-match-label"
+              className="grid min-h-16 grid-cols-[auto_auto] content-center justify-start gap-x-4 gap-y-1 border-0 border-border border-r px-4 py-3 max-[48rem]:col-span-full max-[48rem]:border-r-0 max-[48rem]:border-b [&_input]:accent-primary [&_label]:flex [&_label]:items-center [&_label]:gap-2 [&_label]:font-semibold [&_label]:text-base"
+              role="group"
+            >
+              <span
+                className="utility-label col-span-full text-muted-foreground"
+                id="search-match-label"
+              >
+                Match
+              </span>
+              <label>
+                <input
+                  checked={state.exact}
+                  disabled={state.exact && !state.partial}
+                  name="exact"
+                  // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
+                  onChange={(event) => updateState({ exact: event.target.checked })}
+                  type="checkbox"
+                />
+                Exact
+              </label>
+              <label>
+                <input
+                  checked={state.partial}
+                  disabled={state.partial && !state.exact}
+                  name="partial"
+                  // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
+                  onChange={(event) => updateState({ partial: event.target.checked })}
+                  type="checkbox"
+                />
+                Partial
+              </label>
+            </div>
+            <SearchOptionSelect
+              label="Status"
+              name="status"
+              // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
+              onValueChange={(status) => updateState({ status })}
+              options={statusOptions}
+              value={state.status}
+            />
+            <SearchOptionSelect
+              label="Type"
+              name="type"
+              // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
+              onValueChange={(type) => updateState({ type })}
+              options={typeOptions}
+              value={state.type}
+            />
+            <SearchOptionSelect
+              label="Registered"
+              name="registered"
+              // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
+              onValueChange={(registered) => updateState({ registered })}
+              options={registeredOptions}
+              value={state.registered}
+            />
           </div>
-          <SearchOptionSelect
-            label="Status"
-            name="status"
-            // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
-            onValueChange={(status) => updateState({ status })}
-            options={statusOptions}
-            value={state.status}
-          />
-          <SearchOptionSelect
-            label="Type"
-            name="type"
-            // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
-            onValueChange={(type) => updateState({ type })}
-            options={typeOptions}
-            value={state.type}
-          />
-          <SearchOptionSelect
-            label="Registered"
-            name="registered"
-            // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
-            onValueChange={(registered) => updateState({ registered })}
-            options={registeredOptions}
-            value={state.registered}
-          />
           <SearchOptionSelect
             label="Sort"
             name="sort"
@@ -448,10 +454,12 @@ export function SearchPage({
       </div>
 
       {query.isPending && state.query ? (
-        <p className="m-0 border-border border-b py-12 text-base">Searching Class 025…</p>
+        <p className="m-0 border-border border-x border-b px-4 py-12 text-base">
+          Searching Class 025…
+        </p>
       ) : null}
       {query.error ? (
-        <div className="flex items-center justify-between gap-4 border-border border-b">
+        <div className="flex items-center justify-between gap-4 border-border border-x border-b px-4">
           <p
             className={cn(
               "m-0 py-8 text-destructive-foreground",
@@ -463,6 +471,7 @@ export function SearchPage({
           </p>
           {conflict ? (
             <Button
+              className="pill-button"
               // biome-ignore lint/performance/noJsxPropsBind: Retry resets this page's exact query key.
               onClick={() => queryClient.resetQueries({ exact: true, queryKey })}
               variant="outline"
@@ -473,9 +482,10 @@ export function SearchPage({
         </div>
       ) : null}
       {data && !query.error && total === 0 ? (
-        <div className="flex items-center justify-between border-border border-b py-12">
+        <div className="flex items-center justify-between border-border border-x border-b px-4 py-12">
           <p className="m-0 text-base">No matching marks</p>
           <Button
+            className="pill-button"
             // biome-ignore lint/performance/noJsxPropsBind: The empty state clears this page's URL-owned filters.
             onClick={() =>
               updateState({
@@ -495,17 +505,36 @@ export function SearchPage({
       ) : null}
 
       {data && total > 0 && (!query.error || conflict || replacementFailure) ? (
-        <section aria-label="Search results">
-          <div className="flex min-h-10 items-center font-[650] text-[0.75rem] uppercase tracking-[0.09em] [&_p]:m-0">
-            <p className="flex flex-wrap gap-x-[0.6rem] gap-y-1 [&>span+span]:font-extrabold [&>span:not(:last-child)]:after:ml-[0.6rem] [&>span:not(:last-child)]:after:font-normal [&>span:not(:last-child)]:after:text-muted-foreground [&>span:not(:last-child)]:after:content-['·']">
-              <span>
-                {total} {total === 1 ? "result" : "results"}
-              </span>
-              <span>{data.pages[0]?.liveMatchCounts.exact ?? 0} live exact</span>
-              <span>{data.pages[0]?.liveMatchCounts.partial ?? 0} live partial</span>
-            </p>
+        <section aria-label="Search results" className="border-border border-x">
+          <div
+            className="grid grid-cols-[minmax(0,1fr)_var(--search-side-column)] border-border border-b max-[48rem]:grid-cols-1"
+            data-slot="result-summary"
+          >
+            <div className="flex min-h-11 items-center px-4 py-1.5">
+              <p className="m-0 font-semibold text-lg tabular-nums tracking-tight">
+                {countFormatter.format(total)} {total === 1 ? "result" : "results"}
+              </p>
+            </div>
+            <div className="grid grid-cols-[4fr_5fr] border-border border-l max-[48rem]:border-t max-[48rem]:border-l-0">
+              <div className="flex min-w-0 items-center justify-center gap-1 px-2">
+                <p className="m-0 shrink-0 font-semibold text-base tabular-nums">
+                  {countFormatter.format(data.pages[0]?.liveMatchCounts.exact ?? 0)}
+                </p>
+                <p className="m-0 whitespace-nowrap font-medium text-base text-muted-foreground sm:text-sm">
+                  Live exact
+                </p>
+              </div>
+              <div className="flex min-w-0 items-center justify-center gap-1 border-border border-l px-2">
+                <p className="m-0 shrink-0 font-semibold text-base tabular-nums">
+                  {countFormatter.format(data.pages[0]?.liveMatchCounts.partial ?? 0)}
+                </p>
+                <p className="m-0 whitespace-nowrap font-medium text-base text-muted-foreground sm:text-sm">
+                  Live partial
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="border-border border-t" key={restorationKey}>
+          <div key={restorationKey}>
             <ol
               aria-label="Trademark results"
               className="relative m-0 w-full list-none p-0"
@@ -521,7 +550,7 @@ export function SearchPage({
                   <li
                     aria-posinset={virtualRow.index + 1}
                     aria-setsize={total}
-                    className="absolute top-0 left-0 isolate grid min-h-16 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-8 border-border border-b py-2 has-[a:hover]:bg-accent max-[48rem]:min-h-20 max-[48rem]:gap-4 max-[48rem]:py-2.5"
+                    className="absolute top-0 left-0 isolate grid min-h-20 w-full grid-cols-[minmax(0,1fr)_var(--search-side-column)] items-stretch border-border border-b has-[a:hover]:bg-accent/50 max-[48rem]:grid-cols-[minmax(0,1fr)_auto]"
                     data-index={virtualRow.index}
                     data-testid="search-result-row"
                     key={item.serialNumber}
@@ -549,7 +578,7 @@ export function SearchPage({
             </ol>
           </div>
           {query.isFetchingNextPage ? (
-            <p className="m-0 border-border border-b py-12 text-base">Loading more results…</p>
+            <p className="m-0 border-border border-b px-4 py-12 text-base">Loading more results…</p>
           ) : null}
         </section>
       ) : null}

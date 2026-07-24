@@ -13,15 +13,17 @@ type OperatorSyncApi = import("../src/operator-sync-page.tsx").OperatorSyncApi;
 afterEach(cleanup);
 
 const searchablePattern = /searchable/i;
+const pastThirtyDaysPattern = /Past 30 days ·/;
 const structuredQuotaPattern =
   /The USPTO temporarily blocked this file after 15 requests\. Try again after/;
 let intersectionCallback: IntersectionObserverCallback | undefined;
-const processingActivity = Array.from({ length: 30 }, (_, index) => {
+const applicationActivity = Array.from({ length: 30 }, (_, index) => {
   const value = new Date(Date.UTC(2026, 5, 19 + index));
   const activityDate = value.toISOString().slice(0, 10);
   return {
-    count: index * 1000,
+    applicationUpdates: index * 1000,
     date: activityDate,
+    newApplications: index * 10,
   };
 });
 
@@ -56,6 +58,10 @@ globalThis.IntersectionObserver = TestIntersectionObserver;
 function api(): OperatorSyncApi {
   return {
     artifacts: async ({ limit, offset }) => ({
+      counts: {
+        all: 1,
+        needsAttention: 0,
+      },
       items: [
         {
           applicationCompletedAt: "2026-07-18T12:00:00.000Z",
@@ -88,26 +94,36 @@ function api(): OperatorSyncApi {
     status: async () => ({
       attention: { items: [], total: 0 },
       catalog: {
-        liveMarkCount: 396_199,
-        registeredMarkCount: 585_549,
+        earliestFilingDate: "1895-04-01",
         totalMarkCount: 1_206_290,
       },
       source: {
+        applicationActivity,
         currentArtifact: null,
         lastActivityAt: "2026-07-18T12:05:00.000Z",
         latestProcessedDate: "2026-07-18",
-        processingActivity,
       },
     }),
   };
 }
 
-test("presents the latest processed source and cleaned-up files", async () => {
+test("presents catalog coverage and cleaned-up files", async () => {
   const statusApi = api();
   render(<StatusPage api={statusApi} operatorApi={statusApi} />);
-  expect(await screen.findByText("Status / Latest processed")).toBeTruthy();
-  expect(screen.getByRole("heading", { name: "Jul 18, 2026" })).toBeTruthy();
-  expect(screen.getByText("Nothing needs attention.")).toBeTruthy();
+  expect(await screen.findByRole("heading", { name: "Status" })).toBeTruthy();
+  expect(screen.queryByText("Status / Latest processed")).toBeNull();
+  expect(screen.queryByText("Latest processed")).toBeNull();
+  expect(screen.getByRole("status", { name: "Service status: Live" })).toBeTruthy();
+  expect(screen.getByText("Total trademarks")).toBeTruthy();
+  expect(screen.getByText("Since 1895")).toBeTruthy();
+  expect(screen.getByText("New applications")).toBeTruthy();
+  expect(screen.getByText("Application updates")).toBeTruthy();
+  expect(screen.getAllByText("Last 30 days")).toHaveLength(2);
+  expect(screen.queryByText("Coverage ·")).toBeNull();
+  expect(screen.queryByText(pastThirtyDaysPattern)).toBeNull();
+  expect(screen.getByRole("button", { name: "All: 1" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Errors: 0" })).toBeTruthy();
+  expect(screen.queryByText("Nothing needs attention.")).toBeNull();
   expect(screen.getByText("Complete · Cleaned up")).toBeTruthy();
   expect(screen.getByText("155,000 records → 12,345 marks")).toBeTruthy();
   expect(screen.getByRole("table", { name: "Source files" })).toBeTruthy();
@@ -119,8 +135,8 @@ test("presents the latest processed source and cleaned-up files", async () => {
   ]);
   expect(screen.getByRole("region", { name: "Trademark catalog" })).toBeTruthy();
   expect(screen.getByText("1,206,290")).toBeTruthy();
-  expect(screen.getByText("396,199")).toBeTruthy();
-  expect(screen.getByText("585,549")).toBeTruthy();
+  expect(screen.getByText("4,350")).toBeTruthy();
+  expect(screen.getByText("435,000")).toBeTruthy();
   expect(screen.queryByText("System details")).toBeNull();
   expect(screen.queryByText("Ready")).toBeNull();
   expect(screen.queryByText("Corpus")).toBeNull();
@@ -129,10 +145,56 @@ test("presents the latest processed source and cleaned-up files", async () => {
   expect(screen.queryByText("Retained ZIP unavailable from pre-retention ingestion")).toBeNull();
 });
 
+test("filters the source-file ledger with server-backed counts", async () => {
+  const filteredApi = api();
+  const filters: string[] = [];
+  filteredApi.artifacts = async (input) => {
+    filters.push(input.filter ?? "all");
+    const page = await api().artifacts(input);
+    if (input.filter !== "needs-attention") {
+      return page;
+    }
+    return {
+      ...page,
+      counts: {
+        all: 1,
+        needsAttention: 1,
+      },
+      items: page.items.map((artifact) => ({
+        ...artifact,
+        applicationState: "pending" as const,
+        downloadState: "blocked" as const,
+      })),
+    };
+  };
+
+  render(<StatusPage api={filteredApi} operatorApi={filteredApi} />);
+  expect(await screen.findByText("Complete · Cleaned up")).toBeTruthy();
+
+  fireEvent.click(screen.getByRole("button", { name: "Errors: 0" }));
+
+  expect(await screen.findByText("Needs attention", { selector: "td" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Errors: 1" }).getAttribute("aria-pressed")).toBe(
+    "true"
+  );
+  expect(filters).toEqual(["all", "needs-attention"]);
+});
+
+test("mirrors the status layout while aggregate data loads", () => {
+  const pendingApi = api();
+  pendingApi.status = () => new Promise(() => undefined);
+
+  render(<StatusPage api={pendingApi} />);
+
+  expect(screen.getByRole("status", { name: "Loading status" })).toBeTruthy();
+  expect(screen.getByTestId("status-page-skeleton")).toBeTruthy();
+  expect(screen.queryByText("Loading status…")).toBeNull();
+});
+
 test("explains source files displaced by broad coverage", async () => {
   const sourceApi = api();
-  sourceApi.artifacts = async ({ limit, offset }) => {
-    const page = await api().artifacts({ limit, offset });
+  sourceApi.artifacts = async ({ filter, limit, offset }) => {
+    const page = await api().artifacts({ filter, limit, offset });
     const [source] = page.items;
     if (!source) {
       throw new Error("Source fixture is unavailable");
@@ -152,29 +214,41 @@ test("explains source files displaced by broad coverage", async () => {
   expect(screen.getByText("Not downloaded · Covered by newer source data")).toBeTruthy();
 });
 
-test("charts thirty days of processed source records", async () => {
+test("charts thirty days of trademark applications and updates", async () => {
   const chartApi = api();
 
   render(<StatusPage api={chartApi} />);
-  expect(await screen.findByRole("heading", { name: "Records processed" })).toBeTruthy();
-  expect(screen.getByText("Past 30 days · Jun 19 – Jul 18, 2026")).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Jun 19, 2026 · 0 records" })).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Jul 5, 2026 · 16,000 records" })).toBeTruthy();
-  const latestBar = screen.getByRole("button", { name: "Jul 18, 2026 · 29,000 records" });
-  expect(latestBar).toBeTruthy();
-  expect(screen.queryByTitle("Jul 18, 2026 · 29,000 records")).toBeNull();
+  expect(
+    await screen.findByRole("heading", { name: "Trademark applications and updates" })
+  ).toBeTruthy();
+  expect(screen.getByText("435,000")).toBeTruthy();
+  expect(
+    screen.getByRole("listitem", {
+      name: "Jun 19, 2026 · 0 new applications · 0 application updates",
+    })
+  ).toBeTruthy();
+  expect(
+    screen.getByRole("listitem", {
+      name: "Jul 5, 2026 · 160 new applications · 16,000 application updates",
+    })
+  ).toBeTruthy();
+  expect(
+    screen.getByRole("listitem", {
+      name: "Jul 18, 2026 · 290 new applications · 29,000 application updates",
+    })
+  ).toBeTruthy();
 });
 
 test("appends source files on scroll and retries a failed page", async () => {
   const scrollingApi = api();
   const offsets: number[] = [];
   let failNextPage = true;
-  scrollingApi.artifacts = async ({ limit: pageLimit, offset }) => {
+  scrollingApi.artifacts = async ({ filter, limit: pageLimit, offset }) => {
     offsets.push(offset);
     if (offset === 1 && failNextPage) {
       throw new Error("page failed");
     }
-    const page = await api().artifacts({ limit: pageLimit, offset });
+    const page = await api().artifacts({ filter, limit: pageLimit, offset });
     return {
       ...page,
       items: page.items.map((artifact) => ({
@@ -211,6 +285,7 @@ test("explains a rate-limited source file without implying existing data is unav
     const page = await api().artifacts(input);
     return {
       ...page,
+      counts: { ...page.counts, needsAttention: 1 },
       items: page.items.map((artifact) => ({
         ...artifact,
         applicationState: "pending" as const,
@@ -243,6 +318,7 @@ test("explains a rate-limited source file without implying existing data is unav
   };
   render(<StatusPage api={failedApi} operatorApi={failedApi} />);
   expect(await screen.findByText(structuredQuotaPattern)).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Errors: 1" })).toBeTruthy();
   expect(screen.queryByText(searchablePattern)).toBeNull();
   expect(screen.getByText("Needs attention", { selector: "td" })).toBeTruthy();
   expect(screen.queryByText("429 from a provider endpoint")).toBeNull();
@@ -329,7 +405,7 @@ test("shows the current file as quiet background work", async () => {
 
 test("hides operator sections from the public status surface", async () => {
   render(<StatusPage api={api()} />);
-  expect(await screen.findByRole("heading", { name: "Jul 18, 2026" })).toBeTruthy();
+  expect(await screen.findByRole("heading", { name: "Status" })).toBeTruthy();
   expect(screen.queryByText("Needs attention")).toBeNull();
   expect(screen.queryByText("Source files")).toBeNull();
 });

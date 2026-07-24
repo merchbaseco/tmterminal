@@ -14,7 +14,7 @@ HTMLElement.prototype.getBoundingClientRect = function () {
     return new DOMRect(0, 0, 1200, 640);
   }
   if (this.dataset.testid === "search-result-row") {
-    return new DOMRect(0, 0, 1200, 64);
+    return new DOMRect(0, 0, 1200, 84);
   }
   return getBoundingClientRect.call(this);
 };
@@ -28,7 +28,7 @@ class TestResizeObserver implements ResizeObserver {
     this.callback = undefined;
   }
   observe(target: Element) {
-    const blockSize = (target as HTMLElement).dataset.testid === "search-result-row" ? 64 : 640;
+    const blockSize = (target as HTMLElement).dataset.testid === "search-result-row" ? 84 : 640;
     queueMicrotask(() => {
       if (!this.callback) {
         return;
@@ -62,6 +62,8 @@ const defaultMatchMedia = window.matchMedia;
 let signedIn = false;
 let operator = false;
 let signInModalOpens = 0;
+let userProfileModalOpens = 0;
+const signOutRedirects: (string | undefined)[] = [];
 let scrollOffset = 0;
 const searchInputs: unknown[] = [];
 let searchHandler: (input: { query: string }) => Promise<typeof searchResult>;
@@ -137,25 +139,20 @@ const mark = {
   type: "text" as const,
 };
 
-const reportResult = {
-  from: "2026-07-06",
-  items: searchResult.items.map(({ match: _match, ...item }) => item),
-  limit: 25 as const,
-  meta: searchResult.meta,
-  offset: 0,
-  to: "2026-07-12",
-  total: 1,
-};
 const statusResult = {
-  catalog: { liveMarkCount: 400_000, registeredMarkCount: 600_000, totalMarkCount: 1_200_000 },
+  catalog: {
+    earliestFilingDate: "1895-04-01",
+    totalMarkCount: 1_200_000,
+  },
   source: {
+    applicationActivity: Array.from({ length: 30 }, (_, index) => ({
+      applicationUpdates: index * 1000,
+      date: new Date(Date.UTC(2026, 5, 19 + index)).toISOString().slice(0, 10),
+      newApplications: index * 10,
+    })),
     currentArtifact: null,
     lastActivityAt: "2026-07-18T12:00:00.000Z",
     latestProcessedDate: "2026-07-18",
-    processingActivity: Array.from({ length: 30 }, (_, index) => ({
-      count: index * 1000,
-      date: new Date(Date.UTC(2026, 5, 19 + index)).toISOString().slice(0, 10),
-    })),
   },
 };
 
@@ -173,16 +170,27 @@ mock.module("@clerk/react", () => ({
         children.props.onClick?.(event);
       },
     }),
-  UserButton: () => null,
   useAuth: () => ({ getToken: async () => "clerk-session" }),
   useClerk: () => ({
     openSignIn: () => {
       signInModalOpens += 1;
     },
+    openUserProfile: () => {
+      userProfileModalOpens += 1;
+    },
+    signOut: ({ redirectUrl }: { redirectUrl?: string } = {}) => {
+      signOutRedirects.push(redirectUrl);
+      return Promise.resolve();
+    },
   }),
   useSignIn: () => ({ fetchStatus: "idle", signIn: {} }),
   useUser: () => ({
-    user: { primaryEmailAddress: { emailAddress: "zach@example.com" } },
+    user: {
+      firstName: "Zach",
+      fullName: "Zach Knickerbocker",
+      imageUrl: "https://example.test/zach.png",
+      primaryEmailAddress: { emailAddress: "zach@example.com" },
+    },
   }),
 }));
 
@@ -191,6 +199,9 @@ mock.module("@trpc/client", () => ({
     account: {
       "api-keys": {
         create: {
+          mutate: () => Promise.reject(new Error("not used")),
+        },
+        delete: {
           mutate: () => Promise.reject(new Error("not used")),
         },
         list: { query: async () => [] },
@@ -210,7 +221,15 @@ mock.module("@trpc/client", () => ({
     },
     ops: {
       sync: {
-        artifacts: { query: async () => ({ items: [], limit: 25, offset: 0, total: 0 }) },
+        artifacts: {
+          query: async () => ({
+            counts: { all: 0, needsAttention: 0 },
+            items: [],
+            limit: 25,
+            offset: 0,
+            total: 0,
+          }),
+        },
         status: {
           query: async () => ({
             ...statusResult,
@@ -220,7 +239,6 @@ mock.module("@trpc/client", () => ({
         },
       },
     },
-    reports: { run: { query: async () => reportResult } },
     viewer: { role: { query: async () => ({ operator }) } },
   }),
   httpLink: () => ({}),
@@ -234,6 +252,8 @@ beforeEach(() => {
   signedIn = false;
   operator = false;
   signInModalOpens = 0;
+  userProfileModalOpens = 0;
+  signOutRedirects.length = 0;
   scrollOffset = 0;
   searchInputs.length = 0;
   searchHandler = () => Promise.resolve(searchResult);
@@ -257,27 +277,28 @@ test("appearance initializes before the application module", async () => {
 });
 
 test("appearance follows the system initially and persists an explicit choice", async () => {
+  signedIn = true;
   render(<App />);
 
-  const appearance = screen.getByRole("button", { name: "Appearance: System" });
-  expect(appearance).toBeTruthy();
+  const accountMenu = screen.getByRole("button", {
+    name: "Account menu for Zach Knickerbocker",
+  });
   expect(document.documentElement.classList.contains("dark")).toBe(false);
 
-  fireEvent.click(appearance);
+  fireEvent.click(accountMenu);
   fireEvent.click(await screen.findByRole("menuitemradio", { name: "Dark" }));
 
   await waitFor(() => expect(document.documentElement.classList.contains("dark")).toBe(true));
   expect(localStorage.getItem("tmturtle-appearance")).toBe("dark");
-  expect(screen.getByRole("button", { name: "Appearance: Dark" })).toBeTruthy();
 
   cleanup();
   document.documentElement.classList.remove("dark");
   render(<App />);
-  expect(screen.getByRole("button", { name: "Appearance: Dark" })).toBeTruthy();
   await waitFor(() => expect(document.documentElement.classList.contains("dark")).toBe(true));
 });
 
 test("system appearance follows a dark system preference", async () => {
+  signedIn = true;
   window.matchMedia = ((query: string) => ({
     addEventListener: () => undefined,
     addListener: () => undefined,
@@ -291,8 +312,58 @@ test("system appearance follows a dark system preference", async () => {
 
   render(<App />);
 
-  expect(screen.getByRole("button", { name: "Appearance: System" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Account menu for Zach Knickerbocker" })).toBeTruthy();
   await waitFor(() => expect(document.documentElement.classList.contains("dark")).toBe(true));
+});
+
+test("signed-out system appearance follows preference changes", async () => {
+  let systemDark = false;
+  let listener: (() => void) | undefined;
+  window.matchMedia = ((query: string) => ({
+    addEventListener: (_event: string, nextListener: () => void) => {
+      listener = nextListener;
+    },
+    addListener: () => undefined,
+    dispatchEvent: () => true,
+    get matches() {
+      return systemDark;
+    },
+    media: query,
+    onchange: null,
+    removeEventListener: () => undefined,
+    removeListener: () => undefined,
+  })) as typeof window.matchMedia;
+
+  render(<App />);
+  expect(document.documentElement.classList.contains("dark")).toBe(false);
+
+  systemDark = true;
+  listener?.();
+
+  await waitFor(() => expect(document.documentElement.classList.contains("dark")).toBe(true));
+});
+
+test("account menu owns identity, account management, appearance, and sign out", async () => {
+  signedIn = true;
+  render(<App />);
+
+  const accountMenu = screen.getByRole("button", {
+    name: "Account menu for Zach Knickerbocker",
+  });
+  fireEvent.click(accountMenu);
+
+  expect(await screen.findByText("Zach Knickerbocker")).toBeTruthy();
+  expect(screen.getByText("zach@example.com")).toBeTruthy();
+  expect(screen.getByRole("menuitemradio", { name: "Light" })).toBeTruthy();
+  expect(screen.getByRole("menuitemradio", { name: "Dark" })).toBeTruthy();
+  expect(screen.getByRole("menuitemradio", { name: "System" })).toBeTruthy();
+
+  fireEvent.click(screen.getByRole("menuitem", { name: "Manage account" }));
+  expect(userProfileModalOpens).toBe(1);
+
+  fireEvent.click(accountMenu);
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Sign out" }));
+  await waitFor(() => expect(signOutRedirects).toEqual(["/search"]));
 });
 
 test("signed-out query composition survives modal sign-in before authenticated search", async () => {
@@ -394,44 +465,28 @@ test("compact menu exposes primary navigation on small screens", async () => {
   const currentSearchItem = await screen.findByRole("menuitem", { name: "Search" });
   expect(currentSearchItem.getAttribute("aria-current")).toBe("page");
   expect(currentSearchItem.className.split(" ")).toContain("bg-accent");
-  expect(screen.getByRole("menuitem", { name: "Filed previous week" })).toBeTruthy();
-  expect(screen.getByRole("menuitem", { name: "Published for opposition" })).toBeTruthy();
+  expect(screen.queryByRole("menuitem", { name: "Filed previous week" })).toBeNull();
+  expect(screen.queryByRole("menuitem", { name: "Published for opposition" })).toBeNull();
   const accountItem = screen.getByRole("menuitem", { name: "Account" });
   expect(accountItem.getAttribute("aria-current")).toBeNull();
   expect(accountItem.className.split(" ")).not.toContain("bg-accent");
 
   fireEvent.click(screen.getByRole("menuitem", { name: "Status" }));
   await waitFor(() => expect(window.location.pathname).toBe("/status"));
-  expect(await screen.findByRole("heading", { name: "Jul 18, 2026" })).toBeTruthy();
-});
-
-test("Reports presets navigate to the generated result route", async () => {
-  signedIn = true;
-  render(<App />);
-  expect(screen.getByRole("link", { name: "Status" })).toBeTruthy();
-  expect(screen.getByRole("link", { name: "Search" }).getAttribute("aria-current")).toBe("page");
-
-  fireEvent.click(screen.getByRole("button", { name: "Reports" }));
-  fireEvent.click(await screen.findByRole("menuitem", { name: "Filed previous week" }));
-
-  await waitFor(() => expect(window.location.pathname).toBe("/reports"));
-  expect(new URLSearchParams(window.location.search).get("event")).toBe("filed");
-  expect(await screen.findByRole("heading", { name: "FILED" })).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Reports" }).getAttribute("aria-current")).toBe("page");
-  expect(screen.getByRole("link", { name: turtleMarkLinkPattern })).toBeTruthy();
+  expect(await screen.findByRole("heading", { name: "Status" })).toBeTruthy();
 });
 
 test("shows public Status and Help without exposing operator sections", async () => {
   render(<App />);
 
   fireEvent.click(screen.getByRole("link", { name: "Status" }));
-  expect(await screen.findByRole("heading", { name: "Jul 18, 2026" })).toBeTruthy();
+  expect(await screen.findByRole("heading", { name: "Status" })).toBeTruthy();
   expect(screen.getByText("1,200,000")).toBeTruthy();
   expect(screen.queryByText("Needs attention")).toBeNull();
   expect(screen.queryByText("Source files")).toBeNull();
 
   fireEvent.click(screen.getByRole("link", { name: "Help" }));
-  expect(await screen.findByRole("heading", { name: "SEARCH WITH CONFIDENCE" })).toBeTruthy();
+  expect(await screen.findByRole("heading", { name: "SEARCH SMARTER" })).toBeTruthy();
   expect(screen.getByText("Search modes")).toBeTruthy();
 });
 
@@ -441,44 +496,24 @@ test("shows operator details on the shared Status page", async () => {
   window.history.replaceState({}, "", "/status");
   render(<App />);
 
-  expect(await screen.findByText("Nothing needs attention.")).toBeTruthy();
+  expect(await screen.findByRole("button", { name: "Errors: 0" })).toBeTruthy();
   expect(screen.getByText("Source files")).toBeTruthy();
   expect(screen.getByRole("link", { name: "Status" }).getAttribute("aria-current")).toBe("page");
 });
 
-test("Account navigation opens identity and API-key management", async () => {
+test("Account navigation opens API-key management", async () => {
   signedIn = true;
   render(<App />);
 
+  scrollOffset = 320;
   fireEvent.click(screen.getByRole("link", { name: "Account" }));
 
   await waitFor(() => expect(window.location.pathname).toBe("/account"));
-  expect(await screen.findByRole("heading", { level: 1, name: "ACCOUNT" })).toBeTruthy();
-  expect(screen.getByText("zach@example.com")).toBeTruthy();
+  expect(scrollOffset).toBe(0);
+  expect(await screen.findByRole("heading", { level: 1, name: "ACCESS CONTROL" })).toBeTruthy();
+  expect(screen.queryByText("zach@example.com")).toBeNull();
   expect(screen.getByRole("button", { name: "Create API key" })).toBeTruthy();
   expect(screen.getByRole("link", { name: "Account" }).getAttribute("aria-current")).toBe("page");
-});
-
-test("report detail Back restores the generated page and document scroll", async () => {
-  signedIn = true;
-  scrollOffset = 420;
-  window.history.replaceState(
-    {},
-    "",
-    "/reports?event=filed&window=previous-week&type=all&status=all&registered=all&sort=newest-activity&dataVersion=7&from=2026-07-06&to=2026-07-12&offset=25"
-  );
-  render(<App />);
-
-  const reportMark = await screen.findByRole("link", { name: turtleMarkLinkPattern });
-  scrollOffset = 420;
-  fireEvent.click(reportMark);
-  await waitFor(() => expect(window.location.pathname).toBe("/marks/70000001"));
-  scrollOffset = 0;
-  fireEvent.click(await screen.findByRole("link", { name: "Back to results" }));
-
-  await waitFor(() => expect(window.location.pathname).toBe("/reports"));
-  expect(new URLSearchParams(window.location.search).get("offset")).toBe("25");
-  await waitFor(() => expect(scrollOffset).toBe(420));
 });
 
 test("leaving a failed replacement clears retained results and the next failure is ordinary", async () => {
