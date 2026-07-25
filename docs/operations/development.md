@@ -50,6 +50,26 @@ VITE_DEV_CLERK_AUTO_SIGN_IN=true
 The development sign-in endpoint exists only on loopback with the explicit
 server opt-in. It creates a normal Clerk session and is absent in production.
 
+## Agent Harnesses
+
+Codex and Claude Code share `AGENTS.md`; `CLAUDE.md` is a symlink to it.
+
+Codex reads `.codex/environments/environment.toml` for its setup script and
+`dev` action. Claude Code reads the tracked `.claude/settings.json`, whose
+`SessionStart` hook runs `./scripts/claude-session-start`. That script installs
+workspace dependencies when a checkout has none and writes the ignored
+`.claude/launch.json` so the editor's preview control starts `./scripts/dev` on
+this checkout's first `dev-port`.
+
+The launch config pins the preview to `http://127.0.0.1:<port>`. Clerk
+authorizes the exact origin `./scripts/dev` exports as
+`CLERK_AUTHORIZED_PARTIES`, so opening the same website on `localhost` is a
+different origin and every data procedure answers 401.
+
+Claude Code worktrees are fresh checkouts. `.worktreeinclude` lists the ignored
+files they receive, currently `.env`; everything else comes from the session
+hook.
+
 ## Production-shaped Compose
 
 ```bash
