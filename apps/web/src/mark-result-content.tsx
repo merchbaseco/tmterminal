@@ -1,6 +1,7 @@
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { useCallback } from "react";
 import { cn } from "@/lib/utils";
+import { type HighlightTone, highlightToneStyles } from "./highlight-tones.ts";
 
 interface MarkResult {
   internationalClasses: string[];
@@ -28,10 +29,12 @@ const typeLabels = {
 
 export function MarkResultContent({
   contextLabel,
+  indicators = [],
   item,
   onOpen,
 }: {
   contextLabel: string;
+  indicators?: Array<{ label: string; tone: HighlightTone }>;
   item: MarkResult;
   onOpen: (serialNumber: string, scrollOffset: number) => void;
 }) {
@@ -65,6 +68,20 @@ export function MarkResultContent({
           >
             {item.wordMark}
           </a>
+          {indicators.length > 0 ? (
+            <span aria-hidden="true" className="inline-flex shrink-0 items-center gap-1">
+              {indicators.map((indicator) => (
+                <span
+                  className={cn(
+                    "h-2 w-3 shrink-0 -skew-x-6",
+                    highlightToneStyles[indicator.tone].indicator
+                  )}
+                  data-tone={indicator.tone}
+                  key={`${indicator.label}-${indicator.tone}`}
+                />
+              ))}
+            </span>
+          ) : null}
           {contextLabel ? (
             <p className="m-0 shrink-0 font-medium text-muted-foreground text-sm">{contextLabel}</p>
           ) : null}

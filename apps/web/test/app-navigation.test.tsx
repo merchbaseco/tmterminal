@@ -212,6 +212,18 @@ mock.module("@trpc/client", () => ({
     },
     marks: {
       get: { query: () => Promise.resolve(mark) },
+      match: {
+        query: async () => ({
+          meta: { dataVersion: "7" },
+          texts: [],
+        }),
+      },
+      screen: {
+        query: async () => ({
+          meta: { dataVersion: "7" },
+          queries: [],
+        }),
+      },
       search: {
         query: (input: unknown) => {
           searchInputs.push(input);
@@ -423,6 +435,30 @@ test("whitespace-only signed-out Enter does not navigate or open sign-in", () =>
   expect(searchInputs).toHaveLength(0);
 });
 
+test("the shared search composer switches between search, text, and bulk modes", async () => {
+  signedIn = true;
+  render(<App />);
+
+  const searchField = screen.getByRole("searchbox", { name: "Search trademarks" });
+  const searchAction = screen.getByRole("button", { name: "Search" }) as HTMLButtonElement;
+  expect(searchAction.disabled).toBe(false);
+  fireEvent.click(searchAction);
+  expect(screen.getByRole("button", { name: "Give me a word" })).toBeTruthy();
+  expect(document.activeElement).toBe(searchField);
+
+  fireEvent.click(screen.getByRole("link", { name: "Check text" }));
+  await waitFor(() => expect(window.location.pathname).toBe("/check"));
+  expect(screen.getByRole("textbox", { name: "Text to check" })).toBeTruthy();
+
+  fireEvent.click(screen.getByRole("link", { name: "Bulk check" }));
+  await waitFor(() => expect(window.location.pathname).toBe("/bulk"));
+  expect(screen.getByRole("textbox", { name: "Phrases to check" })).toBeTruthy();
+
+  fireEvent.click(screen.getByRole("link", { name: "Search marks" }));
+  await waitFor(() => expect(window.location.pathname).toBe("/search"));
+  expect(screen.getByRole("searchbox", { name: "Search trademarks" })).toBeTruthy();
+});
+
 test("direct mark entry sends Back to results to search", async () => {
   signedIn = true;
   window.history.replaceState({}, "", "/marks/70000001");
@@ -445,6 +481,8 @@ test("search detail Back returns to the app-stored search entry", async () => {
   render(<App />);
 
   const resultLink = await screen.findByRole("link", { name: turtleMarkLinkPattern });
+  expect(screen.queryByRole("link", { name: "Search marks" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Start a new search" })).toBeTruthy();
   fireEvent.click(resultLink);
   await waitFor(() => expect(window.location.pathname).toBe("/marks/70000001"));
   await screen.findByRole("heading", { name: "TURTLE MARK" });
@@ -481,7 +519,7 @@ test("shows public Status and Help without exposing operator sections", async ()
 
   fireEvent.click(screen.getByRole("link", { name: "Status" }));
   expect(await screen.findByRole("heading", { name: "Status" })).toBeTruthy();
-  expect(screen.getByText("1,200,000")).toBeTruthy();
+  expect(await screen.findByText("1,200,000")).toBeTruthy();
   expect(screen.queryByText("Needs attention")).toBeNull();
   expect(screen.queryByText("Source files")).toBeNull();
 

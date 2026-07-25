@@ -1,16 +1,20 @@
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowDown01Icon, Search01Icon } from "@hugeicons-pro/core-stroke-rounded";
+import { ArrowDown01Icon } from "@hugeicons-pro/core-stroke-rounded";
 import { type InfiniteData, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
 import { type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { AppRouter } from "../../server/src/api/router.ts";
 import { LegalFooter } from "./legal-footer.tsx";
-import { MarkResultContent } from "./mark-result-content.tsx";
+import { SearchComposer, SearchMasthead } from "./search-composer.tsx";
 import { SearchOptionSelect } from "./search-option-select.tsx";
+import {
+  TrademarkEmptyState,
+  TrademarkResultRow,
+  TrademarkResultSummary,
+} from "./trademark-results.tsx";
 import { trpcErrorCode } from "./trpc-error-code.ts";
 
 type RouterInputs = inferRouterInputs<AppRouter>;
@@ -288,6 +292,11 @@ export function SearchPage({
     }
   }
 
+  function startOver() {
+    onNavigate("/search");
+    window.scrollTo(0, 0);
+  }
+
   const total = data?.pages[0]?.total ?? 0;
 
   return (
@@ -300,14 +309,7 @@ export function SearchPage({
       {state.query ? (
         <h1 className="sr-only">Trademark search results for “{state.query}”</h1>
       ) : (
-        <header>
-          <p className="mb-4 font-[650] text-base">Trademark search for Print on Demand sellers.</p>
-          <h1 className="display-masthead m-0 max-w-[10ch] text-[clamp(2.75rem,min(12.5vw,18dvh),14rem)]">
-            TRADEMARK
-            <br />
-            TURTLE
-          </h1>
-        </header>
+        <SearchMasthead />
       )}
 
       <div
@@ -317,40 +319,22 @@ export function SearchPage({
             : "pt-[clamp(1.5rem,4vw,3.5rem)] pb-5"
         )}
       >
-        <form
-          className="grid grid-cols-[minmax(0,1fr)_var(--search-side-column)] gap-0 border border-border px-0 [--search-control-height:4.25rem] **:data-[slot=search-icon]:left-3 **:data-[slot=search-icon]:size-[1.15rem] **:data-[slot=input-control]:h-[var(--search-control-height)] **:data-[slot=input]:h-full *:data-[slot=button]:h-[var(--search-control-height)] *:data-[slot=button]:w-full **:data-[slot=input-control]:border-0 *:data-[slot=button]:border-0 *:data-[slot=button]:border-border *:data-[slot=button]:border-l **:data-[slot=input-control]:bg-transparent *:data-[slot=button]:px-[clamp(1.5rem,3vw,2.5rem)] **:data-[slot=input]:py-0 **:data-[slot=input]:pr-[clamp(1rem,2vw,1.5rem)] **:data-[slot=input]:pl-10 **:data-[slot=input]:font-semibold **:data-[slot=input]:text-xl *:data-[slot=button]:text-[clamp(1.125rem,1.5vw,1.4rem)] **:data-[slot=input]:leading-none **:data-[slot=input]:tracking-[-0.035em] **:data-[slot=input-control]:shadow-none *:data-[slot=button]:shadow-none max-[48rem]:grid-cols-[minmax(0,1fr)_7.5rem] has-[input:focus-visible]:[&>[data-slot=button]]:border-l-transparent [&_[data-slot=input-control]::before]:shadow-none"
-          data-slot="trademark-search-form"
-          // biome-ignore lint/performance/noJsxPropsBind: The local submit handler reads this page's draft query.
+        <SearchComposer
+          actionLabel="Search"
+          activeTool="marks"
+          fieldLabel="Search trademarks"
+          invalidActionLabel={draftQuery.trim() ? undefined : "Give me a word"}
+          maxLength={200}
+          name="query"
+          onNavigate={onNavigate}
+          onStartOver={state.query ? startOver : undefined}
+          // biome-ignore lint/performance/noJsxPropsBind: The local submit handler reads URL-owned search state.
           onSubmit={submit}
-        >
-          <label className="sr-only" htmlFor="trademark-search">
-            Search trademarks
-          </label>
-          <div className="relative min-w-0 before:pointer-events-none before:absolute before:inset-0 before:z-20 before:border before:border-transparent before:content-[''] has-[input:focus-visible]:before:border-ring">
-            <HugeiconsIcon
-              aria-hidden="true"
-              className="pointer-events-none absolute top-1/2 left-[clamp(1rem,2vw,1.5rem)] z-10 size-[clamp(1.25rem,2vw,1.6rem)] -translate-y-1/2 text-muted-foreground"
-              data-slot="search-icon"
-              icon={Search01Icon}
-            />
-            <Input
-              className="rounded-none before:rounded-none"
-              id="trademark-search"
-              maxLength={200}
-              name="query"
-              // biome-ignore lint/performance/noJsxPropsBind: This local input directly owns the draft query.
-              onChange={(event) => setDraftQuery(event.target.value)}
-              placeholder="Search a word mark"
-              required
-              size="lg"
-              type="search"
-              value={draftQuery}
-            />
-          </div>
-          <Button className="rounded-none before:rounded-none" size="xl" type="submit">
-            Search
-          </Button>
-        </form>
+          onValueChange={setDraftQuery}
+          placeholder="Search a word mark"
+          startOverLabel={state.query ? "Start a new search" : undefined}
+          value={draftQuery}
+        />
 
         {state.query ? (
           <Button
@@ -482,58 +466,48 @@ export function SearchPage({
         </div>
       ) : null}
       {data && !query.error && total === 0 ? (
-        <div className="flex items-center justify-between border-border border-x border-b px-4 py-12">
-          <p className="m-0 text-base">No matching marks</p>
-          <Button
-            className="pill-button"
-            // biome-ignore lint/performance/noJsxPropsBind: The empty state clears this page's URL-owned filters.
-            onClick={() =>
-              updateState({
-                exact: true,
-                partial: true,
-                registered: "all",
-                sort: "relevance",
-                status: "all",
-                type: "all",
-              })
+        <div className="border-border border-x">
+          <TrademarkEmptyState
+            action={
+              <Button
+                className="pill-button shrink-0"
+                // biome-ignore lint/performance/noJsxPropsBind: The empty state clears this page's URL-owned filters.
+                onClick={() =>
+                  updateState({
+                    exact: true,
+                    partial: true,
+                    registered: "all",
+                    sort: "relevance",
+                    status: "all",
+                    type: "all",
+                  })
+                }
+                variant="outline"
+              >
+                Clear filters
+              </Button>
             }
-            variant="outline"
-          >
-            Clear filters
-          </Button>
+            description="Nothing matched the current query and filters."
+            title="No matching marks"
+          />
         </div>
       ) : null}
 
       {data && total > 0 && (!query.error || conflict || replacementFailure) ? (
         <section aria-label="Search results" className="border-border border-x">
-          <div
-            className="grid grid-cols-[minmax(0,1fr)_var(--search-side-column)] border-border border-b max-[48rem]:grid-cols-1"
-            data-slot="result-summary"
-          >
-            <div className="flex min-h-11 items-center px-4 py-1.5">
-              <p className="m-0 font-semibold text-lg tabular-nums tracking-tight">
-                {countFormatter.format(total)} {total === 1 ? "result" : "results"}
-              </p>
-            </div>
-            <div className="grid grid-cols-[4fr_5fr] border-border border-l max-[48rem]:border-t max-[48rem]:border-l-0">
-              <div className="flex min-w-0 items-center justify-center gap-1 px-2">
-                <p className="m-0 shrink-0 font-semibold text-base tabular-nums">
-                  {countFormatter.format(data.pages[0]?.liveMatchCounts.exact ?? 0)}
-                </p>
-                <p className="m-0 whitespace-nowrap font-medium text-base text-muted-foreground sm:text-sm">
-                  Live exact
-                </p>
-              </div>
-              <div className="flex min-w-0 items-center justify-center gap-1 border-border border-l px-2">
-                <p className="m-0 shrink-0 font-semibold text-base tabular-nums">
-                  {countFormatter.format(data.pages[0]?.liveMatchCounts.partial ?? 0)}
-                </p>
-                <p className="m-0 whitespace-nowrap font-medium text-base text-muted-foreground sm:text-sm">
-                  Live partial
-                </p>
-              </div>
-            </div>
-          </div>
+          <TrademarkResultSummary
+            signals={[
+              {
+                label: "Live exact",
+                value: countFormatter.format(data.pages[0]?.liveMatchCounts.exact ?? 0),
+              },
+              {
+                label: "Live partial",
+                value: countFormatter.format(data.pages[0]?.liveMatchCounts.partial ?? 0),
+              },
+            ]}
+            totalLabel={`${countFormatter.format(total)} ${total === 1 ? "result" : "results"}`}
+          />
           <div key={restorationKey}>
             <ol
               aria-label="Trademark results"
@@ -547,24 +521,19 @@ export function SearchPage({
                   return null;
                 }
                 return (
-                  <li
-                    aria-posinset={virtualRow.index + 1}
-                    aria-setsize={total}
-                    className="absolute top-0 left-0 isolate grid min-h-20 w-full grid-cols-[minmax(0,1fr)_var(--search-side-column)] items-stretch border-border border-b has-[a:hover]:bg-accent/50 max-[48rem]:grid-cols-[minmax(0,1fr)_auto]"
-                    data-index={virtualRow.index}
-                    data-testid="search-result-row"
+                  <TrademarkResultRow
+                    contextLabel={matchLabels[item.match]}
+                    item={item}
                     key={item.serialNumber}
-                    ref={virtualizer.measureElement}
-                    style={{
-                      transform: `translateY(${virtualRow.start - virtualizer.options.scrollMargin}px)`,
+                    onOpen={onOpenMark}
+                    position={{
+                      index: virtualRow.index,
+                      measureElement: virtualizer.measureElement,
+                      scrollMargin: virtualizer.options.scrollMargin,
+                      start: virtualRow.start,
                     }}
-                  >
-                    <MarkResultContent
-                      contextLabel={matchLabels[item.match]}
-                      item={item}
-                      onOpen={onOpenMark}
-                    />
-                  </li>
+                    total={total}
+                  />
                 );
               })}
               <div

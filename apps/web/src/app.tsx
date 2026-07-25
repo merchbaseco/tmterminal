@@ -26,12 +26,18 @@ import type { AppRouter } from "../../server/src/api/router.ts";
 import { AccountMenu } from "./account-menu.tsx";
 import { type AccountApi, AccountPage } from "./account-page.tsx";
 import { appearanceChangedEvent, applyAppearance, savedAppearance } from "./appearance.ts";
+import { type BulkCheckApi, BulkCheckPage } from "./bulk-check-page.tsx";
+import { CheckTextPage, type TextCheckApi } from "./check-text-page.tsx";
 import { DevAutoSignIn } from "./dev-auto-sign-in.tsx";
 import { HelpPage } from "./help-page.tsx";
 import { type MarkApi, MarkDetailPage } from "./mark-detail-page.tsx";
 import type { OperatorSyncApi, PublicStatusApi } from "./operator-sync-page.tsx";
 import { type SearchApi, SearchPage } from "./search-page.tsx";
 import { StatusPageSkeleton } from "./status-page-skeleton.tsx";
+
+type SearchToolRestoreState =
+  | { kind: "bulk"; selectedQueryId: string | null; value: string }
+  | { kind: "text"; text: string };
 
 interface BrowserLocation {
   pathname: string;
@@ -158,6 +164,19 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
     }),
     [client]
   );
+  const textCheckApi = useMemo<TextCheckApi>(
+    () => ({
+      match: (input) => client.marks.match.query(input),
+    }),
+    [client]
+  );
+  const bulkCheckApi = useMemo<BulkCheckApi>(
+    () => ({
+      screen: (input) => client.marks.screen.query(input),
+      search: (input) => client.marks.search.query(input),
+    }),
+    [client]
+  );
   const operatorApi = useMemo<OperatorSyncApi>(
     () => ({
       artifacts: (input) => client.ops.sync.artifacts.query(input),
@@ -198,10 +217,14 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
     });
   }, []);
   const handleOpenMark = useCallback(
-    (serialNumber: string, scrollOffset: number) => {
+    (serialNumber: string, scrollOffset: number, restoreState?: SearchToolRestoreState) => {
       setBrowserLocation(`${location.pathname}${location.search}`, {
         replace: true,
-        state: { ...location.state, searchScrollOffset: scrollOffset },
+        state: {
+          ...location.state,
+          searchScrollOffset: scrollOffset,
+          searchToolRestore: restoreState,
+        },
       });
       setBrowserLocation(`/marks/${serialNumber}`, { state: { tmturtleSearchEntry: true } });
       window.scrollTo(0, 0);
@@ -212,10 +235,15 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
     const state = { ...location.state, searchReplacementSource: undefined };
     setBrowserLocation(`${location.pathname}${location.search}`, { replace: true, state });
   }, [location.pathname, location.search, location.state]);
-
   const markRoute = location.pathname.match(markPath);
   const restoreScrollOffset =
     typeof location.state.searchScrollOffset === "number" ? location.state.searchScrollOffset : 0;
+  const restoredSearchTool =
+    location.state.searchToolRestore &&
+    typeof location.state.searchToolRestore === "object" &&
+    "kind" in location.state.searchToolRestore
+      ? (location.state.searchToolRestore as SearchToolRestoreState)
+      : undefined;
   let page: ReactNode;
   if (markRoute?.[1]) {
     page = <MarkDetailPage api={markApi} onBack={handleMarkBack} serialNumber={markRoute[1]} />;
@@ -225,6 +253,26 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
     page = <HelpPage />;
   } else if (location.pathname === "/account") {
     page = <AccountPage api={accountApi} />;
+  } else if (location.pathname === "/check") {
+    page = (
+      <CheckTextPage
+        api={textCheckApi}
+        initialState={restoredSearchTool?.kind === "text" ? restoredSearchTool : undefined}
+        onNavigate={handleSearchNavigate}
+        onOpenMark={handleOpenMark}
+        restoreScrollOffset={restoreScrollOffset}
+      />
+    );
+  } else if (location.pathname === "/bulk") {
+    page = (
+      <BulkCheckPage
+        api={bulkCheckApi}
+        initialState={restoredSearchTool?.kind === "bulk" ? restoredSearchTool : undefined}
+        onNavigate={handleSearchNavigate}
+        onOpenMark={handleOpenMark}
+        restoreScrollOffset={restoreScrollOffset}
+      />
+    );
   } else {
     const replacementSourceSearch =
       typeof location.state.searchReplacementSource === "string"
@@ -258,6 +306,7 @@ const activeNavItemClassName = "topbar-control-active border-transparent";
 
 function TopBar({ pathname }: { pathname: string }) {
   const headerRef = useRef<HTMLElement>(null);
+  const searchActive = pathname === "/" || ["/search", "/check", "/bulk"].includes(pathname);
   const navigate = useCallback((event: ReactMouseEvent<HTMLAnchorElement>) => {
     if (!plainPrimaryClick(event)) {
       return;
@@ -308,11 +357,8 @@ function TopBar({ pathname }: { pathname: string }) {
         <nav aria-label="Primary" className="hidden items-center gap-1.5 text-sm min-[48rem]:flex">
           <Show when="signed-in">
             <a
-              aria-current={pathname === "/" || pathname === "/search" ? "page" : undefined}
-              className={cn(
-                navItemClassName,
-                (pathname === "/" || pathname === "/search") && activeNavItemClassName
-              )}
+              aria-current={searchActive ? "page" : undefined}
+              className={cn(navItemClassName, searchActive && activeNavItemClassName)}
               href="/search"
               onClick={navigate}
             >
@@ -402,8 +448,14 @@ function MobileNavMenu({
       <MenuPopup align="end">
         {signedIn ? (
           <MenuLinkItem
-            aria-current={pathname === "/" || pathname === "/search" ? "page" : undefined}
-            className={currentItemClass(pathname === "/" || pathname === "/search")}
+            aria-current={
+              pathname === "/" || ["/search", "/check", "/bulk"].includes(pathname)
+                ? "page"
+                : undefined
+            }
+            className={currentItemClass(
+              pathname === "/" || ["/search", "/check", "/bulk"].includes(pathname)
+            )}
             href="/search"
             onClick={navigate}
           >

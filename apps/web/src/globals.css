@@ -23,6 +23,12 @@
   --border: #c9c9bf;
   --input: #aaa9a0;
   --ring: #687600;
+  --highlight-lime: oklch(0.9 0.21 121);
+  --highlight-cyan: oklch(0.84 0.14 213);
+  --highlight-orange: oklch(0.84 0.16 67);
+  --highlight-pink: oklch(0.82 0.16 342);
+  --highlight-violet: oklch(0.78 0.15 292);
+  --highlight-mint: oklch(0.85 0.15 158);
   --radius: 0.35rem;
   --chart-1: var(--ring);
   --chart-2: var(--muted-foreground);
@@ -109,6 +115,12 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-highlight-lime: var(--highlight-lime);
+  --color-highlight-cyan: var(--highlight-cyan);
+  --color-highlight-orange: var(--highlight-orange);
+  --color-highlight-pink: var(--highlight-pink);
+  --color-highlight-violet: var(--highlight-violet);
+  --color-highlight-mint: var(--highlight-mint);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -231,5 +243,33 @@
   button,
   input {
     font: inherit;
+  }
+
+  :where(
+    a,
+    button,
+    summary,
+    [role="button"],
+    [role="menuitem"],
+    [role="option"],
+    [role="switch"],
+    [role="tab"]
+  ) {
+    -webkit-user-drag: none;
+    user-select: none;
+  }
+
+  :where(
+      a,
+      button,
+      summary,
+      [role="button"],
+      [role="menuitem"],
+      [role="option"],
+      [role="switch"],
+      [role="tab"]
+    )
+    :where(img, svg) {
+    -webkit-user-drag: none;
   }
 }
