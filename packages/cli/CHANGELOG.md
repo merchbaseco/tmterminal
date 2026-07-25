@@ -1,5 +1,11 @@
 # Trademark Turtle CLI Changelog
 
+## v2.0.0 - 2026-07-24
+
+- Use plain promise-returning client methods and one stable `TmturtleError`.
+- Resolve serial and registration identities through one `get` method.
+- Replace `latest` with `list` and retire generated Reports.
+
 ## v1.0.2 - 2026-07-22
 
 - API keys entered through `tt auth set` remain hidden in real terminals.

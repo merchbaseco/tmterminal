@@ -1,4 +1,8 @@
-import type { TmturtleRouterInputs } from "@tmturtle/http-client";
+import type {
+  TrademarkGetInput,
+  TrademarkListInput,
+  TrademarkSearchInput,
+} from "@tmturtle/http-client";
 import { Command, CommanderError, InvalidArgumentError, Option } from "commander";
 
 import { BadRequestError } from "./cli-error.js";
@@ -9,22 +13,14 @@ const registrationNumberPattern = /^\d{7}$/;
 const unicodeWordCharacter = /[\p{Letter}\p{Mark}\p{Number}]/u;
 const commanderErrorPrefix = /^error:\s*/u;
 
-type SearchInput = TmturtleRouterInputs["trademarks"]["search"];
-type ReportInput = TmturtleRouterInputs["reports"]["run"];
-
 export type CliCommand =
   | { kind: "auth-clear" }
   | { kind: "auth-set"; readsStdin: boolean }
   | { kind: "auth-status" }
-  | { input: TmturtleRouterInputs["trademarks"]["get"]; kind: "get" }
-  | {
-      input: TmturtleRouterInputs["trademarks"]["getByRegistration"];
-      kind: "get-by-registration";
-    }
-  | { input: TmturtleRouterInputs["trademarks"]["latest"]; kind: "latest" }
+  | { input: TrademarkGetInput; kind: "get" }
+  | { input: TrademarkListInput; kind: "list" }
   | { kind: "match"; readsStdin: boolean; text?: string; type: MatchOptions["type"] }
-  | { input: ReportInput; kind: "report" }
-  | { input: SearchInput; kind: "search" }
+  | { input: TrademarkSearchInput; kind: "search" }
   | { kind: "status" };
 
 export type ParsedCli =
@@ -49,17 +45,6 @@ interface MatchOptions {
   stdin?: boolean;
   text?: string;
   type: "all" | "design" | "other" | "text" | "typeset";
-}
-
-interface ReportOptions extends PageOptions {
-  event?: "filed" | "published-for-opposition" | "registered";
-  from?: string;
-  registered: "all" | "no" | "yes";
-  sort: "newest-activity" | "oldest-activity";
-  status: "all" | "dead" | "live";
-  to?: string;
-  type: "all" | "design" | "other" | "text" | "typeset";
-  window?: string;
 }
 
 function nonnegativeInteger(value: string) {
@@ -88,7 +73,7 @@ function pageOptions(options: PageOptions) {
   };
 }
 
-function searchInput(query: string, options: SearchOptions): SearchInput {
+function searchInput(query: string, options: SearchOptions): TrademarkSearchInput {
   if (query.trim().length === 0 || query.trim().length > 200) {
     throw new BadRequestError("Search query must contain between 1 and 200 characters");
   }
@@ -121,41 +106,6 @@ function searchInput(query: string, options: SearchOptions): SearchInput {
   return options.mode === "multi"
     ? { ...common, match: options.match ?? "both", mode: options.mode }
     : { ...common, mode: options.mode };
-}
-
-function reportInput(options: ReportOptions): ReportInput {
-  if (!options.event) {
-    throw new BadRequestError("--event is required");
-  }
-  const common = {
-    ...pageOptions(options),
-    registered: options.registered,
-    sort: options.sort,
-    status: options.status,
-    type: options.type,
-  };
-  if (options.event === "published-for-opposition") {
-    if (options.window || options.from || options.to) {
-      throw new BadRequestError("Published-for-opposition reports do not use a window");
-    }
-    return { ...common, event: options.event };
-  }
-  if (options.window !== "previous-week") {
-    throw new BadRequestError("Filed and registered reports require --window previous-week");
-  }
-  const hasCompleteWindow = Boolean(options.from && options.to);
-  if (
-    Boolean(options.from || options.to) !== hasCompleteWindow ||
-    Boolean(options.dataVersion) !== hasCompleteWindow
-  ) {
-    throw new BadRequestError("--data-version, --from, and --to must be supplied together");
-  }
-  return {
-    ...common,
-    ...(options.from && options.to ? { expectedFrom: options.from, expectedTo: options.to } : {}),
-    event: options.event,
-    window: "previous-week",
-  };
 }
 
 function choices(flags: string, values: string[]) {
@@ -271,7 +221,7 @@ export async function parseCli(args: string[], version: string): Promise<ParsedC
       }
       command = {
         input: { registrationNumber: options.registration ?? "" },
-        kind: "get-by-registration",
+        kind: "get",
       };
     });
 
@@ -295,32 +245,11 @@ export async function parseCli(args: string[], version: string): Promise<ParsedC
       };
     });
 
-  addPageOptions(program.command("latest").description("List recent trademark activity")).action(
+  addPageOptions(program.command("list").description("List recent trademark activity")).action(
     (options: PageOptions) => {
-      command = { input: pageOptions(options), kind: "latest" };
+      command = { input: pageOptions(options), kind: "list" };
     }
   );
-
-  const reports = program.command("reports").description("Generate trademark reports");
-  addPageOptions(
-    reports
-      .command("run")
-      .description("Run one generated report")
-      .addOption(choices("--event <event>", ["filed", "registered", "published-for-opposition"]))
-      .option("--window <window>", "Report window")
-      .addOption(choices("--status <status>", ["all", "live", "dead"]).default("all"))
-      .addOption(
-        choices("--type <type>", ["all", "design", "typeset", "text", "other"]).default("all")
-      )
-      .addOption(choices("--registered <value>", ["all", "yes", "no"]).default("all"))
-      .addOption(
-        choices("--sort <sort>", ["newest-activity", "oldest-activity"]).default("newest-activity")
-      )
-      .option("--from <date>", "Resolved report start date")
-      .option("--to <date>", "Resolved report end date")
-  ).action((options: ReportOptions) => {
-    command = { input: reportInput(options), kind: "report" };
-  });
 
   program
     .command("status")

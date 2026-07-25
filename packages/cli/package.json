@@ -1,7 +1,7 @@
 {
   "name": "@tmturtle/cli",
-  "version": "1.0.2",
-  "description": "Command-line access to Trademark Turtle search, reports, and service status",
+  "version": "2.0.0",
+  "description": "Command-line access to Trademark Turtle search, matching, and service status",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/merchbaseco/tmturtle.git",

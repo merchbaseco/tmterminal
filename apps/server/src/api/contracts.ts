@@ -83,65 +83,61 @@ export interface SearchPage extends Omit<MarkPage, "items"> {
   };
 }
 
-export interface LatestInput {
+export interface ListMarksInput {
   expectedDataVersion?: string;
   limit: 25;
   offset: number;
 }
 
-export interface MatchTextInput {
-  text: string;
+export interface MatchTextsInput {
+  texts: Array<{
+    id: string;
+    text: string;
+  }>;
   type: "all" | "design" | "typeset" | "text" | "other";
 }
 
-export interface MatchTextResult {
-  matches: Array<{
-    end: number;
-    mark: MarkSummary;
-    start: number;
-  }>;
+export interface MatchTextsResult {
   meta: MarkPage["meta"];
+  texts: Array<{
+    id: string;
+    matches: Array<{
+      end: number;
+      start: number;
+      trademarks: MarkSummary[];
+    }>;
+    text: string;
+  }>;
+}
+
+export interface ScreenQueriesInput {
+  queries: Array<{
+    id: string;
+    query: string;
+  }>;
+  type: "all" | "design" | "typeset" | "text" | "other";
+}
+
+export interface ScreenQueriesResult {
+  meta: MarkPage["meta"];
+  queries: Array<{
+    id: string;
+    liveMatches: {
+      exact: number;
+      partial: number;
+    };
+    query: string;
+  }>;
 }
 
 export interface MarksService {
-  getByRegistrationNumber: (registrationNumber: string) => Promise<MarkDetail | null>;
-  getBySerialNumber: (serialNumber: string) => Promise<MarkDetail | null>;
-  latest: (input: LatestInput) => Promise<MarkPage>;
-  matchText: (input: MatchTextInput) => Promise<MatchTextResult>;
+  get: (
+    identity: { registrationNumber: string } | { serialNumber: string }
+  ) => Promise<MarkDetail | null>;
+  list: (input: ListMarksInput) => Promise<MarkPage>;
+  match: (input: MatchTextsInput) => Promise<MatchTextsResult>;
+  screen: (input: ScreenQueriesInput) => Promise<ScreenQueriesResult>;
   search: (input: SearchInput) => Promise<SearchPage>;
-}
-
-export interface ReportInput {
-  event: "filed" | "published-for-opposition" | "registered";
-  expectedDataVersion?: string;
-  expectedFrom?: string;
-  expectedTo?: string;
-  limit: 25;
-  offset: number;
-  registered: "all" | "yes" | "no";
-  sort: "newest-activity" | "oldest-activity";
-  status: "all" | "live" | "dead";
-  type: "all" | "design" | "typeset" | "text" | "other";
-  window?: "previous-week";
-}
-
-export interface ReportPage extends MarkPage {
-  from: string | null;
-  items: Omit<SearchPage["items"][number], "match">[];
-  overview: {
-    buckets: Array<{
-      count: number;
-      dead: number;
-      key: string;
-      live: number;
-    }>;
-    dimension: "date" | "type";
-  };
-  to: string | null;
-}
-
-export interface ReportsService {
-  run: (input: ReportInput) => Promise<ReportPage>;
 }
 
 export interface SyncStatus {

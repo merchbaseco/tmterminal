@@ -8,7 +8,6 @@ import { authenticateApiKey } from "../queries/api-key-repository.ts";
 import { createAccountService } from "../services/account-service.ts";
 import { createMarksService } from "../services/marks-service.ts";
 import { createOperatorSyncService } from "../services/operator-sync-service.ts";
-import { createReportsService } from "../services/reports-service.ts";
 import { createSyncService } from "../services/sync-service.ts";
 import type { AuthenticatedAccount } from "./contracts.ts";
 import type { AppContext } from "./router.ts";
@@ -32,7 +31,6 @@ function context(
     marks: createMarksService(database),
     operator,
     operatorSync: createOperatorSyncService(database),
-    reports: createReportsService(database),
     sync: createSyncService(database),
   };
 }

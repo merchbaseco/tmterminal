@@ -1,4 +1,4 @@
-import type { TmturtleClient } from "@tmturtle/http-client";
+import { type TmturtleClient, TmturtleError } from "@tmturtle/http-client";
 
 import { BadRequestError, CliError } from "./cli-error.js";
 import { type CliCommand, parseCli } from "./program.js";
@@ -14,7 +14,7 @@ export interface Keychain {
   set: (origin: string, token: string) => Promise<void>;
 }
 
-export type CliClient = Pick<TmturtleClient, "account" | "reports" | "status" | "trademarks">;
+export type CliClient = Pick<TmturtleClient, "account" | "status" | "trademarks">;
 
 export interface CliDependencies {
   createClient: (options: { apiKey: string; baseUrl: string }) => CliClient;
@@ -88,12 +88,7 @@ async function authenticatedClient(dependencies: CliDependencies, explicitOrigin
 }
 
 function remoteFailure(error: unknown) {
-  if (!(error instanceof Error)) {
-    return null;
-  }
-  const data = "data" in error ? error.data : null;
-  const code = data && typeof data === "object" && "code" in data ? data.code : null;
-  return typeof code === "string" ? failureResult(code, error.message) : null;
+  return error instanceof TmturtleError ? failureResult(error.code, error.message) : null;
 }
 
 function matchInput(invocation: Extract<CliCommand, { kind: "match" }>, stdin: string) {
@@ -107,7 +102,7 @@ function matchInput(invocation: Extract<CliCommand, { kind: "match" }>, stdin: s
   if ((text.match(unicodeWordTokens) ?? []).length > 128) {
     throw new BadRequestError("Match text must contain at most 128 Unicode word tokens");
   }
-  return { text, type: invocation.type };
+  return { texts: [{ id: "text", text }], type: invocation.type };
 }
 
 export async function runCli(args: string[], dependencies: CliDependencies): Promise<CliResult> {
@@ -138,7 +133,7 @@ export async function runCli(args: string[], dependencies: CliDependencies): Pro
     const authenticated = await authenticatedClient(dependencies, parsed.baseUrl);
     switch (invocation.kind) {
       case "auth-status": {
-        const account = await authenticated.client.account.me.query();
+        const account = await authenticated.client.account.get();
         if (account.credential.type !== "api-key") {
           throw new CliError(
             "INTERNAL_ERROR",
@@ -154,25 +149,17 @@ export async function runCli(args: string[], dependencies: CliDependencies): Pro
         });
       }
       case "get":
-        return success(await authenticated.client.trademarks.get.query(invocation.input));
-      case "get-by-registration":
-        return success(
-          await authenticated.client.trademarks.getByRegistration.query(invocation.input)
-        );
-      case "latest":
-        return success(await authenticated.client.trademarks.latest.query(invocation.input));
+        return success(await authenticated.client.trademarks.get(invocation.input));
+      case "list":
+        return success(await authenticated.client.trademarks.list(invocation.input));
       case "match":
         return success(
-          await authenticated.client.trademarks.matchText.query(
-            matchInput(invocation, dependencies.stdin)
-          )
+          await authenticated.client.trademarks.match(matchInput(invocation, dependencies.stdin))
         );
-      case "report":
-        return success(await authenticated.client.reports.run.query(invocation.input));
       case "search":
-        return success(await authenticated.client.trademarks.search.query(invocation.input));
+        return success(await authenticated.client.trademarks.search(invocation.input));
       case "status":
-        return success(await authenticated.client.status.query());
+        return success(await authenticated.client.status.get());
       default:
         throw new CliError("INTERNAL_ERROR", "Unsupported command");
     }

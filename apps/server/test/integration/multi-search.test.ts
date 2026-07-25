@@ -5,7 +5,6 @@ import { buildServer } from "../../src/api/server.ts";
 import { migrateDatabase } from "../../src/db/migrate.ts";
 import type { ProjectedMark } from "../../src/ingestion/mark-types.ts";
 import { readTrademarkApplicationActivity } from "../../src/queries/operator-sync-repository.ts";
-import { runReport } from "../../src/queries/reports.ts";
 import { buildSearchQueries } from "../../src/queries/search.ts";
 import { createOperatorSyncService } from "../../src/services/operator-sync-service.ts";
 import { resetTestDatabase } from "./test-database.ts";
@@ -277,27 +276,27 @@ function search(input: Record<string, unknown>, authorization = "Bearer clerk-se
   });
 }
 
-function report(input: Record<string, unknown>) {
+function listMarks(input: Record<string, unknown>) {
   return server.inject({
     headers: { authorization: "Bearer clerk-session" },
     method: "GET",
-    url: `/api/trpc/reports.run?input=${encodeURIComponent(JSON.stringify(input))}`,
+    url: `/api/trpc/marks.list?input=${encodeURIComponent(JSON.stringify(input))}`,
   });
 }
 
-function latest(input: Record<string, unknown>) {
+function matchTexts(input: Record<string, unknown>) {
   return server.inject({
     headers: { authorization: "Bearer clerk-session" },
     method: "GET",
-    url: `/api/trpc/marks.latest?input=${encodeURIComponent(JSON.stringify(input))}`,
+    url: `/api/trpc/marks.match?input=${encodeURIComponent(JSON.stringify(input))}`,
   });
 }
 
-function matchText(input: Record<string, unknown>) {
+function screenQueries(input: Record<string, unknown>) {
   return server.inject({
     headers: { authorization: "Bearer clerk-session" },
     method: "GET",
-    url: `/api/trpc/marks.match-text?input=${encodeURIComponent(JSON.stringify(input))}`,
+    url: `/api/trpc/marks.screen?input=${encodeURIComponent(JSON.stringify(input))}`,
   });
 }
 
@@ -464,141 +463,10 @@ test("operator status reports a worker that never heartbeated", async () => {
   });
 });
 
-test("report presets use milestone dates and the current opposition status", async () => {
-  const window = previousWeek();
-  const filed = await report({ event: "filed", window: "previous-week" });
-  const registered = await report({ event: "registered", window: "previous-week" });
-  const opposition = await report({ event: "published-for-opposition" });
-
-  expect(filed.statusCode).toBe(200);
-  expect(filed.json().result.data).toMatchObject({
-    from: window.from,
-    overview: {
-      buckets: [
-        { count: 27, dead: 0, key: window.from, live: 27 },
-        { count: 0, dead: 0, live: 0 },
-        { count: 0, dead: 0, live: 0 },
-        { count: 0, dead: 0, live: 0 },
-        { count: 0, dead: 0, live: 0 },
-        { count: 0, dead: 0, live: 0 },
-        { count: 1, dead: 1, key: window.to, live: 0 },
-      ],
-      dimension: "date",
-    },
-    to: window.to,
-    total: 28,
-  });
-  expect(filed.json().result.data.items[0]).toMatchObject({ serialNumber: "50000001" });
-  expect(filed.json().result.data.items[0]?.goodsServicesExcerpt).toBe("shirts and sweatshirts");
-  expect(registered.json().result.data).toMatchObject({
-    items: [{ serialNumber: "50000002" }],
-    overview: {
-      buckets: [
-        { count: 0, dead: 0, live: 0 },
-        { count: 0, dead: 0, live: 0 },
-        { count: 0, dead: 0, live: 0 },
-        { count: 0, dead: 0, live: 0 },
-        { count: 0, dead: 0, live: 0 },
-        { count: 0, dead: 0, live: 0 },
-        { count: 1, dead: 0, key: window.to, live: 1 },
-      ],
-      dimension: "date",
-    },
-    total: 1,
-  });
-  expect(opposition.json().result.data).toMatchObject({
-    from: null,
-    items: [{ serialNumber: "50000003" }],
-    overview: {
-      buckets: [
-        { count: 0, dead: 0, key: "design", live: 0 },
-        { count: 0, dead: 0, key: "typeset", live: 0 },
-        { count: 1, dead: 0, key: "text", live: 1 },
-        { count: 0, dead: 0, key: "other", live: 0 },
-      ],
-      dimension: "type",
-    },
-    to: null,
-    total: 1,
-  });
-});
-
-test("reports filter, count, paginate, and pin the data version", async () => {
-  const preset = {
-    event: "filed",
-    registered: "no",
-    status: "live",
-    type: "text",
-    window: "previous-week",
-  };
-  const first = await report(preset);
-  const { from, to } = first.json().result.data;
-  const missingVersion = await report({ ...preset, offset: 25 });
-  const missingWindow = await report({ ...preset, expectedDataVersion: "7", offset: 25 });
-  const second = await report({
-    ...preset,
-    expectedDataVersion: "7",
-    expectedFrom: from,
-    expectedTo: to,
-    offset: 25,
-  });
-  const filtered = await report({
-    event: "filed",
-    registered: "yes",
-    status: "dead",
-    type: "design",
-    window: "previous-week",
-  });
-  await database`update data_state set version = 8 where id = 'uspto'`;
-  const conflict = await report({
-    ...preset,
-    expectedDataVersion: "7",
-    expectedFrom: from,
-    expectedTo: to,
-    offset: 25,
-  });
-  await database`update data_state set version = 7 where id = 'uspto'`;
-
-  expect(first.json().result.data).toMatchObject({ limit: 25, offset: 0, total: 27 });
-  expect(first.json().result.data.items).toHaveLength(25);
-  expect(missingVersion.statusCode).toBe(400);
-  expect(missingWindow.statusCode).toBe(400);
-  expect(second.json().result.data).toMatchObject({ offset: 25, total: 27 });
-  expect(second.json().result.data.items).toHaveLength(2);
-  expect(filtered.json().result.data).toMatchObject({
-    items: [{ serialNumber: "50000004" }],
-    total: 1,
-  });
-  expect(conflict.statusCode).toBe(409);
-  expect(conflict.json().error.data.code).toBe("CONFLICT");
-});
-
-test("pinned report pages reject a previous-week boundary change", async () => {
-  await expect(
-    runReport(
-      database,
-      {
-        event: "filed",
-        expectedDataVersion: "7",
-        expectedFrom: "2026-06-29",
-        expectedTo: "2026-07-05",
-        limit: 25,
-        offset: 0,
-        registered: "all",
-        sort: "newest-activity",
-        status: "all",
-        type: "all",
-        window: "previous-week",
-      },
-      new Date("2026-07-13T00:00:00Z")
-    )
-  ).rejects.toThrow("Report window changed during pagination");
-});
-
-test("latest returns source transaction activity in stable pages", async () => {
-  const first = await latest({});
-  const missingVersion = await latest({ offset: 25 });
-  const second = await latest({ expectedDataVersion: "7", offset: 25 });
+test("list returns source transaction activity in stable pages", async () => {
+  const first = await listMarks({});
+  const missingVersion = await listMarks({ offset: 25 });
+  const second = await listMarks({ expectedDataVersion: "7", offset: 25 });
 
   expect(first.statusCode).toBe(200);
   expect(first.json().result.data).toMatchObject({
@@ -624,9 +492,9 @@ test("latest returns source transaction activity in stable pages", async () => {
   ).toBe(50);
 });
 
-test("latest returns a typed conflict after live data changes", async () => {
+test("list returns a typed conflict after live data changes", async () => {
   await database`update data_state set version = 8 where id = 'uspto'`;
-  const response = await latest({ expectedDataVersion: "7", offset: 25 });
+  const response = await listMarks({ expectedDataVersion: "7", offset: 25 });
   await database`update data_state set version = 7 where id = 'uspto'`;
 
   expect(response.statusCode).toBe(409);
@@ -635,20 +503,36 @@ test("latest returns a typed conflict after live data changes", async () => {
 
 test("text matching returns every live overlap with JavaScript UTF-16 offsets", async () => {
   const text = "🐢 TURTLE CLUB—turtle EMBLEMZETA";
-  const response = await matchText({ text });
-  const matches = response.json().result.data.matches as Array<{
-    end: number;
-    mark: { serialNumber: string };
-    start: number;
+  const response = await matchTexts({ texts: [{ id: "title", text }] });
+  const [result] = response.json().result.data.texts as Array<{
+    id: string;
+    matches: Array<{
+      end: number;
+      start: number;
+      trademarks: Array<{ serialNumber: string }>;
+    }>;
+    text: string;
   }>;
+  if (!result) {
+    throw new Error("Text match result is unavailable");
+  }
+  const { matches } = result;
+  const flattened = matches.flatMap((match) =>
+    match.trademarks.map((trademark) => ({
+      end: match.end,
+      serialNumber: trademark.serialNumber,
+      start: match.start,
+    }))
+  );
 
   expect(response.statusCode).toBe(200);
   expect(response.json().result.data.meta).toEqual({
     dataVersion: "7",
   });
+  expect(result).toMatchObject({ id: "title", text });
   expect(
-    matches.map((match) => [
-      match.mark.serialNumber,
+    flattened.map((match) => [
+      match.serialNumber,
       match.start,
       match.end,
       text.slice(match.start, match.end),
@@ -662,18 +546,105 @@ test("text matching returns every live overlap with JavaScript UTF-16 offsets", 
   ]);
 });
 
+test("text matching evaluates named documents in one stable snapshot", async () => {
+  const response = await matchTexts({
+    texts: [
+      { id: "title", text: "TURTLE CLUB" },
+      { id: "brand", text: "Cafe\u0301 Society" },
+    ],
+    type: "text",
+  });
+  const results = response.json().result.data.texts as Array<{
+    id: string;
+    matches: Array<{
+      end: number;
+      start: number;
+      trademarks: Array<{ serialNumber: string }>;
+    }>;
+  }>;
+
+  expect(response.statusCode).toBe(200);
+  expect(results.map((result) => result.id)).toEqual(["title", "brand"]);
+  expect(
+    results.map((result) =>
+      result.matches.flatMap((match) => match.trademarks.map((trademark) => trademark.serialNumber))
+    )
+  ).toEqual([
+    ["10000005", "10000004", "11000006"],
+    ["10000001", "10000002"],
+  ]);
+});
+
+test("bulk screening preserves query order and counts live exact and partial matches", async () => {
+  const response = await screenQueries({
+    queries: [
+      { id: "clear", query: "NO MARK LIKE THIS" },
+      { id: "exact", query: "TURTLE" },
+      { id: "partial", query: "CAFE\u0301" },
+    ],
+  });
+
+  expect(response.statusCode).toBe(200);
+  expect(response.json().result.data).toEqual({
+    meta: { dataVersion: "7" },
+    queries: [
+      {
+        id: "clear",
+        liveMatches: { exact: 0, partial: 0 },
+        query: "NO MARK LIKE THIS",
+      },
+      {
+        id: "exact",
+        liveMatches: { exact: 1, partial: 1 },
+        query: "TURTLE",
+      },
+      {
+        id: "partial",
+        liveMatches: { exact: 1, partial: 2 },
+        query: "CAFE\u0301",
+      },
+    ],
+  });
+});
+
+test("text matching groups trademark records on the same occurrence", async () => {
+  const response = await matchTexts({
+    texts: [{ id: "title", text: "DUPLICATE LIVE TERM" }],
+  });
+  const matches = response.json().result.data.texts[0].matches as Array<{
+    end: number;
+    start: number;
+    trademarks: Array<{ serialNumber: string }>;
+  }>;
+
+  expect(response.statusCode).toBe(200);
+  expect(matches).toEqual([
+    expect.objectContaining({
+      trademarks: expect.arrayContaining([
+        expect.objectContaining({ serialNumber: "10000011" }),
+        expect.objectContaining({ serialNumber: "10000012" }),
+      ]),
+    }),
+  ]);
+});
+
 test("text matching normalizes Unicode without destabilizing consumer slicing", async () => {
   const text = "Cafe\u0301 Society";
-  const response = await matchText({ text, type: "text" });
-  const matches = response.json().result.data.matches as Array<{
+  const response = await matchTexts({ texts: [{ id: "body", text }], type: "text" });
+  const matches = response.json().result.data.texts[0].matches as Array<{
     end: number;
-    mark: { serialNumber: string };
     start: number;
+    trademarks: Array<{ serialNumber: string }>;
   }>;
 
   expect(response.statusCode).toBe(200);
   expect(
-    matches.map((match) => [match.mark.serialNumber, text.slice(match.start, match.end)])
+    matches.flatMap((match) =>
+      match.trademarks.map((trademark) => [
+        trademark.serialNumber,
+        text.slice(match.start, match.end),
+      ])
+    )
   ).toEqual([
     ["10000001", "Cafe\u0301 Society"],
     ["10000002", "Cafe\u0301"],
@@ -681,14 +652,17 @@ test("text matching normalizes Unicode without destabilizing consumer slicing", 
 });
 
 test("text matching applies only its explicit mark type filter", async () => {
-  const response = await matchText({ text: "emblemzeta", type: "design" });
+  const response = await matchTexts({
+    texts: [{ id: "body", text: "emblemzeta" }],
+    type: "design",
+  });
 
   expect(response.statusCode).toBe(200);
-  expect(response.json().result.data.matches).toEqual([
+  expect(response.json().result.data.texts[0].matches).toEqual([
     expect.objectContaining({
       end: 10,
-      mark: expect.objectContaining({ serialNumber: "10000014" }),
       start: 0,
+      trademarks: [expect.objectContaining({ serialNumber: "10000014" })],
     }),
   ]);
 });
@@ -902,7 +876,7 @@ test("exact lookups return not found when an identity is absent", async () => {
   const absentRegistration = await server.inject({
     headers: { authorization: "Bearer clerk-session" },
     method: "GET",
-    url: `/api/trpc/marks.get-by-registration?input=${encodeURIComponent(JSON.stringify({ registrationNumber: "9999999" }))}`,
+    url: `/api/trpc/marks.get?input=${encodeURIComponent(JSON.stringify({ registrationNumber: "9999999" }))}`,
   });
   expect(absentSerial.statusCode).toBe(404);
   expect(absentSerial.json().error.data.code).toBe("NOT_FOUND");

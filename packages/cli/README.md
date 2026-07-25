@@ -1,8 +1,8 @@
 # Trademark Turtle CLI
 
 `tt` is the JSON-first command-line client for Trademark Turtle. It searches
-United States trademarks, resolves exact identities, checks listing text, runs
-reports, and reads service status.
+United States trademarks, resolves exact identities, checks text, and reads
+service status.
 
 ## Install
 
@@ -31,8 +31,7 @@ tt search "TURTLE CLUB" --status live
 tt get --serial 60146682
 tt get --registration 0146682
 printf '%s' "shirt title" | tt match --stdin
-tt latest
-tt reports run --event published-for-opposition
+tt list
 tt status
 ```
 

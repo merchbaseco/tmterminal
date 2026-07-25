@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { TmturtleRouterOutputs } from "@tmturtle/http-client";
+import { TmturtleError, type Trademark, type TrademarkSearchPage } from "@tmturtle/http-client";
 
 import { type CliClient, type CliDependencies, runCli } from "../src/run.ts";
 
@@ -34,7 +34,7 @@ const trademark = {
   },
   statusEvents: [],
   type: "design",
-} satisfies TmturtleRouterOutputs["trademarks"]["get"];
+} satisfies Trademark;
 
 const searchPage = {
   items: [
@@ -57,7 +57,7 @@ const searchPage = {
   meta: { dataVersion: "7" },
   offset: 0,
   total: 1,
-} satisfies TmturtleRouterOutputs["trademarks"]["search"];
+} satisfies TrademarkSearchPage;
 
 type ClientFactory = (options: { apiKey: string; baseUrl: string }) => CliClient;
 
@@ -176,13 +176,11 @@ test("global origin overrides environment origin", async () => {
         clients.push(options);
         return asClient({
           account: {
-            me: {
-              query: () =>
-                Promise.resolve({
-                  accountId: "account-1",
-                  credential: { keyId: "key-1", suffix: "AAAAAA", type: "api-key" },
-                }),
-            },
+            get: () =>
+              Promise.resolve({
+                accountId: "account-1",
+                credential: { keyId: "key-1", suffix: "AAAAAA", type: "api-key" },
+              }),
           },
         });
       },
@@ -208,13 +206,11 @@ test("auth status uses the selected origin's Keychain credential", async () => {
       createClient: () =>
         asClient({
           account: {
-            me: {
-              query: () =>
-                Promise.resolve({
-                  accountId: "account-2",
-                  credential: { keyId: "key-2", suffix: "AAAAAA", type: "api-key" },
-                }),
-            },
+            get: () =>
+              Promise.resolve({
+                accountId: "account-2",
+                credential: { keyId: "key-2", suffix: "AAAAAA", type: "api-key" },
+              }),
           },
         }),
       env: { TMTURTLE_BASE_URL: "https://service.example/" },
@@ -255,21 +251,12 @@ test("auth clear is scoped to the selected origin", async () => {
 });
 
 test("get selects exact serial and registration identities", async () => {
-  const serialInputs: unknown[] = [];
-  const registrationInputs: unknown[] = [];
+  const inputs: unknown[] = [];
   const client = asClient({
     trademarks: {
-      get: {
-        query: (input: unknown) => {
-          serialInputs.push(input);
-          return Promise.resolve(trademark);
-        },
-      },
-      getByRegistration: {
-        query: (input: unknown) => {
-          registrationInputs.push(input);
-          return Promise.resolve(trademark);
-        },
+      get: (input: unknown) => {
+        inputs.push(input);
+        return Promise.resolve(trademark);
       },
     },
   });
@@ -283,8 +270,7 @@ test("get selects exact serial and registration identities", async () => {
     authenticated(() => client)
   );
 
-  expect(serialInputs).toEqual([{ serialNumber: "60146682" }]);
-  expect(registrationInputs).toEqual([{ registrationNumber: "0146682" }]);
+  expect(inputs).toEqual([{ serialNumber: "60146682" }, { registrationNumber: "0146682" }]);
   expect(json(serial)).toEqual({ data: trademark, ok: true });
   expect(json(registration)).toEqual({ data: trademark, ok: true });
 });
@@ -326,11 +312,9 @@ test("search maps Multi filters and stable continuation fields", async () => {
     authenticated(() =>
       asClient({
         trademarks: {
-          search: {
-            query: (input: unknown) => {
-              inputs.push(input);
-              return Promise.resolve(searchPage);
-            },
+          search: (input: unknown) => {
+            inputs.push(input);
+            return Promise.resolve(searchPage);
           },
         },
       })
@@ -359,11 +343,9 @@ test("search maps Split and Wildcard without Multi-only match", async () => {
   const createClient = () =>
     asClient({
       trademarks: {
-        search: {
-          query: (input: unknown) => {
-            inputs.push(input);
-            return Promise.resolve(searchPage);
-          },
+        search: (input: unknown) => {
+          inputs.push(input);
+          return Promise.resolve(searchPage);
         },
       },
     });
@@ -413,11 +395,9 @@ test("match supports explicit text and stdin without truncation", async () => {
   const createClient = () =>
     asClient({
       trademarks: {
-        matchText: {
-          query: (input: unknown) => {
-            inputs.push(input);
-            return Promise.resolve({ matches: [], meta: { dataVersion: "7" } });
-          },
+        match: (input: unknown) => {
+          inputs.push(input);
+          return Promise.resolve({ meta: { dataVersion: "7" }, texts: [] });
         },
       },
     });
@@ -427,24 +407,22 @@ test("match supports explicit text and stdin without truncation", async () => {
   await runCli(["match", "--stdin"], authenticated(createClient, { stdin }));
 
   expect(inputs).toEqual([
-    { text: "🐢 Cafe\u0301", type: "text" },
-    { text: stdin, type: "all" },
+    { texts: [{ id: "text", text: "🐢 Cafe\u0301" }], type: "text" },
+    { texts: [{ id: "text", text: stdin }], type: "all" },
   ]);
 });
 
-test("latest uses the fixed page size and stable continuation", async () => {
+test("list uses the fixed page size and stable continuation", async () => {
   const inputs: unknown[] = [];
   const data = { items: [], limit: 25, meta: { dataVersion: "7" }, offset: 25, total: 0 };
   const result = await runCli(
-    ["latest", "--offset", "25", "--data-version", "7"],
+    ["list", "--offset", "25", "--data-version", "7"],
     authenticated(() =>
       asClient({
         trademarks: {
-          latest: {
-            query: (input: unknown) => {
-              inputs.push(input);
-              return Promise.resolve(data);
-            },
+          list: (input: unknown) => {
+            inputs.push(input);
+            return Promise.resolve(data);
           },
         },
       })
@@ -453,70 +431,6 @@ test("latest uses the fixed page size and stable continuation", async () => {
 
   expect(inputs).toEqual([{ expectedDataVersion: "7", limit: 25, offset: 25 }]);
   expect(json(result)).toEqual({ data, ok: true });
-});
-
-test("reports run maps previous-week and opposition reports", async () => {
-  const inputs: unknown[] = [];
-  const createClient = () =>
-    asClient({
-      reports: {
-        run: {
-          query: (input: unknown) => {
-            inputs.push(input);
-            return Promise.resolve({});
-          },
-        },
-      },
-    });
-
-  await runCli(
-    [
-      "reports",
-      "run",
-      "--event",
-      "filed",
-      "--window",
-      "previous-week",
-      "--offset",
-      "25",
-      "--data-version",
-      "7",
-      "--from",
-      "2026-07-06",
-      "--to",
-      "2026-07-12",
-    ],
-    authenticated(createClient)
-  );
-  await runCli(
-    ["reports", "run", "--event", "published-for-opposition"],
-    authenticated(createClient)
-  );
-
-  expect(inputs).toEqual([
-    {
-      event: "filed",
-      expectedDataVersion: "7",
-      expectedFrom: "2026-07-06",
-      expectedTo: "2026-07-12",
-      limit: 25,
-      offset: 25,
-      registered: "all",
-      sort: "newest-activity",
-      status: "all",
-      type: "all",
-      window: "previous-week",
-    },
-    {
-      event: "published-for-opposition",
-      limit: 25,
-      offset: 0,
-      registered: "all",
-      sort: "newest-activity",
-      status: "all",
-      type: "all",
-    },
-  ]);
 });
 
 test("status calls the safe authenticated service-status procedure", async () => {
@@ -530,21 +444,22 @@ test("status calls the safe authenticated service-status procedure", async () =>
   };
   const result = await runCli(
     ["status"],
-    authenticated(() => asClient({ status: { query: () => Promise.resolve(data) } }))
+    authenticated(() => asClient({ status: { get: () => Promise.resolve(data) } }))
   );
 
   expect(json(result)).toEqual({ data, ok: true });
 });
 
 test("typed remote errors preserve code and message on stderr", async () => {
-  const notFound = Object.assign(new Error("Trademark not found"), {
-    data: { code: "NOT_FOUND" },
+  const notFound = new TmturtleError("Trademark not found", {
+    code: "NOT_FOUND",
+    status: 404,
   });
   const result = await runCli(
     ["get", "--serial", "99999999"],
     authenticated(() =>
       asClient({
-        trademarks: { get: { query: () => Promise.reject(notFound) } },
+        trademarks: { get: () => Promise.reject(notFound) },
       })
     )
   );

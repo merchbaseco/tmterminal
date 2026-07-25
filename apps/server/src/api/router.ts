@@ -6,11 +6,14 @@ import type {
   AuthenticatedAccount,
   MarksService,
   OperatorSyncService,
-  ReportsService,
   SyncService,
 } from "./contracts.ts";
-import { latestInputSchema, matchTextInputSchema } from "./marks-input.ts";
-import { reportInputSchema } from "./report-input.ts";
+import {
+  listMarksInputSchema,
+  markIdentitySchema,
+  matchTextsInputSchema,
+  screenQueriesInputSchema,
+} from "./marks-input.ts";
 import { searchInputSchema } from "./search-input.ts";
 
 export interface AppContext {
@@ -19,7 +22,6 @@ export interface AppContext {
   marks: MarksService;
   operator: boolean;
   operatorSync: OperatorSyncService;
-  reports: ReportsService;
   sync: SyncService;
 }
 
@@ -69,27 +71,16 @@ const accountRouter = t.router({
 });
 
 const marksRouter = t.router({
-  get: t.procedure
-    .input(z.object({ serialNumber: z.string().regex(/^\d{8}$/) }))
-    .query(async ({ ctx, input }) => {
-      const mark = await ctx.marks.getBySerialNumber(input.serialNumber);
-      if (!mark) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Trademark not found" });
-      }
-      return mark;
-    }),
-  "get-by-registration": t.procedure
-    .input(z.object({ registrationNumber: z.string().regex(/^\d{7}$/) }))
-    .query(async ({ ctx, input }) => {
-      const mark = await ctx.marks.getByRegistrationNumber(input.registrationNumber);
-      if (!mark) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Trademark not found" });
-      }
-      return mark;
-    }),
-  latest: t.procedure.input(latestInputSchema).query(async ({ ctx, input }) => {
+  get: t.procedure.input(markIdentitySchema).query(async ({ ctx, input }) => {
+    const mark = await ctx.marks.get(input);
+    if (!mark) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Trademark not found" });
+    }
+    return mark;
+  }),
+  list: t.procedure.input(listMarksInputSchema).query(async ({ ctx, input }) => {
     try {
-      return await ctx.marks.latest(input);
+      return await ctx.marks.list(input);
     } catch (error) {
       if (error instanceof DataVersionConflictError) {
         // biome-ignore lint/style/useErrorCause: TRPCError receives the original cause in its options.
@@ -98,9 +89,10 @@ const marksRouter = t.router({
       throw error;
     }
   }),
-  "match-text": t.procedure
-    .input(matchTextInputSchema)
-    .query(({ ctx, input }) => ctx.marks.matchText(input)),
+  match: t.procedure.input(matchTextsInputSchema).query(({ ctx, input }) => ctx.marks.match(input)),
+  screen: t.procedure
+    .input(screenQueriesInputSchema)
+    .query(({ ctx, input }) => ctx.marks.screen(input)),
   search: t.procedure.input(searchInputSchema).query(async ({ ctx, input }) => {
     try {
       return await ctx.marks.search(input);
@@ -118,24 +110,9 @@ const syncRouter = t.router({
   status: t.procedure.query(({ ctx }) => ctx.sync.status()),
 });
 
-const reportsRouter = t.router({
-  run: t.procedure.input(reportInputSchema).query(async ({ ctx, input }) => {
-    try {
-      return await ctx.reports.run(input);
-    } catch (error) {
-      if (error instanceof DataVersionConflictError) {
-        // biome-ignore lint/style/useErrorCause: TRPCError receives the original cause in its options.
-        throw new TRPCError({ cause: error, code: "CONFLICT", message: error.message });
-      }
-      throw error;
-    }
-  }),
-});
-
 export const authenticatedClientRouter = t.router({
   account: accountRouter,
   marks: marksRouter,
-  reports: reportsRouter,
   sync: syncRouter,
 });
 
@@ -150,7 +127,6 @@ export const appRouter = t.router({
       status: operatorProcedure.query(({ ctx }) => ctx.operatorSync.status()),
     }),
   }),
-  reports: reportsRouter,
   sync: syncRouter,
   viewer: t.router({
     role: clerkProcedure.query(({ ctx }) => ({ operator: ctx.operator })),

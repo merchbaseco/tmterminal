@@ -1,10 +1,10 @@
 import type postgres from "postgres";
 
-import type { LatestInput, MarkPage } from "../api/contracts.ts";
+import type { ListMarksInput, MarkPage } from "../api/contracts.ts";
 import { assertDataVersion, readDataSnapshot } from "./data-snapshot.ts";
 import { markSummarySql } from "./mark-page.ts";
 
-export function latestMarks(database: postgres.Sql, input: LatestInput): Promise<MarkPage> {
+export function listMarks(database: postgres.Sql, input: ListMarksInput): Promise<MarkPage> {
   return database.begin("isolation level repeatable read read only", async (transaction) => {
     const snapshot = await readDataSnapshot(transaction);
     assertDataVersion(snapshot, input.expectedDataVersion);
@@ -13,7 +13,7 @@ export function latestMarks(database: postgres.Sql, input: LatestInput): Promise
       select count(*)::int as total from mark where source_transaction_date is not null
     `;
     if (!count) {
-      throw new Error("Latest activity count query returned no row");
+      throw new Error("Trademark list count query returned no row");
     }
     const items = await transaction.unsafe<MarkPage["items"]>(
       `select ${markSummarySql}
