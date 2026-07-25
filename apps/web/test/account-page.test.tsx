@@ -5,7 +5,7 @@ if (!GlobalRegistrator.isRegistered) {
 }
 Element.prototype.getAnimations ??= () => [];
 
-const { cleanup, fireEvent, render, screen, waitFor } = await import("@testing-library/react");
+const { act, cleanup, fireEvent, render, screen, waitFor } = await import("@testing-library/react");
 const { afterEach, describe, expect, test } = await import("bun:test");
 const { AccountPage } = await import("../src/account-page.tsx");
 type AccountApi = import("../src/account-page.tsx").AccountApi;
@@ -151,9 +151,12 @@ describe("account page", () => {
         "“MerchBase” will be permanently removed from account history. This cannot be undone."
       )
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Delete key" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Delete key" }));
+      await Promise.resolve();
+    });
 
-    await waitFor(() => expect(screen.queryByText("Revoked history")).toBeNull());
+    expect(screen.queryByText("Revoked history")).toBeNull();
     expect(deletedIds).toEqual([key.id]);
   });
 });
