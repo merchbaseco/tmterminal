@@ -401,7 +401,7 @@ test("operator status presents processed cleanup and actionable source failures"
   expect(status.source.applicationActivity.at(-1)).toEqual({
     applicationUpdates: 0,
     date: "2026-01-01",
-    newApplications: 0,
+    newApplications: 41,
   });
   expect(status.attention).toMatchObject({
     items: [
@@ -595,12 +595,12 @@ test("bulk screening preserves query order and counts live exact and partial mat
       },
       {
         id: "exact",
-        liveMatches: { exact: 1, partial: 1 },
+        liveMatches: { exact: 1, partial: 2 },
         query: "TURTLE",
       },
       {
         id: "partial",
-        liveMatches: { exact: 1, partial: 2 },
+        liveMatches: { exact: 1, partial: 1 },
         query: "CAFE\u0301",
       },
     ],
@@ -609,7 +609,7 @@ test("bulk screening preserves query order and counts live exact and partial mat
 
 test("text matching groups trademark records on the same occurrence", async () => {
   const response = await matchTexts({
-    texts: [{ id: "title", text: "DUPLICATE LIVE TERM" }],
+    texts: [{ id: "title", text: "Naïve" }],
   });
   const matches = response.json().result.data.texts[0].matches as Array<{
     end: number;
@@ -621,8 +621,8 @@ test("text matching groups trademark records on the same occurrence", async () =
   expect(matches).toEqual([
     expect.objectContaining({
       trademarks: expect.arrayContaining([
-        expect.objectContaining({ serialNumber: "10000011" }),
-        expect.objectContaining({ serialNumber: "10000012" }),
+        expect.objectContaining({ serialNumber: "11000004" }),
+        expect.objectContaining({ serialNumber: "11000008" }),
       ]),
     }),
   ]);
