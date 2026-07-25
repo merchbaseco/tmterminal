@@ -136,8 +136,10 @@ chip stays defined. Additional mascot illustration is deferred.
   preferences as a conventional settings list inside the same bounded ledger
   language as search results. Each divider-separated row pairs a label and short
   explanation with one full-height rectilinear selector cell on the right.
-  Controls save automatically; the outer rails and shared selector spine stay
-  aligned across every row without turning the settings into a card grid.
+  Controls save automatically; the header stays quiet at rest, shows a compact
+  spinner while saving, and briefly confirms success with a checkmark. The outer
+  rails and shared selector spine stay aligned across every row without turning
+  the settings into a card grid.
 - The empty search masthead fills the brand state and leaves the layout once a
   query is active.
 - Search controls remain prominent and aligned.

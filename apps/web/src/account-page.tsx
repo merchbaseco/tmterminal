@@ -16,6 +16,7 @@ import {
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import type { AppRouter } from "../../server/src/api/router.ts";
+import { AccountPreferenceSaveStatus } from "./account-preference-save-status.tsx";
 import { AccountPreferenceSelect } from "./account-preference-select.tsx";
 import { LegalFooter } from "./legal-footer.tsx";
 import { PageMasthead } from "./page-masthead.tsx";
@@ -142,9 +143,17 @@ export function AccountPage({
   const [keyActionError, setKeyActionError] = useState<string | null>(null);
   const [draftPreferences, setDraftPreferences] = useState(preferences);
   const [preferencesSaving, setPreferencesSaving] = useState(false);
+  const [preferencesSaved, setPreferencesSaved] = useState(false);
   const [preferencesSaveError, setPreferencesSaveError] = useState<string | null>(null);
 
   useEffect(() => setDraftPreferences(preferences), [preferences]);
+  useEffect(() => {
+    if (!preferencesSaved) {
+      return;
+    }
+    const timeout = window.setTimeout(() => setPreferencesSaved(false), 2000);
+    return () => window.clearTimeout(timeout);
+  }, [preferencesSaved]);
 
   useEffect(() => {
     let active = true;
@@ -258,12 +267,15 @@ export function AccountPage({
     async (nextPreferences: SearchPreferences) => {
       setDraftPreferences(nextPreferences);
       setPreferencesSaving(true);
+      setPreferencesSaved(false);
       setPreferencesSaveError(null);
       try {
         const saved = await onUpdatePreferences(nextPreferences);
         setDraftPreferences(saved);
+        setPreferencesSaved(true);
       } catch {
         setDraftPreferences(preferences);
+        setPreferencesSaved(false);
         setPreferencesSaveError("Search preferences could not be saved. Try again.");
       } finally {
         setPreferencesSaving(false);
@@ -310,13 +322,6 @@ export function AccountPage({
   );
 
   const keyCountLabel = `${keys.length} ${keys.length === 1 ? "API key" : "API keys"}`;
-  let preferenceStatus = "Saved automatically";
-  if (preferencesLoading) {
-    preferenceStatus = "Loading…";
-  } else if (preferencesSaving) {
-    preferenceStatus = "Saving…";
-  }
-  preferenceStatus = preferencesSaveError ?? preferencesError ?? preferenceStatus;
   const preferenceControlsDisabled =
     preferencesLoading || preferencesSaving || Boolean(preferencesError);
 
@@ -480,13 +485,11 @@ export function AccountPage({
               Choose how a new search starts. Shared search links keep their own options.
             </p>
           </div>
-          <p
-            aria-live="polite"
-            className="m-0 shrink-0 text-base text-muted-foreground"
-            role={preferencesError || preferencesSaveError ? "alert" : "status"}
-          >
-            {preferenceStatus}
-          </p>
+          <AccountPreferenceSaveStatus
+            error={preferencesSaveError ?? preferencesError}
+            saved={preferencesSaved}
+            saving={preferencesSaving}
+          />
         </div>
         <fieldset
           aria-busy={preferencesLoading || preferencesSaving}
