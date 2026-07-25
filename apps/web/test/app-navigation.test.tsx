@@ -68,6 +68,7 @@ let scrollOffset = 0;
 const searchInputs: unknown[] = [];
 let searchHandler: (input: { query: string }) => Promise<typeof searchResult>;
 const destinationMarkLinkPattern = /DESTINATION B/;
+const getTestToken = async () => "clerk-session";
 const sourceMarkLinkPattern = /SOURCE A/;
 const turtleMarkLinkPattern = /TURTLE MARK, Live, serial number 70000001/;
 
@@ -170,7 +171,7 @@ mock.module("@clerk/react", () => ({
         children.props.onClick?.(event);
       },
     }),
-  useAuth: () => ({ getToken: async () => "clerk-session" }),
+  useAuth: () => ({ getToken: getTestToken }),
   useClerk: () => ({
     openSignIn: () => {
       signInModalOpens += 1;
@@ -201,12 +202,23 @@ mock.module("@trpc/client", () => ({
         create: {
           mutate: () => Promise.reject(new Error("not used")),
         },
-        delete: {
-          mutate: () => Promise.reject(new Error("not used")),
-        },
         list: { query: async () => [] },
         revoke: {
           mutate: () => Promise.reject(new Error("not used")),
+        },
+      },
+      preferences: {
+        get: {
+          query: async () => ({
+            defaultMatch: "both" as const,
+            defaultSort: "relevance" as const,
+            defaultStatus: "all" as const,
+            pageSize: 25 as const,
+            resultDensity: "compact" as const,
+          }),
+        },
+        update: {
+          mutate: async (preferences: unknown) => preferences,
         },
       },
     },
@@ -548,7 +560,7 @@ test("Account navigation opens API-key management", async () => {
 
   await waitFor(() => expect(window.location.pathname).toBe("/account"));
   expect(scrollOffset).toBe(0);
-  expect(await screen.findByRole("heading", { level: 1, name: "ACCESS CONTROL" })).toBeTruthy();
+  expect(await screen.findByRole("heading", { level: 1, name: "ACCOUNT" })).toBeTruthy();
   expect(screen.queryByText("zach@example.com")).toBeNull();
   expect(screen.getByRole("button", { name: "Create API key" })).toBeTruthy();
   expect(screen.getByRole("link", { name: "Account" }).getAttribute("aria-current")).toBe("page");

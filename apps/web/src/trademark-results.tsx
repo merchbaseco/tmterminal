@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { HighlightTone } from "./highlight-tones.ts";
 import { MarkResultContent } from "./mark-result-content.tsx";
+import type { SearchPreferences } from "./search-preferences.ts";
 
 export interface TrademarkResultItem {
   internationalClasses: string[];
@@ -93,6 +94,7 @@ export function TrademarkResultSummary({
 
 export function TrademarkResultRow({
   contextLabel = "",
+  density = "compact",
   indicators,
   item,
   onOpen,
@@ -100,6 +102,7 @@ export function TrademarkResultRow({
   total,
 }: {
   contextLabel?: string;
+  density?: SearchPreferences["resultDensity"];
   indicators?: Array<{ label: string; tone: HighlightTone }>;
   item: TrademarkResultItem;
   onOpen: (serialNumber: string, scrollOffset: number) => void;
@@ -111,9 +114,11 @@ export function TrademarkResultRow({
       aria-posinset={position ? position.index + 1 : undefined}
       aria-setsize={total}
       className={cn(
-        "isolate grid min-h-20 w-full grid-cols-[minmax(0,1fr)_var(--search-side-column)] items-stretch border-border border-b has-[a:hover]:bg-accent/50 max-[48rem]:grid-cols-[minmax(0,1fr)_auto]",
+        "isolate grid w-full grid-cols-[minmax(0,1fr)_var(--search-side-column)] items-stretch border-border border-b has-[a:hover]:bg-accent/50 max-[48rem]:grid-cols-[minmax(0,1fr)_auto]",
+        density === "compact" ? "min-h-20" : "min-h-24",
         position ? "absolute top-0 left-0" : "relative"
       )}
+      data-density={density}
       data-index={position?.index}
       data-testid="search-result-row"
       ref={position?.measureElement}

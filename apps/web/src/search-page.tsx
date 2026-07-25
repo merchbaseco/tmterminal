@@ -3,13 +3,22 @@ import { ArrowDown01Icon } from "@hugeicons-pro/core-stroke-rounded";
 import { type InfiniteData, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
-import { type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { AppRouter } from "../../server/src/api/router.ts";
 import { LegalFooter } from "./legal-footer.tsx";
 import { SearchComposer, SearchMasthead } from "./search-composer.tsx";
 import { SearchOptionSelect } from "./search-option-select.tsx";
+import { defaultSearchPreferences, type SearchPreferences } from "./search-preferences.ts";
 import {
   TrademarkEmptyState,
   TrademarkResultRow,
@@ -64,10 +73,14 @@ const typeOptions = [
   { label: "Text", value: "text" },
 ] as const;
 
-function readSearchState(search: string): SearchState {
+function readSearchState(search: string, preferences: SearchPreferences): SearchState {
   const parameters = new URLSearchParams(search);
-  const exact = parameters.get("exact") !== "false";
-  const partial = parameters.get("partial") !== "false";
+  const exactDefault = preferences.defaultMatch !== "partial";
+  const partialDefault = preferences.defaultMatch !== "exact";
+  const exact = parameters.has("exact") ? parameters.get("exact") !== "false" : exactDefault;
+  const partial = parameters.has("partial")
+    ? parameters.get("partial") !== "false"
+    : partialDefault;
   const registered = parameters.get("registered");
   const sort = parameters.get("sort");
   const status = parameters.get("status");
@@ -77,8 +90,14 @@ function readSearchState(search: string): SearchState {
     partial: exact || partial ? partial : true,
     query: parameters.get("q")?.trim() ?? "",
     registered: registered === "yes" || registered === "no" ? registered : "all",
-    sort: sort === "newest-activity" || sort === "oldest-activity" ? sort : "relevance",
-    status: status === "live" || status === "dead" ? status : "all",
+    sort:
+      sort === "relevance" || sort === "newest-activity" || sort === "oldest-activity"
+        ? sort
+        : preferences.defaultSort,
+    status:
+      status === "all" || status === "live" || status === "dead"
+        ? status
+        : preferences.defaultStatus,
     type: type === "design" || type === "typeset" || type === "text" ? type : "all",
   };
 }
@@ -104,9 +123,9 @@ function matchFor(state: SearchState): "exact" | "partial" | "both" {
   return state.exact ? "exact" : "partial";
 }
 
-function requestFor(state: SearchState) {
+function requestFor(state: SearchState, pageSize: SearchPreferences["pageSize"]) {
   return {
-    limit: 25 as const,
+    limit: pageSize,
     match: matchFor(state),
     mode: "multi" as const,
     query: state.query,
@@ -136,6 +155,8 @@ export function SearchPage({
   onNavigate,
   onOpenMark,
   onReplacementLoaded,
+  preferences = defaultSearchPreferences,
+  preferencesLoading = false,
   replacementSourceSearch,
   restoreScrollOffset,
   search,
@@ -144,13 +165,16 @@ export function SearchPage({
   onNavigate: (href: string, replacementSourceSearch?: string) => void;
   onOpenMark: (serialNumber: string, scrollOffset: number) => void;
   onReplacementLoaded: () => void;
+  preferences?: SearchPreferences;
+  preferencesLoading?: boolean;
   replacementSourceSearch?: string;
   restoreScrollOffset: number;
   search: string;
 }) {
-  const state = useMemo(() => readSearchState(search), [search]);
+  const state = useMemo(() => readSearchState(search, preferences), [preferences, search]);
   const [draftQuery, setDraftQuery] = useState(state.query);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const pendingQuery = useRef<string | null>(null);
   const queryClient = useQueryClient();
   const resultsRef = useRef<HTMLOListElement>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -158,18 +182,24 @@ export function SearchPage({
 
   useEffect(() => setDraftQuery(state.query), [state.query]);
 
-  const request = useMemo(() => requestFor(state), [state]);
+  const request = useMemo(
+    () => requestFor(state, preferences.pageSize),
+    [preferences.pageSize, state]
+  );
   const queryKey = useMemo(() => ["marks.search", request] as const, [request]);
   const sourceState = useMemo(() => {
     if (!(state.query && replacementSourceSearch) || replacementSourceSearch === search) {
       return null;
     }
-    const source = readSearchState(replacementSourceSearch);
+    const source = readSearchState(replacementSourceSearch, preferences);
     return source.query ? source : null;
-  }, [replacementSourceSearch, search, state.query]);
+  }, [preferences, replacementSourceSearch, search, state.query]);
   const sourceQueryKey = useMemo(
-    () => (sourceState ? (["marks.search", requestFor(sourceState)] as const) : null),
-    [sourceState]
+    () =>
+      sourceState
+        ? (["marks.search", requestFor(sourceState, preferences.pageSize)] as const)
+        : null,
+    [preferences.pageSize, sourceState]
   );
   const sourceQueryState = sourceQueryKey ? queryClient.getQueryState(sourceQueryKey) : undefined;
   const sourceError = sourceQueryState?.error instanceof Error ? sourceQueryState.error : null;
@@ -217,7 +247,7 @@ export function SearchPage({
   const items = data?.pages.flatMap((page) => page.items) ?? [];
   const virtualizer = useWindowVirtualizer({
     count: items.length,
-    estimateSize: () => 84,
+    estimateSize: () => (preferences.resultDensity === "compact" ? 84 : 100),
     getItemKey: (index) => items[index]?.serialNumber ?? index,
     initialRect: { height: 640, width: 1200 },
     overscan: 3,
@@ -269,15 +299,47 @@ export function SearchPage({
     return () => observer.disconnect();
   }, [query.error, query.fetchNextPage, query.hasNextPage, query.isFetchingNextPage]);
 
-  function updateState(patch: Partial<SearchState>) {
-    let sourceSearch: string | undefined;
-    if (sourceData && !destinationData) {
-      sourceSearch = replacementSourceSearch;
-    } else if (destinationData && (!query.error || conflict)) {
-      sourceSearch = search;
+  const updateState = useCallback(
+    (patch: Partial<SearchState>) => {
+      let sourceSearch: string | undefined;
+      if (sourceData && !destinationData) {
+        sourceSearch = replacementSourceSearch;
+      } else if (destinationData && (!query.error || conflict)) {
+        sourceSearch = search;
+      }
+      onNavigate(searchHref({ ...state, ...patch }), sourceSearch);
+    },
+    [
+      conflict,
+      destinationData,
+      onNavigate,
+      query.error,
+      replacementSourceSearch,
+      search,
+      sourceData,
+      state,
+    ]
+  );
+
+  const submitQuery = useCallback(
+    (queryValue: string) => {
+      if (queryValue === state.query) {
+        queryClient.resetQueries({ exact: true, queryKey });
+      } else {
+        updateState({ query: queryValue });
+      }
+    },
+    [queryClient, queryKey, state.query, updateState]
+  );
+
+  useEffect(() => {
+    if (preferencesLoading || !pendingQuery.current) {
+      return;
     }
-    onNavigate(searchHref({ ...state, ...patch }), sourceSearch);
-  }
+    const queryValue = pendingQuery.current;
+    pendingQuery.current = null;
+    submitQuery(queryValue);
+  }, [preferencesLoading, submitQuery]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -285,11 +347,11 @@ export function SearchPage({
     if (!queryValue) {
       return;
     }
-    if (queryValue === state.query) {
-      queryClient.resetQueries({ exact: true, queryKey });
-    } else {
-      updateState({ query: queryValue });
+    if (preferencesLoading) {
+      pendingQuery.current = queryValue;
+      return;
     }
+    submitQuery(queryValue);
   }
 
   function startOver() {
@@ -523,6 +585,7 @@ export function SearchPage({
                 return (
                   <TrademarkResultRow
                     contextLabel={matchLabels[item.match]}
+                    density={preferences.resultDensity}
                     item={item}
                     key={item.serialNumber}
                     onOpen={onOpenMark}

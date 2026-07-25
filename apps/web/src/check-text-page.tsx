@@ -14,6 +14,7 @@ import type { AppRouter } from "../../server/src/api/router.ts";
 import { type HighlightTone, highlightTones } from "./highlight-tones.ts";
 import { LegalFooter } from "./legal-footer.tsx";
 import { SearchComposer, SearchMasthead } from "./search-composer.tsx";
+import { defaultSearchPreferences, type SearchPreferences } from "./search-preferences.ts";
 import { TextHighlight } from "./text-highlight.tsx";
 import {
   TrademarkEmptyState,
@@ -51,6 +52,7 @@ export function CheckTextPage({
   initialState,
   onNavigate,
   onOpenMark,
+  preferences = defaultSearchPreferences,
   restoreScrollOffset = 0,
 }: {
   api: TextCheckApi;
@@ -61,6 +63,7 @@ export function CheckTextPage({
     scrollOffset: number,
     restoreState: TextCheckRestoreState
   ) => void;
+  preferences?: SearchPreferences;
   restoreScrollOffset?: number;
 }) {
   const [text, setText] = useState(initialState ? initialState.text : "");
@@ -177,6 +180,7 @@ export function CheckTextPage({
               <ol aria-label="Trademark results" className="m-0 w-full list-none p-0">
                 {items.map((item) => (
                   <TrademarkResultRow
+                    density={preferences.resultDensity}
                     indicators={resultIndicators(item.serialNumber, visibleHighlights, result.text)}
                     item={item}
                     key={item.serialNumber}

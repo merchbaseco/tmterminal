@@ -5,10 +5,28 @@ if (!GlobalRegistrator.isRegistered) {
 }
 Element.prototype.getAnimations ??= () => [];
 
-const { act, cleanup, fireEvent, render, screen, waitFor } = await import("@testing-library/react");
+const { cleanup, fireEvent, render, screen, waitFor } = await import("@testing-library/react");
 const { afterEach, describe, expect, test } = await import("bun:test");
 const { AccountPage } = await import("../src/account-page.tsx");
+const { defaultSearchPreferences } = await import("../src/search-preferences.ts");
 type AccountApi = import("../src/account-page.tsx").AccountApi;
+type SearchPreferences = import("../src/search-preferences.ts").SearchPreferences;
+
+function unchangedPreferences(preferences: SearchPreferences) {
+  return Promise.resolve(preferences);
+}
+
+function renderAccount(api: AccountApi) {
+  return render(
+    <AccountPage
+      api={api}
+      onUpdatePreferences={unchangedPreferences}
+      preferences={defaultSearchPreferences}
+      preferencesError={null}
+      preferencesLoading={false}
+    />
+  );
+}
 
 afterEach(() => {
   cleanup();
@@ -16,6 +34,59 @@ afterEach(() => {
 });
 
 describe("account page", () => {
+  test("keeps preference controls inert when stored preferences fail to load", () => {
+    const api: AccountApi = {
+      create: () => Promise.reject(new Error("not used")),
+      list: async () => [],
+      revoke: () => Promise.reject(new Error("not used")),
+    };
+
+    render(
+      <AccountPage
+        api={api}
+        onUpdatePreferences={unchangedPreferences}
+        preferences={defaultSearchPreferences}
+        preferencesError="Search preferences could not be loaded."
+        preferencesLoading={false}
+      />
+    );
+
+    expect(
+      (screen.getByRole("button", { name: "Default match: Exact + partial" }) as HTMLButtonElement)
+        .disabled
+    ).toBe(true);
+  });
+
+  test("saves search preferences from the account settings list", async () => {
+    const api: AccountApi = {
+      create: () => Promise.reject(new Error("not used")),
+      list: async () => [],
+      revoke: () => Promise.reject(new Error("not used")),
+    };
+    const updates: SearchPreferences[] = [];
+    const updatePreferences = (preferences: SearchPreferences) => {
+      updates.push(preferences);
+      return Promise.resolve(preferences);
+    };
+
+    render(
+      <AccountPage
+        api={api}
+        onUpdatePreferences={updatePreferences}
+        preferences={defaultSearchPreferences}
+        preferencesError={null}
+        preferencesLoading={false}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Default status: All" }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Live" }));
+
+    await waitFor(() => expect(updates).toHaveLength(1));
+    expect(updates[0]).toEqual({ ...defaultSearchPreferences, defaultStatus: "live" });
+    expect(screen.getByRole("button", { name: "Default status: Live" })).toBeTruthy();
+  });
+
   test("keeps the dialog open until a pending key creation reveals the token", async () => {
     const token =
       "ttk_11111111-1111-4111-8111-111111111111_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
@@ -24,7 +95,6 @@ describe("account page", () => {
       id: "11111111-1111-4111-8111-111111111111",
       lastUsedAt: null,
       name: "MerchBase",
-      status: "active" as const,
       suffix: "AAAAAA",
     };
     let resolveCreate: ((created: { key: typeof key; token: string }) => void) | undefined;
@@ -33,15 +103,16 @@ describe("account page", () => {
         new Promise((resolve) => {
           resolveCreate = resolve;
         }),
-      delete: async (id) => ({ id }),
       list: async () => [],
-      revoke: async () => ({ ...key, status: "revoked" }),
+      revoke: async (id) => ({ id }),
     };
 
-    render(<AccountPage api={api} />);
-    expect(screen.getByRole("heading", { level: 1, name: "ACCESS CONTROL" })).toBeTruthy();
+    renderAccount(api);
+    expect(screen.getByRole("heading", { level: 1, name: "ACCOUNT" })).toBeTruthy();
+    expect(screen.getByText("Used this month")).toBeTruthy();
+    expect(screen.getByText("Monthly allowance")).toBeTruthy();
     expect(screen.queryByText("zach@example.com")).toBeNull();
-    await screen.findByText("No active keys. Create one when a service needs access.");
+    await screen.findByText("No API keys yet");
     fireEvent.click(screen.getByRole("button", { name: "Create API key" }));
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "MerchBase" },
@@ -62,18 +133,16 @@ describe("account page", () => {
       id: "11111111-1111-4111-8111-111111111111",
       lastUsedAt: null,
       name: "MerchBase",
-      status: "active" as const,
       suffix: "AAAAAA",
     };
     const api: AccountApi = {
       create: async () => ({ key, token }),
-      delete: async (id) => ({ id }),
       list: async () => [],
-      revoke: async () => ({ ...key, status: "revoked" }),
+      revoke: async (id) => ({ id }),
     };
 
-    render(<AccountPage api={api} />);
-    await screen.findByText("No active keys. Create one when a service needs access.");
+    renderAccount(api);
+    await screen.findByText("No API keys yet");
     fireEvent.click(screen.getByRole("button", { name: "Create API key" }));
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "MerchBase" },
@@ -87,76 +156,38 @@ describe("account page", () => {
     expect(screen.getByText("••••AAAAAA")).toBeTruthy();
   });
 
-  test("confirms revocation and moves the key into account history", async () => {
+  test("confirms revocation and removes the key", async () => {
     const key = {
       createdAt: "2026-07-14T12:00:00.000Z",
       id: "11111111-1111-4111-8111-111111111111",
       lastUsedAt: null,
       name: "MerchBase",
-      status: "active" as const,
       suffix: "AAAAAA",
     };
     const revokedIds: string[] = [];
     const api: AccountApi = {
       create: async () => ({ key, token: "unused" }),
-      delete: async (id) => ({ id }),
       list: async () => [key],
       revoke: (id) => {
         revokedIds.push(id);
-        return Promise.resolve({ ...key, status: "revoked" });
+        return Promise.resolve({ id });
       },
     };
 
-    render(<AccountPage api={api} />);
+    renderAccount(api);
     const revoke = await screen.findByRole("button", { name: "Revoke MerchBase" });
 
     fireEvent.click(revoke);
     expect(screen.getByRole("dialog", { name: "Revoke API key?" })).toBeTruthy();
     expect(
-      screen.getByText("“MerchBase” will stop working immediately. This cannot be undone.")
+      screen.getByText(
+        "“MerchBase” will stop working immediately and disappear from this account. This cannot be undone."
+      )
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Revoke key" }));
 
-    await screen.findByText("Revoked history");
+    await screen.findByText("No API keys yet");
     expect(revokedIds).toEqual([key.id]);
     expect(screen.queryByRole("button", { name: "Revoke MerchBase" })).toBeNull();
-  });
-
-  test("deletes a revoked key from account history", async () => {
-    const key = {
-      createdAt: "2026-07-14T12:00:00.000Z",
-      id: "11111111-1111-4111-8111-111111111111",
-      lastUsedAt: null,
-      name: "MerchBase",
-      status: "revoked" as const,
-      suffix: "AAAAAA",
-    };
-    const deletedIds: string[] = [];
-    const api: AccountApi = {
-      create: async () => ({ key: { ...key, status: "active" }, token: "unused" }),
-      delete: (id) => {
-        deletedIds.push(id);
-        return Promise.resolve({ id });
-      },
-      list: async () => [key],
-      revoke: async () => key,
-    };
-
-    render(<AccountPage api={api} />);
-
-    fireEvent.click(await screen.findByRole("button", { name: "Delete MerchBase" }));
-    expect(screen.getByRole("dialog", { name: "Delete API key?" })).toBeTruthy();
-    expect(
-      screen.getByText(
-        "“MerchBase” will be permanently removed from account history. This cannot be undone."
-      )
-    ).toBeTruthy();
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Delete key" }));
-      await Promise.resolve();
-    });
-
-    expect(screen.queryByText("Revoked history")).toBeNull();
-    expect(deletedIds).toEqual([key.id]);
   });
 });

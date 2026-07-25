@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 import turtleLogo from "../../../assets/brand/turtle-mark.svg";
 import type { AppRouter } from "../../server/src/api/router.ts";
 import { AccountMenu } from "./account-menu.tsx";
-import { type AccountApi, AccountPage } from "./account-page.tsx";
+import { type AccountApi, AccountPage, type AccountPreferencesApi } from "./account-page.tsx";
 import { appearanceChangedEvent, applyAppearance, savedAppearance } from "./appearance.ts";
 import { type BulkCheckApi, BulkCheckPage } from "./bulk-check-page.tsx";
 import { CheckTextPage, type TextCheckApi } from "./check-text-page.tsx";
@@ -33,6 +33,7 @@ import { HelpPage } from "./help-page.tsx";
 import { type MarkApi, MarkDetailPage } from "./mark-detail-page.tsx";
 import type { OperatorSyncApi, PublicStatusApi } from "./operator-sync-page.tsx";
 import { type SearchApi, SearchPage } from "./search-page.tsx";
+import { defaultSearchPreferences, type SearchPreferences } from "./search-preferences.ts";
 import { StatusPageSkeleton } from "./status-page-skeleton.tsx";
 
 type SearchToolRestoreState =
@@ -143,14 +144,53 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
       }),
     [getToken]
   );
-  const accountApi = useMemo<AccountApi>(
+  const accountApi = useMemo<AccountApi & AccountPreferencesApi>(
     () => ({
       create: (name) => client.account["api-keys"].create.mutate({ name }),
-      delete: (id) => client.account["api-keys"].delete.mutate({ id }),
+      getPreferences: () => client.account.preferences.get.query(),
       list: () => client.account["api-keys"].list.query(),
       revoke: (id) => client.account["api-keys"].revoke.mutate({ id }),
+      updatePreferences: (preferences) => client.account.preferences.update.mutate(preferences),
     }),
     [client]
+  );
+  const [searchPreferences, setSearchPreferences] =
+    useState<SearchPreferences>(defaultSearchPreferences);
+  const [searchPreferencesLoading, setSearchPreferencesLoading] = useState(true);
+  const [searchPreferencesError, setSearchPreferencesError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    setSearchPreferencesLoading(true);
+    setSearchPreferencesError(null);
+    accountApi
+      .getPreferences()
+      .then((preferences) => {
+        if (active) {
+          setSearchPreferences(preferences);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setSearchPreferencesError("Search preferences could not be loaded.");
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setSearchPreferencesLoading(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [accountApi]);
+  const updateSearchPreferences = useCallback(
+    async (preferences: SearchPreferences) => {
+      const saved = await accountApi.updatePreferences(preferences);
+      setSearchPreferences(saved);
+      setSearchPreferencesError(null);
+      return saved;
+    },
+    [accountApi]
   );
   const markApi = useMemo<MarkApi>(
     () => ({
@@ -252,7 +292,15 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
   } else if (location.pathname === "/help") {
     page = <HelpPage />;
   } else if (location.pathname === "/account") {
-    page = <AccountPage api={accountApi} />;
+    page = (
+      <AccountPage
+        api={accountApi}
+        onUpdatePreferences={updateSearchPreferences}
+        preferences={searchPreferences}
+        preferencesError={searchPreferencesError}
+        preferencesLoading={searchPreferencesLoading}
+      />
+    );
   } else if (location.pathname === "/check") {
     page = (
       <CheckTextPage
@@ -260,6 +308,7 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
         initialState={restoredSearchTool?.kind === "text" ? restoredSearchTool : undefined}
         onNavigate={handleSearchNavigate}
         onOpenMark={handleOpenMark}
+        preferences={searchPreferences}
         restoreScrollOffset={restoreScrollOffset}
       />
     );
@@ -270,6 +319,7 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
         initialState={restoredSearchTool?.kind === "bulk" ? restoredSearchTool : undefined}
         onNavigate={handleSearchNavigate}
         onOpenMark={handleOpenMark}
+        preferences={searchPreferences}
         restoreScrollOffset={restoreScrollOffset}
       />
     );
@@ -284,6 +334,8 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
         onNavigate={handleSearchNavigate}
         onOpenMark={handleOpenMark}
         onReplacementLoaded={handleReplacementLoaded}
+        preferences={searchPreferences}
+        preferencesLoading={searchPreferencesLoading}
         replacementSourceSearch={replacementSourceSearch}
         restoreScrollOffset={restoreScrollOffset}
         search={location.search}

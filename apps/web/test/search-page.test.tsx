@@ -20,10 +20,11 @@ const { act, cleanup, fireEvent, render, screen, waitFor, within } = await impor
   "@testing-library/react"
 );
 const { afterEach, beforeEach, expect, test, vi } = await import("bun:test");
-const { useState } = await import("react");
+const { useCallback, useState } = await import("react");
 const { SearchPage } = await import("../src/search-page.tsx");
 type SearchApi = import("../src/search-page.tsx").SearchApi;
 type SearchPageResult = Awaited<ReturnType<SearchApi["search"]>>;
+type SearchPreferences = import("../src/search-preferences.ts").SearchPreferences;
 
 const markLinkPattern = /TURTLE MARK/;
 const firstMarkAccessibleNamePattern = /TURTLE MARK 1, Live, serial number 70000001/;
@@ -134,6 +135,7 @@ function renderSearch(
   initialSearch = "?q=turtle&mode=multi&exact=true&partial=true&status=all&type=all&registered=all&sort=relevance",
   options: {
     onOpenMark?: (serialNumber: string, scrollOffset: number) => void;
+    preferences?: SearchPreferences;
     restoreScrollOffset?: number;
   } = {}
 ) {
@@ -156,6 +158,7 @@ function renderSearch(
           }
           onOpenMark={options.onOpenMark ?? noop}
           onReplacementLoaded={noop}
+          preferences={options.preferences}
           replacementSourceSearch={entry.sourceSearch}
           restoreScrollOffset={options.restoreScrollOffset ?? 0}
           search={entry.search}
@@ -165,6 +168,118 @@ function renderSearch(
   }
   return { queryClient, view: render(<Harness />) };
 }
+
+test("account preferences seed new search URLs, requests, and result density", async () => {
+  const inputs: Parameters<SearchApi["search"]>[0][] = [];
+  const api: SearchApi = {
+    search: (input) => {
+      inputs.push(input);
+      return Promise.resolve(resultPage(0, 1, 1));
+    },
+  };
+  renderSearch(api, "", {
+    preferences: {
+      defaultMatch: "exact",
+      defaultSort: "newest-activity",
+      defaultStatus: "live",
+      pageSize: 50,
+      resultDensity: "comfortable",
+    },
+  });
+
+  fireEvent.change(screen.getByRole("searchbox", { name: "Search trademarks" }), {
+    target: { value: "turtle" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+  await screen.findByText("1 result");
+  expect(inputs[0]).toMatchObject({
+    limit: 50,
+    match: "exact",
+    query: "turtle",
+    sort: "newest-activity",
+    status: "live",
+  });
+  expect(screen.getByTestId("search-result-row").dataset.density).toBe("comfortable");
+});
+
+test("a cold search waits for stored preferences before navigating", async () => {
+  const inputs: Parameters<SearchApi["search"]>[0][] = [];
+  const api: SearchApi = {
+    search: (input) => {
+      inputs.push(input);
+      return Promise.resolve(resultPage(0, 1, 1));
+    },
+  };
+  const preferences: SearchPreferences = {
+    defaultMatch: "exact",
+    defaultSort: "newest-activity",
+    defaultStatus: "live",
+    pageSize: 50,
+    resultDensity: "comfortable",
+  };
+  const queryClient = testQueryClient();
+
+  function Harness() {
+    const [entry, setEntry] = useState({
+      search: "",
+      sourceSearch: undefined as string | undefined,
+    });
+    const [loading, setLoading] = useState(true);
+    const [storedPreferences, setStoredPreferences] = useState<SearchPreferences>({
+      defaultMatch: "both",
+      defaultSort: "relevance",
+      defaultStatus: "all",
+      pageSize: 25,
+      resultDensity: "compact",
+    });
+    const resolvePreferences = useCallback(() => {
+      setStoredPreferences(preferences);
+      setLoading(false);
+    }, []);
+    const navigate = useCallback((href: string, sourceSearch?: string) => {
+      const url = new URL(href, "https://example.test");
+      setEntry({ search: url.search, sourceSearch });
+    }, []);
+
+    return (
+      <QueryClientProvider client={queryClient}>
+        <button onClick={resolvePreferences} type="button">
+          Resolve preferences
+        </button>
+        <SearchPage
+          api={api}
+          onNavigate={navigate}
+          onOpenMark={noop}
+          onReplacementLoaded={noop}
+          preferences={storedPreferences}
+          preferencesLoading={loading}
+          replacementSourceSearch={entry.sourceSearch}
+          restoreScrollOffset={0}
+          search={entry.search}
+        />
+      </QueryClientProvider>
+    );
+  }
+
+  render(<Harness />);
+  fireEvent.change(screen.getByRole("searchbox", { name: "Search trademarks" }), {
+    target: { value: "turtle" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Search" }));
+  expect(inputs).toHaveLength(0);
+
+  fireEvent.click(screen.getByRole("button", { name: "Resolve preferences" }));
+
+  await screen.findByText("1 result");
+  expect(inputs[0]).toMatchObject({
+    limit: 50,
+    match: "exact",
+    query: "turtle",
+    sort: "newest-activity",
+    status: "live",
+  });
+});
 
 beforeEach(() => {
   intersectionCallback = undefined;

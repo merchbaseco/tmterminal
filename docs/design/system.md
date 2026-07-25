@@ -132,6 +132,12 @@ chip stays defined. Additional mascot illustration is deferred.
   quiet neutral fill, while counts stay in compact lozenges. The column header
   uses a lighter tonal step before the unfilled data rows. Real issues expand
   inline above the rows.
+- Account keeps API access as its primary document, then presents search
+  preferences as a conventional settings list inside the same bounded ledger
+  language as search results. Each divider-separated row pairs a label and short
+  explanation with one full-height rectilinear selector cell on the right.
+  Controls save automatically; the outer rails and shared selector spine stay
+  aligned across every row without turning the settings into a card grid.
 - The empty search masthead fills the brand state and leaves the layout once a
   query is active.
 - Search controls remain prominent and aligned.

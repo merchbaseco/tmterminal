@@ -15,6 +15,7 @@ import type { AppRouter } from "../../server/src/api/router.ts";
 import { type HighlightTone, highlightTones } from "./highlight-tones.ts";
 import { LegalFooter } from "./legal-footer.tsx";
 import { SearchComposer, SearchMasthead } from "./search-composer.tsx";
+import { defaultSearchPreferences, type SearchPreferences } from "./search-preferences.ts";
 import { TextHighlight } from "./text-highlight.tsx";
 import {
   TrademarkEmptyState,
@@ -72,6 +73,7 @@ export function BulkCheckPage({
   initialState,
   onNavigate,
   onOpenMark,
+  preferences = defaultSearchPreferences,
   restoreScrollOffset = 0,
 }: {
   api: BulkCheckApi;
@@ -82,6 +84,7 @@ export function BulkCheckPage({
     scrollOffset: number,
     restoreState: BulkCheckRestoreState
   ) => void;
+  preferences?: SearchPreferences;
   restoreScrollOffset?: number;
 }) {
   const [value, setValue] = useState(initialState ? initialState.value : "");
@@ -210,6 +213,7 @@ export function BulkCheckPage({
               item={selectedQuery}
               onConflict={refreshScreen}
               onOpenMark={openMark}
+              preferences={preferences}
               tone={selectedTone}
             />
           ) : null}
@@ -302,6 +306,7 @@ function BulkTrademarkResults({
   item,
   onConflict,
   onOpenMark,
+  preferences,
   tone,
 }: {
   api: BulkCheckApi;
@@ -309,12 +314,13 @@ function BulkTrademarkResults({
   item: ScreenResultItem;
   onConflict: () => void;
   onOpenMark: (serialNumber: string, scrollOffset: number) => void;
+  preferences: SearchPreferences;
   tone: HighlightTone;
 }) {
   const request = useMemo(
     () =>
       ({
-        limit: 25,
+        limit: preferences.pageSize,
         match: "both",
         mode: "multi",
         query: item.query,
@@ -323,7 +329,7 @@ function BulkTrademarkResults({
         status: "live",
         type: "all",
       }) as const,
-    [item.query]
+    [item.query, preferences.pageSize]
   );
   const queryKey = useMemo(
     () => ["marks.bulk-search", dataVersion, request] as const,
@@ -405,6 +411,7 @@ function BulkTrademarkResults({
               {items.map((result) => (
                 <TrademarkResultRow
                   contextLabel={matchLabels[result.match]}
+                  density={preferences.resultDensity}
                   indicators={[{ label: item.query, tone }]}
                   item={result}
                   key={result.serialNumber}
