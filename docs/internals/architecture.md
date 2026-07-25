@@ -52,8 +52,9 @@ database role; navigation visibility is not authorization.
 
 ## Data Boundary
 
-PostgreSQL is the source of truth for current product data. Search and reports
-read live mark tables directly; source lifecycle never sits in their query path.
+PostgreSQL is the source of truth for current product data. Search, matching,
+screening, and listing read live mark tables directly; source lifecycle never
+sits in their query path.
 The sole global query state is a monotonic Data Version used to detect changes
 between offset pages.
 

@@ -1,13 +1,13 @@
 ---
-summary: Defines search modes, filters, sorting, results, mark detail, text matching, reports, URL state, and live-data behavior.
+summary: Defines search modes, filters, sorting, results, mark detail, text matching, bulk screening, URL state, and live-data behavior.
 read_when:
-  - changing search validation, ranking, filters, pagination, results, reports, or mark detail
+  - changing search validation, ranking, filters, pagination, results, matching, screening, or mark detail
   - changing website routes or customer-facing trademark status semantics
 ---
 
-# Search And Reports
+# Search
 
-Search, exact lookup, text matching, and reports always query the database's
+Search, exact lookup, text matching, listing, and screening always query the database's
 current best-known trademark state. Ingestion progress never gates them. An
 empty database returns empty results; an absent exact identity returns not
 found.
@@ -31,6 +31,17 @@ The empty page is the brand state: the oversized masthead, search field, action,
 and legal disclaimer fit one desktop viewport without redundant explanation.
 Once a query is active, the masthead leaves the layout and sticky search controls
 turn the page into a compact search instrument.
+
+Search Marks, Check Text, and Bulk Check share one website composition and one
+mode switcher attached to its input surface. Search Marks uses a single-line
+field, as does Check Text. Bulk Check expands the same field into a textarea and
+places its action directly beneath it while preserving the page rhythm and
+ordinary results presentation.
+The primary navigation links to Search once; the mode switcher owns movement
+between the three tools.
+
+Once results are visible, the mode switcher yields to one contextual action that
+starts a clean search or check in the current mode.
 
 ## Filters And Sorts
 
@@ -87,36 +98,43 @@ events.
 
 ## Text Matching
 
-Text matching finds all overlapping live word-mark candidates in submitted
-text. The server owns candidate generation, normalization, filtering, and
-stable UTF-16 offsets. It never silently truncates matches.
+Text matching accepts one to 100 named Text Documents. It returns one ordered
+result per document. Each occurrence keeps its half-open JavaScript UTF-16 span
+and groups every matching live trademark record. The server owns combined
+candidate generation, normalization, filtering, and one repeatable-read Data
+Version. It never silently truncates matches.
 
-## Reports
+The Check Text website renders the submitted document immediately above the
+ordinary trademark result list. Overlapping occurrences form one highlighted
+passage. Selecting a passage filters the result list to the distinct marks
+behind that passage; clearing the selection restores every distinct mark found
+in the document. Distinct phrases use a consistent bright color shared by their
+highlights and result-row indicators. Hover or keyboard focus discloses the
+distinct matching-mark count without delay. The result summary retains the
+ordinary live exact and live partial signals; text matching currently returns
+exact phrase occurrences, so partial remains zero. Highlighting is navigation,
+not a risk verdict.
 
-Reports are typed result sets, not stored searches or custom dashboards. They
-reuse result rows, filters, sorting, count, and pagination. The HTTP client and
-CLI expose them for programmatic use; the website does not present report pages.
+## Bulk Screening
 
-| Preset | Meaning |
-| --- | --- |
-| Filed, previous week | Filing date falls in the previous Monday-through-Sunday window. |
-| Registered, previous week | Registration date falls in that window. |
-| Published for opposition | Current USPTO status is Published for Opposition; no claim is made about a legally open opposition window. |
+Bulk screening accepts one to 100 named independent phrases. It returns ordered
+live exact and partial counts, not a legal or product-policy verdict. Callers
+open ordinary Search for records and own any ignored-mark, warning, or approval
+policy.
 
-The defining report constraint is fixed; status, type, registration, and sort
-remain adjustable.
-
-Each report includes a compact overview of its complete result set, independent
-of the current result page. Previous-week reports group counts by each day in
-the resolved Monday-through-Sunday window. Published-for-opposition groups the
-current result set by mark type. The overview and list use the same defining
-report constraint and adjustable filters.
+The Bulk Check website uses those counts as a phrase navigator. It selects the
+first phrase with a live match by default and renders that phrase's ordinary
+paginated Search results below the navigator. Selecting another phrase replaces
+the same result document. It does not create a separate condensed result table
+or request an unbounded result set for every phrase at once.
 
 ## Routes And URL State
 
 ```text
 /                         search composition
-/search?...               shareable search state
+/search?...               Search Marks mode and shareable search state
+/check                    direct entry to Check Text mode
+/bulk                     direct entry to Bulk Check mode
 /marks/:serial-number     mark detail
 /account                  Account and API-key management
 /status                   public status; operator details for approved admins

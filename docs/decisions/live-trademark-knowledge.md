@@ -25,8 +25,9 @@ problems, not availability.
 ## Decision
 
 PostgreSQL is perpetual Live Trademark Knowledge. Every safe application batch
-updates it immediately. Search, exact lookup, text matching, and reports read
-the live tables without joining source lifecycle or an activation pointer.
+updates it immediately. Search, exact lookup, listing, text matching, and
+screening read the live tables without joining source lifecycle or an
+activation pointer.
 
 Source files retain durable acquisition and application state for operations,
 provenance, quota safety, and repair. Annual and daily labels do not create

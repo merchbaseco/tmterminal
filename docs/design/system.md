@@ -50,10 +50,20 @@ Working order:
   near-black (`#0D0E0E`) with charcoal surfaces; avoid warm olive or brown casts.
 - Rounded buttons and navigation pills deliberately contrast with rectilinear
   documents, menus, and technical surfaces. Preserve that contrast.
+- Interactive chrome—links, buttons, tabs, menus, and their icons—is
+  non-selectable and non-draggable. Ordinary document copy remains selectable.
 - Search fields and their primary action form one rectilinear grid row. The
   focused field owns the shared boundary so its chartreuse edge meets the action
   without a second divider. Empty and results states use the same control height,
   column proportions, typography, and square corners.
+- Search Marks, Check Text, and Bulk Check use one quiet mode rail attached to
+  that grid row. The header exposes one Search destination; the rail owns tool
+  selection. Search Marks and Check Text use the same single-line field. Bulk
+  Check expands it into a textarea with one full-width accent action beneath it,
+  without introducing a separate masthead or form treatment.
+- The three-mode rail appears only before a query. Result surfaces replace it
+  with one contextual action that floats in the page whitespace above the
+  composer and returns to a clean field in the current mode.
 - Search is the dominant interaction; results appear directly beneath it.
 - Layouts are typographic rows and documents, not card dashboards.
 - Utility text stays readable at 12px; navigation uses the body setting.

@@ -23,8 +23,9 @@ products.
 
 - Search word marks with Multi, Split, and Wildcard semantics.
 - Resolve exact serial and registration identities.
-- Match listing text against known marks.
-- Query recent activity and typed report result sets through programmatic clients.
+- Match named text documents against known live marks.
+- Screen independent phrases for live exact and partial match counts.
+- Query recent trademark activity through programmatic clients.
 - Inspect mark identity, ownership, classes, goods, status, and provenance.
 - Inspect public source freshness and recent processing activity.
 - Inspect active ingestion issues as an operator.
@@ -62,7 +63,7 @@ delete a revoked key from account history; active keys must be revoked first.
 
 | Surface | Role |
 | --- | --- |
-| Website | Private search, mark detail, and account management plus public Status and Help pages. |
+| Website | Private search, text matching, bulk screening, mark detail, and account management plus public Status and Help pages. |
 | `@tmturtle/http-client` | Typed programmatic access derived from the server router. |
 | `@tmturtle/cli` / `tt` | JSON-first shell automation over API-key-authorized procedures. |
 | MerchBase | Downstream consumer that owns its own adapter and product policy. |
@@ -79,7 +80,7 @@ runtime configuration.
 
 V1 excludes:
 
-- anonymous trademark search, reports, or mark-detail routes, or a public
+- anonymous trademark search, text matching, screening, or mark-detail routes, or a public
   marketing site;
 - billing, plans, teams, watches, alerts, or email delivery;
 - filing, prosecution, legal-risk scores, or legal advice;
@@ -89,7 +90,7 @@ V1 excludes:
 
 ## Related
 
-- [Search and reports](search-and-reports.md)
+- [Search](search.md)
 - [Status](source-status.md)
 - [Architecture](../internals/architecture.md)
 - [Thin website decision](../decisions/thin-website-v1.md)

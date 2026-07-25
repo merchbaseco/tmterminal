@@ -56,12 +56,7 @@ tt get --serial <eight-digit-number>
 tt get --registration <seven-digit-number>
 tt match --text <text> [--type all|design|typeset|text|other]
 tt match --stdin [--type all|design|typeset|text|other]
-tt latest [--offset 0] [--data-version <version>]
-
-tt reports run --event filed --window previous-week [filters and page options] [--from YYYY-MM-DD --to YYYY-MM-DD]
-tt reports run --event registered --window previous-week [filters and page options] [--from YYYY-MM-DD --to YYYY-MM-DD]
-tt reports run --event published-for-opposition [filters and page options]
-
+tt list [--offset 0] [--data-version <version>]
 tt status
 ```
 
@@ -98,14 +93,8 @@ the stable JSON code rather than an exit-code taxonomy.
 
 ## Pagination
 
-Paged output preserves the server envelope, current data-through date, and Data
-Version. Follow-up commands pass `--data-version`; changed live data returns
-`CONFLICT`.
-
-Filed and registered continuations also pass the first response's resolved
-`from` and `to` through `--from` and `--to`. The CLI requires Data Version,
-`from`, and `to` together so crossing a week boundary returns `CONFLICT` rather
-than silently changing the report window.
+Paged output preserves the server envelope and Data Version. Follow-up commands
+pass `--data-version`; changed live data returns `CONFLICT`.
 
 Every command requests the fixed 25-item API page. External streaming and
 hidden pagination are outside v1.

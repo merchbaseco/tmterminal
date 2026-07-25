@@ -8,7 +8,17 @@ internal, reference, and operational details live in [`docs/`](docs/README.md).
 
 **Search Query**:
 The single word-mark phrase or wildcard pattern submitted for search.
-_Avoid_: Batch query, Query list
+_Avoid_: Query list
+
+**Screen Query**:
+One independent word-mark phrase in a Trademark Screen.
+_Avoid_: Listing, Batch search term
+
+**Trademark Screen**:
+An ordered batch of Screen Queries evaluated for live exact and partial match
+counts. It returns evidence for caller-owned policy; it does not declare a
+phrase safe.
+_Avoid_: Bulk query, Listing checker, Safety check
 
 **Search Mode**:
 The interpretation applied to a Search Query: Multi, Split, or Wildcard.
@@ -31,14 +41,15 @@ query.
 **Wildcard**:
 Search the whole mark using a pattern where `*` means zero or more characters.
 
-**Report**:
-A result set produced from typed trademark constraints rather than a Search
-Query.
-_Avoid_: Saved search, Dashboard
-
 **Text Match**:
-One live word mark found in submitted text, paired with a half-open JavaScript
-UTF-16 source span. Every overlapping occurrence is retained.
+One occurrence found in a named Text Document, paired with a half-open
+JavaScript UTF-16 source span and every live word mark for that occurrence.
+Every overlapping occurrence is retained.
+
+**Text Document**:
+Caller-owned text with a stable caller-supplied identity. Text Documents are
+matched together in one Data Version.
+_Avoid_: Listing field, Blob
 
 **Live Trademark Knowledge**:
 The database's current best-known trademark state. Every committed safe update
@@ -46,8 +57,8 @@ is immediately searchable.
 _Avoid_: Corpus, Published dataset, Active generation
 
 **Data Query**:
-Search, identity lookup, text matching, or reports over Live Trademark
-Knowledge. It never checks ingestion readiness.
+Search, identity lookup, text matching, listing, or screening over Live
+Trademark Knowledge. It never checks ingestion readiness.
 _Avoid_: Corpus query, Published-data query
 
 **Data Version**:

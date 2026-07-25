@@ -24,7 +24,7 @@ describe how USPTO files continuously update the searchable database.
 | Task | Read |
 | --- | --- |
 | Understand product scope | [Product docs](product/README.md), [Service](product/service.md) |
-| Change search, reports, or mark detail | [Search and reports](product/search-and-reports.md), [HTTP API](reference/http-api.md) |
+| Change search, matching, screening, or mark detail | [Search](product/search.md), [HTTP API](reference/http-api.md) |
 | Change USPTO ingestion or precedence | [Ingestion internals](internals/ingestion.md), [Data model](reference/data-model.md), [USPTO source](reference/uspto-source.md) |
 | Change source visibility or repair | [Source status](product/source-status.md), [Source repair](operations/source-repair.md) |
 | Change CLI behavior | [CLI reference](reference/cli.md) |
@@ -39,7 +39,7 @@ describe how USPTO files continuously update the searchable database.
 | Behavior | Doc |
 | --- | --- |
 | Users, authentication, clients, scope, and non-goals | [Service](product/service.md) |
-| Multi, Split, Wildcard, filters, reports, and mark detail | [Search and reports](product/search-and-reports.md) |
+| Multi, Split, Wildcard, filters, matching, screening, and mark detail | [Search](product/search.md) |
 | Public status, operator issues, source files, and Repair | [Status](product/source-status.md) |
 
 ## Internals

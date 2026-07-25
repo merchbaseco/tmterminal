@@ -1,7 +1,7 @@
 ---
-summary: Defines Trademark Turtle procedure groups, authorization, search and report inputs, pagination metadata, account actions, and stable error codes.
+summary: Defines Trademark Turtle procedure groups, authorization, search, matching, screening, pagination metadata, account actions, and stable error codes.
 read_when:
-  - changing tRPC routes, auth requirements, search or report inputs, pagination, account procedures, or errors
+  - changing tRPC routes, auth requirements, search, matching, screening, pagination, account procedures, or errors
   - changing the generated HTTP client or a downstream consumer's typed contract
 ---
 
@@ -35,10 +35,10 @@ names to callers.
 | Procedure | Contract |
 | --- | --- |
 | `marks.search` | Multi, Split, or Wildcard query; status/type/registration filters; relevance or activity sort; server count and page. |
-| `marks.get` | Exact eight-digit serial identity. |
-| `marks.get-by-registration` | Exact normalized registration identity. |
-| `marks.match-text` | All overlapping live candidates and half-open UTF-16 spans; input limit 4,096 UTF-16 units and 128 Unicode word tokens; no accepted-input result cap. |
-| `marks.latest` | Recent source transaction activity with stable pagination. |
+| `marks.get` | Exactly one eight-digit serial or seven-digit registration identity. |
+| `marks.match` | One to 100 named Text Documents; every overlapping occurrence, half-open UTF-16 span, and live trademark group; each document is limited to 4,096 UTF-16 units and 128 Unicode word tokens. |
+| `marks.screen` | One to 100 named Screen Queries; ordered live exact and partial counts in one Data Version. |
+| `marks.list` | Recent source transaction activity with stable pagination. |
 
 ## Sync
 
@@ -49,26 +49,6 @@ pending/failed counts. A worker heartbeat older than five minutes reports a
 failed active state. The summary does not expose filenames or repair actions.
 
 Serial and registration are identities, never fuzzy query terms.
-
-## Reports
-
-`reports.run` accepts one typed constraint:
-
-- filed during previous week;
-- registered during previous week;
-- currently published for opposition.
-
-The first two return resolved Monday-through-Sunday `from` and `to` dates.
-Reports use the same filters, items, count, and paging behavior as search, with
-`newest-activity` or `oldest-activity` sorting. Continuation supplies expected
-Data Version, `from`, and `to` together so a week-boundary change returns
-`CONFLICT`.
-
-Every response also returns an `overview` for the complete filtered report:
-`dimension` is `date` for previous-week reports and `type` for
-published-for-opposition, and each bucket returns its key plus total, live, and
-dead counts. Date overviews include all seven resolved dates, including zero
-count days; type overviews include Design, Typeset, Text, and Other.
 
 ## Pagination
 
@@ -143,9 +123,11 @@ that source ingestion is incomplete.
 
 `@tmturtle/http-client` exports:
 
-- `createTmturtleClient({ baseUrl, apiKey })`
+- `createTmturtleClient({ apiKey, baseUrl?, fetch? })`
 - `TmturtleClient`
-- `TmturtleRouterInputs`
-- `TmturtleRouterOutputs`
+- named input and output types for each public method
+- `TmturtleError`
 
-The client and CLI ship in lockstep SemVer.
+Client methods return promises directly. tRPC procedure objects and transport
+verbs are not part of the package contract. The client and CLI ship in lockstep
+SemVer.

@@ -16,7 +16,7 @@ proportional set once after the diff is frozen.
 | --- | --- |
 | Auth, services, pure parsers | Focused unit tests, touched lint, typecheck. |
 | Persistence or ingestion | Focused real-PostgreSQL test, restart/idempotency/cleanup coverage. |
-| Search or reports | Real PostgreSQL filters, sort, count, page, Data Version, and index plans. |
+| Search, matching, or screening | Real PostgreSQL filters, sort, count, page, batching, Data Version, and index plans. |
 | HTTP client or CLI | Router/client build plus JSON-envelope and boundary tests. |
 | Website | Focused tests plus one real happy path and riskiest adjacent path. |
 | Schema | Generated migration review, upgrade/idempotency test, drift check. |
