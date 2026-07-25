@@ -123,8 +123,10 @@ describe("account authentication", () => {
       });
       const preferences = {
         defaultMatch: "exact",
+        defaultRegistered: "yes",
         defaultSort: "newest-activity",
         defaultStatus: "live",
+        defaultType: "text",
         pageSize: 50,
         resultDensity: "comfortable",
       };
@@ -146,8 +148,10 @@ describe("account authentication", () => {
       expect(initial.statusCode).toBe(200);
       expect(initial.json().result.data).toEqual({
         defaultMatch: "both",
+        defaultRegistered: "all",
         defaultSort: "relevance",
         defaultStatus: "all",
+        defaultType: "all",
         pageSize: 25,
         resultDensity: "compact",
       });

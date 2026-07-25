@@ -74,6 +74,8 @@ describe("account page", () => {
         .disabled
     ).toBe(true);
     await screen.findByText("No API keys yet");
+    expect(screen.getByRole("heading", { name: "API keys" })).toBeTruthy();
+    expect(screen.getByText("0 active")).toBeTruthy();
   });
 
   test("saves search preferences from the account settings list", async () => {
@@ -121,6 +123,48 @@ describe("account page", () => {
       vi.advanceTimersByTime(2000);
     });
     expect(screen.getByRole("status").textContent).toBe("");
+  });
+
+  test("saves default type and registration filters", async () => {
+    const api: AccountApi = {
+      create: () => Promise.reject(new Error("not used")),
+      list: async () => [],
+      revoke: () => Promise.reject(new Error("not used")),
+    };
+    const updates: SearchPreferences[] = [];
+    const updatePreferences = (preferences: SearchPreferences) => {
+      updates.push(preferences);
+      return Promise.resolve(preferences);
+    };
+
+    render(
+      <AccountPage
+        api={api}
+        onUpdatePreferences={updatePreferences}
+        preferences={defaultSearchPreferences}
+        preferencesError={null}
+        preferencesLoading={false}
+      />
+    );
+
+    await screen.findByText("No API keys yet");
+    expect(screen.getByRole("heading", { name: "Matching" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Results" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Default type: All" }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Text" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Default type: Text" })).toBeTruthy()
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Default registration: All" }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Yes" }));
+
+    await waitFor(() => expect(updates).toHaveLength(2));
+    expect(updates[1]).toEqual({
+      ...defaultSearchPreferences,
+      defaultRegistered: "yes",
+      defaultType: "text",
+    });
   });
 
   test("shows a save failure without claiming success", async () => {

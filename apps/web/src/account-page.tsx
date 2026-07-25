@@ -44,6 +44,11 @@ const pageSizeOptions = [
   { label: "50 results", value: "50" },
   { label: "100 results", value: "100" },
 ] as const;
+const registeredOptions = [
+  { label: "All", value: "all" },
+  { label: "Yes", value: "yes" },
+  { label: "No", value: "no" },
+] as const;
 const sortOptions = [
   { label: "Relevance", value: "relevance" },
   { label: "Newest activity", value: "newest-activity" },
@@ -53,6 +58,12 @@ const statusOptions = [
   { label: "All", value: "all" },
   { label: "Live", value: "live" },
   { label: "Dead", value: "dead" },
+] as const;
+const typeOptions = [
+  { label: "All", value: "all" },
+  { label: "Design", value: "design" },
+  { label: "Typeset", value: "typeset" },
+  { label: "Text", value: "text" },
 ] as const;
 
 export interface AccountApi {
@@ -92,28 +103,40 @@ function ApiKeyRow({
   }, [keyRecord, onRevoke]);
 
   return (
-    <article className="grid min-h-20 grid-cols-[minmax(0,1fr)_var(--account-side-column)] items-stretch border-border border-b max-[48rem]:grid-cols-[minmax(0,1fr)_auto]">
-      <div className="grid min-w-0 content-center gap-1 px-4 py-3 max-[48rem]:py-4">
-        <p className="m-0 truncate font-semibold text-base">{keyRecord.name}</p>
-        <p className="m-0 flex min-w-0 flex-wrap gap-x-[0.55rem] text-base text-muted-foreground max-[48rem]:grid max-[48rem]:gap-0.5 [&>span:not(:last-child)]:after:ml-[0.55rem] [&>span:not(:last-child)]:after:content-['·'] max-[48rem]:[&>span:not(:last-child)]:after:content-none">
-          <span className="tabular-nums">••••{keyRecord.suffix}</span>
-          <span>Created {formatDate(keyRecord.createdAt)}</span>
-          <span>
-            {keyRecord.lastUsedAt ? `Last used ${formatDate(keyRecord.lastUsedAt)}` : "Never used"}
-          </span>
-        </p>
-      </div>
-      <div className="grid min-w-[5rem] content-center justify-items-center border-border border-l px-3 py-3 max-[48rem]:py-4">
-        <Button
-          aria-label={`Revoke ${keyRecord.name}`}
-          className="pill-button"
-          onClick={revoke}
-          size="icon"
-          variant="destructive-outline"
-        >
-          <HugeiconsIcon aria-hidden="true" icon={Delete02Icon} />
-        </Button>
-      </div>
+    <article className="relative min-h-20 border-border border-b">
+      <dl className="m-0 grid min-h-20 min-w-0 grid-cols-2 pr-20 pl-4 min-[48rem]:grid-cols-[minmax(0,2fr)_minmax(7rem,1fr)_minmax(9rem,1fr)_minmax(9rem,1fr)]">
+        <div className="grid min-w-0 content-center gap-1 py-4 max-[48rem]:col-span-2 min-[48rem]:py-3 min-[48rem]:pr-5">
+          <dt className="utility-label text-muted-foreground">Name</dt>
+          <dd className="m-0 truncate font-semibold text-base">{keyRecord.name}</dd>
+        </div>
+        <div className="grid min-w-0 content-center gap-1 border-border border-t py-4 pr-5 min-[48rem]:border-t-0 min-[48rem]:border-l min-[48rem]:px-5 min-[48rem]:py-3">
+          <dt className="utility-label text-muted-foreground">Key</dt>
+          <dd className="m-0 text-base text-muted-foreground tabular-nums">
+            ••••{keyRecord.suffix}
+          </dd>
+        </div>
+        <div className="grid min-w-0 content-center gap-1 border-border border-t border-l py-4 pl-5 min-[48rem]:border-t-0 min-[48rem]:px-5 min-[48rem]:py-3">
+          <dt className="utility-label text-muted-foreground">Created</dt>
+          <dd className="m-0 text-base text-muted-foreground tabular-nums">
+            {formatDate(keyRecord.createdAt)}
+          </dd>
+        </div>
+        <div className="col-span-2 grid min-w-0 content-center gap-1 border-border border-t py-4 min-[48rem]:col-span-1 min-[48rem]:border-t-0 min-[48rem]:border-l min-[48rem]:py-3 min-[48rem]:pl-5">
+          <dt className="utility-label text-muted-foreground">Last used</dt>
+          <dd className="m-0 text-base text-muted-foreground tabular-nums">
+            {keyRecord.lastUsedAt ? formatDate(keyRecord.lastUsedAt) : "Never"}
+          </dd>
+        </div>
+      </dl>
+      <Button
+        aria-label={`Revoke ${keyRecord.name}`}
+        className="pill-button absolute top-1/2 right-4 -translate-y-1/2"
+        onClick={revoke}
+        size="icon"
+        variant="destructive-outline"
+      >
+        <HugeiconsIcon aria-hidden="true" icon={Delete02Icon} />
+      </Button>
     </article>
   );
 }
@@ -290,15 +313,27 @@ export function AccountPage({
     },
     [draftPreferences, savePreferences]
   );
-  const changeDefaultSort = useCallback(
-    (defaultSort: SearchPreferences["defaultSort"]) => {
-      savePreferences({ ...draftPreferences, defaultSort });
-    },
-    [draftPreferences, savePreferences]
-  );
   const changeDefaultStatus = useCallback(
     (defaultStatus: SearchPreferences["defaultStatus"]) => {
       savePreferences({ ...draftPreferences, defaultStatus });
+    },
+    [draftPreferences, savePreferences]
+  );
+  const changeDefaultType = useCallback(
+    (defaultType: SearchPreferences["defaultType"]) => {
+      savePreferences({ ...draftPreferences, defaultType });
+    },
+    [draftPreferences, savePreferences]
+  );
+  const changeDefaultRegistered = useCallback(
+    (defaultRegistered: SearchPreferences["defaultRegistered"]) => {
+      savePreferences({ ...draftPreferences, defaultRegistered });
+    },
+    [draftPreferences, savePreferences]
+  );
+  const changeDefaultSort = useCallback(
+    (defaultSort: SearchPreferences["defaultSort"]) => {
+      savePreferences({ ...draftPreferences, defaultSort });
     },
     [draftPreferences, savePreferences]
   );
@@ -321,12 +356,11 @@ export function AccountPage({
     [draftPreferences, savePreferences]
   );
 
-  const keyCountLabel = `${keys.length} ${keys.length === 1 ? "API key" : "API keys"}`;
   const preferenceControlsDisabled =
     preferencesLoading || preferencesSaving || Boolean(preferencesError);
 
   return (
-    <main className="page-shell page-start isolate flex min-h-[calc(100dvh-var(--topbar-height,4.5rem))] flex-col pb-[clamp(2rem,5vw,5.5rem)] [--account-side-column:clamp(5rem,8vw,7rem)]">
+    <main className="page-shell page-start isolate flex min-h-[calc(100dvh-var(--topbar-height,4.5rem))] flex-col pb-[clamp(2rem,5vw,5.5rem)]">
       <PageMasthead
         description="Manage your Trademark Turtle settings and API access. Your account is tied to your MerchBase.co account."
         title="ACCOUNT"
@@ -451,9 +485,10 @@ export function AccountPage({
             </p>
           ) : null}
 
-          <div className="flex min-h-11 items-center border-border border-b px-4 py-1.5">
-            <p className="m-0 font-semibold text-base tabular-nums">
-              {loading ? <span>Loading keys…</span> : <span>{keyCountLabel}</span>}
+          <div className="flex min-h-11 items-center justify-between gap-4 border-border border-b bg-muted/40 px-4 py-1.5">
+            <h2 className="utility-label m-0 text-muted-foreground">API keys</h2>
+            <p className="m-0 text-base text-muted-foreground tabular-nums">
+              {loading ? <span>Loading…</span> : <span>{keys.length} active</span>}
             </p>
           </div>
 
@@ -497,11 +532,14 @@ export function AccountPage({
           disabled={preferenceControlsDisabled}
         >
           <legend className="sr-only">Search defaults</legend>
+          <div className="flex min-h-11 items-center bg-muted/40 px-4">
+            <h3 className="utility-label m-0 text-muted-foreground">Matching</h3>
+          </div>
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_var(--settings-control-column)] items-stretch max-[40rem]:grid-cols-1">
             <div className="grid min-w-0 content-center gap-1 px-4 py-4">
-              <h3 className="m-0 font-medium text-base text-foreground">Default match</h3>
+              <h4 className="m-0 font-medium text-base text-foreground">Default match</h4>
               <p className="m-0 max-w-[58ch] text-pretty text-base text-muted-foreground">
-                Start new searches with exact matches, partial matches, or both.
+                Exact, partial, or both.
               </p>
             </div>
             <div className="min-w-0 border-border border-l max-[40rem]:border-t max-[40rem]:border-l-0">
@@ -517,9 +555,9 @@ export function AccountPage({
           </div>
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_var(--settings-control-column)] items-stretch max-[40rem]:grid-cols-1">
             <div className="grid min-w-0 content-center gap-1 px-4 py-4">
-              <h3 className="m-0 font-medium text-base text-foreground">Default status</h3>
+              <h4 className="m-0 font-medium text-base text-foreground">Default status</h4>
               <p className="m-0 max-w-[58ch] text-pretty text-base text-muted-foreground">
-                Choose whether new searches include all, live, or dead marks.
+                All, live, or dead marks.
               </p>
             </div>
             <div className="min-w-0 border-border border-l max-[40rem]:border-t max-[40rem]:border-l-0">
@@ -535,9 +573,48 @@ export function AccountPage({
           </div>
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_var(--settings-control-column)] items-stretch max-[40rem]:grid-cols-1">
             <div className="grid min-w-0 content-center gap-1 px-4 py-4">
-              <h3 className="m-0 font-medium text-base text-foreground">Default sort</h3>
+              <h4 className="m-0 font-medium text-base text-foreground">Default type</h4>
               <p className="m-0 max-w-[58ch] text-pretty text-base text-muted-foreground">
-                Set the initial order for new result lists.
+                Design, typeset, or text marks.
+              </p>
+            </div>
+            <div className="min-w-0 border-border border-l max-[40rem]:border-t max-[40rem]:border-l-0">
+              <AccountPreferenceSelect
+                disabled={preferenceControlsDisabled}
+                label="Default type"
+                name="default-type"
+                onValueChange={changeDefaultType}
+                options={typeOptions}
+                value={draftPreferences.defaultType}
+              />
+            </div>
+          </div>
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_var(--settings-control-column)] items-stretch max-[40rem]:grid-cols-1">
+            <div className="grid min-w-0 content-center gap-1 px-4 py-4">
+              <h4 className="m-0 font-medium text-base text-foreground">Default registration</h4>
+              <p className="m-0 max-w-[58ch] text-pretty text-base text-muted-foreground">
+                All, registered, or unregistered marks.
+              </p>
+            </div>
+            <div className="min-w-0 border-border border-l max-[40rem]:border-t max-[40rem]:border-l-0">
+              <AccountPreferenceSelect
+                disabled={preferenceControlsDisabled}
+                label="Default registration"
+                name="default-registered"
+                onValueChange={changeDefaultRegistered}
+                options={registeredOptions}
+                value={draftPreferences.defaultRegistered}
+              />
+            </div>
+          </div>
+          <div className="flex min-h-11 items-center bg-muted/40 px-4">
+            <h3 className="utility-label m-0 text-muted-foreground">Results</h3>
+          </div>
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_var(--settings-control-column)] items-stretch max-[40rem]:grid-cols-1">
+            <div className="grid min-w-0 content-center gap-1 px-4 py-4">
+              <h4 className="m-0 font-medium text-base text-foreground">Default sort</h4>
+              <p className="m-0 max-w-[58ch] text-pretty text-base text-muted-foreground">
+                Initial order of new result lists.
               </p>
             </div>
             <div className="min-w-0 border-border border-l max-[40rem]:border-t max-[40rem]:border-l-0">
@@ -553,9 +630,9 @@ export function AccountPage({
           </div>
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_var(--settings-control-column)] items-stretch max-[40rem]:grid-cols-1">
             <div className="grid min-w-0 content-center gap-1 px-4 py-4">
-              <h3 className="m-0 font-medium text-base text-foreground">Results per load</h3>
+              <h4 className="m-0 font-medium text-base text-foreground">Results per load</h4>
               <p className="m-0 max-w-[58ch] text-pretty text-base text-muted-foreground">
-                Control how many trademarks load at a time.
+                How many marks load at a time.
               </p>
             </div>
             <div className="min-w-0 border-border border-l max-[40rem]:border-t max-[40rem]:border-l-0">
@@ -571,9 +648,9 @@ export function AccountPage({
           </div>
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_var(--settings-control-column)] items-stretch max-[40rem]:grid-cols-1">
             <div className="grid min-w-0 content-center gap-1 px-4 py-4">
-              <h3 className="m-0 font-medium text-base text-foreground">Result density</h3>
+              <h4 className="m-0 font-medium text-base text-foreground">Result density</h4>
               <p className="m-0 max-w-[58ch] text-pretty text-base text-muted-foreground">
-                Choose tighter rows for scanning or more breathing room.
+                Tighter rows or more breathing room.
               </p>
             </div>
             <div className="min-w-0 border-border border-l max-[40rem]:border-t max-[40rem]:border-l-0">

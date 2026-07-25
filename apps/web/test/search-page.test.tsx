@@ -22,6 +22,7 @@ const { act, cleanup, fireEvent, render, screen, waitFor, within } = await impor
 const { afterEach, beforeEach, expect, test, vi } = await import("bun:test");
 const { useCallback, useState } = await import("react");
 const { SearchPage } = await import("../src/search-page.tsx");
+const { defaultSearchPreferences } = await import("../src/search-preferences.ts");
 type SearchApi = import("../src/search-page.tsx").SearchApi;
 type SearchPageResult = Awaited<ReturnType<SearchApi["search"]>>;
 type SearchPreferences = import("../src/search-preferences.ts").SearchPreferences;
@@ -180,8 +181,10 @@ test("account preferences seed new search URLs, requests, and result density", a
   renderSearch(api, "", {
     preferences: {
       defaultMatch: "exact",
+      defaultRegistered: "yes",
       defaultSort: "newest-activity",
       defaultStatus: "live",
+      defaultType: "text",
       pageSize: 50,
       resultDensity: "comfortable",
     },
@@ -197,8 +200,10 @@ test("account preferences seed new search URLs, requests, and result density", a
     limit: 50,
     match: "exact",
     query: "turtle",
+    registered: "yes",
     sort: "newest-activity",
     status: "live",
+    type: "text",
   });
   expect(screen.getByTestId("search-result-row").dataset.density).toBe("comfortable");
 });
@@ -213,8 +218,10 @@ test("a cold search waits for stored preferences before navigating", async () =>
   };
   const preferences: SearchPreferences = {
     defaultMatch: "exact",
+    defaultRegistered: "yes",
     defaultSort: "newest-activity",
     defaultStatus: "live",
+    defaultType: "text",
     pageSize: 50,
     resultDensity: "comfortable",
   };
@@ -228,8 +235,10 @@ test("a cold search waits for stored preferences before navigating", async () =>
     const [loading, setLoading] = useState(true);
     const [storedPreferences, setStoredPreferences] = useState<SearchPreferences>({
       defaultMatch: "both",
+      defaultRegistered: "all",
       defaultSort: "relevance",
       defaultStatus: "all",
+      defaultType: "all",
       pageSize: 25,
       resultDensity: "compact",
     });
@@ -276,8 +285,10 @@ test("a cold search waits for stored preferences before navigating", async () =>
     limit: 50,
     match: "exact",
     query: "turtle",
+    registered: "yes",
     sort: "newest-activity",
     status: "live",
+    type: "text",
   });
 });
 
@@ -302,7 +313,14 @@ test("URL state drives exact-only, partial-only, both, and server filters", asyn
   };
   renderSearch(
     api,
-    "?q=turtle&mode=multi&exact=true&partial=false&status=dead&type=design&registered=yes&sort=oldest-activity"
+    "?q=turtle&mode=multi&exact=true&partial=false&status=dead&type=design&registered=yes&sort=oldest-activity",
+    {
+      preferences: {
+        ...defaultSearchPreferences,
+        defaultRegistered: "no",
+        defaultType: "text",
+      },
+    }
   );
 
   await screen.findByRole("status", { name: "No marks match “turtle”" });

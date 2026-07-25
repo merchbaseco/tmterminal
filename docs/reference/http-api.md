@@ -81,8 +81,8 @@ changes while paging.
 | `account.api-keys.list` | Usable keys with name, suffix, creation, and last use. |
 | `account.api-keys.create` | Create a named key and return its raw token exactly once. |
 | `account.api-keys.revoke` | Idempotently revoke one owned key and return its ID. |
-| `account.preferences.get` | Return the account's search defaults, result density, and results-per-load preference. |
-| `account.preferences.update` | Replace the complete validated search preference document. |
+| `account.preferences.get` | Return the account's match, status, type, registration, and sort defaults plus result density and results-per-load preference. |
+| `account.preferences.update` | Replace the complete validated search preference document. New searches inherit these defaults only when their URL does not provide an explicit value. |
 
 API-key token shape is `ttk_<key-id>_<secret>`. The database stores only the
 secret hash and display suffix. Verification uses timing-safe comparison;

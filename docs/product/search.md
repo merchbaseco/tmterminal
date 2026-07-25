@@ -27,10 +27,11 @@ Multi is the default. Query and mode edits wait for Search or Enter. Filter and
 sort changes apply immediately. Editing a query does not replace successful
 results until the next request succeeds.
 
-Account preferences may choose the initial Multi match kind, status, sort,
-request size, and compact or comfortable result density. They seed only a new
-search. Explicit URL parameters remain authoritative so shared and restored
-searches are stable. Search requests accept 25, 50, or 100 results per load.
+Account preferences may choose the initial Multi match kind, status, type,
+registration state, sort, request size, and compact or comfortable result
+density. They seed only a new search. Explicit URL parameters remain
+authoritative so shared and restored searches are stable. Search requests
+accept 25, 50, or 100 results per load.
 
 The empty page is the brand state: the oversized masthead, search field, action,
 and legal disclaimer fit one desktop viewport without redundant explanation.

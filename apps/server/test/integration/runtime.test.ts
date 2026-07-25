@@ -66,6 +66,40 @@ test("creates the perpetual live schema idempotently", async () => {
   expect(tables.map(({ name }) => name)).not.toContain("source_lane");
 });
 
+test("backfills expanded search preferences without replacing existing choices", async () => {
+  await migrateDatabase(databaseUrl, await stageMigrationPrefix(27));
+  const accountId = "00000000-0000-4000-8000-000000000001";
+  const legacyPreferences = {
+    defaultMatch: "exact",
+    defaultSort: "newest-activity",
+    defaultStatus: "live",
+    pageSize: 50,
+    resultDensity: "comfortable",
+  };
+  await database`
+    insert into account (id, name, search_preferences)
+    values (${accountId}, 'preferences-owner', ${database.json(legacyPreferences)})
+  `;
+
+  await migrateDatabase(databaseUrl);
+  await migrateDatabase(databaseUrl);
+
+  const [account] = await database<Array<{ searchPreferences: Record<string, unknown> }>>`
+    select search_preferences as "searchPreferences"
+    from account
+    where id = ${accountId}
+  `;
+  expect(account?.searchPreferences).toEqual({
+    defaultMatch: "exact",
+    defaultRegistered: "all",
+    defaultSort: "newest-activity",
+    defaultStatus: "live",
+    defaultType: "all",
+    pageSize: 50,
+    resultDensity: "comfortable",
+  });
+});
+
 test("refuses the cutover while a legacy source can still be replayed", async () => {
   await migrateDatabase(databaseUrl, await stageMigrationPrefix(22));
   await database`

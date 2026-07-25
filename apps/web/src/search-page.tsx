@@ -89,7 +89,10 @@ function readSearchState(search: string, preferences: SearchPreferences): Search
     exact,
     partial: exact || partial ? partial : true,
     query: parameters.get("q")?.trim() ?? "",
-    registered: registered === "yes" || registered === "no" ? registered : "all",
+    registered:
+      registered === "all" || registered === "yes" || registered === "no"
+        ? registered
+        : preferences.defaultRegistered,
     sort:
       sort === "relevance" || sort === "newest-activity" || sort === "oldest-activity"
         ? sort
@@ -98,7 +101,10 @@ function readSearchState(search: string, preferences: SearchPreferences): Search
       status === "all" || status === "live" || status === "dead"
         ? status
         : preferences.defaultStatus,
-    type: type === "design" || type === "typeset" || type === "text" ? type : "all",
+    type:
+      type === "all" || type === "design" || type === "typeset" || type === "text"
+        ? type
+        : preferences.defaultType,
   };
 }
 

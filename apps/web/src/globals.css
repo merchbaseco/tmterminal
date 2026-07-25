@@ -217,6 +217,7 @@
 
 @layer base {
   html {
+    scrollbar-gutter: stable;
     overscroll-behavior: none;
     color: var(--foreground);
     scroll-padding-top: var(

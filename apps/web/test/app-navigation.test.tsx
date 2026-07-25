@@ -211,8 +211,10 @@ mock.module("@trpc/client", () => ({
         get: {
           query: async () => ({
             defaultMatch: "both" as const,
+            defaultRegistered: "all" as const,
             defaultSort: "relevance" as const,
             defaultStatus: "all" as const,
+            defaultType: "all" as const,
             pageSize: 25 as const,
             resultDensity: "compact" as const,
           }),

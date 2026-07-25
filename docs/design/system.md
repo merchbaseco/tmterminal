@@ -134,8 +134,15 @@ chip stays defined. Additional mascot illustration is deferred.
   inline above the rows.
 - Account keeps API access as its primary document, then presents search
   preferences as a conventional settings list inside the same bounded ledger
-  language as search results. Each divider-separated row pairs a label and short
-  explanation with one full-height rectilinear selector cell on the right.
+  language as search results. The API key ledger begins with the same quiet
+  tonal header strip, while destructive actions sit within their row instead
+  of owning a separate structural column. Key records use compact utility labels
+  and measured column rules to distinguish credential data from explanatory
+  settings copy without adding a second typeface. Each divider-separated
+  preference row pairs a label and short
+  explanation with one full-height rectilinear selector cell on the right. Quiet
+  tonal strips group match qualification separately from result presentation
+  without breaking the continuous outer rails or shared selector spine.
   Controls save automatically; the header stays quiet at rest, shows a compact
   spinner while saving, and briefly confirms success with a checkmark. The outer
   rails and shared selector spine stay aligned across every row without turning
