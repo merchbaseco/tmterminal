@@ -215,13 +215,6 @@
   box-shadow: none;
 }
 
-/* Chrome renders hovered autocomplete previews through the input's first line. */
-[data-slot="trademark-search-form"] [data-slot="input"]::first-line {
-  font-size: 1.25rem;
-  font-weight: 600;
-  letter-spacing: -0.035em;
-}
-
 @layer base {
   html {
     overscroll-behavior: none;

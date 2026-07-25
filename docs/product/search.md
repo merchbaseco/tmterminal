@@ -162,7 +162,10 @@ customer language and does not expose parser or source-file internals.
   static line boxes, section labels, and five-row history preview while the
   record loads.
 - Loading more uses one inline spinner row.
-- Empty results say `No matching marks` and offer Clear filters.
+- Empty results keep the standard zero-count result summary, followed by one
+  generous low-contrast graphical field without explanatory copy or a recovery
+  action. The visible filters and contextual `Start a new search` action remain
+  the exits.
 - Validation stays beneath the search field.
 - Data Version conflict shows Run search again; it never mixes old and new pages.
 - Service failure uses a full-width alert and never presents stale results as

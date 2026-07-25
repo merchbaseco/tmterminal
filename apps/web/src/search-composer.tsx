@@ -114,7 +114,7 @@ export function SearchComposer({
   }
 
   return (
-    <form data-slot="trademark-search-form" onSubmit={submit}>
+    <form autoComplete="off" data-slot="trademark-search-form" onSubmit={submit}>
       {onStartOver && startOverLabel ? (
         <div className="flex pb-3">
           <button
@@ -182,6 +182,7 @@ export function SearchComposer({
             />
           ) : (
             <input
+              autoComplete="off"
               className="h-[var(--search-control-height)] w-full border-0 bg-transparent px-[clamp(1rem,2vw,1.5rem)] py-0 font-semibold text-foreground text-xl leading-none tracking-[-0.035em] outline-none placeholder:text-muted-foreground/72 focus-visible:outline-none"
               id={`${name}-field`}
               maxLength={maxLength}

@@ -588,6 +588,7 @@ function SignedOutSearch({ search }: { search: string }) {
         Sign in with your MerchBase account to run your search.
       </p>
       <form
+        autoComplete="off"
         className="grid grid-cols-[minmax(0,1fr)_clamp(13rem,18vw,16rem)] gap-0 border border-border p-0 [--search-control-height:4.25rem] **:data-[slot=search-icon]:left-3 **:data-[slot=search-icon]:size-[1.15rem] **:data-[slot=input-control]:h-[var(--search-control-height)] **:data-[slot=input]:h-full *:data-[slot=button]:h-[var(--search-control-height)] *:data-[slot=button]:w-full **:data-[slot=input-control]:border-0 *:data-[slot=button]:border-0 *:data-[slot=button]:border-border *:data-[slot=button]:border-l **:data-[slot=input-control]:bg-transparent *:data-[slot=button]:px-[clamp(1.5rem,3vw,2.5rem)] **:data-[slot=input]:py-0 **:data-[slot=input]:pr-[clamp(1rem,2vw,1.5rem)] **:data-[slot=input]:pl-10 **:data-[slot=input]:font-semibold **:data-[slot=input]:text-xl *:data-[slot=button]:text-[clamp(1.125rem,1.5vw,1.4rem)] **:data-[slot=input]:leading-none **:data-[slot=input]:tracking-[-0.035em] **:data-[slot=input-control]:shadow-none *:data-[slot=button]:shadow-none max-[48rem]:grid-cols-[minmax(0,1fr)_7.5rem] has-[input:focus-visible]:[&>[data-slot=button]]:border-l-transparent [&_[data-slot=input-control]::before]:shadow-none"
         data-slot="trademark-search-form"
         onSubmit={handleSubmit}
@@ -603,6 +604,7 @@ function SignedOutSearch({ search }: { search: string }) {
             icon={Search01Icon}
           />
           <Input
+            autoComplete="off"
             className="rounded-none before:rounded-none"
             id="signed-out-search"
             maxLength={200}

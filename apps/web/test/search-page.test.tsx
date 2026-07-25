@@ -305,7 +305,7 @@ test("URL state drives exact-only, partial-only, both, and server filters", asyn
     "?q=turtle&mode=multi&exact=true&partial=false&status=dead&type=design&registered=yes&sort=oldest-activity"
   );
 
-  await screen.findByText("No matching marks");
+  await screen.findByRole("status", { name: "No marks match “turtle”" });
   expect(screen.getByRole("group", { name: "Match" })).toBeTruthy();
   expect(inputs[0]).toEqual({
     limit: 25,
@@ -337,7 +337,7 @@ test("submitting a draft query updates the URL-owned request", async () => {
     },
   };
   renderSearch(api);
-  await screen.findByText("No matching marks");
+  await screen.findByRole("status", { name: "No marks match “turtle”" });
 
   fireEvent.change(screen.getByRole("searchbox", { name: "Search trademarks" }), {
     target: { value: "new literal % query" },
@@ -351,7 +351,8 @@ test("submitting a draft query updates the URL-owned request", async () => {
 test("search controls and result facts use customer-facing language", async () => {
   renderSearch({ search: () => Promise.resolve(resultPage(0, 1, 1)) });
 
-  expect(screen.getByPlaceholderText("Search a word mark")).toBeTruthy();
+  const searchInput = screen.getByPlaceholderText("Search a word mark") as HTMLInputElement;
+  expect(searchInput.autocomplete).toBe("off");
   await screen.findByRole("link", { name: firstMarkAccessibleNamePattern });
   expect(
     screen.getByRole("heading", { name: "Trademark search results for “turtle”" })
@@ -443,14 +444,14 @@ test("normalizes whitespace-only and double-disabled direct URL state", async ()
   whitespace.view.unmount();
 
   renderSearch(api, "?q=turtle&mode=multi&exact=false&partial=false");
-  await screen.findByText("No matching marks");
+  await screen.findByRole("status", { name: "No marks match “turtle”" });
   expect(inputs[0]?.match).toBe("partial");
   expect((screen.getByRole("checkbox", { name: "Partial" }) as HTMLInputElement).checked).toBe(
     true
   );
 });
 
-test("an empty filtered search can clear filters without changing the query", async () => {
+test("an empty filtered search stays graphical and leaves filters in place", async () => {
   const inputs: Parameters<SearchApi["search"]>[0][] = [];
   renderSearch(
     {
@@ -462,18 +463,43 @@ test("an empty filtered search can clear filters without changing the query", as
     "?q=turtle&mode=multi&exact=true&partial=true&status=dead&type=design&registered=no&sort=oldest-activity"
   );
 
-  await screen.findByText("No matching marks");
-  fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+  await screen.findByRole("status", { name: "No marks match “turtle”" });
+  expect(screen.getByText("0 results")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Broaden search" })).toBeNull();
+  expect(inputs).toHaveLength(1);
+});
 
-  await waitFor(() =>
-    expect(inputs.at(-1)).toMatchObject({
-      query: "turtle",
-      registered: "all",
-      sort: "relevance",
-      status: "all",
-      type: "all",
-    })
-  );
+test("does not announce retained empty results for a replacement query", async () => {
+  let resolveReplacement: ((page: SearchPageResult) => void) | undefined;
+  const inputs: Parameters<SearchApi["search"]>[0][] = [];
+  const api: SearchApi = {
+    search: (input) => {
+      inputs.push(input);
+      if (input.query === "turtle") {
+        return Promise.resolve(resultPage(0, 0, 0));
+      }
+      return new Promise<SearchPageResult>((resolve) => {
+        resolveReplacement = resolve;
+      });
+    },
+  };
+  renderSearch(api);
+  await screen.findByRole("status", { name: "No marks match “turtle”" });
+
+  fireEvent.change(screen.getByRole("searchbox", { name: "Search trademarks" }), {
+    target: { value: "replacement" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+  await waitFor(() => expect(inputs).toHaveLength(2));
+  expect(screen.queryByRole("status", { name: "No marks match “replacement”" })).toBeNull();
+  expect(screen.queryByText("0 results")).toBeNull();
+
+  await act(async () => {
+    resolveReplacement?.(resultPage(0, 0, 0));
+    await Promise.resolve();
+  });
+  expect(await screen.findByRole("status", { name: "No marks match “replacement”" })).toBeTruthy();
 });
 
 test("infinite pagination pins data version and keeps the document list virtualized", async () => {
@@ -511,7 +537,7 @@ test("renders loading, empty, server error, and typed continuation conflict with
   const loading = renderSearch(loadingApi);
   expect(screen.getByText("Searching Class 025…")).toBeTruthy();
   resolveFirst?.(resultPage(0, 0, 0));
-  expect(await screen.findByText("No matching marks")).toBeTruthy();
+  expect(await screen.findByRole("status", { name: "No marks match “turtle”" })).toBeTruthy();
   loading.view.unmount();
 
   const serverError = Object.assign(new Error("database unavailable"), {

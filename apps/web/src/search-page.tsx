@@ -20,9 +20,9 @@ import { SearchComposer, SearchMasthead } from "./search-composer.tsx";
 import { SearchOptionSelect } from "./search-option-select.tsx";
 import { defaultSearchPreferences, type SearchPreferences } from "./search-preferences.ts";
 import {
-  TrademarkEmptyState,
   TrademarkResultRow,
   TrademarkResultSummary,
+  TrademarkSearchEmptyState,
 } from "./trademark-results.tsx";
 import { trpcErrorCode } from "./trpc-error-code.ts";
 
@@ -527,32 +527,23 @@ export function SearchPage({
           ) : null}
         </div>
       ) : null}
-      {data && !query.error && total === 0 ? (
-        <div className="border-border border-x">
-          <TrademarkEmptyState
-            action={
-              <Button
-                className="pill-button shrink-0"
-                // biome-ignore lint/performance/noJsxPropsBind: The empty state clears this page's URL-owned filters.
-                onClick={() =>
-                  updateState({
-                    exact: true,
-                    partial: true,
-                    registered: "all",
-                    sort: "relevance",
-                    status: "all",
-                    type: "all",
-                  })
-                }
-                variant="outline"
-              >
-                Clear filters
-              </Button>
-            }
-            description="Nothing matched the current query and filters."
-            title="No matching marks"
+      {data && !(query.error || query.isPlaceholderData) && total === 0 ? (
+        <section aria-label="Search results" className="border-border border-x">
+          <TrademarkResultSummary
+            signals={[
+              {
+                label: "Live exact",
+                value: countFormatter.format(data.pages[0]?.liveMatchCounts.exact ?? 0),
+              },
+              {
+                label: "Live partial",
+                value: countFormatter.format(data.pages[0]?.liveMatchCounts.partial ?? 0),
+              },
+            ]}
+            totalLabel="0 results"
           />
-        </div>
+          <TrademarkSearchEmptyState query={state.query} />
+        </section>
       ) : null}
 
       {data && total > 0 && (!query.error || conflict || replacementFailure) ? (
