@@ -16,6 +16,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
+import { defaultSearchPreferences, type SearchPreferences } from "../account-preferences.ts";
 import { markSearchStatusSql } from "../search/status-policy.ts";
 
 export const sourceArtifactDownloadState = pgEnum("source_artifact_download_state_v2", [
@@ -45,6 +46,10 @@ export const account = pgTable("account", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   id: uuid("id").primaryKey(),
   name: varchar("name", { length: 80 }).unique(),
+  searchPreferences: jsonb("search_preferences")
+    .$type<SearchPreferences>()
+    .notNull()
+    .default(defaultSearchPreferences),
 });
 
 export const clerkIdentity = pgTable(

@@ -1,3 +1,4 @@
+import type { SearchPreferences } from "../account-preferences.ts";
 import type { MarkType, ProjectedMark, SourceContributor } from "../ingestion/mark-types.ts";
 
 export const legalDisclaimer =
@@ -13,15 +14,15 @@ export interface PublicApiKey {
   id: string;
   lastUsedAt: string | null;
   name: string;
-  status: "active" | "revoked";
   suffix: string;
 }
 
 export interface AccountService {
   createApiKey: (name: string) => Promise<{ key: PublicApiKey; token: string }>;
-  deleteApiKey: (id: string) => Promise<{ id: string } | null>;
+  getSearchPreferences: () => Promise<SearchPreferences>;
   listApiKeys: () => Promise<PublicApiKey[]>;
-  revokeApiKey: (id: string) => Promise<PublicApiKey | null>;
+  revokeApiKey: (id: string) => Promise<{ id: string } | null>;
+  updateSearchPreferences: (preferences: SearchPreferences) => Promise<SearchPreferences>;
 }
 
 export type MarkDetail = Omit<ProjectedMark, "contributors" | "kind" | "mark" | "versions"> & {
@@ -34,9 +35,11 @@ export type MarkDetail = Omit<ProjectedMark, "contributors" | "kind" | "mark" | 
   type: MarkType;
 };
 
+export type SearchPageSize = 25 | 50 | 100;
+
 interface SearchInputBase {
   expectedDataVersion?: string;
-  limit: 25;
+  limit: SearchPageSize;
   offset: number;
   query: string;
   registered: "all" | "yes" | "no";
@@ -75,8 +78,9 @@ export interface MarkPage {
   total: number;
 }
 
-export interface SearchPage extends Omit<MarkPage, "items"> {
+export interface SearchPage extends Omit<MarkPage, "items" | "limit"> {
   items: Array<MarkSummary & { match: "exact" | "partial" }>;
+  limit: SearchPageSize;
   liveMatchCounts: {
     exact: number;
     partial: number;

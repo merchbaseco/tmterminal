@@ -11,7 +11,7 @@ read_when:
 
 | State | Purpose |
 | --- | --- |
-| Accounts, Clerk identities, API keys, roles | Durable authentication and authorization. |
+| Accounts, Clerk identities, API keys, roles, search preferences | Durable authentication, authorization, and account-level website defaults. |
 | Source Artifact | One product-plus-filename ledger row with coverage, download, application, counts, pointer, provenance, and current error. |
 | Worker Status | One current heartbeat, current file, and system error. |
 | Trademark Recency | Minimal winning source date, coordinate, and parser version for every processed serial. |

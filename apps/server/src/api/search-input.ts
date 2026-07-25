@@ -5,7 +5,7 @@ import type { SearchInput } from "./contracts.ts";
 
 const searchInputBase = {
   expectedDataVersion: z.string().regex(/^\d+$/).optional(),
-  limit: z.literal(25).default(25),
+  limit: z.union([z.literal(25), z.literal(50), z.literal(100)]).default(25),
   offset: z.int().nonnegative().default(0),
   query: z.string().trim().min(1).max(200),
   registered: z.enum(["all", "yes", "no"]).default("all"),

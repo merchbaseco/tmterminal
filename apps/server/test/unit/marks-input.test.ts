@@ -5,6 +5,15 @@ import {
   matchTextsInputSchema,
   screenQueriesInputSchema,
 } from "../../src/api/marks-input.ts";
+import { searchInputSchema } from "../../src/api/search-input.ts";
+
+test("search accepts only supported account page sizes", () => {
+  const input = { mode: "multi" as const, query: "turtle" };
+
+  expect(searchInputSchema.parse({ ...input, limit: 50 }).limit).toBe(50);
+  expect(searchInputSchema.parse({ ...input, limit: 100 }).limit).toBe(100);
+  expect(searchInputSchema.safeParse({ ...input, limit: 75 }).success).toBe(false);
+});
 
 test("list continuations require the expected live data version", () => {
   expect(listMarksInputSchema.safeParse({ offset: 25 }).success).toBe(false);

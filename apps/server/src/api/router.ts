@@ -1,5 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { searchPreferencesSchema } from "../account-preferences.ts";
 import { DataVersionConflictError } from "../queries/data-snapshot.ts";
 import type {
   AccountService,
@@ -51,23 +52,22 @@ const accountRouter = t.router({
     create: clerkProcedure
       .input(z.object({ name: z.string().trim().min(1).max(80) }))
       .mutation(({ ctx, input }) => ctx.account.createApiKey(input.name)),
-    delete: clerkProcedure.input(z.object({ id: z.uuid() })).mutation(async ({ ctx, input }) => {
-      const deleted = await ctx.account.deleteApiKey(input.id);
-      if (!deleted) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Revoked API key not found" });
-      }
-      return deleted;
-    }),
     list: clerkProcedure.query(({ ctx }) => ctx.account.listApiKeys()),
     revoke: clerkProcedure.input(z.object({ id: z.uuid() })).mutation(async ({ ctx, input }) => {
-      const key = await ctx.account.revokeApiKey(input.id);
-      if (!key) {
+      const revoked = await ctx.account.revokeApiKey(input.id);
+      if (!revoked) {
         throw new TRPCError({ code: "NOT_FOUND", message: "API key not found" });
       }
-      return key;
+      return revoked;
     }),
   }),
   me: t.procedure.query(({ ctx }) => ctx.auth),
+  preferences: t.router({
+    get: clerkProcedure.query(({ ctx }) => ctx.account.getSearchPreferences()),
+    update: clerkProcedure
+      .input(searchPreferencesSchema)
+      .mutation(({ ctx, input }) => ctx.account.updateSearchPreferences(input)),
+  }),
 });
 
 const marksRouter = t.router({

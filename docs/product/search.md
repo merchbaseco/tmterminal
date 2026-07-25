@@ -27,6 +27,11 @@ Multi is the default. Query and mode edits wait for Search or Enter. Filter and
 sort changes apply immediately. Editing a query does not replace successful
 results until the next request succeeds.
 
+Account preferences may choose the initial Multi match kind, status, sort,
+request size, and compact or comfortable result density. They seed only a new
+search. Explicit URL parameters remain authoritative so shared and restored
+searches are stable. Search requests accept 25, 50, or 100 results per load.
+
 The empty page is the brand state: the oversized masthead, search field, action,
 and legal disclaimer fit one desktop viewport without redundant explanation.
 Once a query is active, the masthead leaves the layout and sticky search controls
@@ -69,8 +74,8 @@ owner, concise mark type, match label when partial, canonical disposition, and
 status date. International classes appear only when a mark includes a class
 outside the default Class 025 scope. Goods statements and identity numbers stay
 on detail so the ranked list remains scannable. Infinite scroll loads
-server-filtered 25-item pages; returning from detail restores loaded pages and
-document position.
+server-filtered account-sized pages; returning from detail restores loaded pages
+and document position.
 
 The result summary shows total results plus live exact and live partial counts so
 the seller sees the primary go/no-go signal before scanning rows.

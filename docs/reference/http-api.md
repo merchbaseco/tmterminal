@@ -22,7 +22,7 @@ implementation changes the router.
 | Trademark reads | Clerk session or API key. |
 | Safe sync status | Clerk session or API key. |
 | Account identity | Clerk session or API key. |
-| API-key list, create, revoke, delete | Clerk session. |
+| API-key list, create, revoke | Clerk session. |
 | Operator source status and artifact pages | Clerk session plus operator role. |
 | `/api/health` | Anonymous; process and database readiness only. |
 
@@ -34,7 +34,7 @@ names to callers.
 
 | Procedure | Contract |
 | --- | --- |
-| `marks.search` | Multi, Split, or Wildcard query; status/type/registration filters; relevance or activity sort; server count and page. |
+| `marks.search` | Multi, Split, or Wildcard query; status/type/registration filters; relevance or activity sort; server count and a 25-, 50-, or 100-item page. |
 | `marks.get` | Exactly one eight-digit serial or seven-digit registration identity. |
 | `marks.match` | One to 100 named Text Documents; every overlapping occurrence, half-open UTF-16 span, and live trademark group; each document is limited to 4,096 UTF-16 units and 128 Unicode word tokens. |
 | `marks.screen` | One to 100 named Screen Queries; ordered live exact and partial counts in one Data Version. |
@@ -78,15 +78,16 @@ changes while paging.
 | Procedure | Contract |
 | --- | --- |
 | `account.me` | Validate the selected credential and return safe account/key context. |
-| `account.api-keys.list` | Name, suffix, creation, last use, and status. |
+| `account.api-keys.list` | Usable keys with name, suffix, creation, and last use. |
 | `account.api-keys.create` | Create a named key and return its raw token exactly once. |
-| `account.api-keys.revoke` | Idempotently revoke one key owned by the account. |
-| `account.api-keys.delete` | Permanently delete one revoked key owned by the account. |
+| `account.api-keys.revoke` | Idempotently revoke one owned key and return its ID. |
+| `account.preferences.get` | Return the account's search defaults, result density, and results-per-load preference. |
+| `account.preferences.update` | Replace the complete validated search preference document. |
 
 API-key token shape is `ttk_<key-id>_<secret>`. The database stores only the
 secret hash and display suffix. Verification uses timing-safe comparison;
-last-used updates are coalesced. Revoked rows remain as account history until
-the owning Clerk user deletes them; active keys cannot be deleted.
+last-used updates are coalesced. Revocation hides the key from account reads and
+retains an internal tombstone so the old credential remains invalid.
 
 ## Source Operations
 

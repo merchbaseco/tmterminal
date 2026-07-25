@@ -1,0 +1,1 @@
+ALTER TABLE "account" ADD COLUMN "search_preferences" jsonb DEFAULT '{"defaultMatch":"both","defaultSort":"relevance","defaultStatus":"all","pageSize":25,"resultDensity":"compact"}'::jsonb NOT NULL;

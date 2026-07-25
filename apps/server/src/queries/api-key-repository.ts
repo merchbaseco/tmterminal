@@ -10,7 +10,6 @@ export interface ApiKeyView {
   id: string;
   lastUsedAt: Date | null;
   name: string;
-  status: "active" | "revoked";
   suffix: string;
 }
 
@@ -42,8 +41,7 @@ export async function createApiKey(database: postgres.Sql, accountId: string, na
       name,
       suffix,
       created_at as "createdAt",
-      last_used_at as "lastUsedAt",
-      'active' as status
+      last_used_at as "lastUsedAt"
   `;
 
   if (!key) {
@@ -95,37 +93,19 @@ export function listApiKeys(database: postgres.Sql, accountId: string) {
       name,
       suffix,
       created_at as "createdAt",
-      last_used_at as "lastUsedAt",
-      case when revoked_at is null then 'active' else 'revoked' end as status
+      last_used_at as "lastUsedAt"
     from api_key
-    where account_id = ${accountId}
+    where account_id = ${accountId} and revoked_at is null
     order by created_at desc, id
   `;
 }
 
 export async function revokeApiKey(database: postgres.Sql, accountId: string, id: string) {
-  const [key] = await database<[ApiKeyView]>`
+  const [revoked] = await database<[{ id: string }]>`
     update api_key
     set revoked_at = coalesce(revoked_at, now())
     where id = ${id} and account_id = ${accountId}
-    returning
-      id,
-      name,
-      suffix,
-      created_at as "createdAt",
-      last_used_at as "lastUsedAt",
-      'revoked' as status
-  `;
-  return key ?? null;
-}
-
-export async function deleteRevokedApiKey(database: postgres.Sql, accountId: string, id: string) {
-  const [deleted] = await database<[{ id: string }]>`
-    delete from api_key
-    where id = ${id}
-      and account_id = ${accountId}
-      and revoked_at is not null
     returning id
   `;
-  return deleted ?? null;
+  return revoked ?? null;
 }

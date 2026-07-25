@@ -29,7 +29,8 @@ products.
 - Inspect mark identity, ownership, classes, goods, status, and provenance.
 - Inspect public source freshness and recent processing activity.
 - Inspect active ingestion issues as an operator.
-- Create, revoke, and delete API keys.
+- Create and revoke API keys.
+- Persist account-level search defaults and result presentation preferences.
 
 Trademark data is informational, not legal advice. Users verify consequential
 decisions with the USPTO or qualified counsel.
@@ -54,10 +55,14 @@ another mechanism.
 Signed-out visitors may compose a search. Submission starts Clerk sign-in,
 preserves the query, and executes it after authentication.
 
-API-key self-service lists name, suffix, creation, last use, and status. Creation
-asks for a name, shows the raw token exactly once, and requires acknowledgement
-that it was saved. Revocation is immediate and idempotent. A user may permanently
-delete a revoked key from account history; active keys must be revoked first.
+API-key self-service lists usable keys with their name, suffix, creation, and
+last use. Creation asks for a name, shows the raw token exactly once, and
+requires acknowledgement that it was saved. Revocation is immediate and
+idempotent; the key disappears from the account while an internal tombstone
+continues to reject the old credential.
+Search preferences require a Clerk session and follow the account across website
+sessions. Shared search URLs retain their encoded options instead of being
+rewritten by account defaults.
 
 ## Clients
 

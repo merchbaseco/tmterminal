@@ -82,7 +82,6 @@ describe("account authentication", () => {
           id: expect.any(String),
           lastUsedAt: null,
           name: "MerchBase",
-          status: "active",
           suffix: expect.any(String),
         },
         token: expect.stringMatching(apiKeyTokenPattern),
@@ -103,6 +102,58 @@ describe("account authentication", () => {
           type: "api-key",
         },
       });
+    } finally {
+      await server.close();
+    }
+  });
+
+  test("persists validated search preferences for the Clerk account", async () => {
+    const server = await buildServer({
+      databaseUrl,
+      logger: false,
+      verifyClerkToken: async (token) =>
+        token === "preferences-session" ? "user_preferences" : null,
+    });
+
+    try {
+      const initial = await server.inject({
+        headers: { authorization: "Bearer preferences-session" },
+        method: "GET",
+        url: "/api/trpc/account.preferences.get",
+      });
+      const preferences = {
+        defaultMatch: "exact",
+        defaultSort: "newest-activity",
+        defaultStatus: "live",
+        pageSize: 50,
+        resultDensity: "comfortable",
+      };
+      const updated = await server.inject({
+        headers: {
+          authorization: "Bearer preferences-session",
+          "content-type": "application/json",
+        },
+        method: "POST",
+        payload: preferences,
+        url: "/api/trpc/account.preferences.update",
+      });
+      const stored = await server.inject({
+        headers: { authorization: "Bearer preferences-session" },
+        method: "GET",
+        url: "/api/trpc/account.preferences.get",
+      });
+
+      expect(initial.statusCode).toBe(200);
+      expect(initial.json().result.data).toEqual({
+        defaultMatch: "both",
+        defaultSort: "relevance",
+        defaultStatus: "all",
+        pageSize: 25,
+        resultDensity: "compact",
+      });
+      expect(updated.statusCode).toBe(200);
+      expect(updated.json().result.data).toEqual(preferences);
+      expect(stored.json()).toEqual(updated.json());
     } finally {
       await server.close();
     }
@@ -150,7 +201,7 @@ describe("account authentication", () => {
     }
   });
 
-  test("revokes keys idempotently and deletes only revoked history", async () => {
+  test("revokes keys idempotently and hides revoked tombstones", async () => {
     const server = await buildServer({
       databaseUrl,
       logger: false,
@@ -168,17 +219,6 @@ describe("account authentication", () => {
         url: "/api/trpc/account.api-keys.create",
       });
       const { key, token } = created.json().result.data;
-      const deleteKey = () =>
-        server.inject({
-          headers: {
-            authorization: "Bearer revoke-session",
-            "content-type": "application/json",
-          },
-          method: "POST",
-          payload: { id: key.id },
-          url: "/api/trpc/account.api-keys.delete",
-        });
-      const activeDelete = await deleteKey();
       const revoke = () =>
         server.inject({
           headers: {
@@ -199,24 +239,18 @@ describe("account authentication", () => {
       const [audit] = await database<[{ revokedAt: Date }]>`
         select revoked_at as "revokedAt" from api_key where id = ${key.id}
       `;
-      const deleted = await deleteKey();
-      const deletedAgain = await deleteKey();
       const listed = await server.inject({
         headers: { authorization: "Bearer revoke-session" },
         method: "GET",
         url: "/api/trpc/account.api-keys.list",
       });
 
-      expect(activeDelete.statusCode).toBe(404);
       expect(first.statusCode).toBe(200);
       expect(second.json()).toEqual(first.json());
-      expect(first.json().result.data.status).toBe("revoked");
+      expect(first.json().result.data).toEqual({ id: key.id });
       expect(rejected.statusCode).toBe(401);
       expect(rejected.json().error.data.code).toBe("UNAUTHORIZED");
       expect(audit?.revokedAt).toBeInstanceOf(Date);
-      expect(deleted.statusCode).toBe(200);
-      expect(deleted.json().result.data).toEqual({ id: key.id });
-      expect(deletedAgain.statusCode).toBe(404);
       expect(listed.json().result.data).toEqual([]);
     } finally {
       await server.close();
