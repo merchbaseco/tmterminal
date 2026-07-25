@@ -1,13 +1,13 @@
 ---
-summary: Defines local installation, fast checks, live-data development, isolated Compose, ports, environment variables, readiness, and cleanup.
+summary: Defines local installation, fast checks, live-data development, ports, environment variables, and readiness.
 read_when:
-  - starting or diagnosing the workspace, API, website, worker, PostgreSQL, Caddy, or Compose
+  - starting or diagnosing the live-data development API or website
   - changing root scripts, ports, environment variables, readiness, or local runtime behavior
 ---
 
 # Development
 
-Trademark Turtle uses Bun 1.3.5 and Docker Compose.
+Trademark Turtle uses Bun 1.3.5.
 
 ## Install And Fast Checks
 
@@ -70,35 +70,6 @@ Claude Code worktrees are fresh checkouts. `.worktreeinclude` lists the ignored
 files they receive, currently `.env`; everything else comes from the session
 hook.
 
-## Production-shaped Compose
-
-```bash
-bun run compose:up
-bun run compose:smoke
-```
-
-The wrapper derives a distinct project name, ports, volumes, and development
-image labels for each checkout. Inspect assigned ports with:
-
-```bash
-dev-port --group
-```
-
-The first port serves Caddy and the website. The second serves API diagnostics.
-Override both without editing Compose:
-
-```bash
-TMTURTLE_WEB_PORT=8800 TMTURTLE_API_PORT=3300 bun run compose:up
-```
-
-Follow-up commands use the wrapper so they address the same project:
-
-```bash
-bun run compose -- ps
-bun run compose -- logs api
-bun run compose -- logs worker
-```
-
 ## Environment
 
 The ignored `.env` supplies:
@@ -131,30 +102,3 @@ Anonymous API readiness returns only:
 
 Database failure returns HTTP 503 with `{"status":"unavailable"}`. Readiness
 does not claim source completeness.
-
-## Bootstrap API Key
-
-Create a host-managed key against the current Compose database with:
-
-```bash
-bun run api-keys:create --name merchbase
-```
-
-The command runs inside the API container, resolves one stable host account,
-writes the raw token once to stdout, and stores only its hash.
-
-## Cleanup
-
-Stop services while preserving volumes:
-
-```bash
-bun run compose:down
-```
-
-Delete isolated local volumes only for an intentional clean reset:
-
-```bash
-bun run compose -- down --volumes
-```
-
-Never use the volume-deleting command for production or routine source repair.

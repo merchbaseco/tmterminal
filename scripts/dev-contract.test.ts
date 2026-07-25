@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 const productionDatabaseBinding = /"127\.0\.0\.1:\$\{TMTURTLE_DATABASE_PORT:-5437\}:5432"/;
 const sessionHookCommand = /^\$\{CLAUDE_PROJECT_DIR\}\/scripts\/claude-session-start$/;
+const containerRuntimeCommand = /\bdocker\b|\bcompose\b/;
 
 test("production publishes the development database port on loopback only", async () => {
   const compose = await readFile(new URL("../compose.yml", import.meta.url), "utf8");
@@ -17,6 +18,9 @@ test("development starts local API and web against the Mac mini database", async
   const packageJson = JSON.parse(
     await readFile(new URL("../package.json", import.meta.url), "utf8")
   );
+  const developmentScript = await readFile(new URL("./dev", import.meta.url), "utf8");
+  expect(developmentScript).not.toMatch(containerRuntimeCommand);
+
   const root = await mkdtemp(join(tmpdir(), "tmturtle-dev-"));
   const bin = join(root, "bin");
   const log = join(root, "bun.log");

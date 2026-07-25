@@ -58,6 +58,17 @@ database, Clerk, and USPTO credentials. Production authorized parties is exactly
 Secrets are not printed, committed, copied into runtime image layers, or exposed
 through readiness.
 
+## Bootstrap API Key
+
+Create a host-managed key against the production Compose database with:
+
+```bash
+bun run api-keys:create --name merchbase
+```
+
+The command runs inside the API container, resolves one stable host account,
+writes the raw token once to stdout, and stores only its hash.
+
 ## Smoke
 
 `scripts/deployment-smoke` verifies:

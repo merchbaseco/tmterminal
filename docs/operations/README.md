@@ -12,7 +12,7 @@ recover safely.
 
 | Workflow | Doc |
 | --- | --- |
-| Install, local servers, Compose, ports, and readiness | [Development](development.md) |
+| Install, live-data local servers, ports, and readiness | [Development](development.md) |
 | Verification lanes and fixture expectations | [Testing](testing.md) |
 | Mac mini release, smoke, monitoring, and rollback | [Deployment](deployment.md) |
 | CLI and HTTP client npm releases | [npm packages](npm-packages.md) |
