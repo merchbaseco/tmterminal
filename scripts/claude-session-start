@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+
+root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+cd "$root"
+
+if [ ! -x apps/web/node_modules/.bin/vite ]; then
+  bun install --frozen-lockfile >&2
+fi
+
+if [ ! -f .env ]; then
+  printf 'Missing .env. Copy it from the main checkout; ./scripts/dev cannot start without it.\n'
+fi
+
+dev-port --claude-launch dev ./scripts/dev
