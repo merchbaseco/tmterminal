@@ -1,0 +1,8 @@
+<svg height="512" viewBox="0 0 512 512" width="512" xmlns="http://www.w3.org/2000/svg">
+  <title>Trademark Terminal</title>
+  <g fill="none" stroke="#D7F52A" stroke-linecap="round" stroke-linejoin="round" stroke-width="44">
+    <rect height="416" rx="120" width="416" x="48" y="48" />
+    <path d="M164 184L224 256L164 328" />
+    <path d="M264 328H348" />
+  </g>
+</svg>

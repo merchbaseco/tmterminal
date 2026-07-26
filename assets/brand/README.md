@@ -1,32 +1,37 @@
-# Trademark Turtle brand kit
+# Trademark Terminal brand kit
 
-Trademark Turtle uses one logo treatment: the acid-chartreuse turtle on near-black. Dark interfaces may place the transparent mark directly on the page. Light interfaces use the protected dark-field asset; do not create an inverted light-mode mark.
+Trademark Terminal uses one logo treatment: the acid-chartreuse prompt mark on near-black. Dark interfaces may place the transparent mark directly on the page. Light interfaces use the protected dark-field asset; do not create an inverted light-mode mark.
+
+The full lockup sets the word `TRADEMARK` in heavy Archivo beside the mark, so the mark reads as the second word of the name.
 
 ## Assets
 
 | File | Use |
 | --- | --- |
 | `github-header.png` | 4:1 repository and social header |
-| `turtle-mark.svg` | Canonical scalable mark on dark surfaces |
-| `turtle-mark.png` | 1024 px transparent raster mark |
-| `turtle-mark-dark-field.png` | 1024 px protected treatment for light surfaces |
+| `terminal-mark.svg` | Canonical scalable mark on dark surfaces |
+| `terminal-mark.png` | 1024 px transparent raster mark |
+| `terminal-mark-dark-field.png` | 1024 px protected treatment for light surfaces |
 | `app-icon-512.png` | Large application icon |
 | `app-icon-192.png` | Web application icon |
 | `favicon-64.png` | High-density browser icon |
 | `favicon-32.png` | Standard browser icon |
 | `brand.css` | Shared color and typography tokens |
 
+The website serves the browser and application icons from `apps/web/public`, which
+symlinks the files above. Regenerating an icon here updates the website with it.
+
 ## Rules
 
-- Keep the turtle acid chartreuse (`#D7F52A`).
+- Keep the mark acid chartreuse (`#D7F52A`).
 - Place the transparent mark only on near-black (`#151616`) or an equivalently dark neutral.
 - On light or photographic surfaces, use the protected dark-field asset.
-- Preserve the turtle's proportions, stride, face, and shell patches.
-- Do not invert, outline, recolor, rotate, crop, add effects, or redraw the mark.
+- Preserve the square frame, stroke weight, and the prompt's baseline alignment.
+- Do not invert, recolor, rotate, crop, add effects, fill the frame, or redraw the mark.
 - Keep clear space of at least one eighth of the mark width on every side.
-- Use at 32 px or larger when the face and shell must remain legible.
+- Use at 32 px or larger so the chevron and cursor stay separable.
 
-The turtle is a logomark, not a UI mascot. It does not appear as decorative empty-state art, animation, or product illustration.
+The mark is a logomark, not a UI mascot. It does not appear as decorative empty-state art, animation, or product illustration.
 
 ## Visual system
 

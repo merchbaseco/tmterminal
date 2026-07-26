@@ -1,11 +1,11 @@
 import { expect, test } from "bun:test";
 
-const turtleMark = await Bun.file(
-  new URL("../../../assets/brand/turtle-mark.svg", import.meta.url)
+const terminalMark = await Bun.file(
+  new URL("../../../assets/brand/terminal-mark.svg", import.meta.url)
 ).text();
 
-test("the turtle mark is a browser-safe standalone SVG", () => {
-  expect(turtleMark.startsWith("<svg ")).toBe(true);
-  expect(turtleMark).toContain("<title>Trademark Turtle</title>");
-  expect(turtleMark).not.toContain("<?xml");
+test("the terminal mark is a browser-safe standalone SVG", () => {
+  expect(terminalMark.startsWith("<svg ")).toBe(true);
+  expect(terminalMark).toContain("<title>Trademark Terminal</title>");
+  expect(terminalMark).not.toContain("<?xml");
 });
