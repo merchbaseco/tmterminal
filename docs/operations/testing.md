@@ -1,5 +1,5 @@
 ---
-summary: Defines Trademark Turtle verification lanes for lint, types, units, PostgreSQL, fixtures, migrations, browser behavior, and production-shaped runtime.
+summary: Defines Trademark Terminal verification lanes for lint, types, units, PostgreSQL, fixtures, migrations, browser behavior, and production-shaped runtime.
 read_when:
   - choosing checks for a server, ingestion, search, client, CLI, website, migration, or deployment change
   - diagnosing failing CI, fixtures, PostgreSQL integration, or browser acceptance
@@ -42,7 +42,7 @@ The harness creates a unique Compose project and removes its containers,
 network, and temporary database at exit. To use an already isolated database:
 
 ```bash
-TEST_DATABASE_URL=postgres://user:password@127.0.0.1:5432/tmturtle_test \
+TEST_DATABASE_URL=postgres://user:password@127.0.0.1:5432/tmterminal_test \
   bun run test:integration
 ```
 

@@ -14,7 +14,7 @@ afterEach(async () => {
 });
 
 test("streams one checksummed object under its durable download reservation", async () => {
-  const root = await mkdtemp(join(tmpdir(), "tmturtle-artifacts-"));
+  const root = await mkdtemp(join(tmpdir(), "tmterminal-artifacts-"));
   roots.push(root);
   const store = createLocalArtifactStore(root);
 
@@ -30,7 +30,7 @@ test("streams one checksummed object under its durable download reservation", as
 });
 
 test("recovers and removes one completed reserved download", async () => {
-  const root = await mkdtemp(join(tmpdir(), "tmturtle-artifacts-"));
+  const root = await mkdtemp(join(tmpdir(), "tmterminal-artifacts-"));
   roots.push(root);
   const store = createLocalArtifactStore(root);
   const stored = await store.put(new Blob(["alpha"]).stream(), 5, alphaId);
@@ -43,7 +43,7 @@ test("recovers and removes one completed reserved download", async () => {
 });
 
 test("removes an incomplete reservation before an approved reacquisition", async () => {
-  const root = await mkdtemp(join(tmpdir(), "tmturtle-artifacts-"));
+  const root = await mkdtemp(join(tmpdir(), "tmterminal-artifacts-"));
   roots.push(root);
   const store = createLocalArtifactStore(root);
   await writeFile(join(root, `.put-${alphaId}`), "part");
@@ -55,7 +55,7 @@ test("removes an incomplete reservation before an approved reacquisition", async
 });
 
 test("rejects a missing object before returning a lazy stream", async () => {
-  const root = await mkdtemp(join(tmpdir(), "tmturtle-artifacts-"));
+  const root = await mkdtemp(join(tmpdir(), "tmterminal-artifacts-"));
   roots.push(root);
   const store = createLocalArtifactStore(root);
 
@@ -65,7 +65,7 @@ test("rejects a missing object before returning a lazy stream", async () => {
 });
 
 test("iterates finalized objects without reading their bytes", async () => {
-  const root = await mkdtemp(join(tmpdir(), "tmturtle-artifacts-"));
+  const root = await mkdtemp(join(tmpdir(), "tmterminal-artifacts-"));
   roots.push(root);
   const store = createLocalArtifactStore(root);
   const bravo = await store.put(new Blob(["bravo"]).stream(), 5, bravoId);
@@ -78,7 +78,7 @@ test("iterates finalized objects without reading their bytes", async () => {
 });
 
 test("rejects an incomplete stream without retaining it", async () => {
-  const root = await mkdtemp(join(tmpdir(), "tmturtle-artifacts-"));
+  const root = await mkdtemp(join(tmpdir(), "tmterminal-artifacts-"));
   roots.push(root);
   const store = createLocalArtifactStore(root);
 
@@ -89,7 +89,7 @@ test("rejects an incomplete stream without retaining it", async () => {
 });
 
 test("cancels an oversized stream before retaining its bytes", async () => {
-  const root = await mkdtemp(join(tmpdir(), "tmturtle-artifacts-"));
+  const root = await mkdtemp(join(tmpdir(), "tmterminal-artifacts-"));
   roots.push(root);
   let cancelled = false;
   let controller!: ReadableStreamDefaultController<Uint8Array>;
@@ -119,7 +119,7 @@ test("cancels an oversized stream before retaining its bytes", async () => {
 });
 
 test("removes stale staging bytes without touching a recent writer", async () => {
-  const root = await mkdtemp(join(tmpdir(), "tmturtle-artifacts-"));
+  const root = await mkdtemp(join(tmpdir(), "tmterminal-artifacts-"));
   roots.push(root);
   const stale = join(root, ".put-stale");
   const recent = join(root, ".put-recent");

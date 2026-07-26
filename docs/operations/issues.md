@@ -1,19 +1,19 @@
 ---
-summary: Defines how Trademark Turtle work is created and triaged in the shared Products Linear team.
+summary: Defines how Trademark Terminal work is created and triaged in the shared Products Linear team.
 read_when:
-  - creating, reading, updating, or triaging Trademark Turtle issues in Linear
+  - creating, reading, updating, or triaging Trademark Terminal issues in Linear
   - changing team routing, the product label, intake state, or triage labels
 ---
 
 # Issues
 
-Trademark Turtle work lives in the shared Linear Products team.
+Trademark Terminal work lives in the shared Linear Products team.
 
 ## Routing
 
 - Team: `Products`
 - Key: `PRD`
-- Product label: `Trademark Turtle`
+- Product label: `Trademark Terminal`
 - Intake state: `Triage`
 - Identifier shape: `PRD-<number>`
 
@@ -27,7 +27,7 @@ Use the authenticated `linear` CLI:
 linear issue create \
   --team PRD \
   --state Triage \
-  --label "Trademark Turtle" \
+  --label "Trademark Terminal" \
   --label agent-filed \
   --label needs-triage \
   --title "Short factual title" \

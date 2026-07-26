@@ -72,7 +72,7 @@ if (!databaseUrl) {
 const input = parseInput(Bun.argv.slice(2));
 const database = createDatabaseClient(databaseUrl);
 const artifactStore = createLocalArtifactStore(
-  process.env.ARTIFACT_STORE_ROOT ?? "/var/lib/tmturtle/artifacts"
+  process.env.ARTIFACT_STORE_ROOT ?? "/var/lib/tmterminal/artifacts"
 );
 
 try {

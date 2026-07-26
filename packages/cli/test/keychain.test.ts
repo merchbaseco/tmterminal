@@ -19,7 +19,7 @@ test("writes a Keychain token through stdin instead of process arguments", async
         "-a",
         "https://example.com",
         "-s",
-        "co.merchbase.tmturtle",
+        "co.merchbase.tmterminal",
         "-U",
         "-w",
       ],

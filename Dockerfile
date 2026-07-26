@@ -14,8 +14,8 @@ COPY . .
 FROM workspace AS test
 
 FROM workspace AS runtime
-ARG TMTURTLE_REVISION=development
-LABEL org.opencontainers.image.revision=$TMTURTLE_REVISION
+ARG TMTERMINAL_REVISION=development
+LABEL org.opencontainers.image.revision=$TMTERMINAL_REVISION
 RUN rm -rf fixtures
 
 FROM workspace AS web-build
@@ -24,7 +24,7 @@ ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
 RUN bun run --cwd apps/web build
 
 FROM caddy:2.11.4-alpine AS web
-ARG TMTURTLE_REVISION=development
-LABEL org.opencontainers.image.revision=$TMTURTLE_REVISION
+ARG TMTERMINAL_REVISION=development
+LABEL org.opencontainers.image.revision=$TMTERMINAL_REVISION
 COPY Caddyfile /etc/caddy/Caddyfile
 COPY --from=web-build /app/apps/web/dist /srv

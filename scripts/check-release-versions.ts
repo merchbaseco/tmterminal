@@ -16,11 +16,11 @@ const requireVersion = (name: string, version: string | undefined) => {
 };
 
 const cliVersion = requireVersion(
-  "@tmturtle/cli",
+  "@tmterminal/cli",
   readPackageJson("packages/cli/package.json").version
 );
 const httpClientVersion = requireVersion(
-  "@tmturtle/http-client",
+  "@tmterminal/http-client",
   readPackageJson("packages/http-client/package.json").version
 );
 

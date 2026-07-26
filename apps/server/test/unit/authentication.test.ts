@@ -12,7 +12,7 @@ describe("credential selection", () => {
     ).toEqual({ type: "clerk", token: "clerk-session" });
   });
 
-  test("selects one Trademark Turtle API key", () => {
+  test("selects one Trademark Terminal API key", () => {
     expect(
       selectCredential({
         authorization: "Bearer ttk_123_secret",

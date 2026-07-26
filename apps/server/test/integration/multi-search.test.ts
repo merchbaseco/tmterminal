@@ -51,7 +51,7 @@ function mark(
       wordMark,
       ...options,
     },
-    owners: [{ entryNumber: "1", partyName: "TURTLE GOODS LLC", partyType: "16" }],
+    owners: [{ entryNumber: "1", partyName: "TERMINAL GOODS LLC", partyType: "16" }],
     statusEvents: [],
     versions: {
       authorityPolicy: "uspto-authority-v1",
@@ -70,12 +70,12 @@ beforeAll(async () => {
   await repository.replace(mark("10000001", "Caf\u00e9 Society"));
   await repository.replace(mark("10000002", "Cafe\u0301"));
   await repository.replace(mark("10000003", "THE CAF\u00c9 SOCIETY CLUB", { statusCode: "626" }));
-  await repository.replace(mark("10000004", "TURTLE", { sourceTransactionDate: "2026-07-09" }));
+  await repository.replace(mark("10000004", "TERMINAL", { sourceTransactionDate: "2026-07-09" }));
   await repository.replace(
-    mark("10000005", "TURTLE CLUB", { sourceTransactionDate: "2026-07-11" })
+    mark("10000005", "TERMINAL CLUB", { sourceTransactionDate: "2026-07-11" })
   );
   await repository.replace(
-    mark("10000006", "TURTLE SOCIETY", { sourceTransactionDate: "2026-07-11" })
+    mark("10000006", "TERMINAL SOCIETY", { sourceTransactionDate: "2026-07-11" })
   );
   await repository.replace(mark("10000007", "50% SYMBOL"));
   await repository.replace(mark("10000008", "50X SYMBOL"));
@@ -502,7 +502,7 @@ test("list returns a typed conflict after live data changes", async () => {
 });
 
 test("text matching returns every live overlap with JavaScript UTF-16 offsets", async () => {
-  const text = "🐢 TURTLE CLUB—turtle EMBLEMZETA";
+  const text = "💻 TERMINAL CLUB—terminal EMBLEMZETA";
   const response = await matchTexts({ texts: [{ id: "title", text }] });
   const [result] = response.json().result.data.texts as Array<{
     id: string;
@@ -538,18 +538,18 @@ test("text matching returns every live overlap with JavaScript UTF-16 offsets", 
       text.slice(match.start, match.end),
     ])
   ).toEqual([
-    ["10000005", 3, 14, "TURTLE CLUB"],
-    ["10000004", 3, 9, "TURTLE"],
-    ["11000006", 10, 14, "CLUB"],
-    ["10000004", 15, 21, "turtle"],
-    ["10000014", 22, 32, "EMBLEMZETA"],
+    ["10000005", 3, 16, "TERMINAL CLUB"],
+    ["10000004", 3, 11, "TERMINAL"],
+    ["11000006", 12, 16, "CLUB"],
+    ["10000004", 17, 25, "terminal"],
+    ["10000014", 26, 36, "EMBLEMZETA"],
   ]);
 });
 
 test("text matching evaluates named documents in one stable snapshot", async () => {
   const response = await matchTexts({
     texts: [
-      { id: "title", text: "TURTLE CLUB" },
+      { id: "title", text: "TERMINAL CLUB" },
       { id: "brand", text: "Cafe\u0301 Society" },
     ],
     type: "text",
@@ -579,7 +579,7 @@ test("bulk screening preserves query order and counts live exact and partial mat
   const response = await screenQueries({
     queries: [
       { id: "clear", query: "NO MARK LIKE THIS" },
-      { id: "exact", query: "TURTLE" },
+      { id: "exact", query: "TERMINAL" },
       { id: "partial", query: "CAFE\u0301" },
     ],
   });
@@ -596,7 +596,7 @@ test("bulk screening preserves query order and counts live exact and partial mat
       {
         id: "exact",
         liveMatches: { exact: 1, partial: 2 },
-        query: "TURTLE",
+        query: "TERMINAL",
       },
       {
         id: "partial",
@@ -675,7 +675,7 @@ test("Multi returns the same page through Clerk and API-key credentials", async 
     url: "/api/trpc/account.api-keys.create",
   });
   const token = created.json().result.data.token as string;
-  const input = { mode: "multi", query: "turtle", status: "live" };
+  const input = { mode: "multi", query: "terminal", status: "live" };
   const clerk = await search(input);
   const apiKey = await search(input, `Bearer ${token}`);
   const anonymous = await search(input, "");
@@ -758,7 +758,7 @@ test("Split searches every adjacent Unicode word-token combination in stable rel
 
 test("Split rejects punctuation-only queries and Multi-only match selection", async () => {
   const punctuation = await search({ mode: "split", query: "—!?" });
-  const match = await search({ match: "exact", mode: "split", query: "turtle club" });
+  const match = await search({ match: "exact", mode: "split", query: "terminal club" });
 
   expect(punctuation.statusCode).toBe(400);
   expect(punctuation.json().error.data.code).toBe("BAD_REQUEST");
@@ -782,8 +782,8 @@ test("Split treats retained word punctuation as token separators", async () => {
 });
 
 test("Wildcard matches the whole normalized mark and treats SQL pattern characters literally", async () => {
-  const whole = await search({ mode: "wildcard", query: "turtle" });
-  const zeroOrMore = await search({ mode: "wildcard", query: "turtle*club" });
+  const whole = await search({ mode: "wildcard", query: "terminal" });
+  const zeroOrMore = await search({ mode: "wildcard", query: "terminal*club" });
   const percent = await search({ mode: "wildcard", query: "*50% symbol" });
   const underscore = await search({ mode: "wildcard", query: "a_b symbol*" });
   const backslash = await search({ mode: "wildcard", query: "path\\mark*" });
@@ -809,7 +809,7 @@ test("Wildcard rejects unindexed degenerate patterns and Multi-only match select
   const onlyStars = await search({ mode: "wildcard", query: "***" });
   const shortRuns = await search({ mode: "wildcard", query: "*a*b*" });
   const sqlMetacharactersOnly = await search({ mode: "wildcard", query: "%_\\*" });
-  const match = await search({ match: "partial", mode: "wildcard", query: "turtle*" });
+  const match = await search({ match: "partial", mode: "wildcard", query: "terminal*" });
 
   expect(onlyStars.statusCode).toBe(400);
   expect(onlyStars.json().error.data.code).toBe("BAD_REQUEST");
@@ -912,8 +912,8 @@ test("Multi partial treats percent, underscore, and the escape character literal
 });
 
 test("activity sorts use source transaction date and serial-number tie-breakers", async () => {
-  const newest = await search({ mode: "multi", query: "turtle", sort: "newest-activity" });
-  const oldest = await search({ mode: "multi", query: "turtle", sort: "oldest-activity" });
+  const newest = await search({ mode: "multi", query: "terminal", sort: "newest-activity" });
+  const oldest = await search({ mode: "multi", query: "terminal", sort: "oldest-activity" });
 
   expect(
     newest.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber)
@@ -1034,7 +1034,7 @@ test("status and type filters apply to live Class 025 data", async () => {
 });
 
 test("rejects the retired class-filter input", async () => {
-  const response = await search({ classes: ["025"], mode: "multi", query: "turtle" });
+  const response = await search({ classes: ["025"], mode: "multi", query: "terminal" });
 
   expect(response.statusCode).toBe(400);
   expect(response.json().error.data.code).toBe("BAD_REQUEST");

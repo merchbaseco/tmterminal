@@ -1,13 +1,13 @@
 ---
-summary: Defines Trademark Turtle users, service capabilities, authentication boundaries, clients, v1 scope, and intentional omissions.
+summary: Defines Trademark Terminal users, service capabilities, authentication boundaries, clients, v1 scope, and intentional omissions.
 read_when:
   - changing service scope, authentication, client ownership, or anonymous access
-  - deciding whether a capability belongs in Trademark Turtle, MerchBase, the website, or a published package
+  - deciding whether a capability belongs in Trademark Terminal, MerchBase, the website, or a published package
 ---
 
 # Service
 
-Trademark Turtle is the authenticated United States trademark service for the
+Trademark Terminal is the authenticated United States trademark service for the
 MerchBase product family. It maintains USPTO-derived trademark knowledge and
 serves the same typed behavior to its website, HTTP client, CLI, and downstream
 products.
@@ -40,7 +40,7 @@ decisions with the USPTO or qualified counsel.
 Every data procedure requires one authenticated account context.
 
 - The website uses the shared MerchBase Clerk configuration.
-- The HTTP client and CLI use Trademark Turtle API keys.
+- The HTTP client and CLI use Trademark Terminal API keys.
 - API-key management requires a Clerk session.
 - Source diagnostics and operations require a Clerk session plus the
   database-backed operator role.
@@ -69,8 +69,8 @@ rewritten by account defaults.
 | Surface | Role |
 | --- | --- |
 | Website | Private search, text matching, bulk screening, mark detail, and account management plus public Status and Help pages. |
-| `@tmturtle/http-client` | Typed programmatic access derived from the server router. |
-| `@tmturtle/cli` / `tt` | JSON-first shell automation over API-key-authorized procedures. |
+| `@tmterminal/http-client` | Typed programmatic access derived from the server router. |
+| `@tmterminal/cli` / `tt` | JSON-first shell automation over API-key-authorized procedures. |
 | MerchBase | Downstream consumer that owns its own adapter and product policy. |
 
 The server and website are private applications. Only the HTTP client and CLI
@@ -78,7 +78,7 @@ are publication surfaces.
 
 ## V1 Boundary
 
-Trademark Turtle materializes complete details for the private Tracked Classes
+Trademark Terminal materializes complete details for the private Tracked Classes
 constant, initially International Class 025. The normalized schema remains
 class-agnostic. Adding a class is a deliberate product and backfill change, not
 runtime configuration.

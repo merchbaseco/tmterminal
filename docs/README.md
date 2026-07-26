@@ -1,17 +1,17 @@
 ---
-summary: Trademark Turtle docs map for product behavior, internals, exact contracts, operations, design, and architecture decisions.
+summary: Trademark Terminal docs map for product behavior, internals, exact contracts, operations, design, and architecture decisions.
 read_when:
-  - joining Trademark Turtle development or choosing which contract to read before changing behavior
+  - joining Trademark Terminal development or choosing which contract to read before changing behavior
   - changing product scope, ingestion, search, clients, operations, design, or architecture
   - adding, moving, or retiring repository documentation
 ---
 
-# Trademark Turtle Docs
+# Trademark Terminal Docs
 
-Trademark Turtle makes trademark compliance easy for online sellers, primarily
+Trademark Terminal makes trademark compliance easy for online sellers, primarily
 focused on print-on-demand entrepreneurs in the merch and apparel niche.
-Trademark Turtle maintains a searchable United States trademark database, and
-surfaces the functionality via the tmturtle.merchbase.co website, a dedicated
+Trademark Terminal maintains a searchable United States trademark database, and
+surfaces the functionality via the tmterminal.merchbase.co website, a dedicated
 HTTP API, and the `tt` CLI native to agentic workflows.
 
 These docs state behavior, boundaries, exact contracts, workflows, and durable

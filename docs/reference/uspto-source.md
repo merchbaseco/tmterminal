@@ -7,7 +7,7 @@ read_when:
 
 # USPTO Source
 
-Trademark Turtle consumes full-text trademark application XML without images
+Trademark Terminal consumes full-text trademark application XML without images
 from the USPTO Open Data Portal.
 
 ## Products
@@ -38,13 +38,13 @@ states:
 - one IP may download at most five files per 10 seconds;
 - signed download redirects expire after five seconds.
 
-Trademark Turtle uses the conservative rule needed for ZIP inputs: request a
+Trademark Terminal uses the conservative rule needed for ZIP inputs: request a
 specific file once, persist the request count before sending it, and never
 automatically repeat a failed download. Parsing and application retries reuse
 retained bytes and do not contact USPTO.
 
 When the file endpoint returns its recognized 429 JSON-string diagnostic,
-Trademark Turtle reads at most 4 KiB and stores only the normalized provider
+Trademark Terminal reads at most 4 KiB and stores only the normalized provider
 request count, cooldown seconds, observation time, and estimated retry time.
 Raw provider text is neither persisted nor shown. Missing, malformed, changed,
 or oversized bodies retain the ordinary HTTP 429 facts and generic operator
@@ -99,7 +99,7 @@ The versioned status policy uses the official status-code table. Known codes map
 to Live, Dead, or Indifferent; Indifferent, missing, and future unknown values
 remain `unknown` rather than being guessed.
 
-USPTO search includes active and inactive records. Trademark Turtle therefore
+USPTO search includes active and inactive records. Trademark Terminal therefore
 keeps legitimate tracked marks when their status becomes abandoned, cancelled,
 expired, or otherwise inactive.
 
@@ -110,7 +110,7 @@ machine-readable ZIP, XML, source-coordinate, and record evidence. Full ZIPs
 remain outside Git under:
 
 ```text
-~/Library/Caches/tmturtle/uspto/sha256/<zip-sha256>/<filename>
+~/Library/Caches/tmterminal/uspto/sha256/<zip-sha256>/<filename>
 ```
 
 `bun run fixtures:verify` checks retained artifact bytes, exact record ranges,

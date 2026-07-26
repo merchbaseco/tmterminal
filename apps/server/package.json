@@ -1,5 +1,5 @@
 {
-  "name": "@tmturtle/core-server",
+  "name": "@tmterminal/core-server",
   "private": true,
   "type": "module",
   "scripts": {

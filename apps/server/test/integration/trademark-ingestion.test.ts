@@ -723,7 +723,7 @@ test("repair requests reject a covered source file", async () => {
 });
 
 test("parser replay requeues only verified retained bytes", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "tmturtle-replay-"));
+  const directory = await mkdtemp(join(tmpdir(), "tmterminal-replay-"));
   const path = join(directory, "retained.zip");
   const bytes = Buffer.from("retained-source");
   await writeFile(path, bytes);

@@ -1,13 +1,13 @@
 ---
-summary: Defines synchronized Trademark Turtle CLI and HTTP client versioning, changelog, verification, tagging, npm publishing, and GitHub release steps.
+summary: Defines synchronized Trademark Terminal CLI and HTTP client versioning, changelog, verification, tagging, npm publishing, and GitHub release steps.
 read_when:
-  - preparing or publishing a Trademark Turtle CLI or HTTP client release
+  - preparing or publishing a Trademark Terminal CLI or HTTP client release
   - changing package versions, npm metadata, release tags, or changelog policy
 ---
 
 # npm Packages
 
-Release `@tmturtle/http-client` and `@tmturtle/cli` at one
+Release `@tmterminal/http-client` and `@tmterminal/cli` at one
 shared `X.Y.Z`. The CLI tag `cli-vX.Y.Z` is the release boundary.
 
 ## Changelog
@@ -36,14 +36,14 @@ Commit the release metadata, create annotated tag `cli-vX.Y.Z`, then push
 The repo-root ignored `.env` may contain `NPM_TOKEN`. Pass it directly through
 npm's registry auth option; exporting `NPM_TOKEN` alone is insufficient.
 
-Publish `@tmturtle/http-client` first. Confirm its registry version, then
-publish `@tmturtle/cli` and confirm that version. Never republish
+Publish `@tmterminal/http-client` first. Confirm its registry version, then
+publish `@tmterminal/cli` and confirm that version. Never republish
 an existing version.
 
 ## GitHub Release
 
 Create a GitHub Release from `cli-vX.Y.Z`. Use the matching changelog entry as
-the release notes and title it `Trademark Turtle CLI vX.Y.Z`.
+the release notes and title it `Trademark Terminal CLI vX.Y.Z`.
 
 Final acceptance requires the two npm registry versions, the GitHub Release,
 and a clean global install whose `tt --version`, help, and authenticated status

@@ -1,14 +1,14 @@
 #!/bin/sh
 set -eu
 
-if [ -z "${TMTURTLE_WEB_PORT:-}" ] || [ -z "${TMTURTLE_API_PORT:-}" ]; then
-  TMTURTLE_WEB_PORT="${TMTURTLE_WEB_PORT:-$(dev-port 0)}"
-  TMTURTLE_API_PORT="${TMTURTLE_API_PORT:-$(dev-port 1)}"
+if [ -z "${TMTERMINAL_WEB_PORT:-}" ] || [ -z "${TMTERMINAL_API_PORT:-}" ]; then
+  TMTERMINAL_WEB_PORT="${TMTERMINAL_WEB_PORT:-$(dev-port 0)}"
+  TMTERMINAL_API_PORT="${TMTERMINAL_API_PORT:-$(dev-port 1)}"
 fi
-export TMTURTLE_WEB_PORT TMTURTLE_API_PORT
+export TMTERMINAL_WEB_PORT TMTERMINAL_API_PORT
 
-test "$(curl --fail --silent "http://127.0.0.1:${TMTURTLE_API_PORT}/api/health")" = '{"status":"ready"}'
-curl --fail --silent --output /dev/null "http://127.0.0.1:${TMTURTLE_WEB_PORT}/"
+test "$(curl --fail --silent "http://127.0.0.1:${TMTERMINAL_API_PORT}/api/health")" = '{"status":"ready"}'
+curl --fail --silent --output /dev/null "http://127.0.0.1:${TMTERMINAL_WEB_PORT}/"
 
 for service in database api worker web; do
   container_id="$(./scripts/compose ps --quiet "$service")"

@@ -11,8 +11,8 @@ fi
 product=$1
 source_path=$(cd "$(dirname "$2")" && pwd -P)/$(basename "$2")
 filename=$(basename "$source_path")
-TMTURTLE_REVISION=$(git rev-parse HEAD)
-export TMTURTLE_REVISION
+TMTERMINAL_REVISION=$(git rev-parse HEAD)
+export TMTERMINAL_REVISION
 
 worker_container=$(docker compose ps --all --quiet worker)
 if [ -n "$worker_container" ]; then

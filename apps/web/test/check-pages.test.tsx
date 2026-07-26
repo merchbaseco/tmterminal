@@ -17,14 +17,14 @@ type TextCheckApi = import("../src/check-text-page.tsx").TextCheckApi;
 const trademark = {
   goodsServicesExcerpt: "shirts",
   internationalClasses: ["025"],
-  owner: "TURTLE GOODS LLC",
+  owner: "TERMINAL GOODS LLC",
   registrationNumber: "7000001",
   serialNumber: "70000001",
   sourceTransactionDate: "2026-07-10",
   status: "live" as const,
   statusDate: "2026-07-09",
   type: "text" as const,
-  wordMark: "TURTLE CLUB",
+  wordMark: "TERMINAL CLUB",
 };
 const shirtsTrademark = {
   ...trademark,
@@ -54,10 +54,10 @@ test("checks text, filters from its highlight, and opens a canonical result row"
           {
             id: "text",
             matches: [
-              { end: 11, start: 0, trademarks: [trademark] },
-              { end: 18, start: 12, trademarks: [shirtsTrademark] },
+              { end: 13, start: 0, trademarks: [trademark] },
+              { end: 20, start: 14, trademarks: [shirtsTrademark] },
             ],
-            text: "Turtle Club shirts",
+            text: "Terminal Club shirts",
           },
         ],
       });
@@ -73,12 +73,12 @@ test("checks text, filters from its highlight, and opens a canonical result row"
   expect(screen.getByRole("button", { name: "Paste some text" })).toBeTruthy();
   expect(document.activeElement).toBe(textField);
   fireEvent.change(textField, {
-    target: { value: "Turtle Club shirts" },
+    target: { value: "Terminal Club shirts" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Check text" }));
 
   const highlight = await screen.findByRole("button", {
-    name: "Turtle Club, 1 matching trademark",
+    name: "Terminal Club, 1 matching trademark",
   });
   expect(highlight).toBeTruthy();
   expect(screen.queryByRole("link", { name: "Search marks" })).toBeNull();
@@ -94,12 +94,12 @@ test("checks text, filters from its highlight, and opens a canonical result row"
   expect(view.container.querySelectorAll('[data-tone="lime"]').length).toBeGreaterThanOrEqual(2);
   expect(
     screen.getByRole("link", {
-      name: "TURTLE CLUB, Live, serial number 70000001",
+      name: "TERMINAL CLUB, Live, serial number 70000001",
     })
   ).toBeTruthy();
   expect(inputs).toEqual([
     {
-      texts: [{ id: "text", text: "Turtle Club shirts" }],
+      texts: [{ id: "text", text: "Terminal Club shirts" }],
       type: "all",
     },
   ]);
@@ -110,11 +110,11 @@ test("checks text, filters from its highlight, and opens a canonical result row"
   });
   fireEvent.click(
     screen.getByRole("link", {
-      name: "TURTLE CLUB, Live, serial number 70000001",
+      name: "TERMINAL CLUB, Live, serial number 70000001",
     })
   );
   expect(opened).toEqual(["70000001"]);
-  expect(restoreStates).toEqual([{ kind: "text", text: "Turtle Club shirts" }]);
+  expect(restoreStates).toEqual([{ kind: "text", text: "Terminal Club shirts" }]);
 
   fireEvent.click(screen.getByRole("button", { name: "Check different text" }));
   expect((screen.getByLabelText("Text to check") as HTMLInputElement).value).toBe("");
@@ -139,7 +139,7 @@ test("screens named phrases and shows canonical results for the selected phrase"
           {
             id: "line-1",
             liveMatches: { exact: 1, partial: 2 },
-            query: "Turtle Club",
+            query: "Terminal Club",
           },
           {
             id: "line-2",
@@ -151,7 +151,7 @@ test("screens named phrases and shows canonical results for the selected phrase"
     },
     search: (input) => {
       searches.push(input);
-      const matched = input.query === "Turtle Club";
+      const matched = input.query === "Terminal Club";
       return Promise.resolve({
         items: matched ? [{ ...trademark, match: "exact" as const }] : [],
         limit: 25,
@@ -173,27 +173,27 @@ test("screens named phrases and shows canonical results for the selected phrase"
     phrasesField.closest("[data-action-placement]")?.getAttribute("data-action-placement")
   ).toBe("below");
   fireEvent.change(phrasesField, {
-    target: { value: "Turtle Club\nOcean Supply" },
+    target: { value: "Terminal Club\nOcean Supply" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Bulk check" }));
 
   const matchedPhrase = await screen.findByRole("button", {
-    name: "Turtle Club, 3 live matches",
+    name: "Terminal Club, 3 live matches",
   });
   expect(matchedPhrase.getAttribute("aria-pressed")).toBe("true");
   expect(screen.queryByRole("link", { name: "Search marks" })).toBeNull();
   expect(screen.getByRole("button", { name: "Check different phrases" })).toBeTruthy();
   expect(inputs[0]).toEqual({
     queries: [
-      { id: "line-1", query: "Turtle Club" },
+      { id: "line-1", query: "Terminal Club" },
       { id: "line-2", query: "Ocean Supply" },
     ],
     type: "all",
   });
   const resultLink = await screen.findByRole("link", {
-    name: "TURTLE CLUB, Live, serial number 70000001",
+    name: "TERMINAL CLUB, Live, serial number 70000001",
   });
-  expect(searches[0]?.query).toBe("Turtle Club");
+  expect(searches[0]?.query).toBe("Terminal Club");
   expect(searches[0]?.expectedDataVersion).toBe("7");
   fireEvent.change(phrasesField, {
     target: { value: "Unsubmitted draft" },
@@ -204,7 +204,7 @@ test("screens named phrases and shows canonical results for the selected phrase"
     {
       kind: "bulk",
       selectedQueryId: "line-1",
-      value: "Turtle Club\nOcean Supply",
+      value: "Terminal Club\nOcean Supply",
     },
   ]);
 
@@ -327,7 +327,7 @@ test("refreshes screening when pinned bulk results conflict", async () => {
           {
             id: "line-1",
             liveMatches: { exact: 1, partial: 0 },
-            query: "Turtle Club",
+            query: "Terminal Club",
           },
         ],
       });
@@ -348,7 +348,7 @@ test("refreshes screening when pinned bulk results conflict", async () => {
 
   renderPage(<BulkCheckPage api={api} onNavigate={ignoreNavigation} onOpenMark={onOpenMark} />);
   fireEvent.change(screen.getByLabelText("Phrases to check"), {
-    target: { value: "Turtle Club" },
+    target: { value: "Terminal Club" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Bulk check" }));
 
@@ -358,7 +358,7 @@ test("refreshes screening when pinned bulk results conflict", async () => {
 
   expect(
     await screen.findByRole("link", {
-      name: "TURTLE CLUB, Live, serial number 70000001",
+      name: "TERMINAL CLUB, Live, serial number 70000001",
     })
   ).toBeTruthy();
   expect(screenInputs).toHaveLength(2);

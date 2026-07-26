@@ -7,22 +7,22 @@ services:
           cpus: "2"
           memory: 2G
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-tmturtle}
+      POSTGRES_DB: ${POSTGRES_DB:-tmterminal}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
-      POSTGRES_USER: ${POSTGRES_USER:-tmturtle}
+      POSTGRES_USER: ${POSTGRES_USER:-tmterminal}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 2s
       timeout: 3s
       retries: 15
     ports:
-      - "127.0.0.1:${TMTURTLE_DATABASE_PORT:-5437}:5432"
+      - "127.0.0.1:${TMTERMINAL_DATABASE_PORT:-5437}:5432"
     restart: unless-stopped
     volumes:
       - database-data:/var/lib/postgresql/data
 
   migrate:
-    image: tmturtle-core:${TMTURTLE_REVISION:-development}
+    image: tmterminal-core:${TMTERMINAL_REVISION:-development}
     command: ["bun", "run", "db:migrate"]
     deploy:
       resources:
@@ -43,8 +43,8 @@ services:
       secrets:
         - hugeicons_license_key
       args:
-        TMTURTLE_REVISION: ${TMTURTLE_REVISION:-development}
-    image: tmturtle-core:${TMTURTLE_REVISION:-development}
+        TMTERMINAL_REVISION: ${TMTERMINAL_REVISION:-development}
+    image: tmterminal-core:${TMTERMINAL_REVISION:-development}
     command: ["bun", "run", "--cwd", "apps/server", "start"]
     deploy:
       resources:
@@ -65,11 +65,11 @@ services:
       timeout: 3s
       retries: 15
     ports:
-      - "127.0.0.1:${TMTURTLE_API_PORT:?set TMTURTLE_API_PORT}:3000"
+      - "127.0.0.1:${TMTERMINAL_API_PORT:?set TMTERMINAL_API_PORT}:3000"
     restart: unless-stopped
 
   worker:
-    image: tmturtle-core:${TMTURTLE_REVISION:-development}
+    image: tmterminal-core:${TMTERMINAL_REVISION:-development}
     command: ["bun", "run", "--cwd", "apps/server", "worker"]
     deploy:
       resources:
@@ -77,7 +77,7 @@ services:
           cpus: "2"
           memory: 2G
     environment:
-      ARTIFACT_STORE_ROOT: /var/lib/tmturtle/artifacts
+      ARTIFACT_STORE_ROOT: /var/lib/tmterminal/artifacts
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
       USPTO_API_KEY: ${USPTO_API_KEY:?set USPTO_API_KEY}
       USPTO_REQUEST_TIMEOUT_MS: ${USPTO_REQUEST_TIMEOUT_MS:-900000}
@@ -85,14 +85,14 @@ services:
       migrate:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "bun", "-e", "if(Date.now()-Number(await Bun.file('/tmp/tmturtle-worker-ready').text())>30000)process.exit(1)"]
+      test: ["CMD", "bun", "-e", "if(Date.now()-Number(await Bun.file('/tmp/tmterminal-worker-ready').text())>30000)process.exit(1)"]
       interval: 2s
       timeout: 3s
       retries: 15
       start_period: 15m
     restart: unless-stopped
     volumes:
-      - artifact-data:/var/lib/tmturtle/artifacts
+      - artifact-data:/var/lib/tmterminal/artifacts
 
   web:
     build:
@@ -101,9 +101,9 @@ services:
       secrets:
         - hugeicons_license_key
       args:
-        TMTURTLE_REVISION: ${TMTURTLE_REVISION:-development}
+        TMTERMINAL_REVISION: ${TMTERMINAL_REVISION:-development}
         VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:?set VITE_CLERK_PUBLISHABLE_KEY}
-    image: tmturtle-web:${TMTURTLE_REVISION:-development}
+    image: tmterminal-web:${TMTERMINAL_REVISION:-development}
     deploy:
       resources:
         limits:
@@ -118,18 +118,18 @@ services:
       timeout: 3s
       retries: 15
     ports:
-      - "127.0.0.1:${TMTURTLE_WEB_PORT:?set TMTURTLE_WEB_PORT}:8080"
+      - "127.0.0.1:${TMTERMINAL_WEB_PORT:?set TMTERMINAL_WEB_PORT}:8080"
     restart: unless-stopped
 
   test-database:
     profiles: ["test"]
     image: postgres:16.14-alpine
     environment:
-      POSTGRES_DB: tmturtle_test
-      POSTGRES_PASSWORD: tmturtle_test
-      POSTGRES_USER: tmturtle_test
+      POSTGRES_DB: tmterminal_test
+      POSTGRES_PASSWORD: tmterminal_test
+      POSTGRES_USER: tmterminal_test
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tmturtle_test -d tmturtle_test"]
+      test: ["CMD-SHELL", "pg_isready -U tmterminal_test -d tmterminal_test"]
       interval: 1s
       timeout: 3s
       retries: 15
@@ -145,7 +145,7 @@ services:
         - hugeicons_license_key
     command: ["bun", "run", "test:integration"]
     environment:
-      TEST_DATABASE_URL: postgres://tmturtle_test:tmturtle_test@test-database:5432/tmturtle_test
+      TEST_DATABASE_URL: postgres://tmterminal_test:tmterminal_test@test-database:5432/tmterminal_test
     depends_on:
       test-database:
         condition: service_healthy

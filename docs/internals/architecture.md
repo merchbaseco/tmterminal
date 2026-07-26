@@ -1,5 +1,5 @@
 ---
-summary: Defines Trademark Turtle workspace ownership, service processes, authentication boundary, persistence source of truth, and published client relationships.
+summary: Defines Trademark Terminal workspace ownership, service processes, authentication boundary, persistence source of truth, and published client relationships.
 read_when:
   - changing package boundaries, server or worker ownership, authentication, persistence, or client type generation
   - deciding whether behavior belongs in the API, worker, website, HTTP client, CLI, or MerchBase
@@ -7,7 +7,7 @@ read_when:
 
 # Architecture
 
-Trademark Turtle is one Bun workspace around one PostgreSQL database. The API
+Trademark Terminal is one Bun workspace around one PostgreSQL database. The API
 serves authenticated reads and account actions; the worker maintains source
 data; the website, HTTP client, and CLI consume the server contract.
 

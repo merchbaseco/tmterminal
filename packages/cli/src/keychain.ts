@@ -1,6 +1,6 @@
 import type { Keychain } from "./run.js";
 
-const service = "co.merchbase.tmturtle";
+const service = "co.merchbase.tmterminal";
 
 export type SecurityCommand = (
   args: string[],

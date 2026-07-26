@@ -1,14 +1,14 @@
 ---
 summary: Defines the supported Mac mini production topology, exact-SHA GitHub deployment, smoke checks, source-worker release boundary, and rollback.
 read_when:
-  - deploying or diagnosing Trademark Turtle on the Mac mini, Cloudflare Tunnel, production Compose, or restart persistence
+  - deploying or diagnosing Trademark Terminal on the Mac mini, Cloudflare Tunnel, production Compose, or restart persistence
   - changing workflows, image revisions, resource limits, production ports, worker startup, or deployment smoke
 ---
 
 # Deployment
 
-Trademark Turtle runs from `/Users/zknicker/srv/tmturtle` as Compose project
-`tmturtle`. Cloudflare Tunnel sends `https://tmturtle.merchbase.co` to loopback
+Trademark Terminal runs from `/Users/zknicker/srv/tmterminal` as Compose project
+`tmterminal`. Cloudflare Tunnel sends `https://tmterminal.merchbase.co` to loopback
 Caddy on port 8095. API diagnostics use loopback port 3095; PostgreSQL uses
 loopback 5437 for the established Tailscale development path.
 
@@ -51,9 +51,9 @@ authenticated reads independently observable.
 ## Secrets
 
 The ignored production `.env` lives at
-`/Users/zknicker/srv/tmturtle/.env`, mode `0600`. Required values include
+`/Users/zknicker/srv/tmterminal/.env`, mode `0600`. Required values include
 database, Clerk, and USPTO credentials. Production authorized parties is exactly
-`https://tmturtle.merchbase.co`.
+`https://tmterminal.merchbase.co`.
 
 Secrets are not printed, committed, copied into runtime image layers, or exposed
 through readiness.
@@ -86,8 +86,8 @@ no trademark data. Readiness does not claim source completeness.
 Run it explicitly on the host with:
 
 ```bash
-cd /Users/zknicker/srv/tmturtle
-export TMTURTLE_REVISION="$(git rev-parse HEAD)"
+cd /Users/zknicker/srv/tmterminal
+export TMTERMINAL_REVISION="$(git rev-parse HEAD)"
 ./scripts/deployment-smoke
 ```
 
@@ -103,9 +103,9 @@ volumes:
 
 ```bash
 git switch --detach <compatible-sha>
-export TMTURTLE_REVISION="$(git rev-parse HEAD)"
-docker compose --project-name tmturtle --env-file .env build
-docker compose --project-name tmturtle --env-file .env up --detach --remove-orphans --wait
+export TMTERMINAL_REVISION="$(git rev-parse HEAD)"
+docker compose --project-name tmterminal --env-file .env build
+docker compose --project-name tmterminal --env-file .env up --detach --remove-orphans --wait
 ./scripts/deployment-smoke
 ```
 

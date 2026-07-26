@@ -1,4 +1,4 @@
-# Trademark Turtle Agent Guide
+# Trademark Terminal Agent Guide
 
 ## Working model
 
@@ -17,9 +17,9 @@
 
 ## Product contract
 
-- Trademark Turtle is an authenticated service with a thin search website for print-on-demand sellers.
+- Trademark Terminal is an authenticated service with a thin search website for print-on-demand sellers.
 - The service owns USPTO discovery, downloads, parsing, normalization, persistence, freshness, and search semantics.
-- Callers learn the typed Trademark Turtle interface; they do not learn USPTO dataset or parser details.
+- Callers learn the typed Trademark Terminal interface; they do not learn USPTO dataset or parser details.
 - Every data procedure requires either a Clerk session or an API key. There are no anonymous data routes in v1.
 - Exact serial and registration numbers are identities. Never treat them as fuzzy search terms.
 - Apply filtering and sorting on the server before pagination and count.
@@ -101,7 +101,7 @@ Before any PRD commit, PR, merge, or closeout:
 
 ### Issue tracker
 
-Issues are tracked in Linear under the Products (`PRD`) team and routed with the `Trademark Turtle` label. See `docs/operations/issues.md`.
+Issues are tracked in Linear under the Products (`PRD`) team and routed with the `Trademark Terminal` label. See `docs/operations/issues.md`.
 
 ### Triage labels
 

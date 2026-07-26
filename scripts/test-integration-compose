@@ -1,13 +1,13 @@
 #!/bin/sh
 set -eu
 
-project="${COMPOSE_PROJECT_NAME:-tmturtle-test-$$}"
+project="${COMPOSE_PROJECT_NAME:-tmterminal-test-$$}"
 export DATABASE_URL="${DATABASE_URL:-postgres://unused:unused@database:5432/unused}"
 export CLERK_AUTHORIZED_PARTIES="${CLERK_AUTHORIZED_PARTIES:-http://127.0.0.1:3000}"
 export CLERK_SECRET_KEY="${CLERK_SECRET_KEY:-unused-test-key}"
 export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-unused}"
-export TMTURTLE_API_PORT="${TMTURTLE_API_PORT:-0}"
-export TMTURTLE_WEB_PORT="${TMTURTLE_WEB_PORT:-0}"
+export TMTERMINAL_API_PORT="${TMTERMINAL_API_PORT:-0}"
+export TMTERMINAL_WEB_PORT="${TMTERMINAL_WEB_PORT:-0}"
 export USPTO_API_KEY="${USPTO_API_KEY:-unused-test-key}"
 export VITE_CLERK_PUBLISHABLE_KEY="${VITE_CLERK_PUBLISHABLE_KEY:-unused-test-key}"
 

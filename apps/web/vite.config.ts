@@ -4,9 +4,9 @@ import { defineConfig } from "vite";
 import { fileURLToPath } from "node:url";
 
 export default defineConfig(({ command }) => {
-  const apiPort = process.env.TMTURTLE_API_PORT?.trim();
+  const apiPort = process.env.TMTERMINAL_API_PORT?.trim();
   if (command === "serve" && !apiPort) {
-    throw new Error("TMTURTLE_API_PORT is required; set it with dev-port 1");
+    throw new Error("TMTERMINAL_API_PORT is required; set it with dev-port 1");
   }
 
   return {

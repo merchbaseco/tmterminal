@@ -26,10 +26,10 @@ function milliseconds(name: string, fallback: number) {
 }
 
 const database = createDatabaseClient(databaseUrl);
-const healthFile = "/tmp/tmturtle-worker-ready";
+const healthFile = "/tmp/tmterminal-worker-ready";
 const requestTimeoutMs = milliseconds("USPTO_REQUEST_TIMEOUT_MS", 15 * 60 * 1000);
 const artifactStore = createLocalArtifactStore(
-  process.env.ARTIFACT_STORE_ROOT ?? "/var/lib/tmturtle/artifacts",
+  process.env.ARTIFACT_STORE_ROOT ?? "/var/lib/tmterminal/artifacts",
   {
     stagingMaxAgeMs: requestTimeoutMs * 2,
   }

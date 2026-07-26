@@ -7,7 +7,7 @@ read_when:
 
 # CLI
 
-`tt` is the JSON-first automation client for Trademark Turtle. Each network
+`tt` is the JSON-first automation client for Trademark Terminal. Each network
 command maps to one API-key-authorized procedure.
 
 ## Rules
@@ -35,14 +35,14 @@ enter positional arguments, flags, config files, normal output, or logs.
 
 Credential precedence:
 
-1. `TMTURTLE_API_KEY`
+1. `TMTERMINAL_API_KEY`
 2. Keychain entry for the normalized base URL
 
 Base URL precedence:
 
 1. Global `--base-url <origin>`
-2. `TMTURTLE_BASE_URL`
-3. `https://tmturtle.merchbase.co`
+2. `TMTERMINAL_BASE_URL`
+3. `https://tmterminal.merchbase.co`
 
 An invalid selected credential fails. The CLI never falls back to another
 source. `auth status` validates through `account.me` and returns origin,

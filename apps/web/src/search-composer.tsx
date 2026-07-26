@@ -32,7 +32,7 @@ export function SearchMasthead() {
       <h1 className="display-masthead m-0 max-w-[10ch] text-[clamp(2.75rem,min(12.5vw,18dvh),14rem)]">
         TRADEMARK
         <br />
-        TURTLE
+        TERMINAL
       </h1>
     </header>
   );

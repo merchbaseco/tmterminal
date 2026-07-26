@@ -34,7 +34,7 @@ afterEach(async () => {
 });
 
 async function retainArchive(bytes: Uint8Array) {
-  const root = await mkdtemp(join(tmpdir(), "tmturtle-archive-"));
+  const root = await mkdtemp(join(tmpdir(), "tmterminal-archive-"));
   roots.push(root);
   const path = join(root, "source.zip");
   await Bun.write(path, bytes);

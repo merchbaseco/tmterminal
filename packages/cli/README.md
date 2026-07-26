@@ -1,6 +1,6 @@
-# Trademark Turtle CLI
+# Trademark Terminal CLI
 
-`tt` is the JSON-first command-line client for Trademark Turtle. It searches
+`tt` is the JSON-first command-line client for Trademark Terminal. It searches
 United States trademarks, resolves exact identities, checks text, and reads
 service status.
 
@@ -9,10 +9,10 @@ service status.
 The CLI requires Bun 1.3.5 or newer.
 
 ```sh
-bun add --global @tmturtle/cli
+bun add --global @tmterminal/cli
 ```
 
-Store a Trademark Turtle API key interactively in macOS Keychain:
+Store a Trademark Terminal API key interactively in macOS Keychain:
 
 ```sh
 tt auth set
@@ -21,13 +21,13 @@ tt auth set
 For non-interactive setup:
 
 ```sh
-printf '%s' "$TMTURTLE_API_KEY" | tt auth set --stdin
+printf '%s' "$TMTERMINAL_API_KEY" | tt auth set --stdin
 ```
 
 ## Use
 
 ```sh
-tt search "TURTLE CLUB" --status live
+tt search "TERMINAL CLUB" --status live
 tt get --serial 60146682
 tt get --registration 0146682
 printf '%s' "shirt title" | tt match --stdin
@@ -39,5 +39,5 @@ Normal commands write one JSON envelope to stdout on success or stderr on
 failure. `tt --help`, `tt help <command>`, and `tt --version` use human-readable
 text.
 
-See the [CLI reference](https://github.com/merchbaseco/tmturtle/blob/main/docs/reference/cli.md)
+See the [CLI reference](https://github.com/merchbaseco/tmterminal/blob/main/docs/reference/cli.md)
 for command flags, authentication precedence, pagination, and error contracts.

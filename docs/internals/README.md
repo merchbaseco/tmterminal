@@ -1,5 +1,5 @@
 ---
-summary: Routes Trademark Turtle internals for workspace ownership, service boundaries, persistence, and source ingestion.
+summary: Routes Trademark Terminal internals for workspace ownership, service boundaries, persistence, and source ingestion.
 read_when:
   - locating the owner of server, website, client, CLI, authentication, database, or worker behavior
   - checking system boundaries before changing ingestion or query architecture

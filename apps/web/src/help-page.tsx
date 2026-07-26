@@ -58,9 +58,9 @@ export function HelpPage() {
 
       <HelpSection title="Data and limitations">
         <p>
-          Trademark Turtle processes USPTO source files as they are published. The Status page shows
-          the latest processed date and recent processing activity; searches remain available while
-          newer files are being processed.
+          Trademark Terminal processes USPTO source files as they are published. The Status page
+          shows the latest processed date and recent processing activity; searches remain available
+          while newer files are being processed.
         </p>
         <p>
           This service is not affiliated with or endorsed by the USPTO. Trademark data is

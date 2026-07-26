@@ -362,7 +362,7 @@ export function AccountPage({
   return (
     <main className="page-shell page-start isolate flex min-h-[calc(100dvh-var(--topbar-height,4.5rem))] flex-col pb-[clamp(2rem,5vw,5.5rem)]">
       <PageMasthead
-        description="Manage your Trademark Turtle settings and API access. Your account is tied to your MerchBase.co account."
+        description="Manage your Trademark Terminal settings and API access. Your account is tied to your MerchBase.co account."
         title="ACCOUNT"
       />
 

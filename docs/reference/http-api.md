@@ -1,5 +1,5 @@
 ---
-summary: Defines Trademark Turtle procedure groups, authorization, search, matching, screening, pagination metadata, account actions, and stable error codes.
+summary: Defines Trademark Terminal procedure groups, authorization, search, matching, screening, pagination metadata, account actions, and stable error codes.
 read_when:
   - changing tRPC routes, auth requirements, search, matching, screening, pagination, account procedures, or errors
   - changing the generated HTTP client or a downstream consumer's typed contract
@@ -8,7 +8,7 @@ read_when:
 # HTTP API
 
 One tRPC router defines the service contract. Inputs and outputs flow into
-`@tmturtle/http-client`; clients do not duplicate DTOs.
+`@tmterminal/http-client`; clients do not duplicate DTOs.
 
 This page describes the executable contract on `origin/main`. Target-only source
 status and Repair behavior stays in product and ingestion docs until the
@@ -122,12 +122,12 @@ that source ingestion is incomplete.
 
 ## HTTP Client
 
-`@tmturtle/http-client` exports:
+`@tmterminal/http-client` exports:
 
-- `createTmturtleClient({ apiKey, baseUrl?, fetch? })`
-- `TmturtleClient`
+- `createTmterminalClient({ apiKey, baseUrl?, fetch? })`
+- `TmterminalClient`
 - named input and output types for each public method
-- `TmturtleError`
+- `TmterminalError`
 
 Client methods return promises directly. tRPC procedure objects and transport
 verbs are not part of the package contract. The client and CLI ship in lockstep

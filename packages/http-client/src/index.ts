@@ -19,7 +19,7 @@ export type TrademarkScreenResult = InternalOutputs["marks"]["screen"];
 export type TrademarkSearchInput = InternalInputs["marks"]["search"];
 export type TrademarkSearchPage = InternalOutputs["marks"]["search"];
 
-export interface TmturtleClient {
+export interface TmterminalClient {
   account: {
     get: () => Promise<Account>;
   };
@@ -35,28 +35,28 @@ export interface TmturtleClient {
   };
 }
 
-export interface TmturtleClientOptions {
+export interface TmterminalClientOptions {
   apiKey: string;
   baseUrl?: string;
   fetch?: typeof globalThis.fetch;
 }
 
-export interface TmturtleErrorOptions {
+export interface TmterminalErrorOptions {
   code: string;
   details?: Record<string, unknown>;
   requestId?: string;
   status: number | null;
 }
 
-export class TmturtleError extends Error {
+export class TmterminalError extends Error {
   readonly code: string;
   readonly details: Record<string, unknown>;
   readonly requestId: string | undefined;
   readonly status: number | null;
 
-  constructor(message: string, options: TmturtleErrorOptions) {
+  constructor(message: string, options: TmterminalErrorOptions) {
     super(message);
-    this.name = "TmturtleError";
+    this.name = "TmterminalError";
     this.code = options.code;
     this.details = options.details ?? {};
     this.requestId = options.requestId;
@@ -64,13 +64,13 @@ export class TmturtleError extends Error {
   }
 }
 
-const defaultBaseUrl = "https://tmturtle.merchbase.co";
+const defaultBaseUrl = "https://tmterminal.merchbase.co";
 
-export function createTmturtleClient({
+export function createTmterminalClient({
   apiKey,
   baseUrl = defaultBaseUrl,
   fetch,
-}: TmturtleClientOptions): TmturtleClient {
+}: TmterminalClientOptions): TmterminalClient {
   const client = createTRPCClient<AuthenticatedClientRouter>({
     links: [
       httpLink({
@@ -106,25 +106,25 @@ export function createTmturtleClient({
 }
 
 function publicError(error: unknown) {
-  if (error instanceof TmturtleError) {
+  if (error instanceof TmterminalError) {
     return error;
   }
   if (error instanceof TRPCClientError) {
     if (!error.data) {
-      return new TmturtleError(error.message, {
+      return new TmterminalError(error.message, {
         code: "CONNECTION_ERROR",
         status: null,
       });
     }
     const data = objectValue(error.data);
-    return new TmturtleError(error.message, {
+    return new TmterminalError(error.message, {
       code: stringValue(data.code) ?? "REQUEST_FAILED",
       details: data,
       requestId: stringValue(data.requestId),
       status: numberValue(data.httpStatus),
     });
   }
-  return new TmturtleError(error instanceof Error ? error.message : "Request failed", {
+  return new TmterminalError(error instanceof Error ? error.message : "Request failed", {
     code: "CONNECTION_ERROR",
     status: null,
   });

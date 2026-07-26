@@ -17,7 +17,7 @@ const temporaryDirectories: string[] = [];
 
 async function stageMigrationPrefix(entryCount: number) {
   const source = fileURLToPath(new URL("../../drizzle", import.meta.url));
-  const staged = await mkdtemp(join(tmpdir(), "tmturtle-migrations-"));
+  const staged = await mkdtemp(join(tmpdir(), "tmterminal-migrations-"));
   temporaryDirectories.push(staged);
   await mkdir(join(staged, "meta"));
   const journal = await Bun.file(join(source, "meta", "_journal.json")).json();

@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { createTmturtleClient } from "@tmturtle/http-client";
+import { createTmterminalClient } from "@tmterminal/http-client";
 
 import packageJson from "../package.json" with { type: "json" };
 import { createMacOsKeychain } from "./keychain.js";
@@ -22,7 +22,7 @@ let result: CliResult;
 
 try {
   result = await runCli(args, {
-    createClient: createTmturtleClient,
+    createClient: createTmterminalClient,
     env: process.env,
     keychain: createMacOsKeychain(),
     promptSecret: readHiddenApiKey,

@@ -7,7 +7,7 @@ read_when:
 
 # Development
 
-Trademark Turtle uses Bun 1.3.5.
+Trademark Terminal uses Bun 1.3.5.
 
 ## Install And Fast Checks
 

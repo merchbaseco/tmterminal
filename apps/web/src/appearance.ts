@@ -1,9 +1,9 @@
 export type Appearance = "light" | "dark" | "system";
 
-export const appearanceChangedEvent = "tmturtle:appearance-changed";
+export const appearanceChangedEvent = "tmterminal:appearance-changed";
 
 export function savedAppearance(): Appearance {
-  const value = localStorage.getItem("tmturtle-appearance");
+  const value = localStorage.getItem("tmterminal-appearance");
   return value === "light" || value === "dark" || value === "system" ? value : "system";
 }
 
@@ -13,6 +13,6 @@ export function applyAppearance(appearance: Appearance, systemDark: boolean) {
 }
 
 export function saveAppearance(appearance: Appearance) {
-  localStorage.setItem("tmturtle-appearance", appearance);
+  localStorage.setItem("tmterminal-appearance", appearance);
   window.dispatchEvent(new Event(appearanceChangedEvent));
 }

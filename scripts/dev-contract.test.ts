@@ -3,7 +3,7 @@ import { chmod, copyFile, mkdir, mkdtemp, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const productionDatabaseBinding = /"127\.0\.0\.1:\$\{TMTURTLE_DATABASE_PORT:-5437\}:5432"/;
+const productionDatabaseBinding = /"127\.0\.0\.1:\$\{TMTERMINAL_DATABASE_PORT:-5437\}:5432"/;
 const sessionHookCommand = /^\$\{CLAUDE_PROJECT_DIR\}\/scripts\/claude-session-start$/;
 const containerRuntimeCommand = /\bdocker\b|\bcompose\b/;
 
@@ -21,7 +21,7 @@ test("development starts local API and web against the Mac mini database", async
   const developmentScript = await readFile(new URL("./dev", import.meta.url), "utf8");
   expect(developmentScript).not.toMatch(containerRuntimeCommand);
 
-  const root = await mkdtemp(join(tmpdir(), "tmturtle-dev-"));
+  const root = await mkdtemp(join(tmpdir(), "tmterminal-dev-"));
   const bin = join(root, "bin");
   const log = join(root, "bun.log");
   const vitePid = join(root, "vite.pid");
@@ -32,7 +32,7 @@ test("development starts local API and web against the Mac mini database", async
   await Bun.write(
     join(root, ".env"),
     [
-      "DATABASE_URL=postgres://tmturtle:secret@database:5432/tmturtle",
+      "DATABASE_URL=postgres://tmterminal:secret@database:5432/tmterminal",
       "CLERK_SECRET_KEY=test-secret",
       "VITE_CLERK_PUBLISHABLE_KEY=test-publishable-key",
     ].join("\n")
@@ -61,7 +61,7 @@ exit 7
     join(root, "apps/web/node_modules/.bin/vite"),
     `#!/bin/sh
 printf 'web|%s|%s|%s|%s\n' \
-  "$DATABASE_URL" "$CLERK_AUTHORIZED_PARTIES" "$TMTURTLE_API_PORT" "$*" \
+  "$DATABASE_URL" "$CLERK_AUTHORIZED_PARTIES" "$TMTERMINAL_API_PORT" "$*" \
   >> "$FAKE_BUN_LOG"
 printf '%s\n' "$$" > "$FAKE_VITE_PID"
 trap 'exit 0' TERM
@@ -93,11 +93,11 @@ while :; do :; done
     expect(calls).toHaveLength(2);
     expect(calls).toContainEqual(
       expect.stringContaining(
-        "api|postgres://tmturtle:secret@zachs-mac-mini.taila0b849.ts.net:5437/tmturtle|4101|http://127.0.0.1:4100|127.0.0.1|apps/server/src/server.ts"
+        "api|postgres://tmterminal:secret@zachs-mac-mini.taila0b849.ts.net:5437/tmterminal|4101|http://127.0.0.1:4100|127.0.0.1|apps/server/src/server.ts"
       )
     );
     expect(calls).toContain(
-      "web|postgres://tmturtle:secret@zachs-mac-mini.taila0b849.ts.net:5437/tmturtle|http://127.0.0.1:4100|4101|apps/web --host 127.0.0.1 --port 4100"
+      "web|postgres://tmterminal:secret@zachs-mac-mini.taila0b849.ts.net:5437/tmterminal|http://127.0.0.1:4100|4101|apps/web --host 127.0.0.1 --port 4100"
     );
     expect(calls.join("\n")).not.toContain("worker");
     expect(calls.join("\n")).not.toContain("migrate");
@@ -111,7 +111,7 @@ while :; do :; done
 });
 
 async function runSessionStart(installed: boolean) {
-  const root = await mkdtemp(join(tmpdir(), "tmturtle-session-"));
+  const root = await mkdtemp(join(tmpdir(), "tmterminal-session-"));
   const bin = join(root, "bin");
   const log = join(root, "install.log");
   await mkdir(join(root, "scripts"));

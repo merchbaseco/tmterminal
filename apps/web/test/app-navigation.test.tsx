@@ -70,7 +70,7 @@ let searchHandler: (input: { query: string }) => Promise<typeof searchResult>;
 const destinationMarkLinkPattern = /DESTINATION B/;
 const getTestToken = async () => "clerk-session";
 const sourceMarkLinkPattern = /SOURCE A/;
-const turtleMarkLinkPattern = /TURTLE MARK, Live, serial number 70000001/;
+const terminalMarkLinkPattern = /TERMINAL MARK, Live, serial number 70000001/;
 
 Object.defineProperty(window, "scrollY", {
   configurable: true,
@@ -84,14 +84,14 @@ const searchItem = {
   goodsServicesExcerpt: "shirts",
   internationalClasses: ["025"],
   match: "exact" as const,
-  owner: "TURTLE GOODS LLC",
+  owner: "TERMINAL GOODS LLC",
   registrationNumber: "7000001",
   serialNumber: "70000001",
   sourceTransactionDate: "2026-07-10",
   status: "live" as const,
   statusDate: "2026-07-09",
   type: "text" as const,
-  wordMark: "TURTLE MARK",
+  wordMark: "TERMINAL MARK",
 };
 const searchResult = {
   items: [searchItem],
@@ -116,9 +116,9 @@ const mark = {
     status: "live" as const,
     statusCode: "700",
     statusDate: "2026-07-09",
-    wordMark: "TURTLE MARK",
+    wordMark: "TERMINAL MARK",
   },
-  owners: [{ entryNumber: "1", partyName: "TURTLE GOODS LLC", partyType: "10" }],
+  owners: [{ entryNumber: "1", partyName: "TERMINAL GOODS LLC", partyType: "10" }],
   provenance: {
     contributors: [
       {
@@ -296,7 +296,7 @@ afterEach(() => {
 
 test("appearance initializes before the application module", async () => {
   const html = await Bun.file(new URL("../index.html", import.meta.url)).text();
-  const appearanceInitialization = html.indexOf('localStorage.getItem("tmturtle-appearance")');
+  const appearanceInitialization = html.indexOf('localStorage.getItem("tmterminal-appearance")');
 
   expect(appearanceInitialization).toBeGreaterThan(-1);
   expect(appearanceInitialization).toBeLessThan(html.indexOf('src="/src/main.tsx"'));
@@ -315,7 +315,7 @@ test("appearance follows the system initially and persists an explicit choice", 
   fireEvent.click(await screen.findByRole("menuitemradio", { name: "Dark" }));
 
   await waitFor(() => expect(document.documentElement.classList.contains("dark")).toBe(true));
-  expect(localStorage.getItem("tmturtle-appearance")).toBe("dark");
+  expect(localStorage.getItem("tmterminal-appearance")).toBe("dark");
 
   cleanup();
   document.documentElement.classList.remove("dark");
@@ -406,7 +406,7 @@ test("signed-out query composition survives modal sign-in before authenticated s
   signedIn = true;
   view.rerender(<App />);
 
-  await screen.findByText("TURTLE MARK");
+  await screen.findByText("TERMINAL MARK");
   expect(searchInputs).toHaveLength(1);
   expect(searchInputs[0]).toMatchObject({ query: "composed % query" });
 });
@@ -432,7 +432,7 @@ test("signed-out draft follows browser URL changes before sign-in", async () => 
   signedIn = true;
   view.rerender(<App />);
 
-  await screen.findByText("TURTLE MARK");
+  await screen.findByText("TERMINAL MARK");
   expect(searchInputs[0]).toMatchObject({ query: "second" });
 });
 
@@ -478,7 +478,7 @@ test("direct mark entry sends Back to results to search", async () => {
   window.history.replaceState({}, "", "/marks/70000001");
   render(<App />);
 
-  await screen.findByRole("heading", { name: "TURTLE MARK" });
+  await screen.findByRole("heading", { name: "TERMINAL MARK" });
   fireEvent.click(screen.getByRole("link", { name: "Back to results" }));
 
   await waitFor(() => expect(window.location.pathname).toBe("/search"));
@@ -490,22 +490,22 @@ test("search detail Back returns to the app-stored search entry", async () => {
   window.history.replaceState(
     {},
     "",
-    "/search?q=turtle&mode=multi&exact=true&partial=true&status=all&type=all&registered=all&sort=relevance"
+    "/search?q=terminal&mode=multi&exact=true&partial=true&status=all&type=all&registered=all&sort=relevance"
   );
   render(<App />);
 
-  const resultLink = await screen.findByRole("link", { name: turtleMarkLinkPattern });
+  const resultLink = await screen.findByRole("link", { name: terminalMarkLinkPattern });
   expect(screen.queryByRole("link", { name: "Search marks" })).toBeNull();
   expect(screen.getByRole("button", { name: "Start a new search" })).toBeTruthy();
   fireEvent.click(resultLink);
   await waitFor(() => expect(window.location.pathname).toBe("/marks/70000001"));
-  await screen.findByRole("heading", { name: "TURTLE MARK" });
+  await screen.findByRole("heading", { name: "TERMINAL MARK" });
 
   fireEvent.click(screen.getByRole("link", { name: "Back to results" }));
 
   await waitFor(() => expect(window.location.pathname).toBe("/search"));
-  expect(new URLSearchParams(window.location.search).get("q")).toBe("turtle");
-  expect(await screen.findByRole("link", { name: turtleMarkLinkPattern })).toBeTruthy();
+  expect(new URLSearchParams(window.location.search).get("q")).toBe("terminal");
+  expect(await screen.findByRole("link", { name: terminalMarkLinkPattern })).toBeTruthy();
   expect(searchInputs).toHaveLength(1);
 });
 
@@ -571,7 +571,7 @@ test("Account navigation opens API-key management", async () => {
 test("leaving a failed replacement clears retained results and the next failure is ordinary", async () => {
   signedIn = true;
   searchHandler = ({ query }) => {
-    if (query === "turtle") {
+    if (query === "terminal") {
       return Promise.resolve(searchResult);
     }
     return Promise.reject(
@@ -581,11 +581,11 @@ test("leaving a failed replacement clears retained results and the next failure 
   window.history.replaceState(
     {},
     "",
-    "/search?q=turtle&mode=multi&exact=true&partial=true&status=all&type=all&registered=all&sort=relevance"
+    "/search?q=terminal&mode=multi&exact=true&partial=true&status=all&type=all&registered=all&sort=relevance"
   );
   render(<App />);
 
-  expect(await screen.findByRole("link", { name: turtleMarkLinkPattern })).toBeTruthy();
+  expect(await screen.findByRole("link", { name: terminalMarkLinkPattern })).toBeTruthy();
   fireEvent.change(screen.getByRole("searchbox", { name: "Search trademarks" }), {
     target: { value: "replacement" },
   });
@@ -593,12 +593,12 @@ test("leaving a failed replacement clears retained results and the next failure 
   expect((await screen.findByRole("alert")).textContent).toBe(
     "New search could not be loaded. Previous results are still shown."
   );
-  expect(screen.getByRole("link", { name: turtleMarkLinkPattern })).toBeTruthy();
+  expect(screen.getByRole("link", { name: terminalMarkLinkPattern })).toBeTruthy();
 
-  fireEvent.click(screen.getByRole("link", { name: "Trademark Turtle home" }));
+  fireEvent.click(screen.getByRole("link", { name: "Trademark Terminal home" }));
   await waitFor(() => expect(window.location.search).toBe(""));
   expect(screen.getByRole("searchbox", { name: "Search trademarks" })).toBeTruthy();
-  expect(screen.queryByRole("link", { name: turtleMarkLinkPattern })).toBeNull();
+  expect(screen.queryByRole("link", { name: terminalMarkLinkPattern })).toBeNull();
   expect(screen.queryByRole("alert")).toBeNull();
 
   fireEvent.change(screen.getByRole("searchbox", { name: "Search trademarks" }), {
@@ -608,13 +608,13 @@ test("leaving a failed replacement clears retained results and the next failure 
   expect((await screen.findByRole("alert")).textContent).toBe(
     "Search is temporarily unavailable. Try again shortly."
   );
-  expect(screen.queryByRole("link", { name: turtleMarkLinkPattern })).toBeNull();
+  expect(screen.queryByRole("link", { name: terminalMarkLinkPattern })).toBeNull();
 });
 
 test("a failed replacement keeps its source results through detail and Back", async () => {
   signedIn = true;
   searchHandler = ({ query }) => {
-    if (query === "turtle") {
+    if (query === "terminal") {
       return Promise.resolve(searchResult);
     }
     return Promise.reject(
@@ -624,11 +624,11 @@ test("a failed replacement keeps its source results through detail and Back", as
   window.history.replaceState(
     {},
     "",
-    "/search?q=turtle&mode=multi&exact=true&partial=true&status=all&type=all&registered=all&sort=relevance"
+    "/search?q=terminal&mode=multi&exact=true&partial=true&status=all&type=all&registered=all&sort=relevance"
   );
   render(<App />);
 
-  expect(await screen.findByRole("link", { name: turtleMarkLinkPattern })).toBeTruthy();
+  expect(await screen.findByRole("link", { name: terminalMarkLinkPattern })).toBeTruthy();
   fireEvent.change(screen.getByRole("searchbox", { name: "Search trademarks" }), {
     target: { value: "replacement" },
   });
@@ -637,8 +637,8 @@ test("a failed replacement keeps its source results through detail and Back", as
     "New search could not be loaded. Previous results are still shown."
   );
 
-  fireEvent.click(screen.getByRole("link", { name: turtleMarkLinkPattern }));
-  await screen.findByRole("heading", { name: "TURTLE MARK" });
+  fireEvent.click(screen.getByRole("link", { name: terminalMarkLinkPattern }));
+  await screen.findByRole("heading", { name: "TERMINAL MARK" });
   fireEvent.click(screen.getByRole("link", { name: "Back to results" }));
 
   await waitFor(() => expect(window.location.pathname).toBe("/search"));
@@ -646,7 +646,7 @@ test("a failed replacement keeps its source results through detail and Back", as
   expect((await screen.findByRole("alert")).textContent).toBe(
     "New search could not be loaded. Previous results are still shown."
   );
-  expect(screen.getByRole("link", { name: turtleMarkLinkPattern })).toBeTruthy();
+  expect(screen.getByRole("link", { name: terminalMarkLinkPattern })).toBeTruthy();
 });
 
 test("a successful replacement cannot revive its source during a failed same-query reset", async () => {
@@ -654,7 +654,7 @@ test("a successful replacement cannot revive its source during a failed same-que
   let replacementCalls = 0;
   let rejectReset: ((error: Error) => void) | undefined;
   searchHandler = ({ query }) => {
-    if (query === "turtle") {
+    if (query === "terminal") {
       return Promise.resolve({
         ...searchResult,
         items: [{ ...searchItem, wordMark: "SOURCE A" }],
@@ -674,7 +674,7 @@ test("a successful replacement cannot revive its source during a failed same-que
   window.history.replaceState(
     {},
     "",
-    "/search?q=turtle&mode=multi&exact=true&partial=true&status=all&type=all&registered=all&sort=relevance"
+    "/search?q=terminal&mode=multi&exact=true&partial=true&status=all&type=all&registered=all&sort=relevance"
   );
   render(<App />);
 

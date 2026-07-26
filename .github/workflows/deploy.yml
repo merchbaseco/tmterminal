@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: tmturtle-production
+  group: tmterminal-production
   cancel-in-progress: false
 
 permissions:
@@ -26,12 +26,12 @@ jobs:
       - name: Deploy exact main revision
         env:
           HUGEICONS_LICENSE_KEY: ${{ secrets.HUGEICONS_LICENSE_KEY }}
-        working-directory: /Users/zknicker/srv/tmturtle
+        working-directory: /Users/zknicker/srv/tmterminal
         run: |
           set -euo pipefail
           git pull --ff-only origin main
-          export TMTURTLE_REVISION="$(./scripts/deployment-revision "$GITHUB_SHA")"
-          docker compose --project-name tmturtle --env-file .env build
-          docker compose --project-name tmturtle --env-file .env stop worker
-          docker compose --project-name tmturtle --env-file .env up --detach --remove-orphans --wait
+          export TMTERMINAL_REVISION="$(./scripts/deployment-revision "$GITHUB_SHA")"
+          docker compose --project-name tmterminal --env-file .env build
+          docker compose --project-name tmterminal --env-file .env stop worker
+          docker compose --project-name tmterminal --env-file .env up --detach --remove-orphans --wait
           ./scripts/deployment-smoke

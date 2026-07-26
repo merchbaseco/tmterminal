@@ -1,5 +1,5 @@
 ---
-summary: Routes Trademark Turtle maintainer workflows for development, testing, deployment, source repair, and Linear issues.
+summary: Routes Trademark Terminal maintainer workflows for development, testing, deployment, source repair, and Linear issues.
 read_when:
   - running repository, database, Compose, deployment, repair, or issue-tracker workflows
   - diagnosing a failing check, runtime, source file, Mac mini release, or documentation route

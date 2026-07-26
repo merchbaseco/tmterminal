@@ -1,5 +1,5 @@
 ---
-summary: Sets the Trademark Turtle documentation contract, final information architecture, frontmatter quality, brevity, review, and retirement rules.
+summary: Sets the Trademark Terminal documentation contract, final information architecture, frontmatter quality, brevity, review, and retirement rules.
 read_when:
   - adding, moving, reviewing, or retiring Markdown files under docs
   - deciding whether a claim belongs in product, internals, reference, operations, design, or decisions
@@ -8,7 +8,7 @@ read_when:
 
 # Docs Policy
 
-Trademark Turtle docs exist for knowledge that is hard to recover from code
+Trademark Terminal docs exist for knowledge that is hard to recover from code
 search: product contracts, ownership boundaries, source precedence, external
 formats, operational workflows, and accepted tradeoffs.
 
@@ -37,7 +37,7 @@ Every Markdown file under `docs/` starts with:
 ---
 summary: One specific sentence naming what this page owns.
 read_when:
-  - a concrete change or diagnostic trigger using Trademark Turtle nouns
+  - a concrete change or diagnostic trigger using Trademark Terminal nouns
 ---
 ```
 

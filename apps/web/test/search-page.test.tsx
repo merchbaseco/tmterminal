@@ -27,8 +27,8 @@ type SearchApi = import("../src/search-page.tsx").SearchApi;
 type SearchPageResult = Awaited<ReturnType<SearchApi["search"]>>;
 type SearchPreferences = import("../src/search-preferences.ts").SearchPreferences;
 
-const markLinkPattern = /TURTLE MARK/;
-const firstMarkAccessibleNamePattern = /TURTLE MARK 1, Live, serial number 70000001/;
+const markLinkPattern = /TERMINAL MARK/;
+const firstMarkAccessibleNamePattern = /TERMINAL MARK 1, Live, serial number 70000001/;
 const noop = () => undefined;
 
 function required<T>(value: T | null | undefined, message: string): T {
@@ -107,14 +107,14 @@ function resultPage(offset: number, count: number, total: number): SearchPageRes
       goodsServicesExcerpt: "shirts and sweatshirts",
       internationalClasses: ["025"],
       match: index === 0 && offset === 0 ? "exact" : "partial",
-      owner: "TURTLE GOODS LLC",
+      owner: "TERMINAL GOODS LLC",
       registrationNumber: String(7_000_001 + offset + index),
       serialNumber: String(70_000_001 + offset + index),
       sourceTransactionDate: "2026-07-10",
       status: "live",
       statusDate: "2026-07-09",
       type: "text",
-      wordMark: `TURTLE MARK ${offset + index + 1}`,
+      wordMark: `TERMINAL MARK ${offset + index + 1}`,
     })),
     limit: 25,
     liveMatchCounts: {
@@ -133,7 +133,7 @@ function testQueryClient() {
 
 function renderSearch(
   api: SearchApi,
-  initialSearch = "?q=turtle&mode=multi&exact=true&partial=true&status=all&type=all&registered=all&sort=relevance",
+  initialSearch = "?q=terminal&mode=multi&exact=true&partial=true&status=all&type=all&registered=all&sort=relevance",
   options: {
     onOpenMark?: (serialNumber: string, scrollOffset: number) => void;
     preferences?: SearchPreferences;
@@ -191,7 +191,7 @@ test("account preferences seed new search URLs, requests, and result density", a
   });
 
   fireEvent.change(screen.getByRole("searchbox", { name: "Search trademarks" }), {
-    target: { value: "turtle" },
+    target: { value: "terminal" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
@@ -199,7 +199,7 @@ test("account preferences seed new search URLs, requests, and result density", a
   expect(inputs[0]).toMatchObject({
     limit: 50,
     match: "exact",
-    query: "turtle",
+    query: "terminal",
     registered: "yes",
     sort: "newest-activity",
     status: "live",
@@ -273,7 +273,7 @@ test("a cold search waits for stored preferences before navigating", async () =>
 
   render(<Harness />);
   fireEvent.change(screen.getByRole("searchbox", { name: "Search trademarks" }), {
-    target: { value: "turtle" },
+    target: { value: "terminal" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Search" }));
   expect(inputs).toHaveLength(0);
@@ -284,7 +284,7 @@ test("a cold search waits for stored preferences before navigating", async () =>
   expect(inputs[0]).toMatchObject({
     limit: 50,
     match: "exact",
-    query: "turtle",
+    query: "terminal",
     registered: "yes",
     sort: "newest-activity",
     status: "live",
@@ -313,7 +313,7 @@ test("URL state drives exact-only, partial-only, both, and server filters", asyn
   };
   renderSearch(
     api,
-    "?q=turtle&mode=multi&exact=true&partial=false&status=dead&type=design&registered=yes&sort=oldest-activity",
+    "?q=terminal&mode=multi&exact=true&partial=false&status=dead&type=design&registered=yes&sort=oldest-activity",
     {
       preferences: {
         ...defaultSearchPreferences,
@@ -323,14 +323,14 @@ test("URL state drives exact-only, partial-only, both, and server filters", asyn
     }
   );
 
-  await screen.findByRole("status", { name: "No marks match “turtle”" });
+  await screen.findByRole("status", { name: "No marks match “terminal”" });
   expect(screen.getByRole("group", { name: "Match" })).toBeTruthy();
   expect(inputs[0]).toEqual({
     limit: 25,
     match: "exact",
     mode: "multi",
     offset: 0,
-    query: "turtle",
+    query: "terminal",
     registered: "yes",
     sort: "oldest-activity",
     status: "dead",
@@ -355,15 +355,15 @@ test("submitting a draft query updates the URL-owned request", async () => {
     },
   };
   renderSearch(api);
-  await screen.findByRole("status", { name: "No marks match “turtle”" });
+  await screen.findByRole("status", { name: "No marks match “terminal”" });
 
   fireEvent.change(screen.getByRole("searchbox", { name: "Search trademarks" }), {
     target: { value: "new literal % query" },
   });
-  expect(queries).toEqual(["turtle"]);
+  expect(queries).toEqual(["terminal"]);
   fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
-  await waitFor(() => expect(queries).toEqual(["turtle", "new literal % query"]));
+  await waitFor(() => expect(queries).toEqual(["terminal", "new literal % query"]));
 });
 
 test("search controls and result facts use customer-facing language", async () => {
@@ -373,7 +373,7 @@ test("search controls and result facts use customer-facing language", async () =
   expect(searchInput.autocomplete).toBe("off");
   await screen.findByRole("link", { name: firstMarkAccessibleNamePattern });
   expect(
-    screen.getByRole("heading", { name: "Trademark search results for “turtle”" })
+    screen.getByRole("heading", { name: "Trademark search results for “terminal”" })
   ).toBeTruthy();
   expect(
     within(required(screen.getByText("Live exact").parentElement, "live exact stat")).getByText("1")
@@ -407,7 +407,7 @@ test("a failed replacement search keeps the previous successful results", async 
   const api: SearchApi = {
     search: (input) => {
       inputs.push(input);
-      if (input.query === "turtle") {
+      if (input.query === "terminal") {
         return Promise.resolve(resultPage(0, 25, 26));
       }
       return new Promise((_, reject) => {
@@ -461,8 +461,8 @@ test("normalizes whitespace-only and double-disabled direct URL state", async ()
   expect(inputs).toHaveLength(0);
   whitespace.view.unmount();
 
-  renderSearch(api, "?q=turtle&mode=multi&exact=false&partial=false");
-  await screen.findByRole("status", { name: "No marks match “turtle”" });
+  renderSearch(api, "?q=terminal&mode=multi&exact=false&partial=false");
+  await screen.findByRole("status", { name: "No marks match “terminal”" });
   expect(inputs[0]?.match).toBe("partial");
   expect((screen.getByRole("checkbox", { name: "Partial" }) as HTMLInputElement).checked).toBe(
     true
@@ -478,10 +478,10 @@ test("an empty filtered search stays graphical and leaves filters in place", asy
         return Promise.resolve(resultPage(0, 0, 0));
       },
     },
-    "?q=turtle&mode=multi&exact=true&partial=true&status=dead&type=design&registered=no&sort=oldest-activity"
+    "?q=terminal&mode=multi&exact=true&partial=true&status=dead&type=design&registered=no&sort=oldest-activity"
   );
 
-  await screen.findByRole("status", { name: "No marks match “turtle”" });
+  await screen.findByRole("status", { name: "No marks match “terminal”" });
   expect(screen.getByText("0 results")).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Broaden search" })).toBeNull();
   expect(inputs).toHaveLength(1);
@@ -493,7 +493,7 @@ test("does not announce retained empty results for a replacement query", async (
   const api: SearchApi = {
     search: (input) => {
       inputs.push(input);
-      if (input.query === "turtle") {
+      if (input.query === "terminal") {
         return Promise.resolve(resultPage(0, 0, 0));
       }
       return new Promise<SearchPageResult>((resolve) => {
@@ -502,7 +502,7 @@ test("does not announce retained empty results for a replacement query", async (
     },
   };
   renderSearch(api);
-  await screen.findByRole("status", { name: "No marks match “turtle”" });
+  await screen.findByRole("status", { name: "No marks match “terminal”" });
 
   fireEvent.change(screen.getByRole("searchbox", { name: "Search trademarks" }), {
     target: { value: "replacement" },
@@ -555,7 +555,7 @@ test("renders loading, empty, server error, and typed continuation conflict with
   const loading = renderSearch(loadingApi);
   expect(screen.getByText("Searching Class 025…")).toBeTruthy();
   resolveFirst?.(resultPage(0, 0, 0));
-  expect(await screen.findByRole("status", { name: "No marks match “turtle”" })).toBeTruthy();
+  expect(await screen.findByRole("status", { name: "No marks match “terminal”" })).toBeTruthy();
   loading.view.unmount();
 
   const serverError = Object.assign(new Error("database unavailable"), {
@@ -629,7 +629,7 @@ test("a stale replacement transition cannot expose results after a continuation 
   renderSearch({
     search: (input) => {
       inputs.push(input);
-      if (input.query === "turtle") {
+      if (input.query === "terminal") {
         return Promise.resolve(resultPage(0, 1, 1));
       }
       return input.offset === 0
@@ -682,7 +682,7 @@ test("the query cache and browser entry restore loaded pages and document scroll
       opened.push([serialNumber, scrollOffset]),
     onReplacementLoaded: noop,
     search:
-      "?q=turtle&mode=multi&exact=true&partial=true&status=all&type=all&registered=all&sort=relevance",
+      "?q=terminal&mode=multi&exact=true&partial=true&status=all&type=all&registered=all&sort=relevance",
   };
   const first = render(
     <QueryClientProvider client={queryClient}>

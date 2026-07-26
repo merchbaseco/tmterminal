@@ -2,7 +2,7 @@ import type {
   TrademarkGetInput,
   TrademarkListInput,
   TrademarkSearchInput,
-} from "@tmturtle/http-client";
+} from "@tmterminal/http-client";
 import { Command, CommanderError, InvalidArgumentError, Option } from "commander";
 
 import { BadRequestError } from "./cli-error.js";
@@ -143,7 +143,7 @@ export async function parseCli(args: string[], version: string): Promise<ParsedC
     .name("tt")
     .description("Search and inspect United States trademark records")
     .version(version)
-    .option("--base-url <origin>", "Trademark Turtle service origin")
+    .option("--base-url <origin>", "Trademark Terminal service origin")
     .showSuggestionAfterError()
     .configureHelp({ sortOptions: true, sortSubcommands: true })
     .configureOutput({
@@ -155,7 +155,7 @@ export async function parseCli(args: string[], version: string): Promise<ParsedC
     .exitOverride()
     .addHelpText(
       "after",
-      '\nExamples:\n  tt search "TURTLE CLUB" --status live\n  tt get --serial 60146682\n  printf \'%s\' "shirt title" | tt match --stdin\n'
+      '\nExamples:\n  tt search "TERMINAL CLUB" --status live\n  tt get --serial 60146682\n  printf \'%s\' "shirt title" | tt match --stdin\n'
     );
 
   const auth = program.command("auth").description("Manage the selected API credential");

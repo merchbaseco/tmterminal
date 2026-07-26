@@ -24,7 +24,7 @@ test("the configured local sign-in identity receives operator access", async () 
 
 describe("POST /api/dev/clerk-sign-in-token", () => {
   const servers: Awaited<ReturnType<typeof buildServer>>[] = [];
-  const databaseUrl = "postgres://postgres:postgres@127.0.0.1:1/tmturtle";
+  const databaseUrl = "postgres://postgres:postgres@127.0.0.1:1/tmterminal";
 
   afterEach(async () => {
     await Promise.all(servers.splice(0).map((server) => server.close()));
@@ -78,7 +78,7 @@ describe("POST /api/dev/clerk-sign-in-token", () => {
     servers.push(server);
 
     const response = await server.inject({
-      headers: { host: "tmturtle.merchbase.co" },
+      headers: { host: "tmterminal.merchbase.co" },
       method: "POST",
       remoteAddress: "127.0.0.1",
       url: "/api/dev/clerk-sign-in-token",

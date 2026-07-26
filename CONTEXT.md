@@ -1,6 +1,6 @@
-# Trademark Turtle
+# Trademark Terminal
 
-Trademark Turtle discovers, maintains, and searches United States trademark
+Trademark Terminal discovers, maintains, and searches United States trademark
 records for print-on-demand sellers. This file owns shared nouns. Product,
 internal, reference, and operational details live in [`docs/`](docs/README.md).
 
@@ -149,7 +149,7 @@ live state.
 _Avoid_: Claim, Partial update
 
 **Tracked Classes**:
-The private code constant of international classes for which Trademark Turtle
+The private code constant of international classes for which Trademark Terminal
 materializes complete searchable details. V1 is `['025']`.
 _Avoid_: Class 025 schema, Runtime class setting
 

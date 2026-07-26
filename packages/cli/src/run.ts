@@ -1,9 +1,9 @@
-import { type TmturtleClient, TmturtleError } from "@tmturtle/http-client";
+import { type TmterminalClient, TmterminalError } from "@tmterminal/http-client";
 
 import { BadRequestError, CliError } from "./cli-error.js";
 import { type CliCommand, parseCli } from "./program.js";
 
-const defaultOrigin = "https://tmturtle.merchbase.co";
+const defaultOrigin = "https://tmterminal.merchbase.co";
 const tokenPattern =
   /^ttk_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_[A-Za-z0-9_-]{43}$/;
 const unicodeWordTokens = /[\p{Letter}\p{Mark}\p{Number}]+/gu;
@@ -14,7 +14,7 @@ export interface Keychain {
   set: (origin: string, token: string) => Promise<void>;
 }
 
-export type CliClient = Pick<TmturtleClient, "account" | "status" | "trademarks">;
+export type CliClient = Pick<TmterminalClient, "account" | "status" | "trademarks">;
 
 export interface CliDependencies {
   createClient: (options: { apiKey: string; baseUrl: string }) => CliClient;
@@ -66,12 +66,12 @@ export function failureResult(code: string, message: string): CliResult {
 }
 
 function configuredOrigin(dependencies: CliDependencies, explicitOrigin?: string) {
-  return normalizeOrigin(explicitOrigin ?? dependencies.env.TMTURTLE_BASE_URL ?? defaultOrigin);
+  return normalizeOrigin(explicitOrigin ?? dependencies.env.TMTERMINAL_BASE_URL ?? defaultOrigin);
 }
 
 async function credential(dependencies: CliDependencies, origin: string) {
-  if (dependencies.env.TMTURTLE_API_KEY !== undefined) {
-    return { source: "environment" as const, token: dependencies.env.TMTURTLE_API_KEY };
+  if (dependencies.env.TMTERMINAL_API_KEY !== undefined) {
+    return { source: "environment" as const, token: dependencies.env.TMTERMINAL_API_KEY };
   }
   const token = await dependencies.keychain.get(origin);
   if (!token) {
@@ -88,7 +88,7 @@ async function authenticatedClient(dependencies: CliDependencies, explicitOrigin
 }
 
 function remoteFailure(error: unknown) {
-  return error instanceof TmturtleError ? failureResult(error.code, error.message) : null;
+  return error instanceof TmterminalError ? failureResult(error.code, error.message) : null;
 }
 
 function matchInput(invocation: Extract<CliCommand, { kind: "match" }>, stdin: string) {
@@ -119,7 +119,7 @@ export async function runCli(args: string[], dependencies: CliDependencies): Pro
         invocation.readsStdin ? dependencies.stdin : await dependencies.promptSecret()
       ).trim();
       if (!tokenPattern.test(token)) {
-        throw new BadRequestError("Invalid Trademark Turtle API key");
+        throw new BadRequestError("Invalid Trademark Terminal API key");
       }
       await dependencies.keychain.set(origin, token);
       return success({ origin });

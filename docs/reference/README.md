@@ -1,5 +1,5 @@
 ---
-summary: Routes exact Trademark Turtle contracts for HTTP procedures, CLI behavior, persistence states, precedence, and USPTO source data.
+summary: Routes exact Trademark Terminal contracts for HTTP procedures, CLI behavior, persistence states, precedence, and USPTO source data.
 read_when:
   - looking up an exact command, procedure, state, error code, precedence rule, or source requirement
   - changing code where a wrong identifier, ordering rule, or provider assumption would corrupt behavior

@@ -1,5 +1,5 @@
 ---
-summary: Routes accepted Trademark Turtle architecture decisions for live data visibility, the v1 website, and Mac mini hosting.
+summary: Routes accepted Trademark Terminal architecture decisions for live data visibility, the v1 website, and Mac mini hosting.
 read_when:
   - checking why a product or infrastructure boundary exists
   - adding a durable architecture decision or retiring a superseded one

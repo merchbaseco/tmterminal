@@ -8,7 +8,7 @@ import {
 import { searchInputSchema } from "../../src/api/search-input.ts";
 
 test("search accepts only supported account page sizes", () => {
-  const input = { mode: "multi" as const, query: "turtle" };
+  const input = { mode: "multi" as const, query: "terminal" };
 
   expect(searchInputSchema.parse({ ...input, limit: 50 }).limit).toBe(50);
   expect(searchInputSchema.parse({ ...input, limit: 100 }).limit).toBe(100);
@@ -25,7 +25,7 @@ test("list continuations require the expected live data version", () => {
 });
 
 test("text matching preserves source offsets and accepts only its mark type filter", () => {
-  const text = "  Cafe\u0301 turtle\n";
+  const text = "  Cafe\u0301 terminal\n";
 
   expect(matchTextsInputSchema.parse({ texts: [{ id: "title", text }] })).toEqual({
     texts: [{ id: "title", text }],
@@ -75,13 +75,13 @@ test("bulk screening accepts ordered unique phrase ids", () => {
   expect(
     screenQueriesInputSchema.parse({
       queries: [
-        { id: "a", query: "TURTLE CLUB" },
+        { id: "a", query: "TERMINAL CLUB" },
         { id: "b", query: "  café  " },
       ],
     })
   ).toEqual({
     queries: [
-      { id: "a", query: "TURTLE CLUB" },
+      { id: "a", query: "TERMINAL CLUB" },
       { id: "b", query: "café" },
     ],
     type: "all",

@@ -1,5 +1,5 @@
 ---
-summary: Routes Trademark Turtle product contracts for the service, search tools, and public status with operator details.
+summary: Routes Trademark Terminal product contracts for the service, search tools, and public status with operator details.
 read_when:
   - locating the user-facing contract behind a website, API, client, or operator change
   - deciding whether a behavior belongs in service scope, trademark results, or source visibility

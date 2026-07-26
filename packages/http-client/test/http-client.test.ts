@@ -1,8 +1,8 @@
 import { afterEach, expect, test } from "bun:test";
 
 import {
-  createTmturtleClient,
-  TmturtleError,
+  createTmterminalClient,
+  TmterminalError,
   type TrademarkGetInput,
   type TrademarkMatchInput,
   type TrademarkScreenInput,
@@ -37,7 +37,7 @@ test("exposes plain promise methods with the configured API key", async () => {
     port: 0,
   });
   const input: TrademarkGetInput = { registrationNumber: "0146682" };
-  const client = createTmturtleClient({
+  const client = createTmterminalClient({
     apiKey: "ttk_test_secret",
     baseUrl: `http://127.0.0.1:${server.port}`,
   });
@@ -77,22 +77,22 @@ test("derives search, match, screen, and list contracts from the server router",
     hostname: "127.0.0.1",
     port: 0,
   });
-  const client = createTmturtleClient({
+  const client = createTmterminalClient({
     apiKey: "ttk_test_secret",
     baseUrl: `http://127.0.0.1:${server.port}`,
   });
   const search: TrademarkSearchInput = {
     match: "both",
     mode: "multi",
-    query: "turtle",
+    query: "terminal",
     status: "live",
   };
   const match: TrademarkMatchInput = {
-    texts: [{ id: "title", text: "turtle club" }],
+    texts: [{ id: "title", text: "terminal club" }],
     type: "text",
   };
   const screen: TrademarkScreenInput = {
-    queries: [{ id: "one", query: "turtle club" }],
+    queries: [{ id: "one", query: "terminal club" }],
     type: "text",
   };
 
@@ -136,7 +136,7 @@ test("exposes safe service status without the internal sync namespace", async ()
     hostname: "127.0.0.1",
     port: 0,
   });
-  const client = createTmturtleClient({
+  const client = createTmterminalClient({
     apiKey: "ttk_test_secret",
     baseUrl: `http://127.0.0.1:${server.port}`,
   });
@@ -169,7 +169,7 @@ test("maps transport failures into one stable public error", async () => {
     hostname: "127.0.0.1",
     port: 0,
   });
-  const client = createTmturtleClient({
+  const client = createTmterminalClient({
     apiKey: "ttk_test_secret",
     baseUrl: `http://127.0.0.1:${server.port}`,
   });
@@ -178,7 +178,7 @@ test("maps transport failures into one stable public error", async () => {
     .get({ serialNumber: "99999999" })
     .catch((cause: unknown) => cause);
 
-  expect(error).toBeInstanceOf(TmturtleError);
+  expect(error).toBeInstanceOf(TmterminalError);
   expect(error).toMatchObject({
     code: "NOT_FOUND",
     message: "Trademark not found",
@@ -193,7 +193,7 @@ test("maps connection failures without a server response", async () => {
       Promise.reject<Response>(new TypeError("Connection refused")),
     { preconnect: globalThis.fetch.preconnect }
   );
-  const client = createTmturtleClient({
+  const client = createTmterminalClient({
     apiKey: "ttk_test_secret",
     baseUrl: "https://unreachable.example",
     fetch: failedFetch,
@@ -203,7 +203,7 @@ test("maps connection failures without a server response", async () => {
     .get({ serialNumber: "99999999" })
     .catch((cause: unknown) => cause);
 
-  expect(error).toBeInstanceOf(TmturtleError);
+  expect(error).toBeInstanceOf(TmterminalError);
   expect(error).toMatchObject({
     code: "CONNECTION_ERROR",
     status: null,

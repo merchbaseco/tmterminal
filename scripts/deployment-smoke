@@ -1,11 +1,11 @@
 #!/bin/sh
 set -eu
 
-: "${TMTURTLE_REVISION:?set TMTURTLE_REVISION to the deployed Git revision}"
-public_origin="https://tmturtle.merchbase.co"
+: "${TMTERMINAL_REVISION:?set TMTERMINAL_REVISION to the deployed Git revision}"
+public_origin="https://tmterminal.merchbase.co"
 
 compose() {
-  docker compose --project-name tmturtle --env-file .env "$@"
+  docker compose --project-name tmterminal --env-file .env "$@"
 }
 
 probe() {
@@ -13,7 +13,7 @@ probe() {
 }
 
 database_available_kb="$(compose exec -T database df -Pk /var/lib/postgresql/data | awk 'NR == 2 { print $4 }')"
-artifact_available_kb="$(compose exec -T worker df -Pk /var/lib/tmturtle/artifacts | awk 'NR == 2 { print $4 }')"
+artifact_available_kb="$(compose exec -T worker df -Pk /var/lib/tmterminal/artifacts | awk 'NR == 2 { print $4 }')"
 test "$database_available_kb" -ge 20971520
 test "$artifact_available_kb" -ge 20971520
 
@@ -42,7 +42,7 @@ test "$worker_state" = "ready"
 
 for service in api worker web; do
   container_id="$(compose ps --quiet "$service")"
-  test "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$container_id")" = "$TMTURTLE_REVISION"
+  test "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$container_id")" = "$TMTERMINAL_REVISION"
 done
 
 echo "Deployment smoke passed: disk, migration, services, worker status, loopback, and public readiness"

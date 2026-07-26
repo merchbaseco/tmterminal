@@ -11,7 +11,7 @@ describe("GET /api/health", () => {
 
   test("returns a safe unavailable response when PostgreSQL cannot be reached", async () => {
     const server = await buildServer({
-      databaseUrl: "postgres://postgres:postgres@127.0.0.1:1/tmturtle",
+      databaseUrl: "postgres://postgres:postgres@127.0.0.1:1/tmterminal",
       logger: false,
     });
     servers.push(server);
@@ -24,7 +24,7 @@ describe("GET /api/health", () => {
 
   test("does not expose server stacks from the empty public router", async () => {
     const server = await buildServer({
-      databaseUrl: "postgres://postgres:postgres@127.0.0.1:1/tmturtle",
+      databaseUrl: "postgres://postgres:postgres@127.0.0.1:1/tmterminal",
       logger: false,
     });
     servers.push(server);

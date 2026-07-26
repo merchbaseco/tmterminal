@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { TmturtleError, type Trademark, type TrademarkSearchPage } from "@tmturtle/http-client";
+import { TmterminalError, type Trademark, type TrademarkSearchPage } from "@tmterminal/http-client";
 
 import { type CliClient, type CliDependencies, runCli } from "../src/run.ts";
 
@@ -42,14 +42,14 @@ const searchPage = {
       goodsServicesExcerpt: "shirts",
       internationalClasses: ["025"],
       match: "partial",
-      owner: "TURTLE GOODS LLC",
+      owner: "TERMINAL GOODS LLC",
       registrationNumber: "7000001",
       serialNumber: "70000001",
       sourceTransactionDate: "2026-07-10",
       status: "dead",
       statusDate: "2026-07-09",
       type: "design",
-      wordMark: "TURTLE CLUB",
+      wordMark: "TERMINAL CLUB",
     },
   ],
   limit: 25,
@@ -106,7 +106,7 @@ test("no command, --help, help search, and --version are human-readable successe
 });
 
 test("unknown commands return one JSON error on stderr", async () => {
-  const result = await runCli(["marks", "search", "turtle"], dependencies());
+  const result = await runCli(["marks", "search", "terminal"], dependencies());
 
   expect(result.exitCode).toBe(1);
   expect(result.stdout).toBe("");
@@ -162,7 +162,7 @@ test("auth set prompts for a hidden API key when stdin is not selected", async (
   expect(prompts).toBe(1);
   expect(stored).toEqual([token]);
   expect(json(result)).toEqual({
-    data: { origin: "https://tmturtle.merchbase.co" },
+    data: { origin: "https://tmterminal.merchbase.co" },
     ok: true,
   });
 });
@@ -185,8 +185,8 @@ test("global origin overrides environment origin", async () => {
         });
       },
       env: {
-        TMTURTLE_API_KEY: token,
-        TMTURTLE_BASE_URL: "https://environment.example",
+        TMTERMINAL_API_KEY: token,
+        TMTERMINAL_BASE_URL: "https://environment.example",
       },
     })
   );
@@ -213,7 +213,7 @@ test("auth status uses the selected origin's Keychain credential", async () => {
               }),
           },
         }),
-      env: { TMTURTLE_BASE_URL: "https://service.example/" },
+      env: { TMTERMINAL_BASE_URL: "https://service.example/" },
       keychain: {
         clear: () => Promise.resolve(),
         get: (origin) => {
@@ -234,7 +234,7 @@ test("auth clear is scoped to the selected origin", async () => {
   const result = await runCli(
     ["auth", "clear"],
     dependencies({
-      env: { TMTURTLE_BASE_URL: "https://SERVICE.example:443/" },
+      env: { TMTERMINAL_BASE_URL: "https://SERVICE.example:443/" },
       keychain: {
         clear: (origin) => {
           cleared.push(origin);
@@ -293,7 +293,7 @@ test("search maps Multi filters and stable continuation fields", async () => {
   const result = await runCli(
     [
       "search",
-      "Turtle %",
+      "Terminal %",
       "--match",
       "partial",
       "--status",
@@ -328,7 +328,7 @@ test("search maps Multi filters and stable continuation fields", async () => {
       match: "partial",
       mode: "multi",
       offset: 25,
-      query: "Turtle %",
+      query: "Terminal %",
       registered: "yes",
       sort: "newest-activity",
       status: "dead",
@@ -350,15 +350,15 @@ test("search maps Split and Wildcard without Multi-only match", async () => {
       },
     });
 
-  await runCli(["search", "turtle club", "--mode", "split"], authenticated(createClient));
-  await runCli(["search", "turtle*", "--mode", "wildcard"], authenticated(createClient));
+  await runCli(["search", "terminal club", "--mode", "split"], authenticated(createClient));
+  await runCli(["search", "terminal*", "--mode", "wildcard"], authenticated(createClient));
 
   expect(inputs).toEqual([
     {
       limit: 25,
       mode: "split",
       offset: 0,
-      query: "turtle club",
+      query: "terminal club",
       registered: "all",
       sort: "relevance",
       status: "all",
@@ -368,7 +368,7 @@ test("search maps Split and Wildcard without Multi-only match", async () => {
       limit: 25,
       mode: "wildcard",
       offset: 0,
-      query: "turtle*",
+      query: "terminal*",
       registered: "all",
       sort: "relevance",
       status: "all",
@@ -379,11 +379,11 @@ test("search maps Split and Wildcard without Multi-only match", async () => {
 
 test("search rejects mode-specific flags and unsafe continuations before HTTP", async () => {
   const splitMatch = await runCli(
-    ["search", "turtle", "--mode", "split", "--match", "exact"],
+    ["search", "terminal", "--mode", "split", "--match", "exact"],
     dependencies()
   );
   const unsafeWildcard = await runCli(["search", "*a*b*", "--mode", "wildcard"], dependencies());
-  const missingVersion = await runCli(["search", "turtle", "--offset", "25"], dependencies());
+  const missingVersion = await runCli(["search", "terminal", "--offset", "25"], dependencies());
 
   expect(json(splitMatch).error.message).toBe("--match is valid only for Multi search");
   expect(json(unsafeWildcard).error.message).toContain("at least three consecutive");
@@ -401,7 +401,7 @@ test("match supports explicit text and stdin without truncation", async () => {
         },
       },
     });
-  const stdin = "first turtle\nsecond turtle\n";
+  const stdin = "first terminal\nsecond terminal\n";
 
   await runCli(["match", "--text", "🐢 Cafe\u0301", "--type", "text"], authenticated(createClient));
   await runCli(["match", "--stdin"], authenticated(createClient, { stdin }));
@@ -451,7 +451,7 @@ test("status calls the safe authenticated service-status procedure", async () =>
 });
 
 test("typed remote errors preserve code and message on stderr", async () => {
-  const notFound = new TmturtleError("Trademark not found", {
+  const notFound = new TmterminalError("Trademark not found", {
     code: "NOT_FOUND",
     status: 404,
   });
@@ -475,5 +475,5 @@ function authenticated(
   createClient: ClientFactory,
   overrides: Partial<Omit<CliDependencies, "createClient">> = {}
 ) {
-  return dependencies({ createClient, env: { TMTURTLE_API_KEY: token }, ...overrides });
+  return dependencies({ createClient, env: { TMTERMINAL_API_KEY: token }, ...overrides });
 }
