@@ -63,7 +63,9 @@ Working order:
   without introducing a separate masthead or form treatment.
 - The three-mode rail appears only before a query. Result surfaces replace it
   with one contextual action that floats in the page whitespace above the
-  composer and returns to a clean field in the current mode. Signed-out search
+  composer and returns to a clean field in the current mode. That action and the
+  mark-detail return link share one back affordance: a left arrow, body copy, and
+  a border-toned underline that darkens on hover. Signed-out search
   shows the same masthead and composer with no rail above the field, since Check
   Text and Bulk Check are not offered before sign-in.
 - Search is the dominant interaction; results appear directly beneath it.
@@ -106,6 +108,11 @@ field instead of inverting it. Illustration beyond the mark is deferred.
   stay legible against that scrim. Never give the header a hard bottom rule or an
   opaque bar. Vertical space separates the header from the page, while navigation,
   mastheads, and page content share the same inner edges.
+- Where a surface pins its own controls beneath the header, those controls and the
+  header form one plate: the control background reaches up behind the header so no
+  scrolled content surfaces in the seam, and the same dissolve moves to the bottom
+  of the plate. Results blur and fade into the controls from below instead of
+  meeting a hard edge, and that dissolve appears only once the document scrolls.
 - Every route uses one shared 24–32px page-start rhythm beneath the sticky
   header. The first visible element—masthead eyebrow, search row, or Back
   link—owns that anchor; page-specific spacing begins beneath it. Signed-out
@@ -162,6 +169,10 @@ field instead of inverting it. Illustration beyond the mark is deferred.
 - Search controls remain prominent and aligned.
 - The empty-search masthead and legal footer use whitespace rather than
   separator rules.
+- The mark detail masthead band pins to both of its rules: the record eyebrow and
+  the status chip start on the top rule, while the mark name and the official
+  record action seat on the bottom rule. Whichever column is shorter absorbs the
+  difference in its middle, so neither side floats.
 - Mark detail uses one aligned label/content spine and rules between major
   sections. Tables, record facts, and status rows still use alignment and
   whitespace rather than boxes around each cell or row dividers.
