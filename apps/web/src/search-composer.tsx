@@ -1,6 +1,5 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  ArrowLeft02Icon,
   LeftToRightListBulletIcon,
   Search01Icon,
   TextIcon,
@@ -17,6 +16,7 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { BackLink } from "./back-link.tsx";
 
 export type SearchTool = "bulk" | "marks" | "text";
 
@@ -118,22 +118,7 @@ export function SearchComposer({
   if (onStartOver && startOverLabel) {
     header = (
       <div className="flex pb-3">
-        <button
-          className="relative flex h-9 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 font-medium text-base text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 sm:text-sm"
-          onClick={onStartOver}
-          type="button"
-        >
-          <span
-            aria-hidden="true"
-            className="-translate-1/2 absolute top-1/2 left-1/2 pointer-fine:hidden size-[max(100%,3rem)]"
-          />
-          <HugeiconsIcon
-            aria-hidden="true"
-            className="size-4 shrink-0 stroke-current"
-            icon={ArrowLeft02Icon}
-          />
-          {startOverLabel}
-        </button>
+        <BackLink onClick={onStartOver}>{startOverLabel}</BackLink>
       </div>
     );
   } else if (onNavigate) {
