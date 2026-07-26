@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { AppRouter } from "../../server/src/api/router.ts";
+import { ComposerScrim } from "./composer-scrim.tsx";
 import { LegalFooter } from "./legal-footer.tsx";
 import { SearchComposer, SearchMasthead } from "./search-composer.tsx";
 import { SearchOptionSelect } from "./search-option-select.tsx";
@@ -383,10 +384,11 @@ export function SearchPage({
       <div
         className={cn(
           state.query
-            ? "page-start sticky top-[var(--topbar-height,4.5rem)] z-10 bg-background"
+            ? "page-start sticky top-[var(--topbar-height,4.5rem)] z-10"
             : "pt-[clamp(1.5rem,4vw,3.5rem)] pb-5"
         )}
       >
+        {state.query ? <ComposerScrim /> : null}
         <SearchComposer
           actionLabel="Search"
           activeTool="marks"

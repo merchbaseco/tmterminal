@@ -236,6 +236,40 @@
   }
 }
 
+@utility composer-scrim {
+  position: absolute;
+  inset: calc(-1 * var(--topbar-height, 4.5rem)) 0 -3.5rem;
+  z-index: -1;
+  pointer-events: none;
+
+  /* The plate reaches up behind the header so the sticky controls and the
+     header read as one surface instead of two, with scrolled content
+     surfacing in the seam between them. */
+  & > div:nth-child(1) {
+    position: absolute;
+    inset: 0 0 3.5rem;
+    background: var(--background);
+  }
+
+  /* Results dissolve into the plate from below, mirroring the way the header
+     scrim dissolves the page at the top of the viewport. */
+  & > div:nth-child(2) {
+    position: absolute;
+    inset: auto 0 0;
+    height: 3.5rem;
+    background: linear-gradient(
+      to top,
+      transparent 0%,
+      color-mix(in oklab, var(--background) 88%, transparent) 100%
+    );
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    -webkit-mask-image: linear-gradient(to top, transparent 0%, #000 100%);
+    mask-image: linear-gradient(to top, transparent 0%, #000 100%);
+    transition: opacity 160ms ease-out;
+  }
+}
+
 @utility topbar-control {
   background-color: color-mix(in oklab, var(--background) 76%, transparent);
   -webkit-backdrop-filter: blur(12px);
