@@ -1,9 +1,6 @@
-import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowLeft02Icon } from "@hugeicons-pro/core-stroke-rounded";
-import type { MouseEventHandler } from "react";
-
 import { cn } from "@/lib/utils";
 
+import { BackLink, type BackLinkClick } from "./back-link.tsx";
 import { LegalFooter } from "./legal-footer.tsx";
 
 const goodsRows = ["primary", "secondary"] as const;
@@ -16,7 +13,7 @@ const recordFields = [
   { label: "Filing date", valueClassName: "w-24" },
 ] as const;
 
-export function MarkDetailSkeleton({ onBack }: { onBack: MouseEventHandler<HTMLAnchorElement> }) {
+export function MarkDetailSkeleton({ onBack }: { onBack: BackLinkClick }) {
   return (
     <main
       aria-busy="true"
@@ -24,24 +21,19 @@ export function MarkDetailSkeleton({ onBack }: { onBack: MouseEventHandler<HTMLA
       data-testid="mark-detail-skeleton"
     >
       <span aria-label="Loading trademark" className="sr-only" role="status" />
-      <a
-        className="inline-flex items-center gap-1.5 text-inherit underline decoration-border underline-offset-[0.3em]"
-        href="/search"
-        onClick={onBack}
-      >
-        <HugeiconsIcon aria-hidden="true" className="size-4" icon={ArrowLeft02Icon} />
+      <BackLink href="/search" onClick={onBack}>
         Back to results
-      </a>
+      </BackLink>
 
       <div aria-hidden="true">
         <header className="mt-[clamp(1.25rem,2vw,1.75rem)] grid grid-cols-[minmax(0,1fr)_16.25rem] items-stretch border-border border-y max-[48rem]:grid-cols-1">
-          <div className="flex flex-col justify-end py-[clamp(2rem,4vw,3rem)] pr-[clamp(1.5rem,3vw,3rem)] max-[48rem]:pr-0">
+          <div className="flex flex-col justify-between py-[clamp(2rem,4vw,3rem)] pr-[clamp(1.5rem,3vw,3rem)] max-[48rem]:pr-0">
             <p className="utility-label mb-[0.85rem]">United States trademark record</p>
             <h1 className="display-masthead m-0 text-[clamp(3.25rem,7vw,6rem)]">
               <SkeletonBlock className="h-[1lh] w-[min(42rem,72%)]" />
             </h1>
           </div>
-          <div className="grid min-w-64 content-end gap-[0.4rem] border-border border-l py-[clamp(2rem,4vw,3rem)] pl-[clamp(1.5rem,3vw,3rem)] text-base max-[48rem]:min-w-0 max-[48rem]:border-t max-[48rem]:border-l-0 max-[48rem]:pl-0 [&_p]:m-0">
+          <div className="flex min-w-64 flex-col gap-[0.4rem] border-border border-l py-[clamp(2rem,4vw,3rem)] pl-[clamp(1.5rem,3vw,3rem)] text-base max-[48rem]:min-w-0 max-[48rem]:border-t max-[48rem]:border-l-0 max-[48rem]:pl-0">
             <p className="flex h-6 items-center">
               <SkeletonBlock className="h-6 w-16" />
             </p>
@@ -51,7 +43,7 @@ export function MarkDetailSkeleton({ onBack }: { onBack: MouseEventHandler<HTMLA
             <p className="flex h-4 items-center">
               <SkeletonBlock className="h-4 w-28" />
             </p>
-            <p className="pt-2">
+            <p className="mt-auto pt-2">
               <SkeletonBlock className="h-8 w-full rounded-full sm:h-7" />
             </p>
           </div>

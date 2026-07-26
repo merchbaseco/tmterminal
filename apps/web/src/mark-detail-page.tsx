@@ -1,16 +1,12 @@
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ArrowLeft02Icon,
-  ArrowUpRight01Icon,
-  Copy01Icon,
-  Tick01Icon,
-} from "@hugeicons-pro/core-stroke-rounded";
+import { ArrowUpRight01Icon, Copy01Icon, Tick01Icon } from "@hugeicons-pro/core-stroke-rounded";
 import type { inferRouterOutputs } from "@trpc/server";
 import { type MouseEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 import type { AppRouter } from "../../server/src/api/router.ts";
+import { BackLink } from "./back-link.tsx";
 import { LegalFooter } from "./legal-footer.tsx";
 import { MarkDetailSkeleton } from "./mark-detail-skeleton.tsx";
 
@@ -117,7 +113,7 @@ export function MarkDetailPage({
   }, [serialNumber]);
 
   const handleBack = useCallback(
-    (event: MouseEvent<HTMLAnchorElement>) => {
+    (event: MouseEvent) => {
       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
         return;
       }
@@ -152,14 +148,9 @@ export function MarkDetailPage({
   if (error) {
     return (
       <main className="page-shell page-start isolate flex min-h-[calc(100dvh-var(--topbar-height,4.5rem))] flex-col">
-        <a
-          className="inline-flex items-center gap-1.5 text-inherit underline decoration-border underline-offset-[0.3em]"
-          href="/search"
-          onClick={handleBack}
-        >
-          <HugeiconsIcon aria-hidden="true" className="size-4" icon={ArrowLeft02Icon} />
+        <BackLink href="/search" onClick={handleBack}>
           Back to results
-        </a>
+        </BackLink>
         <p role="alert">
           {error === "not-found" ? "Trademark not found" : "Trademark detail could not be loaded."}
         </p>
@@ -187,23 +178,18 @@ export function MarkDetailPage({
 
   return (
     <main className="page-shell page-start isolate flex min-h-[calc(100dvh-var(--topbar-height,4.5rem))] flex-col">
-      <a
-        className="inline-flex items-center gap-1.5 text-inherit underline decoration-border underline-offset-[0.3em]"
-        href="/search"
-        onClick={handleBack}
-      >
-        <HugeiconsIcon aria-hidden="true" className="size-4" icon={ArrowLeft02Icon} />
+      <BackLink href="/search" onClick={handleBack}>
         Back to results
-      </a>
+      </BackLink>
 
       <header className="mt-[clamp(1.25rem,2vw,1.75rem)] grid grid-cols-[minmax(0,1fr)_16.25rem] items-stretch border-border border-y max-[48rem]:grid-cols-1">
-        <div className="flex flex-col justify-end py-[clamp(2rem,4vw,3rem)] pr-[clamp(1.5rem,3vw,3rem)] max-[48rem]:pr-0">
+        <div className="flex flex-col justify-between py-[clamp(2rem,4vw,3rem)] pr-[clamp(1.5rem,3vw,3rem)] max-[48rem]:pr-0">
           <p className="utility-label mb-[0.85rem]">United States trademark record</p>
           <h1 className="display-masthead wrap-anywhere m-0 text-[clamp(3.25rem,7vw,6rem)]">
             {mark.mark.wordMark ?? "Untitled mark"}
           </h1>
         </div>
-        <div className="grid min-w-64 content-end gap-[0.4rem] border-border border-l py-[clamp(2rem,4vw,3rem)] pl-[clamp(1.5rem,3vw,3rem)] text-base max-[48rem]:min-w-0 max-[48rem]:border-t max-[48rem]:border-l-0 max-[48rem]:pl-0 [&>p:not(:first-child)]:text-muted-foreground [&_p]:m-0">
+        <div className="flex min-w-64 flex-col gap-[0.4rem] border-border border-l py-[clamp(2rem,4vw,3rem)] pl-[clamp(1.5rem,3vw,3rem)] text-base max-[48rem]:min-w-0 max-[48rem]:border-t max-[48rem]:border-l-0 max-[48rem]:pl-0 [&>p:not(:first-child)]:text-muted-foreground">
           <p className="flex items-center">
             <strong
               className={cn(
@@ -221,7 +207,7 @@ export function MarkDetailPage({
               : "Status date unavailable"}
           </p>
           <p className="utility-label">USPTO status {mark.mark.statusCode ?? "unknown"}</p>
-          <p className="pt-2">
+          <p className="mt-auto pt-2">
             <Button
               className="pill-button max-[48rem]:w-full"
               render={
