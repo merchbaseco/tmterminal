@@ -392,6 +392,14 @@ test("account menu owns identity, account management, appearance, and sign out",
   await waitFor(() => expect(signOutRedirects).toEqual(["/search"]));
 });
 
+test("signed-out search offers only the mark composer", () => {
+  render(<App />);
+
+  expect(screen.getByRole("searchbox", { name: "Search trademarks" })).toBeTruthy();
+  expect(screen.queryByRole("link", { name: "Check text" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "Bulk check" })).toBeNull();
+});
+
 test("signed-out query composition survives modal sign-in before authenticated search", async () => {
   const view = render(<App />);
   fireEvent.change(screen.getByRole("searchbox", { name: "Search trademarks" }), {
