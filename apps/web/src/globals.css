@@ -263,7 +263,10 @@
 @layer base {
   html {
     scrollbar-gutter: stable;
-    overscroll-behavior: none;
+
+    /* Only the vertical axis is pinned; the horizontal axis stays free so the
+       macOS trackpad back/forward swipe keeps working. */
+    overscroll-behavior-y: none;
     color: var(--foreground);
     scroll-padding-top: var(
       --page-scroll-padding,
