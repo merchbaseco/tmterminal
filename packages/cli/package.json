@@ -1,14 +1,14 @@
 {
-  "name": "@tmturtle/cli",
-  "version": "2.0.0",
-  "description": "Command-line access to Trademark Turtle search, matching, and service status",
+  "name": "@tmterminal/cli",
+  "version": "3.0.0",
+  "description": "Command-line access to Trademark Terminal search, matching, and service status",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/merchbaseco/tmturtle.git",
+    "url": "git+https://github.com/merchbaseco/tmterminal.git",
     "directory": "packages/cli"
   },
-  "homepage": "https://github.com/merchbaseco/tmturtle#readme",
-  "bugs": "https://github.com/merchbaseco/tmturtle/issues",
+  "homepage": "https://github.com/merchbaseco/tmterminal#readme",
+  "bugs": "https://github.com/merchbaseco/tmterminal/issues",
   "publishConfig": {
     "access": "public"
   },
@@ -25,7 +25,7 @@
     "prepack": "bun run build"
   },
   "devDependencies": {
-    "@tmturtle/http-client": "workspace:*",
+    "@tmterminal/http-client": "workspace:*",
     "commander": "15.0.0"
   }
 }

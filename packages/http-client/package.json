@@ -1,14 +1,14 @@
 {
-  "name": "@tmturtle/http-client",
-  "version": "2.0.0",
-  "description": "Typed HTTP client for the Trademark Turtle API",
+  "name": "@tmterminal/http-client",
+  "version": "3.0.0",
+  "description": "Typed HTTP client for the Trademark Terminal API",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/merchbaseco/tmturtle.git",
+    "url": "git+https://github.com/merchbaseco/tmterminal.git",
     "directory": "packages/http-client"
   },
-  "homepage": "https://github.com/merchbaseco/tmturtle#readme",
-  "bugs": "https://github.com/merchbaseco/tmturtle/issues",
+  "homepage": "https://github.com/merchbaseco/tmterminal#readme",
+  "bugs": "https://github.com/merchbaseco/tmterminal/issues",
   "publishConfig": {
     "access": "public"
   },

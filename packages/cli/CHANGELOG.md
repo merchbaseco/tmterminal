@@ -1,4 +1,14 @@
-# Trademark Turtle CLI Changelog
+# Trademark Terminal CLI Changelog
+
+## v3.0.0 - 2026-07-25
+
+- Rename the service to Trademark Terminal. The CLI publishes as
+  `@tmterminal/cli` and the client as `@tmterminal/http-client`.
+- Rename the exported error to `TmterminalError` and the client factory to
+  `createTmterminalClient`.
+- Read credentials from `TMTERMINAL_API_KEY` and `TMTERMINAL_BASE_URL`, and
+  store keys under the `co.merchbase.tmterminal` Keychain service. Run
+  `tt auth set` once to move an existing key.
 
 ## v2.0.0 - 2026-07-24
 
