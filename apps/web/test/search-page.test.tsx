@@ -768,3 +768,30 @@ test("a new URL-owned search entry starts at the top of the document", async () 
   await waitFor(() => expect(window.scrollY).toBe(0));
   expect(inputs.at(-1)).toMatchObject({ offset: 0, status: "dead" });
 });
+
+test("the results surface joins the header as one plate and dissolves rows only once scrolled", async () => {
+  let documentScroll = 0;
+  Object.defineProperty(window, "scrollY", {
+    configurable: true,
+    get: () => documentScroll,
+  });
+  renderSearch({ search: () => Promise.resolve(resultPage(0, 1, 1)) });
+
+  await screen.findByText("1 result");
+  const scrim = required(document.querySelector(".composer-scrim"), "composer scrim");
+  const dissolve = required(scrim.children[1], "composer dissolve");
+  expect(dissolve.className).toContain("opacity-0");
+
+  documentScroll = 240;
+  await act(() => {
+    window.dispatchEvent(new Event("scroll"));
+  });
+  expect(dissolve.className).not.toContain("opacity-0");
+});
+
+test("the empty search surface carries no composer plate", async () => {
+  renderSearch({ search: () => Promise.resolve(resultPage(0, 0, 0)) }, "");
+
+  expect(await screen.findByPlaceholderText("Search a word mark")).toBeTruthy();
+  expect(document.querySelector(".composer-scrim")).toBeNull();
+});
