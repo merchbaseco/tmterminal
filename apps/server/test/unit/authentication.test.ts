@@ -8,16 +8,16 @@ describe("credential selection", () => {
     expect(
       selectCredential({
         authorization: "Bearer clerk-session",
-      }),
-    ).toEqual({ type: "clerk", token: "clerk-session" });
+      })
+    ).toEqual({ token: "clerk-session", type: "clerk" });
   });
 
   test("selects one Trademark Terminal API key", () => {
     expect(
       selectCredential({
         authorization: "Bearer ttk_123_secret",
-      }),
-    ).toEqual({ type: "api-key", token: "ttk_123_secret" });
+      })
+    ).toEqual({ token: "ttk_123_secret", type: "api-key" });
   });
 
   test("rejects simultaneous Clerk and API-key credentials", () => {
@@ -25,7 +25,7 @@ describe("credential selection", () => {
       selectCredential({
         authorization: "Bearer ttk_123_secret",
         cookie: "__session=clerk-session",
-      }),
+      })
     ).toThrow("BAD_REQUEST");
   });
 
@@ -36,6 +36,6 @@ describe("credential selection", () => {
 
 test("Clerk verification requires an authorized-party allowlist", () => {
   expect(() => createClerkVerifier({ secretKey: "sk_test_placeholder" })).toThrow(
-    "CLERK_AUTHORIZED_PARTIES is required",
+    "CLERK_AUTHORIZED_PARTIES is required"
   );
 });

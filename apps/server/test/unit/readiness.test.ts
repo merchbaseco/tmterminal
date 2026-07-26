@@ -3,7 +3,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { buildServer } from "../../src/api/server.ts";
 
 describe("GET /api/health", () => {
-  const servers: Array<Awaited<ReturnType<typeof buildServer>>> = [];
+  const servers: Awaited<ReturnType<typeof buildServer>>[] = [];
 
   afterEach(async () => {
     await Promise.all(servers.splice(0).map((server) => server.close()));
