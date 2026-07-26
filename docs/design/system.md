@@ -63,7 +63,9 @@ Working order:
   without introducing a separate masthead or form treatment.
 - The three-mode rail appears only before a query. Result surfaces replace it
   with one contextual action that floats in the page whitespace above the
-  composer and returns to a clean field in the current mode.
+  composer and returns to a clean field in the current mode. Signed-out search
+  shows the same masthead and composer with no rail above the field, since Check
+  Text and Bulk Check are not offered before sign-in.
 - Search is the dominant interaction; results appear directly beneath it.
 - Layouts are typographic rows and documents, not card dashboards.
 - Utility text stays readable at 12px; navigation uses the body setting.
@@ -104,9 +106,11 @@ field instead of inverting it. Illustration beyond the mark is deferred.
   stay legible against that scrim. Never give the header a hard bottom rule or an
   opaque bar. Vertical space separates the header from the page, while navigation,
   mastheads, and page content share the same inner edges.
-- Authenticated routes use one shared 24–32px page-start rhythm beneath the
-  sticky header. The first visible element—masthead eyebrow, search row, or Back
-  link—owns that anchor; page-specific spacing begins beneath it.
+- Every route uses one shared 24–32px page-start rhythm beneath the sticky
+  header. The first visible element—masthead eyebrow, search row, or Back
+  link—owns that anchor; page-specific spacing begins beneath it. Signed-out
+  search is top-aligned on that same anchor rather than centered in the
+  viewport.
 - Macro layout stays relatively borderless. Use whitespace and restrained tonal
   changes before adding rules; reserve rules for data structure and major
   document boundaries.
@@ -153,7 +157,8 @@ field instead of inverting it. Illustration beyond the mark is deferred.
   rails and shared selector spine stay aligned across every row without turning
   the settings into a card grid.
 - The empty search masthead fills the brand state and leaves the layout once a
-  query is active.
+  query is active. Signed out it carries no additional sign-in copy; the gate
+  appears only as the Clerk modal after a search is submitted.
 - Search controls remain prominent and aligned.
 - The empty-search masthead and legal footer use whitespace rather than
   separator rules.
