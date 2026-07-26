@@ -4,12 +4,10 @@ import {
   Cancel01Icon,
   ComputerTerminal01Icon,
   Menu01Icon,
-  Search01Icon,
 } from "@hugeicons-pro/core-stroke-rounded";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createTRPCClient, httpLink } from "@trpc/client";
 import {
-  type ChangeEvent,
   type FormEvent,
   lazy,
   type MouseEvent as ReactMouseEvent,
@@ -23,7 +21,6 @@ import {
   useState,
 } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Menu, MenuLinkItem, MenuPopup, MenuTrigger } from "@/components/ui/menu";
 import { cn } from "@/lib/utils";
 import type { AppRouter } from "../../server/src/api/router.ts";
@@ -34,8 +31,10 @@ import { type BulkCheckApi, BulkCheckPage } from "./bulk-check-page.tsx";
 import { CheckTextPage, type TextCheckApi } from "./check-text-page.tsx";
 import { DevAutoSignIn } from "./dev-auto-sign-in.tsx";
 import { HelpPage } from "./help-page.tsx";
+import { LegalFooter } from "./legal-footer.tsx";
 import { type MarkApi, MarkDetailPage } from "./mark-detail-page.tsx";
 import type { OperatorSyncApi, PublicStatusApi } from "./operator-sync-page.tsx";
+import { SearchComposer, SearchMasthead } from "./search-composer.tsx";
 import { type SearchApi, SearchPage } from "./search-page.tsx";
 import { defaultSearchPreferences, type SearchPreferences } from "./search-preferences.ts";
 import { StatusPageSkeleton } from "./status-page-skeleton.tsx";
@@ -559,14 +558,11 @@ function SignedOutSearch({ search }: { search: string }) {
   const locationQuery = new URLSearchParams(search).get("q") ?? "";
   const [query, setQuery] = useState(locationQuery);
   useEffect(() => setQuery(locationQuery), [locationQuery]);
-  const handleChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-    setQuery(event.target.value);
-  }, []);
   const handleSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       const normalizedQuery = query.trim();
-      if (!normalizedQuery || normalizedQuery.length > 200) {
+      if (!normalizedQuery) {
         return;
       }
       const parameters = new URLSearchParams({
@@ -586,50 +582,23 @@ function SignedOutSearch({ search }: { search: string }) {
   );
 
   return (
-    <main className="page-shell isolate grid min-h-[calc(100dvh-var(--topbar-height,4.5rem))] content-center gap-8 py-[clamp(2rem,5vw,5.5rem)]">
-      <p className="mb-0 font-[650] text-base">Trademark search for Print on Demand sellers.</p>
-      <h1 className="display-masthead m-0 text-[clamp(2.75rem,12.5vw,14rem)]">
-        TRADEMARK
-        <br />
-        TERMINAL
-      </h1>
-      <p className="m-0 max-w-[30rem] text-base">
-        Sign in with your MerchBase account to run your search.
-      </p>
-      <form
-        autoComplete="off"
-        className="grid grid-cols-[minmax(0,1fr)_clamp(13rem,18vw,16rem)] gap-0 border border-border p-0 [--search-control-height:4.25rem] **:data-[slot=search-icon]:left-3 **:data-[slot=search-icon]:size-[1.15rem] **:data-[slot=input-control]:h-[var(--search-control-height)] **:data-[slot=input]:h-full *:data-[slot=button]:h-[var(--search-control-height)] *:data-[slot=button]:w-full **:data-[slot=input-control]:border-0 *:data-[slot=button]:border-0 *:data-[slot=button]:border-border *:data-[slot=button]:border-l **:data-[slot=input-control]:bg-transparent *:data-[slot=button]:px-[clamp(1.5rem,3vw,2.5rem)] **:data-[slot=input]:py-0 **:data-[slot=input]:pr-[clamp(1rem,2vw,1.5rem)] **:data-[slot=input]:pl-10 **:data-[slot=input]:font-semibold **:data-[slot=input]:text-xl *:data-[slot=button]:text-[clamp(1.125rem,1.5vw,1.4rem)] **:data-[slot=input]:leading-none **:data-[slot=input]:tracking-[-0.035em] **:data-[slot=input-control]:shadow-none *:data-[slot=button]:shadow-none max-[48rem]:grid-cols-[minmax(0,1fr)_7.5rem] has-[input:focus-visible]:[&>[data-slot=button]]:border-l-transparent [&_[data-slot=input-control]::before]:shadow-none"
-        data-slot="trademark-search-form"
-        onSubmit={handleSubmit}
-      >
-        <label className="sr-only" htmlFor="signed-out-search">
-          Search trademarks
-        </label>
-        <div className="relative min-w-0 before:pointer-events-none before:absolute before:inset-0 before:z-20 before:border before:border-transparent before:content-[''] has-[input:focus-visible]:before:border-ring">
-          <HugeiconsIcon
-            aria-hidden="true"
-            className="pointer-events-none absolute top-1/2 left-[clamp(1rem,2vw,1.5rem)] z-10 size-[clamp(1.25rem,2vw,1.6rem)] -translate-y-1/2 text-muted-foreground"
-            data-slot="search-icon"
-            icon={Search01Icon}
-          />
-          <Input
-            autoComplete="off"
-            className="rounded-none before:rounded-none"
-            id="signed-out-search"
-            maxLength={200}
-            name="query"
-            onChange={handleChange}
-            placeholder="Search a word mark"
-            required
-            size="lg"
-            type="search"
-            value={query}
-          />
-        </div>
-        <Button className="rounded-none before:rounded-none" size="xl" type="submit">
-          Search
-        </Button>
-      </form>
+    <main className="page-shell page-start isolate flex min-h-[calc(100dvh-var(--topbar-height,4.5rem))] flex-col [--search-side-column:clamp(13rem,18vw,16rem)]">
+      <SearchMasthead />
+      <div className="pt-[clamp(1.5rem,4vw,3.5rem)] pb-5">
+        <SearchComposer
+          actionLabel="Search"
+          activeTool="marks"
+          fieldLabel="Search trademarks"
+          invalidActionLabel={query.trim() ? undefined : "Give me a word"}
+          maxLength={200}
+          name="query"
+          onSubmit={handleSubmit}
+          onValueChange={setQuery}
+          placeholder="Search a word mark"
+          value={query}
+        />
+      </div>
+      <LegalFooter />
     </main>
   );
 }

@@ -9,6 +9,7 @@ import {
   type ChangeEvent,
   type FormEvent,
   type MouseEvent as ReactMouseEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useRef,
@@ -65,7 +66,7 @@ export function SearchComposer({
   maxLength?: number;
   multiline?: boolean;
   name: string;
-  onNavigate: (href: string) => void;
+  onNavigate?: (href: string) => void;
   onStartOver?: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onValueChange: (value: string) => void;
@@ -113,43 +114,50 @@ export function SearchComposer({
     displayedActionLabel = invalidActionLabel;
   }
 
+  let header: ReactNode = null;
+  if (onStartOver && startOverLabel) {
+    header = (
+      <div className="flex pb-3">
+        <button
+          className="relative flex h-9 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 font-medium text-base text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 sm:text-sm"
+          onClick={onStartOver}
+          type="button"
+        >
+          <span
+            aria-hidden="true"
+            className="-translate-1/2 absolute top-1/2 left-1/2 pointer-fine:hidden size-[max(100%,3rem)]"
+          />
+          <HugeiconsIcon
+            aria-hidden="true"
+            className="size-4 shrink-0 stroke-current"
+            icon={ArrowLeft02Icon}
+          />
+          {startOverLabel}
+        </button>
+      </div>
+    );
+  } else if (onNavigate) {
+    header = (
+      <nav aria-label="Search mode" className="overflow-x-auto border border-border border-b-0">
+        <div className="grid min-w-[26rem] grid-cols-3">
+          {tools.map((tool) => (
+            <SearchToolLink
+              active={tool.value === activeTool}
+              href={tool.href}
+              icon={tool.icon}
+              key={tool.value}
+              label={tool.label}
+              onNavigate={onNavigate}
+            />
+          ))}
+        </div>
+      </nav>
+    );
+  }
+
   return (
     <form autoComplete="off" data-slot="trademark-search-form" onSubmit={submit}>
-      {onStartOver && startOverLabel ? (
-        <div className="flex pb-3">
-          <button
-            className="relative flex h-9 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 font-medium text-base text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 sm:text-sm"
-            onClick={onStartOver}
-            type="button"
-          >
-            <span
-              aria-hidden="true"
-              className="-translate-1/2 absolute top-1/2 left-1/2 pointer-fine:hidden size-[max(100%,3rem)]"
-            />
-            <HugeiconsIcon
-              aria-hidden="true"
-              className="size-4 shrink-0 stroke-current"
-              icon={ArrowLeft02Icon}
-            />
-            {startOverLabel}
-          </button>
-        </div>
-      ) : (
-        <nav aria-label="Search mode" className="overflow-x-auto border border-border border-b-0">
-          <div className="grid min-w-[26rem] grid-cols-3">
-            {tools.map((tool) => (
-              <SearchToolLink
-                active={tool.value === activeTool}
-                href={tool.href}
-                icon={tool.icon}
-                key={tool.value}
-                label={tool.label}
-                onNavigate={onNavigate}
-              />
-            ))}
-          </div>
-        </nav>
-      )}
+      {header}
       <div
         className={cn(
           "grid border border-border [--search-control-height:4.25rem]",
