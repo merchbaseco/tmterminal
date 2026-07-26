@@ -1,5 +1,5 @@
 ---
-summary: Defines Trademark Turtle component ownership, COSS UI use, Cassette-inspired visual direction, typography, color, themes, and responsive restraint.
+summary: Defines Trademark Terminal component ownership, COSS UI use, Cassette-inspired visual direction, typography, color, themes, and responsive restraint.
 read_when:
   - changing shared UI primitives, typography, themes, layout, navigation, search controls, or operator presentation
   - deciding whether to use COSS UI, add a component wrapper, or introduce decorative styling
@@ -7,7 +7,7 @@ read_when:
 
 # Design System
 
-Trademark Turtle is a minimalist utilitarian tool. Its visual direction borrows
+Trademark Terminal is a minimalist utilitarian tool. Its visual direction borrows
 Cassette's oversized typography, sparse rhythm, and one-color confidence without
 copying that site's identity, imagery, texture, or interactions. Steel's technical
 editorial grid is the closer reference for product surfaces: compact labels,
@@ -85,19 +85,24 @@ contrast. Validation errors keep the destructive border while focused.
 
 ## Brand
 
-The turtle is a logomark, not a UI mascot. The header presents it as a compact
-rounded chip no taller than the adjacent controls. Dark surfaces may use the
-transparent chartreuse mark. Light surfaces preserve its near-black field
-instead of inverting it; in dark mode the field keeps a hairline border so the
-chip stays defined. Additional mascot illustration is deferred.
+The mark is a chartreuse terminal prompt, not a UI mascot. The header presents
+the full lockup as a compact near-black chip no taller than the adjacent
+controls: the word `TRADEMARK` in heavy Archivo followed by the HugeIcons
+terminal glyph, so the glyph reads as the second word of the name. In dark mode
+the chip keeps a hairline border so it stays defined against the page. Standalone
+brand assets use the same prompt mark; light surfaces preserve its near-black
+field instead of inverting it. Illustration beyond the mark is deferred.
 
 ## Layout
 
 - The header and every page use one 120rem maximum-width shell with identical
-  responsive horizontal padding. The sticky header itself stays transparent and
-  borderless; its navigation and account controls use restrained translucent
-  backgrounds with backdrop blur so scrolling content remains legible beneath
-  them. Vertical space separates the header from the page, while navigation,
+  responsive horizontal padding. The sticky header itself stays borderless. One
+  full-width scrim behind it fades the page background out and blurs progressively,
+  strongest at the viewport edge and gone a little below the header, so scrolled
+  content dissolves instead of running through the gaps between controls. The
+  navigation and account controls keep their own translucent backgrounds so they
+  stay legible against that scrim. Never give the header a hard bottom rule or an
+  opaque bar. Vertical space separates the header from the page, while navigation,
   mastheads, and page content share the same inner edges.
 - Authenticated routes use one shared 24–32px page-start rhythm beneath the
   sticky header. The first visible element—masthead eyebrow, search row, or Back

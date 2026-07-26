@@ -179,7 +179,7 @@ export function BulkCheckPage({
           onStartOver={mutation.data ? startOver : undefined}
           onSubmit={submit}
           onValueChange={setValue}
-          placeholder={"One phrase per line\nTurtle Club\nOcean Supply"}
+          placeholder={"One phrase per line\nSunset Society\nOcean Supply"}
           startOverLabel={mutation.data ? "Check different phrases" : undefined}
           value={value}
         />

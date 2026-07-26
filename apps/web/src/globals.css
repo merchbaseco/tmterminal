@@ -191,6 +191,51 @@
   }
 }
 
+@utility topbar-scrim {
+  position: absolute;
+  inset: 0;
+  bottom: -3rem;
+  pointer-events: none;
+
+  /* Blur strength falls off down the band so scrolled content resolves
+     gradually instead of meeting a hard edge under the header. */
+  & > div {
+    position: absolute;
+    inset: 0;
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+
+  & > div:nth-child(1) {
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 0%, transparent 100%);
+  }
+
+  & > div:nth-child(2) {
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      #000 0%,
+      #000 40%,
+      transparent 78%
+    );
+    mask-image: linear-gradient(to bottom, #000 0%, #000 40%, transparent 78%);
+  }
+
+  &::after {
+    position: absolute;
+    inset: 0;
+    content: "";
+    background: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--background) 92%, transparent) 0%,
+      color-mix(in oklab, var(--background) 62%, transparent) 55%,
+      transparent 100%
+    );
+  }
+}
+
 @utility topbar-control {
   background-color: color-mix(in oklab, var(--background) 76%, transparent);
   -webkit-backdrop-filter: blur(12px);

@@ -4,16 +4,19 @@
     <meta charset="UTF-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <meta content="#d7f52a" name="theme-color">
+    <link href="/favicon-32.png" rel="icon" sizes="32x32" type="image/png">
+    <link href="/favicon-64.png" rel="icon" sizes="64x64" type="image/png">
+    <link href="/app-icon-192.png" rel="apple-touch-icon" sizes="192x192">
     <script>
     "use strict";
-    const appearance = localStorage.getItem("tmturtle-appearance");
+    const appearance = localStorage.getItem("tmterminal-appearance");
     const systemDark = matchMedia("(prefers-color-scheme: dark)").matches;
     document.documentElement.classList.toggle(
       "dark",
       appearance === "dark" || (appearance !== "light" && systemDark)
     );
     </script>
-    <title>Trademark Turtle</title>
+    <title>Trademark Terminal</title>
   </head>
   <body>
     <div id="root"></div>

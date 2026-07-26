@@ -1,6 +1,11 @@
 import { Show, SignInButton, useAuth, useClerk } from "@clerk/react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Cancel01Icon, Menu01Icon, Search01Icon } from "@hugeicons-pro/core-stroke-rounded";
+import {
+  Cancel01Icon,
+  ComputerTerminal01Icon,
+  Menu01Icon,
+  Search01Icon,
+} from "@hugeicons-pro/core-stroke-rounded";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createTRPCClient, httpLink } from "@trpc/client";
 import {
@@ -21,7 +26,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Menu, MenuLinkItem, MenuPopup, MenuTrigger } from "@/components/ui/menu";
 import { cn } from "@/lib/utils";
-import turtleLogo from "../../../assets/brand/turtle-mark.svg";
 import type { AppRouter } from "../../server/src/api/router.ts";
 import { AccountMenu } from "./account-menu.tsx";
 import { type AccountApi, AccountPage, type AccountPreferencesApi } from "./account-page.tsx";
@@ -245,12 +249,12 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
   }, [client]);
 
   const handleMarkBack = useCallback(() => {
-    if (location.state.tmturtleSearchEntry === true) {
+    if (location.state.tmterminalSearchEntry === true) {
       window.history.back();
     } else {
       setBrowserLocation("/search");
     }
-  }, [location.state.tmturtleSearchEntry]);
+  }, [location.state.tmterminalSearchEntry]);
   const handleSearchNavigate = useCallback((href: string, sourceSearch?: string) => {
     setBrowserLocation(href, {
       state: sourceSearch ? { searchReplacementSource: sourceSearch } : {},
@@ -266,7 +270,7 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
           searchToolRestore: restoreState,
         },
       });
-      setBrowserLocation(`/marks/${serialNumber}`, { state: { tmturtleSearchEntry: true } });
+      setBrowserLocation(`/marks/${serialNumber}`, { state: { tmterminalSearchEntry: true } });
       window.scrollTo(0, 0);
     },
     [location.pathname, location.search, location.state]
@@ -390,20 +394,25 @@ function TopBar({ pathname }: { pathname: string }) {
 
   return (
     <header className="sticky top-0 z-30" ref={headerRef}>
-      <div className="page-shell grid min-h-[4.5rem] grid-cols-[1fr_auto_auto] items-center py-3 max-[48rem]:grid-cols-[1fr_auto] max-[48rem]:gap-y-1">
+      <div aria-hidden="true" className="topbar-scrim">
+        <div />
+        <div />
+      </div>
+      <div className="page-shell relative grid min-h-[4.5rem] grid-cols-[1fr_auto_auto] items-center py-3 max-[48rem]:grid-cols-[1fr_auto] max-[48rem]:gap-y-1">
         <a
-          aria-label="Trademark Turtle home"
-          className="inline-flex h-9 w-fit items-center justify-center self-center justify-self-start rounded-[var(--radius)] bg-[#151616] px-1.5 no-underline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 dark:border dark:border-border"
+          aria-label="Trademark Terminal home"
+          className="inline-flex h-9 w-fit items-center gap-2 self-center justify-self-start rounded-[var(--radius)] bg-[#151616] pr-2 pl-2.5 no-underline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 dark:border dark:border-border"
           href="/search"
           onClick={navigate}
         >
-          <img
-            alt=""
-            className="h-6 w-auto max-w-none"
-            draggable={false}
-            height="24"
-            src={turtleLogo}
-            width="35"
+          <span className="font-[900] text-[#f5f2ea] text-[0.8125rem] leading-none tracking-[-0.02em]">
+            TRADEMARK
+          </span>
+          <HugeiconsIcon
+            aria-hidden="true"
+            className="size-[1.15rem] text-primary"
+            icon={ComputerTerminal01Icon}
+            strokeWidth={2}
           />
         </a>
         <nav aria-label="Primary" className="hidden items-center gap-1.5 text-sm min-[48rem]:flex">
@@ -582,7 +591,7 @@ function SignedOutSearch({ search }: { search: string }) {
       <h1 className="display-masthead m-0 text-[clamp(2.75rem,12.5vw,14rem)]">
         TRADEMARK
         <br />
-        TURTLE
+        TERMINAL
       </h1>
       <p className="m-0 max-w-[30rem] text-base">
         Sign in with your MerchBase account to run your search.
