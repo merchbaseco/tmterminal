@@ -17,7 +17,7 @@ Every protected request:
 
 1. extracts one bearer credential;
 2. verifies a route-appropriate Clerk credential through
-   `@merchbaseco/access@0.2.0`;
+   `@merchbaseco/access@0.2.1`;
 3. resolves the known issuer and subject from the local Access Projection;
 4. evaluates fixed service `tmterminal`;
 5. finds or creates the local service account by stable Merchbase User ID.
