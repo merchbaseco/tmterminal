@@ -10,5 +10,5 @@ dist
 **/dist
 fixtures/uspto/**/*.doc
 fixtures/uspto/**/*.zip
-node_modules
+**/node_modules
 tmp
