@@ -38,7 +38,7 @@ test("exposes plain promise methods with the configured API key", async () => {
   });
   const input: TrademarkGetInput = { registrationNumber: "0146682" };
   const client = createTmterminalClient({
-    apiKey: "ttk_test_secret",
+    apiKey: "ak_test_secret",
     baseUrl: `http://127.0.0.1:${server.port}`,
   });
 
@@ -49,7 +49,7 @@ test("exposes plain promise methods with the configured API key", async () => {
     serialNumber: "60146682",
     wordMark: "MACHINE-PISTOL",
   });
-  expect(authorizations).toEqual(["Bearer ttk_test_secret"]);
+  expect(authorizations).toEqual(["Bearer ak_test_secret"]);
 });
 
 test("derives search, match, screen, and list contracts from the server router", async () => {
@@ -78,7 +78,7 @@ test("derives search, match, screen, and list contracts from the server router",
     port: 0,
   });
   const client = createTmterminalClient({
-    apiKey: "ttk_test_secret",
+    apiKey: "ak_test_secret",
     baseUrl: `http://127.0.0.1:${server.port}`,
   });
   const search: TrademarkSearchInput = {
@@ -137,7 +137,7 @@ test("exposes safe service status without the internal sync namespace", async ()
     port: 0,
   });
   const client = createTmterminalClient({
-    apiKey: "ttk_test_secret",
+    apiKey: "ak_test_secret",
     baseUrl: `http://127.0.0.1:${server.port}`,
   });
 
@@ -170,7 +170,7 @@ test("maps transport failures into one stable public error", async () => {
     port: 0,
   });
   const client = createTmterminalClient({
-    apiKey: "ttk_test_secret",
+    apiKey: "ak_test_secret",
     baseUrl: `http://127.0.0.1:${server.port}`,
   });
 
@@ -194,7 +194,7 @@ test("maps connection failures without a server response", async () => {
     { preconnect: globalThis.fetch.preconnect }
   );
   const client = createTmterminalClient({
-    apiKey: "ttk_test_secret",
+    apiKey: "ak_test_secret",
     baseUrl: "https://unreachable.example",
     fetch: failedFetch,
   });

@@ -25,7 +25,7 @@ import { Menu, MenuLinkItem, MenuPopup, MenuTrigger } from "@/components/ui/menu
 import { cn } from "@/lib/utils";
 import type { AppRouter } from "../../server/src/api/router.ts";
 import { AccountMenu } from "./account-menu.tsx";
-import { type AccountApi, AccountPage, type AccountPreferencesApi } from "./account-page.tsx";
+import { AccountPage, type AccountPreferencesApi } from "./account-page.tsx";
 import { appearanceChangedEvent, applyAppearance, savedAppearance } from "./appearance.ts";
 import { type BulkCheckApi, BulkCheckPage } from "./bulk-check-page.tsx";
 import { CheckTextPage, type TextCheckApi } from "./check-text-page.tsx";
@@ -147,12 +147,9 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
       }),
     [getToken]
   );
-  const accountApi = useMemo<AccountApi & AccountPreferencesApi>(
+  const accountApi = useMemo<AccountPreferencesApi>(
     () => ({
-      create: (name) => client.account["api-keys"].create.mutate({ name }),
       getPreferences: () => client.account.preferences.get.query(),
-      list: () => client.account["api-keys"].list.query(),
-      revoke: (id) => client.account["api-keys"].revoke.mutate({ id }),
       updatePreferences: (preferences) => client.account.preferences.update.mutate(preferences),
     }),
     [client]
@@ -297,7 +294,6 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
   } else if (location.pathname === "/account") {
     page = (
       <AccountPage
-        api={accountApi}
         onUpdatePreferences={updateSearchPreferences}
         preferences={searchPreferences}
         preferencesError={searchPreferencesError}

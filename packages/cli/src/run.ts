@@ -4,14 +4,13 @@ import { BadRequestError, CliError } from "./cli-error.js";
 import { type CliCommand, parseCli } from "./program.js";
 
 const defaultOrigin = "https://tmterminal.merchbase.co";
-const tokenPattern =
-  /^ttk_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_[A-Za-z0-9_-]{43}$/;
+const tokenPattern = /^ak_\S+$/;
 const unicodeWordTokens = /[\p{Letter}\p{Mark}\p{Number}]+/gu;
 
 export interface Keychain {
-  clear: (origin: string) => Promise<void>;
-  get: (origin: string) => Promise<string | null>;
-  set: (origin: string, token: string) => Promise<void>;
+  clear: () => Promise<void>;
+  get: () => Promise<string | null>;
+  set: (token: string) => Promise<void>;
 }
 
 export type CliClient = Pick<TmterminalClient, "account" | "status" | "trademarks">;
@@ -69,11 +68,11 @@ function configuredOrigin(dependencies: CliDependencies, explicitOrigin?: string
   return normalizeOrigin(explicitOrigin ?? dependencies.env.TMTERMINAL_BASE_URL ?? defaultOrigin);
 }
 
-async function credential(dependencies: CliDependencies, origin: string) {
-  if (dependencies.env.TMTERMINAL_API_KEY !== undefined) {
-    return { source: "environment" as const, token: dependencies.env.TMTERMINAL_API_KEY };
+async function credential(dependencies: CliDependencies) {
+  if (dependencies.env.MERCHBASE_API_KEY !== undefined) {
+    return { source: "environment" as const, token: dependencies.env.MERCHBASE_API_KEY };
   }
-  const token = await dependencies.keychain.get(origin);
+  const token = await dependencies.keychain.get();
   if (!token) {
     throw new CliError("UNAUTHORIZED", "Authentication required");
   }
@@ -82,7 +81,7 @@ async function credential(dependencies: CliDependencies, origin: string) {
 
 async function authenticatedClient(dependencies: CliDependencies, explicitOrigin?: string) {
   const origin = configuredOrigin(dependencies, explicitOrigin);
-  const selected = await credential(dependencies, origin);
+  const selected = await credential(dependencies);
   const client = dependencies.createClient({ apiKey: selected.token, baseUrl: origin });
   return { client, origin, selected };
 }
@@ -119,14 +118,14 @@ export async function runCli(args: string[], dependencies: CliDependencies): Pro
         invocation.readsStdin ? dependencies.stdin : await dependencies.promptSecret()
       ).trim();
       if (!tokenPattern.test(token)) {
-        throw new BadRequestError("Invalid Trademark Terminal API key");
+        throw new BadRequestError("Invalid Merchbase API key");
       }
-      await dependencies.keychain.set(origin, token);
+      await dependencies.keychain.set(token);
       return success({ origin });
     }
     if (invocation.kind === "auth-clear") {
       const origin = configuredOrigin(dependencies, parsed.baseUrl);
-      await dependencies.keychain.clear(origin);
+      await dependencies.keychain.clear();
       return success({ origin });
     }
 
@@ -144,7 +143,6 @@ export async function runCli(args: string[], dependencies: CliDependencies): Pro
         return success({
           origin: authenticated.origin,
           credentialSource: authenticated.selected.source,
-          keySuffix: account.credential.suffix,
           accountId: account.accountId,
         });
       }

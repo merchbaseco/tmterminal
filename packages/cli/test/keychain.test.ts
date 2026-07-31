@@ -10,23 +10,15 @@ test("writes a Keychain token through stdin instead of process arguments", async
   };
   const keychain = createMacOsKeychain(command);
 
-  await keychain.set("https://example.com", "ttk_secret");
+  await keychain.set("ak_shared_secret");
 
   expect(calls).toEqual([
     {
-      args: [
-        "add-generic-password",
-        "-a",
-        "https://example.com",
-        "-s",
-        "co.merchbase.tmterminal",
-        "-U",
-        "-w",
-      ],
-      stdin: "ttk_secret\n",
+      args: ["add-generic-password", "-a", "api-key", "-s", "co.merchbase.cli", "-U", "-w"],
+      stdin: "ak_shared_secret\n",
     },
   ]);
-  expect(calls[0]?.args).not.toContain("ttk_secret");
+  expect(calls[0]?.args).not.toContain("ak_shared_secret");
 });
 
 test("clearing a missing Keychain credential is idempotent", async () => {
@@ -34,5 +26,5 @@ test("clearing a missing Keychain credential is idempotent", async () => {
     Promise.resolve({ exitCode: 44, stderr: "not found", stdout: "" })
   );
 
-  await expect(keychain.clear("https://example.com")).resolves.toBeUndefined();
+  await expect(keychain.clear()).resolves.toBeUndefined();
 });

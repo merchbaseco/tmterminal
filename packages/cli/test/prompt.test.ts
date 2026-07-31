@@ -24,9 +24,9 @@ test("interactive API key input is hidden from terminal output", async () => {
   output.isTTY = true;
 
   const answer = readHiddenApiKey(input, output);
-  input.end("ttk_hidden_secret\n");
+  input.end("ak_hidden_secret\n");
 
-  await expect(answer).resolves.toBe("ttk_hidden_secret");
+  await expect(answer).resolves.toBe("ak_hidden_secret");
   expect(outputText).toBe("API key: \n");
   expect(rawModes).toEqual([true, false]);
   expect(input.isPaused()).toBe(true);

@@ -1,5 +1,12 @@
 # Trademark Terminal CLI Changelog
 
+## Unreleased
+
+- Use only the suite-wide `MERCHBASE_API_KEY` environment variable and shared
+  Merchbase Keychain credential for customer authentication.
+- Reject legacy Trademark Terminal keys and product-specific credential
+  fallbacks.
+
 ## v3.0.0 - 2026-07-25
 
 - Rename the service to Trademark Terminal. The CLI publishes as

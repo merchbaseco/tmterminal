@@ -3,8 +3,7 @@ import { TmterminalError, type Trademark, type TrademarkSearchPage } from "@tmte
 
 import { type CliClient, type CliDependencies, runCli } from "../src/run.ts";
 
-const token =
-  "ttk_11111111-1111-4111-8111-111111111111_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+const token = "ak_test_shared_merchbase_key";
 const trademark = {
   classes: [{ internationalCode: "025", statusCode: "6", statusDate: "2010-04-08" }],
   goodsServices: [{ text: "pistols", typeCode: "GS0091" }],
@@ -116,16 +115,16 @@ test("unknown commands return one JSON error on stderr", async () => {
   });
 });
 
-test("auth set stores stdin against the explicit normalized origin without echoing it", async () => {
-  const stored: Array<{ origin: string; token: string }> = [];
+test("auth set stores stdin in the shared Keychain entry without echoing it", async () => {
+  const stored: string[] = [];
   const result = await runCli(
     ["auth", "set", "--stdin", "--base-url", "https://EXAMPLE.com:443/"],
     dependencies({
       keychain: {
         clear: () => Promise.resolve(),
         get: () => Promise.resolve(null),
-        set: (origin, value) => {
-          stored.push({ origin, token: value });
+        set: (value) => {
+          stored.push(value);
           return Promise.resolve();
         },
       },
@@ -133,7 +132,7 @@ test("auth set stores stdin against the explicit normalized origin without echoi
     })
   );
 
-  expect(stored).toEqual([{ origin: "https://example.com", token }]);
+  expect(stored).toEqual([token]);
   expect(json(result)).toEqual({ data: { origin: "https://example.com" }, ok: true });
   expect(result.stdout).not.toContain(token);
 });
@@ -147,7 +146,7 @@ test("auth set prompts for a hidden API key when stdin is not selected", async (
       keychain: {
         clear: () => Promise.resolve(),
         get: () => Promise.resolve(null),
-        set: (_origin: string, value: string) => {
+        set: (value) => {
           stored.push(value);
           return Promise.resolve();
         },
@@ -179,13 +178,13 @@ test("global origin overrides environment origin", async () => {
             get: () =>
               Promise.resolve({
                 accountId: "account-1",
-                credential: { keyId: "key-1", suffix: "AAAAAA", type: "api-key" },
+                credential: { type: "api-key" },
               }),
           },
         });
       },
       env: {
-        TMTERMINAL_API_KEY: token,
+        MERCHBASE_API_KEY: token,
         TMTERMINAL_BASE_URL: "https://environment.example",
       },
     })
@@ -198,8 +197,8 @@ test("global origin overrides environment origin", async () => {
   });
 });
 
-test("auth status uses the selected origin's Keychain credential", async () => {
-  const reads: string[] = [];
+test("auth status uses the shared Keychain credential", async () => {
+  let reads = 0;
   const result = await runCli(
     ["auth", "status"],
     dependencies({
@@ -209,15 +208,15 @@ test("auth status uses the selected origin's Keychain credential", async () => {
             get: () =>
               Promise.resolve({
                 accountId: "account-2",
-                credential: { keyId: "key-2", suffix: "AAAAAA", type: "api-key" },
+                credential: { type: "api-key" },
               }),
           },
         }),
       env: { TMTERMINAL_BASE_URL: "https://service.example/" },
       keychain: {
         clear: () => Promise.resolve(),
-        get: (origin) => {
-          reads.push(origin);
+        get: () => {
+          reads += 1;
           return Promise.resolve(token);
         },
         set: () => Promise.resolve(),
@@ -225,19 +224,19 @@ test("auth status uses the selected origin's Keychain credential", async () => {
     })
   );
 
-  expect(reads).toEqual(["https://service.example"]);
+  expect(reads).toBe(1);
   expect(json(result).data.credentialSource).toBe("keychain");
 });
 
-test("auth clear is scoped to the selected origin", async () => {
-  const cleared: string[] = [];
+test("auth clear removes the shared Keychain credential", async () => {
+  let cleared = 0;
   const result = await runCli(
     ["auth", "clear"],
     dependencies({
       env: { TMTERMINAL_BASE_URL: "https://SERVICE.example:443/" },
       keychain: {
-        clear: (origin) => {
-          cleared.push(origin);
+        clear: () => {
+          cleared += 1;
           return Promise.resolve();
         },
         get: () => Promise.resolve(null),
@@ -246,7 +245,7 @@ test("auth clear is scoped to the selected origin", async () => {
     })
   );
 
-  expect(cleared).toEqual(["https://service.example"]);
+  expect(cleared).toBe(1);
   expect(json(result)).toEqual({ data: { origin: "https://service.example" }, ok: true });
 });
 
@@ -475,5 +474,5 @@ function authenticated(
   createClient: ClientFactory,
   overrides: Partial<Omit<CliDependencies, "createClient">> = {}
 ) {
-  return dependencies({ createClient, env: { TMTERMINAL_API_KEY: token }, ...overrides });
+  return dependencies({ createClient, env: { MERCHBASE_API_KEY: token }, ...overrides });
 }
