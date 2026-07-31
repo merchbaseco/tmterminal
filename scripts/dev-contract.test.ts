@@ -6,6 +6,17 @@ import { join } from "node:path";
 const productionDatabaseBinding = /"127\.0\.0\.1:\$\{TMTERMINAL_DATABASE_PORT:-5437\}:5432"/;
 const sessionHookCommand = /^\$\{CLAUDE_PROJECT_DIR\}\/scripts\/claude-session-start$/;
 const containerRuntimeCommand = /\bdocker\b|\bcompose\b/;
+const barePrivatePackageInstall = /^\s*bun install --frozen-lockfile\s*$/m;
+
+test("the Codex setup authenticates private package installation", async () => {
+  const environment = await readFile(
+    new URL("../.codex/environments/environment.toml", import.meta.url),
+    "utf8"
+  );
+
+  expect(environment).toContain('NODE_AUTH_TOKEN="$(gh auth token)" bun install --frozen-lockfile');
+  expect(environment).not.toMatch(barePrivatePackageInstall);
+});
 
 test("production publishes the development database port on loopback only", async () => {
   const compose = await readFile(new URL("../compose.yml", import.meta.url), "utf8");
@@ -131,7 +142,18 @@ async function runSessionStart(installed: boolean) {
   await Bun.write(
     join(bin, "bun"),
     `#!/bin/sh
-printf '%s\\n' "$*" >> "$FAKE_INSTALL_LOG"
+if test -n "\${NODE_AUTH_TOKEN:-}"; then
+  printf 'authenticated|%s\\n' "$*" >> "$FAKE_INSTALL_LOG"
+else
+  printf 'missing-auth|%s\\n' "$*" >> "$FAKE_INSTALL_LOG"
+fi
+`
+  );
+  await Bun.write(
+    join(bin, "gh"),
+    `#!/bin/sh
+test "$1 $2" = "auth token"
+printf 'test-package-token\\n'
 `
   );
   await Bun.write(
@@ -143,6 +165,7 @@ printf '{"version":"0.0.1","configurations":[{"name":"%s","runtimeExecutable":"%
 `
   );
   await chmod(join(bin, "bun"), 0o755);
+  await chmod(join(bin, "gh"), 0o755);
   await chmod(join(bin, "dev-port"), 0o755);
 
   const process = Bun.spawn(["/bin/sh", join(root, "scripts", "claude-session-start")], {
@@ -173,7 +196,7 @@ test("the session hook prepares a fresh checkout for the dev preview", async () 
   const { exitCode, installs, launch, stdout } = await runSessionStart(false);
 
   expect(exitCode).toBe(0);
-  expect(installs).toEqual(["install --frozen-lockfile"]);
+  expect(installs).toEqual(["authenticated|install --frozen-lockfile"]);
   expect(stdout).toContain("Missing .env");
   expect(launch.configurations).toEqual([
     { name: "dev", port: 4100, runtimeArgs: [], runtimeExecutable: "./scripts/dev" },

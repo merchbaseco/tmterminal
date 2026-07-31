@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
 import { buildServer } from "../../src/api/server.ts";
+import { fakeTmterminalAccess } from "../fake-access.ts";
 
 describe("GET /api/health", () => {
   const servers: Awaited<ReturnType<typeof buildServer>>[] = [];
@@ -11,6 +12,7 @@ describe("GET /api/health", () => {
 
   test("returns a safe unavailable response when PostgreSQL cannot be reached", async () => {
     const server = await buildServer({
+      access: fakeTmterminalAccess(),
       databaseUrl: "postgres://postgres:postgres@127.0.0.1:1/tmterminal",
       logger: false,
     });
@@ -24,6 +26,7 @@ describe("GET /api/health", () => {
 
   test("does not expose server stacks from the empty public router", async () => {
     const server = await buildServer({
+      access: fakeTmterminalAccess(),
       databaseUrl: "postgres://postgres:postgres@127.0.0.1:1/tmterminal",
       logger: false,
     });

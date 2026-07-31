@@ -1,6 +1,7 @@
 import type { Keychain } from "./run.js";
 
-const service = "co.merchbase.tmterminal";
+const account = "api-key";
+const service = "co.merchbase.cli";
 
 export type SecurityCommand = (
   args: string[],
@@ -59,8 +60,8 @@ function failed(result: Awaited<ReturnType<SecurityCommand>>) {
 
 export function createMacOsKeychain(command: SecurityCommand = security): Keychain {
   return {
-    async clear(origin) {
-      const result = await command(["delete-generic-password", "-a", origin, "-s", service]);
+    async clear() {
+      const result = await command(["delete-generic-password", "-a", account, "-s", service]);
       if (result.exitCode === 44) {
         return;
       }
@@ -68,8 +69,8 @@ export function createMacOsKeychain(command: SecurityCommand = security): Keycha
         throw failed(result);
       }
     },
-    async get(origin) {
-      const result = await command(["find-generic-password", "-a", origin, "-s", service, "-w"]);
+    async get() {
+      const result = await command(["find-generic-password", "-a", account, "-s", service, "-w"]);
       if (result.exitCode === 44) {
         return null;
       }
@@ -78,9 +79,9 @@ export function createMacOsKeychain(command: SecurityCommand = security): Keycha
       }
       return result.stdout.trim();
     },
-    async set(origin, token) {
+    async set(token) {
       const result = await command(
-        ["add-generic-password", "-a", origin, "-s", service, "-U", "-w"],
+        ["add-generic-password", "-a", account, "-s", service, "-U", "-w"],
         `${token}\n`
       );
       if (result.exitCode !== 0) {

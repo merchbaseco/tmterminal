@@ -19,7 +19,7 @@ data; the website, HTTP client, and CLI consume the server contract.
 | `apps/web` | Private Vite/React website using Clerk and TanStack Query. |
 | `packages/http-client` | Published typed client derived from the server router. |
 | `packages/cli` | Published `tt` JSON automation client. |
-| PostgreSQL | Accounts, keys, roles, source state, current trademark knowledge, and data version. |
+| PostgreSQL | Accounts, Access Projections, roles, source state, current trademark knowledge, and data version. |
 | Artifact store | Temporary checksummed ZIP bytes reserved by source artifact. |
 
 The API and worker use the same server image with different entrypoints. The API
@@ -41,14 +41,18 @@ and CLI do not define parallel DTOs or search semantics.
 
 Credential selection happens before procedures run:
 
-1. Reject a request containing both Clerk and API-key credentials.
-2. Verify the selected credential.
-3. Resolve one local account.
-4. Apply procedure-specific authorization.
+1. Select the credential kinds accepted by the route.
+2. Verify the Clerk session, User API Key, or OAuth token with
+   `@merchbaseco/access`.
+3. Resolve the known issuer and subject through the local Access Projection.
+4. Require granted fixed-service access for `tmterminal`.
+5. Resolve one local account by stable Merchbase User ID.
+6. Apply procedure-specific authorization.
 
-Clerk identities are keyed by stable Clerk user ID. API keys store only a
-SHA-256 secret hash and display suffix. Source operations additionally require a
-database role; navigation visibility is not authorization.
+The dashboard route accepts sessions and User API Keys. The separate OAuth route
+accepts only OAuth tokens. Source operations additionally require a session and
+database role; navigation visibility is not authorization. See
+[Access boundary](access-boundary.md).
 
 ## Data Boundary
 

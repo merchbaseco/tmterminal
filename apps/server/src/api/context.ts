@@ -1,10 +1,9 @@
+import { ServiceAccessError, type ServiceAccessErrorCode } from "@merchbaseco/access";
 import { TRPCError } from "@trpc/server";
 import type postgres from "postgres";
 
-import type { VerifyClerkToken } from "../auth/clerk-verifier.ts";
-import { CredentialSelectionError, selectCredential } from "../auth/select-credential.ts";
-import { accountIsOperator, resolveClerkAccount } from "../queries/account-repository.ts";
-import { authenticateApiKey } from "../queries/api-key-repository.ts";
+import type { TmterminalAccess } from "../auth/service-access.ts";
+import { accountIsOperator } from "../queries/account-repository.ts";
 import { createAccountService } from "../services/account-service.ts";
 import { createMarksService } from "../services/marks-service.ts";
 import { createOperatorSyncService } from "../services/operator-sync-service.ts";
@@ -13,12 +12,23 @@ import type { AuthenticatedAccount } from "./contracts.ts";
 import type { AppContext } from "./router.ts";
 
 interface CreateContextOptions {
+  access: TmterminalAccess["customer"] | TmterminalAccess["oauth"];
   authorization?: string;
-  cookie?: string;
   database: postgres.Sql;
-  devOperatorClerkUserId?: string;
-  verifyClerkToken: VerifyClerkToken;
+  devOperatorMerchbaseUserId?: string;
 }
+
+const bearerPattern = /^Bearer (\S+)$/i;
+const accessErrorResponse = {
+  access_denied: { code: "FORBIDDEN", message: "Access denied" },
+  access_unavailable: { code: "SERVICE_UNAVAILABLE", message: "Access unavailable" },
+  insufficient_scope: { code: "FORBIDDEN", message: "Insufficient scope" },
+  unauthenticated: { code: "UNAUTHORIZED", message: "Invalid credential" },
+  unknown_service: { code: "SERVICE_UNAVAILABLE", message: "Access unavailable" },
+} as const satisfies Record<
+  ServiceAccessErrorCode,
+  { code: "FORBIDDEN" | "SERVICE_UNAVAILABLE" | "UNAUTHORIZED"; message: string }
+>;
 
 function context(
   database: postgres.Sql,
@@ -36,56 +46,49 @@ function context(
 }
 
 export async function createAppContext({
+  access,
   authorization,
-  cookie,
   database,
-  devOperatorClerkUserId,
-  verifyClerkToken,
+  devOperatorMerchbaseUserId,
 }: CreateContextOptions): Promise<AppContext> {
-  let selected: ReturnType<typeof selectCredential>;
-
-  try {
-    selected = selectCredential({ authorization, cookie });
-  } catch (error) {
-    if (error instanceof CredentialSelectionError) {
-      // biome-ignore lint/style/useErrorCause: TRPCError receives the original cause in its options.
-      throw new TRPCError({
-        cause: error,
-        code: "BAD_REQUEST",
-        message: "Select exactly one credential",
-      });
-    }
-    throw error;
-  }
-
-  if (!selected) {
+  const credential = bearerCredential(authorization);
+  if (!credential) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: "Authentication required" });
   }
 
-  if (selected.type === "api-key") {
-    const key = await authenticateApiKey(database, selected.token);
-    if (!key) {
-      throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid credential" });
-    }
-    return context(
-      database,
-      {
-        accountId: key.accountId,
-        credential: { keyId: key.keyId, suffix: key.suffix, type: "api-key" },
-      },
-      false
-    );
+  let authorized: Awaited<ReturnType<typeof access.authorize>>;
+  try {
+    authorized = await access.authorize(credential);
+  } catch (error) {
+    throw accessError(error);
   }
 
-  const clerkUserId = await verifyClerkToken(selected.token);
-  if (!clerkUserId) {
-    throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid credential" });
-  }
+  const auth: AuthenticatedAccount = {
+    accountId: authorized.principal.accountId,
+    credential: {
+      type: authorized.credentialKind === "api_key" ? "api-key" : authorized.credentialKind,
+    },
+  };
+  const operator =
+    (auth.credential.type === "session" &&
+      authorized.merchbaseUserId === devOperatorMerchbaseUserId) ||
+    (auth.credential.type === "session" &&
+      (await accountIsOperator(database, authorized.principal.accountId)));
 
-  const accountId = await resolveClerkAccount(database, clerkUserId);
-  return context(
-    database,
-    { accountId, credential: { type: "clerk" } },
-    clerkUserId === devOperatorClerkUserId || (await accountIsOperator(database, accountId))
-  );
+  return context(database, auth, operator);
+}
+
+function bearerCredential(authorization: string | undefined) {
+  return authorization?.match(bearerPattern)?.[1] ?? null;
+}
+
+function accessError(error: unknown) {
+  if (!(error instanceof ServiceAccessError)) {
+    return new TRPCError({
+      cause: error,
+      code: "SERVICE_UNAVAILABLE",
+      message: "Access unavailable",
+    });
+  }
+  return new TRPCError({ cause: error, ...accessErrorResponse[error.code] });
 }

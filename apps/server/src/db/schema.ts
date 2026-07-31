@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   bigint,
+  check,
   date,
   foreignKey,
   index,
@@ -45,11 +46,44 @@ export const workerActivity = pgEnum("worker_activity", [
 export const account = pgTable("account", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   id: uuid("id").primaryKey(),
+  merchbaseUserId: text("merchbase_user_id").unique(),
   name: varchar("name", { length: 80 }).unique(),
   searchPreferences: jsonb("search_preferences")
     .$type<SearchPreferences>()
     .notNull()
     .default(defaultSearchPreferences),
+});
+
+export const accessProjection = pgTable(
+  "access_projection",
+  {
+    access: text("access"),
+    accessValidUntil: timestamp("access_valid_until", { withTimezone: true }),
+    issuer: text("issuer").notNull(),
+    merchbaseUserId: text("merchbase_user_id"),
+    sourceUpdatedAt: bigint("source_updated_at", { mode: "number" }).notNull(),
+    subject: text("subject").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.issuer, table.subject] }),
+    uniqueIndex("access_projection_merchbase_user_id_unique")
+      .on(table.merchbaseUserId)
+      .where(sql`${table.merchbaseUserId} is not null`),
+    check(
+      "access_projection_state_check",
+      sql`(
+        (${table.merchbaseUserId} is null and ${table.access} is null and ${table.accessValidUntil} is null)
+        or
+        (${table.merchbaseUserId} is not null and ${table.access} in ('granted', 'not_granted'))
+      )`
+    ),
+  ]
+);
+
+export const accessProjectionReceipt = pgTable("access_projection_receipt", {
+  eventId: text("event_id").primaryKey(),
+  receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const clerkIdentity = pgTable(

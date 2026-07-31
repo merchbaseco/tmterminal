@@ -12,7 +12,7 @@ The CLI requires Bun 1.3.5 or newer.
 bun add --global @tmterminal/cli
 ```
 
-Store a Trademark Terminal API key interactively in macOS Keychain:
+Store a suite-wide Merchbase API key in the shared macOS Keychain entry:
 
 ```sh
 tt auth set
@@ -21,7 +21,7 @@ tt auth set
 For non-interactive setup:
 
 ```sh
-printf '%s' "$TMTERMINAL_API_KEY" | tt auth set --stdin
+printf '%s' "$MERCHBASE_API_KEY" | tt auth set --stdin
 ```
 
 ## Use

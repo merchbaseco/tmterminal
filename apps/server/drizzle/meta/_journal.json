@@ -204,6 +204,13 @@
       "when": 1785015295934,
       "tag": "0028_backfill-search-preferences",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1785520759570,
+      "tag": "0029_abnormal_earthquake",
+      "breakpoints": true
     }
   ]
 }

@@ -13,4 +13,5 @@ refactoring.
 | System | Doc |
 | --- | --- |
 | Workspace, applications, clients, auth, and persistence | [Architecture](architecture.md) |
+| Clerk credentials, Access Projections, and stable service accounts | [Access boundary](access-boundary.md) |
 | Source discovery, download, validation, application, cleanup, and restart | [Ingestion](ingestion.md) |

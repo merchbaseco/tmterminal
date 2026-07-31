@@ -1,9 +1,14 @@
+import { createConfiguredCustomerAccess } from "./auth/service-access.ts";
 import { createDatabaseClient } from "./db/client.ts";
 import { createIngestionScheduler } from "./ingestion/ingestion-scheduler.ts";
 import { createLocalArtifactStore } from "./ingestion/local-artifact-store.ts";
 import { createOdpSourceCatalog } from "./ingestion/odp-source-catalog.ts";
 import { createTrademarkIngestion } from "./ingestion/trademark-ingestion.ts";
 import { extractZipXml } from "./ingestion/zip-artifact-xml.ts";
+import {
+  createAccessReconciliationScheduler,
+  reconcileActiveProjectionAccess,
+} from "./services/access-reconciliation.ts";
 import { createSyncService } from "./services/sync-service.ts";
 import { isWorkerReady } from "./worker-readiness.ts";
 
@@ -26,6 +31,7 @@ function milliseconds(name: string, fallback: number) {
 }
 
 const database = createDatabaseClient(databaseUrl);
+const access = createConfiguredCustomerAccess(database);
 const healthFile = "/tmp/tmterminal-worker-ready";
 const requestTimeoutMs = milliseconds("USPTO_REQUEST_TIMEOUT_MS", 15 * 60 * 1000);
 const artifactStore = createLocalArtifactStore(
@@ -48,6 +54,10 @@ const scheduler = createIngestionScheduler({
   reconcile: () => ingestion.reconcile(),
 });
 const sync = createSyncService(database);
+const accessReconciliation = createAccessReconciliationScheduler({
+  onError: (error) => console.error("Access reconciliation error", error),
+  reconcile: () => reconcileActiveProjectionAccess(database, access),
+});
 let stopping = false;
 let heartbeatTimer: Timer | undefined;
 let firstReconciliationComplete = false;
@@ -74,6 +84,7 @@ async function stop() {
   if (heartbeatTimer) {
     clearInterval(heartbeatTimer);
   }
+  await accessReconciliation.stop();
   await scheduler.stop();
   await database.end({ timeout: 1 });
   process.exit(0);
@@ -88,6 +99,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 await Bun.write(healthFile, "0");
 await checkDatabase();
 await ingestion.initialize();
+accessReconciliation.start();
 heartbeatTimer = setInterval(() => {
   refreshHealth().catch(async (error) => {
     console.error("Worker database readiness failed", error);

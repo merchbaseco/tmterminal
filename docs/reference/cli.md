@@ -29,14 +29,15 @@ tt auth status
 tt auth clear
 ```
 
-`auth set` prompts for one hidden `ttk_...` token and stores it in macOS
-Keychain. `--stdin` selects non-interactive input for scripts. Secrets never
+`auth set` prompts for one hidden suite-wide Merchbase API key and stores it in
+the shared macOS Keychain item (`co.merchbase.cli`, account `api-key`). `--stdin`
+selects non-interactive input for scripts. Secrets never
 enter positional arguments, flags, config files, normal output, or logs.
 
 Credential precedence:
 
-1. `TMTERMINAL_API_KEY`
-2. Keychain entry for the normalized base URL
+1. `MERCHBASE_API_KEY`
+2. Shared Merchbase Keychain item
 
 Base URL precedence:
 
@@ -46,7 +47,7 @@ Base URL precedence:
 
 An invalid selected credential fails. The CLI never falls back to another
 source. `auth status` validates through `account.me` and returns origin,
-credential source, key suffix, and account context without the token.
+credential source, and account context without the token.
 
 ## Commands
 

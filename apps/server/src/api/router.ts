@@ -27,15 +27,15 @@ export interface AppContext {
 }
 
 const t = initTRPC.context<AppContext>().create({ isDev: false });
-const clerkProcedure = t.procedure.use(({ ctx, next }) => {
-  if (ctx.auth.credential.type !== "clerk") {
-    throw new TRPCError({ code: "FORBIDDEN", message: "Clerk authentication required" });
+const sessionProcedure = t.procedure.use(({ ctx, next }) => {
+  if (ctx.auth.credential.type !== "session") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Clerk session required" });
   }
   return next({ ctx });
 });
 
 const operatorProcedure = t.procedure.use(({ ctx, next }) => {
-  if (ctx.auth.credential.type !== "clerk" || !ctx.operator) {
+  if (ctx.auth.credential.type !== "session" || !ctx.operator) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Operator access required" });
   }
   return next({ ctx });
@@ -48,23 +48,10 @@ const operatorPageInput = z.object({
 });
 
 const accountRouter = t.router({
-  "api-keys": t.router({
-    create: clerkProcedure
-      .input(z.object({ name: z.string().trim().min(1).max(80) }))
-      .mutation(({ ctx, input }) => ctx.account.createApiKey(input.name)),
-    list: clerkProcedure.query(({ ctx }) => ctx.account.listApiKeys()),
-    revoke: clerkProcedure.input(z.object({ id: z.uuid() })).mutation(async ({ ctx, input }) => {
-      const revoked = await ctx.account.revokeApiKey(input.id);
-      if (!revoked) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "API key not found" });
-      }
-      return revoked;
-    }),
-  }),
   me: t.procedure.query(({ ctx }) => ctx.auth),
   preferences: t.router({
-    get: clerkProcedure.query(({ ctx }) => ctx.account.getSearchPreferences()),
-    update: clerkProcedure
+    get: sessionProcedure.query(({ ctx }) => ctx.account.getSearchPreferences()),
+    update: sessionProcedure
       .input(searchPreferencesSchema)
       .mutation(({ ctx, input }) => ctx.account.updateSearchPreferences(input)),
   }),
@@ -129,7 +116,7 @@ export const appRouter = t.router({
   }),
   sync: syncRouter,
   viewer: t.router({
-    role: clerkProcedure.query(({ ctx }) => ({ operator: ctx.operator })),
+    role: sessionProcedure.query(({ ctx }) => ({ operator: ctx.operator })),
   }),
 });
 

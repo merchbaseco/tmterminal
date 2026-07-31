@@ -22,9 +22,16 @@ implementation changes the router.
 | Trademark reads | Clerk session or API key. |
 | Safe sync status | Clerk session or API key. |
 | Account identity | Clerk session or API key. |
-| API-key list, create, revoke | Clerk session. |
+| Search preferences | Clerk session. |
 | Operator source status and artifact pages | Clerk session plus operator role. |
+| `/api/oauth/trpc` customer procedures | Clerk OAuth access token. |
+| `/api/webhooks/clerk` | Public transport; verified Svix signature required. |
 | `/api/health` | Anonymous; process and database readiness only. |
+
+API keys are suite-wide Clerk User API Keys. All protected routes evaluate
+service `tmterminal` through the local Access Projection. Invalid credentials
+return 401, valid but denied credentials return 403, and unavailable access
+dependencies return 503. No route accepts a legacy Trademark Terminal key.
 
 ## Trademarks
 
@@ -77,17 +84,12 @@ changes while paging.
 
 | Procedure | Contract |
 | --- | --- |
-| `account.me` | Validate the selected credential and return safe account/key context. |
-| `account.api-keys.list` | Usable keys with name, suffix, creation, and last use. |
-| `account.api-keys.create` | Create a named key and return its raw token exactly once. |
-| `account.api-keys.revoke` | Idempotently revoke one owned key and return its ID. |
+| `account.me` | Validate the selected credential and return account ID plus credential kind. |
 | `account.preferences.get` | Return the account's match, status, type, registration, and sort defaults plus result density and results-per-load preference. |
 | `account.preferences.update` | Replace the complete validated search preference document. New searches inherit these defaults only when their URL does not provide an explicit value. |
 
-API-key token shape is `ttk_<key-id>_<secret>`. The database stores only the
-secret hash and display suffix. Verification uses timing-safe comparison;
-last-used updates are coalesced. Revocation hides the key from account reads and
-retains an internal tombstone so the old credential remains invalid.
+API-key management belongs to the
+[Merchbase Account Center](https://merchbase.co/account/api-keys/).
 
 ## Source Operations
 

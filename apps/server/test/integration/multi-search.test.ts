@@ -7,6 +7,7 @@ import type { ProjectedMark } from "../../src/ingestion/mark-types.ts";
 import { readTrademarkApplicationActivity } from "../../src/queries/operator-sync-repository.ts";
 import { buildSearchQueries } from "../../src/queries/search.ts";
 import { createOperatorSyncService } from "../../src/services/operator-sync-service.ts";
+import { authorizedAccess, fakeTmterminalAccess } from "../fake-access.ts";
 import { resetTestDatabase } from "./test-database.ts";
 import { createTestMarkRepository } from "./test-mark-repository.ts";
 
@@ -256,10 +257,26 @@ beforeAll(async () => {
         1, '2026-01-03', '2026-01-03', '2026-07-18T01:00:00Z')
   `;
   server = await buildServer({
+    access: fakeTmterminalAccess({
+      customer: (token) => {
+        let credentialKind: "api_key" | "session" | undefined;
+        if (token === "clerk-session") {
+          credentialKind = "session";
+        } else if (token === "ak_shared") {
+          credentialKind = "api_key";
+        }
+        if (!credentialKind) {
+          return Promise.reject(new Error("Unexpected test credential"));
+        }
+        return Promise.resolve(
+          authorizedAccess("00000000-0000-4000-8000-000000000001", "mbu_prd65", credentialKind)
+        );
+      },
+    }),
     databaseUrl,
     devClerkSignIn: { createToken: async () => "unused", userId: "user_prd65" },
+    devOperatorMerchbaseUserId: "mbu_prd65",
     logger: false,
-    verifyClerkToken: async (token) => (token === "clerk-session" ? "user_prd65" : null),
   });
 }, 30_000);
 
@@ -668,16 +685,9 @@ test("text matching applies only its explicit mark type filter", async () => {
 });
 
 test("Multi returns the same page through Clerk and API-key credentials", async () => {
-  const created = await server.inject({
-    headers: { authorization: "Bearer clerk-session", "content-type": "application/json" },
-    method: "POST",
-    payload: { name: "PRD-65 parity" },
-    url: "/api/trpc/account.api-keys.create",
-  });
-  const token = created.json().result.data.token as string;
   const input = { mode: "multi", query: "terminal", status: "live" };
   const clerk = await search(input);
-  const apiKey = await search(input, `Bearer ${token}`);
+  const apiKey = await search(input, "Bearer ak_shared");
   const anonymous = await search(input, "");
 
   expect(apiKey.statusCode).toBe(200);

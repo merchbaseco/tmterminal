@@ -198,15 +198,6 @@ mock.module("@clerk/react", () => ({
 mock.module("@trpc/client", () => ({
   createTRPCClient: () => ({
     account: {
-      "api-keys": {
-        create: {
-          mutate: () => Promise.reject(new Error("not used")),
-        },
-        list: { query: async () => [] },
-        revoke: {
-          mutate: () => Promise.reject(new Error("not used")),
-        },
-      },
       preferences: {
         get: {
           query: async () => ({
@@ -561,7 +552,7 @@ test("shows operator details on the shared Status page", async () => {
   expect(screen.getByRole("link", { name: "Status" }).getAttribute("aria-current")).toBe("page");
 });
 
-test("Account navigation opens API-key management", async () => {
+test("Account navigation links to suite-wide API-key management", async () => {
   signedIn = true;
   render(<App />);
 
@@ -572,7 +563,9 @@ test("Account navigation opens API-key management", async () => {
   expect(scrollOffset).toBe(0);
   expect(await screen.findByRole("heading", { level: 1, name: "ACCOUNT" })).toBeTruthy();
   expect(screen.queryByText("zach@example.com")).toBeNull();
-  expect(screen.getByRole("button", { name: "Create API key" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: "Manage API keys" }).getAttribute("href")).toBe(
+    "https://merchbase.co/account/api-keys/"
+  );
   expect(screen.getByRole("link", { name: "Account" }).getAttribute("aria-current")).toBe("page");
 });
 

@@ -15,7 +15,7 @@ bun add @tmterminal/http-client
 import { createTmterminalClient } from "@tmterminal/http-client";
 
 const client = createTmterminalClient({
-  apiKey: process.env.TMTERMINAL_API_KEY!,
+  apiKey: process.env.MERCHBASE_API_KEY!,
 });
 
 const results = await client.trademarks.search({
