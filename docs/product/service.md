@@ -29,7 +29,6 @@ products.
 - Inspect mark identity, ownership, classes, goods, status, and provenance.
 - Inspect public source freshness and recent processing activity.
 - Inspect active ingestion issues as an operator.
-- Create and revoke API keys.
 - Persist account-level search defaults and result presentation preferences.
 
 Trademark data is informational, not legal advice. Users verify consequential
@@ -39,27 +38,28 @@ decisions with the USPTO or qualified counsel.
 
 Every data procedure requires one authenticated account context.
 
-- The website uses the shared MerchBase Clerk configuration.
-- The HTTP client and CLI use Trademark Terminal API keys.
-- API-key management requires a Clerk session.
+- The website uses a Clerk session.
+- The HTTP client and CLI use suite-wide Clerk User API Keys.
+- A separate OAuth tRPC endpoint accepts shared Clerk OAuth access tokens for
+  downstream Merchbase products.
 - Source diagnostics and operations require a Clerk session plus the
   database-backed operator role.
 - Process and database readiness plus aggregate source status are anonymous.
   Public status exposes catalog counts and processing activity, not mark records,
   source errors, or repair details.
 
-A request selects exactly one credential. Supplying Clerk and API-key
-credentials together is invalid; a failed credential never falls through to
-another mechanism.
+Every protected request verifies one route-appropriate Clerk credential through
+`@merchbaseco/access`, evaluates fixed service `tmterminal` against the local
+Access Projection, then resolves the existing Trademark Terminal account by
+stable Merchbase User ID. A failed credential never falls through to another
+mechanism.
 
 Signed-out visitors may compose a search. Submission starts Clerk sign-in,
 preserves the query, and executes it after authentication.
 
-API-key self-service lists usable keys with their name, suffix, creation, and
-last use. Creation asks for a name, shows the raw token exactly once, and
-requires acknowledgement that it was saved. Revocation is immediate and
-idempotent; the key disappears from the account while an internal tombstone
-continues to reject the old credential.
+API-key creation, inspection, and retirement belong to the
+[Merchbase Account Center](https://merchbase.co/account/api-keys/). Trademark
+Terminal does not issue or verify product-specific keys.
 Search preferences require a Clerk session and follow the account across website
 sessions. Shared search URLs retain their encoded options instead of being
 rewritten by account defaults.
@@ -68,7 +68,7 @@ rewritten by account defaults.
 
 | Surface | Role |
 | --- | --- |
-| Website | Private search, text matching, bulk screening, mark detail, and account management plus public Status and Help pages. |
+| Website | Private search, text matching, bulk screening, mark detail, preferences, and an Account Center link plus public Status and Help pages. |
 | `@tmterminal/http-client` | Typed programmatic access derived from the server router. |
 | `@tmterminal/cli` / `tt` | JSON-first shell automation over API-key-authorized procedures. |
 | MerchBase | Downstream consumer that owns its own adapter and product policy. |
@@ -92,6 +92,7 @@ V1 excludes:
 - design-mark image similarity;
 - non-US sources, assignments, or TTAB datasets;
 - a browser extension or custom dashboard framework.
+- organizations, custom scopes, identity relinking, or a product tenancy layer.
 
 ## Related
 

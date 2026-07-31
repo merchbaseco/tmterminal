@@ -91,11 +91,19 @@ fi
 
 deployment_workflow="$root/.github/workflows/deploy.yml"
 grep -qF 'HUGEICONS_LICENSE_KEY: ${{ secrets.HUGEICONS_LICENSE_KEY }}' "$deployment_workflow"
+grep -qF 'centralized-auth-cutover-approved:' "$deployment_workflow"
+grep -qF 'if: inputs.centralized-auth-cutover-approved == true' "$deployment_workflow"
+if grep -qF '  push:' "$deployment_workflow"; then
+  echo "centralized-auth release still deploys on main push" >&2
+  exit 1
+fi
 worker_stop_line="$(grep -nF 'docker compose --project-name tmterminal --env-file .env stop worker' "$deployment_workflow" | cut -d: -f1)"
 stack_start_line="$(grep -nF 'docker compose --project-name tmterminal --env-file .env up --detach --remove-orphans --wait' "$deployment_workflow" | cut -d: -f1)"
 test -n "$worker_stop_line"
 test -n "$stack_start_line"
 test "$worker_stop_line" -lt "$stack_start_line"
+
+grep -qF -- '--set=ON_ERROR_STOP=1' "$root/scripts/access-inventory"
 
 deployment_smoke="$root/scripts/deployment-smoke"
 grep -qF 'current_error is null and last_heartbeat_at' "$deployment_smoke"

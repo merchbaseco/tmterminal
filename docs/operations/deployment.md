@@ -28,8 +28,11 @@ for both persistent filesystems.
 
 ## GitHub Deployment
 
-A push to `main` runs the reusable quality workflow on a GitHub-hosted runner.
-The self-hosted Mac mini job runs only after quality passes.
+The centralized-auth release disables push-triggered production deployment.
+An operator must dispatch the Deploy workflow and explicitly confirm the
+centralized-auth cutover approvals. Quality runs first on a GitHub-hosted
+runner; the self-hosted Mac mini job runs only after quality passes and the
+manual confirmation is true.
 
 The deploy job:
 
@@ -58,16 +61,10 @@ database, Clerk, and USPTO credentials. Production authorized parties is exactly
 Secrets are not printed, committed, copied into runtime image layers, or exposed
 through readiness.
 
-## Bootstrap API Key
-
-Create a host-managed key against the production Compose database with:
-
-```bash
-bun run api-keys:create --name merchbase
-```
-
-The command runs inside the API container, resolves one stable host account,
-writes the raw token once to stdout, and stores only its hash.
+Centralized authentication has a separate, approval-gated inventory, backup,
+mapping, cutover, and rollback sequence. Follow
+[Access cutover](access-cutover.md); the normal deploy workflow is not authority
+to assign accounts or retire legacy keys.
 
 ## Smoke
 

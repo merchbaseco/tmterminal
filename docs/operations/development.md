@@ -12,10 +12,14 @@ Trademark Terminal uses Bun 1.3.5.
 ## Install And Fast Checks
 
 ```bash
-bun install --frozen-lockfile
+NODE_AUTH_TOKEN="$(gh auth token)" bun install --frozen-lockfile
 bun run check
 bun run build
 ```
+
+`.npmrc` maps `@merchbaseco` to GitHub Packages and contains only the
+`NODE_AUTH_TOKEN` environment placeholder. A local GitHub credential with
+package-read access is required only while installing; never write it to disk.
 
 Lint touched authored files explicitly:
 
@@ -36,8 +40,8 @@ This starts the API and Vite website on deterministic `dev-port` ports and reads
 the ignored `.env`. It connects to production PostgreSQL on the Mac mini over
 the established Tailscale path. It does not migrate or start a worker.
 
-Searches and status reads use live data. Account and API-key actions write live
-account state. Use the isolated integration lane for schema, ingestion, or
+Searches and status reads use live data. Account preference actions write live
+account state. Use the isolated integration lane for schema, authentication, or
 destructive work.
 
 Optional local Clerk automation uses:
@@ -78,6 +82,10 @@ The ignored `.env` supplies:
 - `POSTGRES_PASSWORD`
 - `CLERK_SECRET_KEY`
 - `CLERK_AUTHORIZED_PARTIES`
+- `CLERK_ISSUER`
+- `CLERK_JWT_KEY`
+- `CLERK_PUBLISHABLE_KEY`
+- `CLERK_WEBHOOK_SIGNING_SECRET`
 - `HUGEICONS_LICENSE_KEY`
 - `VITE_CLERK_PUBLISHABLE_KEY`
 - `USPTO_API_KEY`
@@ -88,6 +96,10 @@ the root `bunfig.toml` registry scope). Compose exposes it to image builds as a
 BuildKit secret. GitHub Quality receives the same value from the repository
 secret. The key is install-time only; it is never stored in an image or bundled
 into browser code.
+
+Package installation also needs `NODE_AUTH_TOKEN` in the process environment for
+the private `@merchbaseco/access` package. Compose receives it as a BuildKit
+secret; it is not an image environment variable or layer.
 
 Do not print, commit, copy into images, or pass source credentials to browser
 code. The source key belongs only in the worker.

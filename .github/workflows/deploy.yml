@@ -1,9 +1,12 @@
 name: Deploy
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      centralized-auth-cutover-approved:
+        description: Confirm mapping, backup/restore, Clerk, and deploy approvals
+        required: true
+        type: boolean
 
 concurrency:
   group: tmterminal-production
@@ -11,6 +14,7 @@ concurrency:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   quality:
@@ -20,12 +24,14 @@ jobs:
       lint-base: ${{ github.event.before || 'HEAD^' }}
 
   deploy:
+    if: inputs.centralized-auth-cutover-approved == true
     needs: quality
     runs-on: self-hosted
     steps:
       - name: Deploy exact main revision
         env:
           HUGEICONS_LICENSE_KEY: ${{ secrets.HUGEICONS_LICENSE_KEY }}
+          NODE_AUTH_TOKEN: ${{ github.token }}
         working-directory: /Users/zknicker/srv/tmterminal
         run: |
           set -euo pipefail

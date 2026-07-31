@@ -29,6 +29,7 @@ describe how USPTO files continuously update the searchable database.
 | Change source visibility or repair | [Source status](product/source-status.md), [Source repair](operations/source-repair.md) |
 | Change CLI behavior | [CLI reference](reference/cli.md) |
 | Change packages or system boundaries | [Architecture](internals/architecture.md) |
+| Change authentication or account identity | [Access boundary](internals/access-boundary.md) |
 | Change website styling or primitives | [Design system](design/system.md) |
 | Run, test, or deploy the service | [Operations](operations/README.md) |
 | Review accepted tradeoffs | [Decisions](decisions/README.md) |
@@ -47,6 +48,7 @@ describe how USPTO files continuously update the searchable database.
 | System | Doc |
 | --- | --- |
 | Workspace, service, auth, persistence, and client boundaries | [Architecture](internals/architecture.md) |
+| Clerk credentials, Access Projections, and stable service accounts | [Access boundary](internals/access-boundary.md) |
 | Discovery, download, validation, application, cleanup, and restart | [Ingestion](internals/ingestion.md) |
 
 ## Reference
@@ -65,6 +67,7 @@ describe how USPTO files continuously update the searchable database.
 | Install, local servers, Compose, ports, and readiness | [Development](operations/development.md) |
 | Unit, PostgreSQL, fixture, browser, and deployment checks | [Testing](operations/testing.md) |
 | Mac mini release, smoke, monitoring, and rollback | [Deployment](operations/deployment.md) |
+| Prepare or execute centralized-auth cutover | [Access cutover](operations/access-cutover.md) |
 | Inspect and repair one source file | [Source repair](operations/source-repair.md) |
 | Create and triage Linear work | [Issues](operations/issues.md) |
 | Maintain documentation | [Docs policy](docs-policy.md) |
