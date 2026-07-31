@@ -7,10 +7,10 @@ import type {
 import type postgres from "postgres";
 
 interface StoredProjection {
-  access: AccessProjection["access"];
+  access: AccessProjection["access"] | null;
   accessValidUntil: Date | null;
   issuer: string;
-  merchbaseUserId: string;
+  merchbaseUserId: string | null;
   sourceUpdatedAt: number;
   subject: string;
 }
@@ -120,10 +120,12 @@ async function findByIdentity(database: postgres.Sql, identity: ClerkIdentity) {
     from access_projection
     where issuer = ${identity.issuer}
       and subject = ${identity.subject}
-      and merchbase_user_id is not null
-      and access is not null
   `;
-  return projection ? storedProjection(projection) : null;
+  if (!projection) {
+    return { type: "missing" as const };
+  }
+  const active = storedProjection(projection);
+  return active ? { projection: active, type: "active" as const } : { type: "tombstone" as const };
 }
 
 async function findByMerchbaseUserId(database: postgres.Sql, merchbaseUserId: string) {
@@ -142,9 +144,14 @@ async function findByMerchbaseUserId(database: postgres.Sql, merchbaseUserId: st
   return projection ? storedProjection(projection) : null;
 }
 
-function storedProjection(projection: StoredProjection): AccessProjection {
+function storedProjection(projection: StoredProjection): AccessProjection | null {
+  if (projection.access === null || projection.merchbaseUserId === null) {
+    return null;
+  }
   return {
     ...projection,
+    access: projection.access,
     accessValidUntil: projection.accessValidUntil?.getTime() ?? null,
+    merchbaseUserId: projection.merchbaseUserId,
   };
 }

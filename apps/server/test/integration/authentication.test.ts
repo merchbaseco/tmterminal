@@ -363,6 +363,10 @@ describe("Clerk projection webhook", () => {
       const beforeDelete = await store.findByMerchbaseUserId("mbu_webhook");
       const deleted = await server.inject(deletedClerkEvent("msg-delete"));
       const afterDelete = await store.findByMerchbaseUserId("mbu_webhook");
+      const deletedIdentity = await store.findByIdentity({
+        issuer: "https://clerk.merchbase.co",
+        subject: "user_webhook",
+      });
       const [receiptCount] = await database<Array<{ count: number }>>`
         select count(*)::int as count from access_projection_receipt
       `;
@@ -374,6 +378,7 @@ describe("Clerk projection webhook", () => {
       expect(oversized.statusCode).toBe(413);
       expect(beforeDelete?.access).toBe("granted");
       expect(afterDelete).toBeNull();
+      expect(deletedIdentity).toEqual({ type: "tombstone" });
       expect(deleted.statusCode).toBe(204);
       expect(receiptCount?.count).toBe(3);
       expect(invalidated).toHaveLength(4);
