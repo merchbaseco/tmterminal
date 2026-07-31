@@ -15,7 +15,7 @@
       "name": "@tmterminal/core-server",
       "dependencies": {
         "@clerk/backend": "3.11.5",
-        "@merchbaseco/access": "0.2.0",
+        "@merchbaseco/access": "0.2.1",
         "@trpc/server": "11.18.0",
         "drizzle-orm": "0.45.2",
         "fastify": "5.10.0",
@@ -261,7 +261,7 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
-    "@merchbaseco/access": ["@merchbaseco/access@0.2.0", "https://npm.pkg.github.com/download/@merchbaseco/access/0.2.0/540e3d9cf7b19ac871f1c98679300dee085fdc57", { "dependencies": { "@clerk/backend": "2.33.3" } }, "sha512-xsg+M27bG4Z7S60sYSUtFjWWWST79aZu1HSmdmBN7k2o95Z2l4LteQV/DASpZME2Ya4SS2x4MXmtwyeWdY06WA=="],
+    "@merchbaseco/access": ["@merchbaseco/access@0.2.1", "https://npm.pkg.github.com/download/@merchbaseco/access/0.2.1/f5a947c4c4e94fcf4607b26367bd8af3e25866ed", { "dependencies": { "@clerk/backend": "2.33.3" } }, "sha512-RoEKbf1piP5XZOLrT4C2++EukEJJ873oCS7qOtvxHEaA+NgrgkJLhLoad7C0LbBblz+brb+pH0QTPxPeBRpjpw=="],
 
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@1.1.6", "", { "dependencies": { "@tybys/wasm-util": "^0.10.3" }, "peerDependencies": { "@emnapi/core": "^1.7.1", "@emnapi/runtime": "^1.7.1" } }, "sha512-ZLv/JdUfkvOy9eCnnBaGfiO+XimbjebAeO+MRQqD/B+FR1tnRN0tpKSJHRbE8sFfS6aqsXZ67TQjfwfsxULVbg=="],
 
