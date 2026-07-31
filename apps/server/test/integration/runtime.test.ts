@@ -60,7 +60,15 @@ test("creates the perpetual live schema idempotently", async () => {
   `;
   expect(mark).toEqual({ normalized: "café", status: "unknown" });
   expect(tables.map(({ name }) => name)).toEqual(
-    expect.arrayContaining(["mark", "source_artifact", "trademark_recency", "worker_status"])
+    expect.arrayContaining([
+      "access_projection",
+      "access_projection_receipt",
+      "account",
+      "mark",
+      "source_artifact",
+      "trademark_recency",
+      "worker_status",
+    ])
   );
   expect(tables.map(({ name }) => name)).not.toContain("corpus_generation");
   expect(tables.map(({ name }) => name)).not.toContain("source_lane");
@@ -159,12 +167,26 @@ test("preserves auth and searchable data across the deployed live-ingestion cuto
 
   expect([
     ...(await database`
-      select (select count(*)::int from account) accounts,
+      select
+        (select count(*)::int from account) accounts,
         (select count(*)::int from clerk_identity) identities,
         (select count(*)::int from api_key) keys,
-        (select count(*)::int from role_assignment) roles
+        (select count(*)::int from role_assignment) roles,
+        (select count(*)::int from access_projection) projections,
+        (select count(*)::int from access_projection_receipt) receipts,
+        (select count(*)::int from account where merchbase_user_id is not null) mapped_accounts
     `),
-  ]).toEqual([{ accounts: 1, identities: 1, keys: 1, roles: 1 }]);
+  ]).toEqual([
+    {
+      accounts: 1,
+      identities: 1,
+      keys: 1,
+      mapped_accounts: 0,
+      projections: 0,
+      receipts: 0,
+      roles: 1,
+    },
+  ]);
   expect([
     ...(await database`
       select filename, download_state, application_state, applied_record_count, current_error,

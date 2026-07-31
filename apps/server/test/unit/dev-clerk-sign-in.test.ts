@@ -2,24 +2,29 @@ import { afterEach, describe, expect, test } from "bun:test";
 import type postgres from "postgres";
 
 import { createAppContext } from "../../src/api/context.ts";
-import { buildServer } from "../../src/api/server.ts";
+import { buildServer, resolveDevOperatorMerchbaseUserId } from "../../src/api/server.ts";
+import { authorizedAccess, fakeTmterminalAccess } from "../fake-access.ts";
 
 test("the configured local sign-in identity receives operator access", async () => {
   const accountId = "3a4fd52d-32e6-41b4-a470-68e4eaeaf423";
-  const transaction = async (strings: TemplateStringsArray) =>
-    strings.join("").includes("from clerk_identity") ? [{ accountId }] : [];
-  const database = Object.assign(async () => [], {
-    begin: async (run: (sql: typeof transaction) => Promise<unknown>) => run(transaction),
-  }) as unknown as postgres.Sql;
+  const database = {} as postgres.Sql;
+  const access = fakeTmterminalAccess({
+    customer: async () => authorizedAccess(accountId, "mbu_dev", "session"),
+  });
 
   const context = await createAppContext({
+    access: access.customer,
     authorization: "Bearer clerk-session",
     database,
-    devOperatorClerkUserId: "user_dev",
-    verifyClerkToken: () => Promise.resolve("user_dev"),
+    devOperatorMerchbaseUserId: "mbu_dev",
   });
 
   expect(context.operator).toBe(true);
+});
+
+test("production ignores the development operator identity", () => {
+  expect(resolveDevOperatorMerchbaseUserId("production", "mbu_dev")).toBeUndefined();
+  expect(resolveDevOperatorMerchbaseUserId("development", "mbu_dev")).toBe("mbu_dev");
 });
 
 describe("POST /api/dev/clerk-sign-in-token", () => {
@@ -33,6 +38,7 @@ describe("POST /api/dev/clerk-sign-in-token", () => {
   test("creates a 60-second Clerk ticket only for localhost", async () => {
     const calls: Array<{ expiresInSeconds: number; userId: string }> = [];
     const server = await buildServer({
+      access: fakeTmterminalAccess(),
       databaseUrl,
       devClerkSignIn: {
         createToken: (userId, expiresInSeconds) => {
@@ -64,6 +70,7 @@ describe("POST /api/dev/clerk-sign-in-token", () => {
   test("rejects non-local hosts before creating a ticket", async () => {
     let called = false;
     const server = await buildServer({
+      access: fakeTmterminalAccess(),
       databaseUrl,
       devClerkSignIn: {
         createToken: () => {
@@ -91,6 +98,7 @@ describe("POST /api/dev/clerk-sign-in-token", () => {
   test("rejects a spoofed local Host from a non-loopback peer", async () => {
     let called = false;
     const server = await buildServer({
+      access: fakeTmterminalAccess(),
       databaseUrl,
       devClerkSignIn: {
         createToken: () => {
@@ -117,6 +125,7 @@ describe("POST /api/dev/clerk-sign-in-token", () => {
 
   test("does not register without explicit development configuration", async () => {
     const server = await buildServer({
+      access: fakeTmterminalAccess(),
       databaseUrl,
       devClerkSignIn: null,
       logger: false,
@@ -135,6 +144,7 @@ describe("POST /api/dev/clerk-sign-in-token", () => {
 
   test("does not register in production even when configuration is supplied", async () => {
     const server = await buildServer({
+      access: fakeTmterminalAccess(),
       databaseUrl,
       devClerkSignIn: {
         createToken: () => Promise.resolve("unused-ticket"),

@@ -4,7 +4,7 @@ name = "tmterminal"
 
 [setup]
 script = '''
-bun install --frozen-lockfile
+NODE_AUTH_TOKEN="$(gh auth token)" bun install --frozen-lockfile
 '''
 
 [[actions]]

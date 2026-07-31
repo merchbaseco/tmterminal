@@ -1,41 +1,44 @@
 import { describe, expect, test } from "bun:test";
+import { ServiceAccessError } from "@merchbaseco/access";
+import type postgres from "postgres";
 
-import { createClerkVerifier } from "../../src/auth/clerk-verifier.ts";
-import { selectCredential } from "../../src/auth/select-credential.ts";
+import { createAppContext } from "../../src/api/context.ts";
+import { fakeTmterminalAccess } from "../fake-access.ts";
 
-describe("credential selection", () => {
-  test("selects one Clerk bearer token", () => {
-    expect(
-      selectCredential({
-        authorization: "Bearer clerk-session",
+const database = {} as postgres.Sql;
+
+describe("access boundary errors", () => {
+  test("requires one bearer credential", async () => {
+    const access = fakeTmterminalAccess();
+
+    await expect(createAppContext({ access: access.customer, database })).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    });
+    await expect(
+      createAppContext({
+        access: access.customer,
+        authorization: "Basic ignored",
+        database,
       })
-    ).toEqual({ token: "clerk-session", type: "clerk" });
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
-  test("selects one Trademark Terminal API key", () => {
-    expect(
-      selectCredential({
-        authorization: "Bearer ttk_123_secret",
+  test.each([
+    ["unauthenticated", "UNAUTHORIZED"],
+    ["access_denied", "FORBIDDEN"],
+    ["insufficient_scope", "FORBIDDEN"],
+    ["access_unavailable", "SERVICE_UNAVAILABLE"],
+  ] as const)("maps %s to %s", async (accessCode, trpcCode) => {
+    const access = fakeTmterminalAccess({
+      customer: () => Promise.reject(new ServiceAccessError(accessCode)),
+    });
+
+    await expect(
+      createAppContext({
+        access: access.customer,
+        authorization: "Bearer selected",
+        database,
       })
-    ).toEqual({ token: "ttk_123_secret", type: "api-key" });
+    ).rejects.toMatchObject({ code: trpcCode });
   });
-
-  test("rejects simultaneous Clerk and API-key credentials", () => {
-    expect(() =>
-      selectCredential({
-        authorization: "Bearer ttk_123_secret",
-        cookie: "__session=clerk-session",
-      })
-    ).toThrow("BAD_REQUEST");
-  });
-
-  test("returns no credential when the request has none", () => {
-    expect(selectCredential({})).toBeNull();
-  });
-});
-
-test("Clerk verification requires an authorized-party allowlist", () => {
-  expect(() => createClerkVerifier({ secretKey: "sk_test_placeholder" })).toThrow(
-    "CLERK_AUTHORIZED_PARTIES is required"
-  );
 });

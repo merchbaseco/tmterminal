@@ -6,22 +6,11 @@ export const legalDisclaimer =
 
 export interface AuthenticatedAccount {
   accountId: string;
-  credential: { type: "api-key"; keyId: string; suffix: string } | { type: "clerk" };
-}
-
-export interface PublicApiKey {
-  createdAt: string;
-  id: string;
-  lastUsedAt: string | null;
-  name: string;
-  suffix: string;
+  credential: { type: "api-key" | "oauth" | "session" };
 }
 
 export interface AccountService {
-  createApiKey: (name: string) => Promise<{ key: PublicApiKey; token: string }>;
   getSearchPreferences: () => Promise<SearchPreferences>;
-  listApiKeys: () => Promise<PublicApiKey[]>;
-  revokeApiKey: (id: string) => Promise<{ id: string } | null>;
   updateSearchPreferences: (preferences: SearchPreferences) => Promise<SearchPreferences>;
 }
 

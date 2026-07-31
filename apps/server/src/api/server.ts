@@ -1,23 +1,25 @@
 import { fastifyTRPCPlugin } from "@trpc/server/adapters/fastify";
 import Fastify, { type FastifyRequest, type FastifyServerOptions } from "fastify";
 
-import { createClerkVerifier, type VerifyClerkToken } from "../auth/clerk-verifier.ts";
+import { createConfiguredTmterminalAccess, type TmterminalAccess } from "../auth/service-access.ts";
 import { createDatabaseClient } from "../db/client.ts";
 import { createOperatorSyncService } from "../services/operator-sync-service.ts";
+import { registerClerkWebhook } from "./clerk-webhook.ts";
 import { createAppContext } from "./context.ts";
 import {
   configuredDevClerkSignIn,
   type DevClerkSignIn,
   registerDevClerkSignIn,
 } from "./dev-clerk-sign-in.ts";
-import { appRouter } from "./router.ts";
+import { appRouter, authenticatedClientRouter } from "./router.ts";
 
 interface BuildServerOptions {
+  access?: TmterminalAccess;
   databaseUrl: string;
   devClerkSignIn?: DevClerkSignIn | null;
+  devOperatorMerchbaseUserId?: string;
   logger?: FastifyServerOptions["logger"];
   nodeEnv?: string;
-  verifyClerkToken?: VerifyClerkToken;
 }
 
 function resolveDevClerkSignIn(
@@ -30,30 +32,33 @@ function resolveDevClerkSignIn(
   return configured === undefined ? configuredDevClerkSignIn() : configured;
 }
 
-function configuredClerkVerifier() {
-  const authorizedParties = process.env.CLERK_AUTHORIZED_PARTIES?.split(",")
-    .map((party) => party.trim())
-    .filter(Boolean);
-
-  return createClerkVerifier({
-    authorizedParties,
-    secretKey: process.env.CLERK_SECRET_KEY,
-  });
+export function resolveDevOperatorMerchbaseUserId(
+  nodeEnv: string | undefined,
+  configured: string | undefined
+) {
+  return nodeEnv === "production" ? undefined : configured;
 }
 
 export async function buildServer({
+  access,
   databaseUrl,
   devClerkSignIn,
+  devOperatorMerchbaseUserId = process.env.DEV_OPERATOR_MERCHBASE_USER_ID,
   logger = true,
   nodeEnv = process.env.NODE_ENV,
-  verifyClerkToken = configuredClerkVerifier(),
 }: BuildServerOptions) {
   const database = createDatabaseClient(databaseUrl);
+  const resolvedAccess = access ?? createConfiguredTmterminalAccess(database);
   const sourceStatus = createOperatorSyncService(database);
   const server = Fastify({ logger });
   const resolvedDevClerkSignIn = resolveDevClerkSignIn(nodeEnv, devClerkSignIn);
+  const resolvedDevOperatorMerchbaseUserId = resolveDevOperatorMerchbaseUserId(
+    nodeEnv,
+    devOperatorMerchbaseUserId
+  );
 
   registerDevClerkSignIn(server, resolvedDevClerkSignIn);
+  registerClerkWebhook(server, resolvedAccess.webhook);
 
   server.get("/api/health", async (_request, reply) => {
     try {
@@ -79,13 +84,26 @@ export async function buildServer({
     trpcOptions: {
       createContext: ({ req }: { req: FastifyRequest }) =>
         createAppContext({
+          access: resolvedAccess.customer,
           authorization: req.headers.authorization,
-          cookie: req.headers.cookie,
           database,
-          devOperatorClerkUserId: resolvedDevClerkSignIn?.userId,
-          verifyClerkToken,
+          devOperatorMerchbaseUserId: resolvedDevOperatorMerchbaseUserId,
         }),
       router: appRouter,
+    },
+  });
+
+  await server.register(fastifyTRPCPlugin, {
+    prefix: "/api/oauth/trpc",
+    trpcOptions: {
+      createContext: ({ req }: { req: FastifyRequest }) =>
+        createAppContext({
+          access: resolvedAccess.oauth,
+          authorization: req.headers.authorization,
+          database,
+          devOperatorMerchbaseUserId: resolvedDevOperatorMerchbaseUserId,
+        }),
+      router: authenticatedClientRouter,
     },
   });
 
