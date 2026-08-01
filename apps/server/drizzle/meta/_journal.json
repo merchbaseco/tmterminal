@@ -211,6 +211,13 @@
       "when": 1785520759570,
       "tag": "0029_abnormal_earthquake",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1785541295136,
+      "tag": "0030_glossy_gauntlet",
+      "breakpoints": true
     }
   ]
 }

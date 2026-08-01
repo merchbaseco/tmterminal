@@ -111,7 +111,7 @@ describe("centralized account authentication", () => {
     }
   });
 
-  test("maps denied and unavailable access without a legacy fallback", async () => {
+  test("maps denied and unavailable centralized access", async () => {
     const server = await buildServer({
       access: accessForCredentials(),
       databaseUrl,
@@ -121,40 +121,14 @@ describe("centralized account authentication", () => {
     try {
       const denied = await request(server, "/api/trpc/account.me", "denied");
       const unavailable = await request(server, "/api/trpc/account.me", "unavailable");
-      const legacy = await request(
-        server,
-        "/api/trpc/account.me",
-        "ttk_00000000-0000-0000-0000-000000000000_legacy"
-      );
-      const legacyRoute = await request(server, "/api/trpc/account.api-keys.list", "session-one");
 
       expect(denied.statusCode).toBe(403);
       expect(denied.json().error.data.code).toBe("FORBIDDEN");
       expect(unavailable.statusCode).toBe(503);
       expect(unavailable.json().error.data.code).toBe("SERVICE_UNAVAILABLE");
-      expect(legacy.statusCode).toBe(401);
-      expect(legacyRoute.statusCode).toBe(404);
     } finally {
       await server.close();
     }
-  });
-
-  test("does not create a service account while a legacy account is unmapped", async () => {
-    const legacyAccountId = "00000000-0000-4000-8000-000000000099";
-    await database`
-      insert into account (id, name)
-      values (${legacyAccountId}, 'legacy-account')
-    `;
-
-    await expect(resolveMerchbaseAccount(database, "mbu_new")).rejects.toThrow(
-      "Existing account mapping is incomplete"
-    );
-    const accounts = await database<Array<{ id: string; merchbaseUserId: string | null }>>`
-      select id, merchbase_user_id as "merchbaseUserId"
-      from account
-    `;
-
-    expect([...accounts]).toEqual([{ id: legacyAccountId, merchbaseUserId: null }]);
   });
 
   test("reconciles mapped active projections without provisioning either unmatched side", async () => {

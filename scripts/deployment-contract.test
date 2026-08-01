@@ -91,19 +91,31 @@ fi
 
 deployment_workflow="$root/.github/workflows/deploy.yml"
 grep -qF 'HUGEICONS_LICENSE_KEY: ${{ secrets.HUGEICONS_LICENSE_KEY }}' "$deployment_workflow"
-grep -qF 'centralized-auth-cutover-approved:' "$deployment_workflow"
-grep -qF 'if: inputs.centralized-auth-cutover-approved == true' "$deployment_workflow"
+grep -qF 'auth-cleanup-approved:' "$deployment_workflow"
+grep -qF 'if: inputs.auth-cleanup-approved == true' "$deployment_workflow"
 if grep -qF '  push:' "$deployment_workflow"; then
   echo "centralized-auth release still deploys on main push" >&2
   exit 1
 fi
-worker_stop_line="$(grep -nF 'docker compose --project-name tmterminal --env-file .env stop worker' "$deployment_workflow" | cut -d: -f1)"
+worker_stop_line="$(grep -nF 'docker compose --project-name tmterminal --env-file .env stop api worker' "$deployment_workflow" | cut -d: -f1)"
+migration_lines="$(grep -nF 'docker compose --project-name tmterminal --env-file .env run --rm migrate' "$deployment_workflow" | cut -d: -f1)"
+migration_line="$(printf '%s\n' "$migration_lines" | head -n 1)"
+preservation_line="$(grep -nF 'test "$preservation_before" = "$preservation_after"' "$deployment_workflow" | cut -d: -f1)"
+final_state_line="$(grep -nF '            final)' "$deployment_workflow" | cut -d: -f1)"
 stack_start_line="$(grep -nF 'docker compose --project-name tmterminal --env-file .env up --detach --remove-orphans --wait' "$deployment_workflow" | cut -d: -f1)"
 test -n "$worker_stop_line"
+test -n "$migration_line"
+test "$(printf '%s\n' "$migration_lines" | wc -l | tr -d ' ')" -eq 2
+test -n "$preservation_line"
+test -n "$final_state_line"
 test -n "$stack_start_line"
+test "$worker_stop_line" -lt "$migration_line"
+test "$migration_line" -lt "$preservation_line"
+test "$preservation_line" -lt "$stack_start_line"
+test "$final_state_line" -lt "$stack_start_line"
 test "$worker_stop_line" -lt "$stack_start_line"
 
-grep -qF -- '--set=ON_ERROR_STOP=1' "$root/scripts/access-inventory"
+grep -qF -- '--set=ON_ERROR_STOP=1' "$root/scripts/auth-cleanup-inventory"
 
 deployment_smoke="$root/scripts/deployment-smoke"
 grep -qF 'current_error is null and last_heartbeat_at' "$deployment_smoke"

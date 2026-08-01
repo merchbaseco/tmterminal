@@ -3,8 +3,8 @@ name: Deploy
 on:
   workflow_dispatch:
     inputs:
-      centralized-auth-cutover-approved:
-        description: Confirm mapping, backup/restore, Clerk, and deploy approvals
+      auth-cleanup-approved:
+        description: Confirm dependency, backup/restore, migration, and deploy approvals
         required: true
         type: boolean
 
@@ -24,7 +24,7 @@ jobs:
       lint-base: ${{ github.event.before || 'HEAD^' }}
 
   deploy:
-    if: inputs.centralized-auth-cutover-approved == true
+    if: inputs.auth-cleanup-approved == true
     needs: quality
     runs-on: self-hosted
     steps:
@@ -38,6 +38,27 @@ jobs:
           git pull --ff-only origin main
           export TMTERMINAL_REVISION="$(./scripts/deployment-revision "$GITHUB_SHA")"
           docker compose --project-name tmterminal --env-file .env build
-          docker compose --project-name tmterminal --env-file .env stop worker
+          docker compose --project-name tmterminal --env-file .env stop api worker
+          docker compose --project-name tmterminal --env-file .env up --detach --wait database
+          cleanup_state="$(./scripts/auth-cleanup-inventory state)"
+          case "$cleanup_state" in
+            pre)
+              preservation_before="$(./scripts/auth-cleanup-inventory capture)"
+              ./scripts/auth-cleanup-inventory verify-pre
+              docker compose --project-name tmterminal --env-file .env run --rm migrate
+              preservation_after="$(./scripts/auth-cleanup-inventory capture)"
+              test "$preservation_before" = "$preservation_after"
+              ./scripts/auth-cleanup-inventory verify-final
+              ;;
+            final)
+              ./scripts/auth-cleanup-inventory verify-final
+              docker compose --project-name tmterminal --env-file .env run --rm migrate
+              ./scripts/auth-cleanup-inventory verify-final
+              ;;
+            *)
+              echo "unsupported auth cleanup schema state" >&2
+              exit 1
+              ;;
+          esac
           docker compose --project-name tmterminal --env-file .env up --detach --remove-orphans --wait
           ./scripts/deployment-smoke

@@ -28,11 +28,9 @@ for both persistent filesystems.
 
 ## GitHub Deployment
 
-The centralized-auth release disables push-triggered production deployment.
-An operator must dispatch the Deploy workflow and explicitly confirm the
-centralized-auth cutover approvals. Quality runs first on a GitHub-hosted
-runner; the self-hosted Mac mini job runs only after quality passes and the
-manual confirmation is true.
+Production deployment is manually dispatched. Quality runs first on a
+GitHub-hosted runner; the self-hosted Mac mini job runs only after quality
+passes and the operator confirms the required production approval.
 
 The deploy job:
 
@@ -40,8 +38,17 @@ The deploy job:
 2. requires `HEAD` to equal both `origin/main` and the workflow SHA;
 3. builds core and web images labeled with that exact revision;
 4. stops the existing worker before changing the stack;
-5. starts migration, database, API, worker, and web in dependency order;
-6. runs `scripts/deployment-smoke`.
+5. stops the API and worker, captures the preservation fingerprint, and runs
+   the one-shot migration;
+6. requires unchanged product state and the final stable-mapping invariant
+   before restarting API, worker, and web;
+7. runs `scripts/deployment-smoke`.
+
+The final centralized-auth cleanup includes an intentional authenticated API
+outage while the migration and stopped-writer preservation gate run. A failed
+gate leaves the API and worker stopped for the documented recovery procedure.
+Deployment retries recognize the final schema and do not rerun the destructive
+pre-cleanup evidence gate.
 
 The checkout-integrity script refuses tracked, staged, or untracked nonignored
 changes. It never cleans or resets the host.
@@ -61,10 +68,10 @@ database, Clerk, and USPTO credentials. Production authorized parties is exactly
 Secrets are not printed, committed, copied into runtime image layers, or exposed
 through readiness.
 
-Centralized authentication has a separate, approval-gated inventory, backup,
-mapping, cutover, and rollback sequence. Follow
+The final centralized-auth schema cleanup has a separate approval-gated
+dependency, backup, migration, verification, and recovery sequence. Follow
 [Access cutover](access-cutover.md); the normal deploy workflow is not authority
-to assign accounts or retire legacy keys.
+to run that destructive cleanup.
 
 ## Smoke
 

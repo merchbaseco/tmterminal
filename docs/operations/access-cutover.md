@@ -1,45 +1,48 @@
 ---
-summary: Defines the approval-gated centralized-auth inventory, backup, explicit account mapping, cutover verification, cleanup, and rollback.
+summary: Defines the approval-gated final centralized-auth cleanup, preservation checks, deployment, and recovery.
 read_when:
-  - preparing or executing the Trademark Terminal centralized-auth migration
-  - reviewing account mappings, production backup, legacy-key retirement, cutover, or rollback
+  - preparing or executing the Trademark Terminal centralized-auth schema cleanup
+  - reviewing stable account mappings, legacy dependency evidence, production backup, migration, or recovery
 ---
 
-# Access Cutover
+# Centralized-Auth Cleanup
 
-Production mapping, migration, deployment, Clerk mutation, legacy-key
-retirement, and cleanup are separate operator approvals. A code review or normal
-deployment approval does not authorize them.
+Production migration and deployment require separate operator approval. The
+Deploy workflow's `auth-cleanup-approved` confirmation means every gate below is
+complete; it is not a substitute for the evidence.
 
-The Deploy workflow is manual while this cutover is pending. Its
-`centralized-auth-cutover-approved` confirmation means every approval and
-preflight in this document is complete; it is not a substitute for them.
+## Cleanup Gates
 
-## Read-only Preflight
+Before approving the cleanup:
 
-From the production checkout:
+- confirm every account has one unique, reviewed stable Merchbase User mapping;
+- confirm current runtime and published clients use only Clerk sessions,
+  suite-wide User API Keys, or OAuth;
+- obtain legacy credential owner and customer acceptance that no external
+  consumer still depends on product-specific authentication;
+- record account, preference, role, mark, source-artifact, projection, and
+  projection-receipt counts or hashes without customer identifiers;
+- identify the exact approved revision and production operators.
+
+A retained active credential row is migration evidence, not proof of current
+use. Repository searches and historical usage timestamps are negative evidence
+only. Missing external-consumer acceptance stops the cleanup.
+
+From the production checkout, run the sanitized invariant check and capture the
+preservation fingerprint:
 
 ```bash
 cd /Users/zknicker/srv/tmterminal
-bun run access:inventory
+./scripts/auth-cleanup-inventory verify-pre
+./scripts/auth-cleanup-inventory capture
 ```
 
-The command starts a read-only transaction and prints counts only. Capture a
-separate mode-0600 mapping review outside every checkout. It must contain one
-row per local account, the authoritative Merchbase User assignment, evidence
-source, and reviewer decision. Keep account IDs, Clerk subjects, emails, and
-mapping evidence out of logs, tickets, commits, and chat. Never infer a mapping
-from email. Any blank, duplicate, or ambiguous assignment stops the cutover.
+Both commands use a read-only transaction and print counts or irreversible
+aggregate hashes only. They never print account IDs, Clerk subjects, emails,
+credentials, or credential hashes. Save their output with the approval record
+outside the checkout.
 
-Verify:
-
-- every existing account appears exactly once;
-- every assignment came from authoritative identity evidence;
-- stable Merchbase User IDs are unique;
-- trademark rows, search preferences, roles, and source state remain unchanged;
-- the current count is used instead of a dated baseline.
-
-## Backup Gate
+## Backup And Restore Proof
 
 Choose a timestamped destination on a different durable filesystem and record
 its exact path:
@@ -55,73 +58,70 @@ test -s "$backup_dir/tmterminal.dump"
 shasum -a 256 -c "$backup_dir/tmterminal.dump.sha256"
 ```
 
-Before cutover, restore that dump into an isolated PostgreSQL 16 database, run
-the following approval-time procedure from the production checkout:
+Restore the dump into an isolated PostgreSQL 16 database. Verify the recorded
+counts and hashes there, run the approved migration twice, then verify:
+
+- account, preference, role, mark, source, and projection data are unchanged;
+- every account mapping is non-null and unique;
+- the legacy identity and product-specific credential tables are absent;
+- a second migration run is a no-op.
+
+Never use production as the restore target. Record the dump checksum, isolated
+target, migration result, preservation result, and approver without customer
+identifiers.
+
+Against the isolated restore, point the same checks at its explicit connection
+URL:
 
 ```bash
-restore_container=tmterminal-restore-<UTC-timestamp>
-restore_port=<unused-loopback-port>
-restore_password=<ephemeral-restore-password>
-pg_restore --list "$backup_dir/tmterminal.dump" >/dev/null
-docker run --name "$restore_container" --detach \
-  --publish "127.0.0.1:${restore_port}:5432" \
-  --env POSTGRES_USER=tmterminal_restore \
-  --env POSTGRES_PASSWORD="$restore_password" \
-  --env POSTGRES_DB=tmterminal_restore \
-  postgres:16.14-alpine
-until docker exec "$restore_container" pg_isready \
-  --username tmterminal_restore --dbname tmterminal_restore; do sleep 1; done
-docker exec -i "$restore_container" pg_restore \
-  --username tmterminal_restore --dbname tmterminal_restore \
-  --clean --if-exists --no-owner <"$backup_dir/tmterminal.dump"
-DATABASE_URL="postgres://tmterminal_restore:${restore_password}@127.0.0.1:${restore_port}/tmterminal_restore" \
-  bun run --cwd apps/server access:inventory
-docker stop "$restore_container"
-docker rm "$restore_container"
+AUTH_CLEANUP_DATABASE_URL="<isolated-restore-url>" \
+  ./scripts/auth-cleanup-inventory verify-pre
+preservation_before="$(
+  AUTH_CLEANUP_DATABASE_URL="<isolated-restore-url>" \
+    ./scripts/auth-cleanup-inventory capture
+)"
+DATABASE_URL="<isolated-restore-url>" bun run db:migrate
+DATABASE_URL="<isolated-restore-url>" bun run db:migrate
+preservation_after="$(
+  AUTH_CLEANUP_DATABASE_URL="<isolated-restore-url>" \
+    ./scripts/auth-cleanup-inventory capture
+)"
+test "$preservation_before" = "$preservation_after"
+AUTH_CLEANUP_DATABASE_URL="<isolated-restore-url>" \
+  ./scripts/auth-cleanup-inventory verify-final
 ```
 
-Do not use the production database as the restore target. Run representative
-account/preference/trademark count and hash queries inside the same read-only
-restore session. Record the dump checksum, restore target, restore result, and
-approver without customer identifiers.
+## Production Sequence
 
-## Approved Sequence
+1. Prevent deployment concurrency and repeat the count-only preflight.
+2. Obtain the dependency, backup/restore, migration, deploy, and cleanup
+   approvals.
+3. Dispatch the Deploy workflow for the exact approved `main` revision with
+   `auth-cleanup-approved` confirmed.
+4. The workflow builds the exact revision, stops the API and worker, captures
+   the preservation fingerprint, and verifies the pre-migration invariant.
+5. With writers still stopped, it runs the generated migration, requires an
+   identical preservation fingerprint, and verifies the final schema.
+6. Verify one dashboard session, one suite User API Key through `tt`, one OAuth
+   request, one denied user, and one dependency-unavailable response.
+7. Verify ordinary worker health, exact image revision labels, and the complete
+   deployment smoke.
 
-1. Prevent deployment concurrency and stop the API and worker so no request can
-   resolve an unmapped existing user.
-2. Capture and restore-test a fresh backup.
-3. Build the approved revision and run only its one-shot additive migration.
-   Do not start the new API or worker.
-4. Apply the reviewed account-to-Merchbase-User artifact in one explicit
-   transaction. Reject blanks and duplicates; do not create, merge, delete, or
-   rename accounts.
-5. Verify account count, mapping count, preference hashes, roles, trademark
-   counts, and source state against the preflight.
-6. Configure the Clerk verification and webhook secrets, then start the new API.
-   Confirm signed create/update/delete,
-   duplicate, and out-of-order behavior without customer data.
-7. Verify one dashboard session, one suite API key through `tt`, one denied
-   user, and one dependency-unavailable response.
-8. Start the worker; verify daily projection repair and ordinary USPTO health.
-9. Retire legacy keys through their owning systems only after customer
-   acceptance. Runtime already rejects them; never print raw keys.
-10. In a later release, generate the final migration to enforce
-    `account.merchbase_user_id` not null and remove legacy auth tables only after
-    every mapping and retirement is proven.
+Do not delete or retire Clerk suite credentials as part of this workflow.
+Retries and later deployments detect the final schema, verify its invariant,
+and rerun migrations idempotently without requiring removed evidence tables.
 
-Required approvals: mapping reviewer, backup/restore operator, production
-migration/deploy operator, Clerk/webhook operator, legacy-key retirement owner,
-and final cleanup owner.
+## Failure And Recovery
 
-## Rollback
+The generated migration is transactional. If it rejects an unmapped account or
+another invariant, the workflow leaves the API and worker stopped. Run
+`verify-pre` and compare a fresh `capture` with the pre-migration fingerprint to
+confirm that the prior schema and data remain, then restart the known compatible
+centralized-auth revision. Do not partially apply the SQL or delete rows by
+hand.
 
-Before any legacy retirement or destructive cleanup, roll back code to the
-known compatible revision while preserving the additive columns/tables and all
-named volumes. Restore the prior webhook routing/configuration and run the
-normal deployment smoke. Do not erase stable mappings or product data.
-
-If an approved backfill was wrong, stop traffic and the worker, preserve the
-failed state, and restore the verified pre-cutover dump to an isolated database
-first. Production restore requires the backup operator's explicit approval,
-documented target, and post-restore count/hash checks. A post-cleanup rollback
-must restore the verified dump; do not reconstruct legacy auth rows manually.
+After a successful cleanup, an application rollback may use only a revision
+explicitly verified against the final schema. Reversing the schema or recovering
+the removed evidence requires stopping traffic and restoring the verified
+pre-cleanup dump with explicit backup-operator approval. Verify the same counts
+and hashes after restore; never reconstruct removed rows manually.

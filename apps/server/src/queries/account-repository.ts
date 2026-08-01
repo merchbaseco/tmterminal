@@ -15,16 +15,6 @@ export function resolveMerchbaseAccount(database: postgres.Sql, merchbaseUserId:
       return existing.accountId;
     }
 
-    const [unmappedAccount] = await transaction<[{ exists: boolean }]>`
-      select true as exists
-      from account
-      where merchbase_user_id is null
-      limit 1
-    `;
-    if (unmappedAccount) {
-      throw new Error("Existing account mapping is incomplete");
-    }
-
     const accountId = randomUUID();
     await transaction`
       insert into account (id, merchbase_user_id)
