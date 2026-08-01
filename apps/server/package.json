@@ -3,7 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "access:inventory": "bun run src/access-inventory.ts",
     "build": "bun build src/server.ts src/worker.ts src/db/migrate.ts --outdir dist --target bun",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun run src/db/migrate.ts",

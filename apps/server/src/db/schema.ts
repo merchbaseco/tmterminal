@@ -46,7 +46,7 @@ export const workerActivity = pgEnum("worker_activity", [
 export const account = pgTable("account", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   id: uuid("id").primaryKey(),
-  merchbaseUserId: text("merchbase_user_id").unique(),
+  merchbaseUserId: text("merchbase_user_id").notNull().unique(),
   name: varchar("name", { length: 80 }).unique(),
   searchPreferences: jsonb("search_preferences")
     .$type<SearchPreferences>()
@@ -85,35 +85,6 @@ export const accessProjectionReceipt = pgTable("access_projection_receipt", {
   eventId: text("event_id").primaryKey(),
   receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
 });
-
-export const clerkIdentity = pgTable(
-  "clerk_identity",
-  {
-    accountId: uuid("account_id")
-      .notNull()
-      .references(() => account.id),
-    clerkUserId: text("clerk_user_id").primaryKey(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (table) => [uniqueIndex("clerk_identity_account_id_unique").on(table.accountId)]
-);
-
-export const apiKey = pgTable(
-  "api_key",
-  {
-    accountId: uuid("account_id")
-      .notNull()
-      .references(() => account.id),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    id: uuid("id").primaryKey(),
-    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
-    name: varchar("name", { length: 80 }).notNull(),
-    revokedAt: timestamp("revoked_at", { withTimezone: true }),
-    secretHash: varchar("secret_hash", { length: 64 }).notNull(),
-    suffix: varchar("suffix", { length: 8 }).notNull(),
-  },
-  (table) => [index("api_key_account_id_idx").on(table.accountId)]
-);
 
 export const roleAssignment = pgTable(
   "role_assignment",

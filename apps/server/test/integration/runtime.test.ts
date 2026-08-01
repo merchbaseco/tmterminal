@@ -76,6 +76,7 @@ test("creates the perpetual live schema idempotently", async () => {
 
 test("backfills expanded search preferences without replacing existing choices", async () => {
   await migrateDatabase(databaseUrl, await stageMigrationPrefix(27));
+  const deployedMigrations = await stageMigrationPrefix(30);
   const accountId = "00000000-0000-4000-8000-000000000001";
   const legacyPreferences = {
     defaultMatch: "exact",
@@ -89,6 +90,10 @@ test("backfills expanded search preferences without replacing existing choices",
     values (${accountId}, 'preferences-owner', ${database.json(legacyPreferences)})
   `;
 
+  await migrateDatabase(databaseUrl, deployedMigrations);
+  await database`
+    update account set merchbase_user_id = 'mbu_preferences_owner' where id = ${accountId}
+  `;
   await migrateDatabase(databaseUrl);
   await migrateDatabase(databaseUrl);
 
@@ -128,6 +133,7 @@ test("refuses the cutover while a legacy source can still be replayed", async ()
 
 test("preserves auth and searchable data across the deployed live-ingestion cutover", async () => {
   await migrateDatabase(databaseUrl, await stageMigrationPrefix(22));
+  const deployedMigrations = await stageMigrationPrefix(30);
   const accountId = "00000000-0000-4000-8000-000000000001";
   const artifactId = "41000000-0000-4000-8000-000000000001";
   const sourceSha = "a".repeat(64);
@@ -162,8 +168,8 @@ test("preserves auth and searchable data across the deployed live-ingestion cuto
     )
   `;
 
-  await migrateDatabase(databaseUrl);
-  await migrateDatabase(databaseUrl);
+  await migrateDatabase(databaseUrl, deployedMigrations);
+  await migrateDatabase(databaseUrl, deployedMigrations);
 
   expect([
     ...(await database`
@@ -219,3 +225,167 @@ test("preserves auth and searchable data across the deployed live-ingestion cuto
     { activity: "idle", id: "uspto" },
   ]);
 });
+
+test("finalizes stable account mappings while preserving product and projection data", async () => {
+  await migrateDatabase(databaseUrl, await stageMigrationPrefix(30));
+  const accountId = "00000000-0000-4000-8000-000000000001";
+  const artifactId = "41000000-0000-4000-8000-000000000001";
+  const sourceSha = "a".repeat(64);
+  const preferences = {
+    defaultMatch: "exact",
+    defaultRegistered: "yes",
+    defaultSort: "newest-activity",
+    defaultStatus: "live",
+    defaultType: "text",
+    pageSize: 50,
+    resultDensity: "comfortable",
+  };
+
+  await database`
+    insert into account (id, merchbase_user_id, name, search_preferences)
+    values (${accountId}, 'mbu_preserved', 'owner', ${database.json(preferences)})
+  `;
+  await database`
+    insert into clerk_identity (clerk_user_id, account_id) values ('user_preserved', ${accountId})
+  `;
+  await database`
+    insert into api_key (id, account_id, name, secret_hash, suffix)
+    values ('10000000-0000-4000-8000-000000000001', ${accountId}, 'retired',
+      ${"a".repeat(64)}, '12345678')
+  `;
+  await database`insert into role_assignment (account_id, role) values (${accountId}, 'operator')`;
+  await database`
+    insert into access_projection (
+      issuer, subject, merchbase_user_id, access, source_updated_at
+    ) values (
+      'https://clerk.example.test', 'user_preserved', 'mbu_preserved', 'granted', 1000
+    )
+  `;
+  await database`
+    insert into access_projection_receipt (event_id) values ('event_preserved')
+  `;
+  await database`
+    insert into source_artifact (
+      id, product, filename, expected_bytes, source_from_date, source_to_date, sha256
+    ) values (
+      ${artifactId}, 'TRTDXFAP', 'apc260704.zip', 10, '2026-07-04', '2026-07-04', ${sourceSha}
+    )
+  `;
+  await database`
+    insert into mark (
+      serial_number, word_mark, status_code, normalization_version, source_product,
+      source_filename, source_sha256, source_physical_record_index
+    ) values (
+      '70000004', 'PRESERVED MARK', '616', 'uspto-normalization-v1', 'TRTDXFAP',
+      'apc260704.zip', ${sourceSha}, 1
+    )
+  `;
+
+  const preservedBefore = await authCleanupState(database);
+  await migrateDatabase(databaseUrl);
+  await migrateDatabase(databaseUrl);
+
+  const preservedAfter = await authCleanupState(database);
+  const [schema] = await database<
+    Array<{
+      apiKeyTable: string | null;
+      clerkIdentityTable: string | null;
+      mappingNullable: "NO" | "YES";
+      mappingUnique: boolean;
+      unmappedAccounts: number;
+    }>
+  >`
+    select
+      to_regclass('public.api_key')::text as "apiKeyTable",
+      to_regclass('public.clerk_identity')::text as "clerkIdentityTable",
+      (
+        select is_nullable
+        from information_schema.columns
+        where table_schema = 'public'
+          and table_name = 'account'
+          and column_name = 'merchbase_user_id'
+      ) as "mappingNullable",
+      exists (
+        select from pg_constraint
+        where conrelid = 'public.account'::regclass
+          and conname = 'account_merchbase_user_id_unique'
+          and contype = 'u'
+      ) as "mappingUnique",
+      (select count(*)::int from account where merchbase_user_id is null) as "unmappedAccounts"
+  `;
+
+  expect(preservedAfter).toEqual(preservedBefore);
+  expect(schema).toEqual({
+    apiKeyTable: null,
+    clerkIdentityTable: null,
+    mappingNullable: "NO",
+    mappingUnique: true,
+    unmappedAccounts: 0,
+  });
+});
+
+test("rolls back final auth cleanup atomically when an account is unmapped", async () => {
+  await migrateDatabase(databaseUrl, await stageMigrationPrefix(30));
+  const accountId = "00000000-0000-4000-8000-000000000001";
+  await database`insert into account (id, name) values (${accountId}, 'unmapped')`;
+  await database`
+    insert into clerk_identity (clerk_user_id, account_id) values ('user_unmapped', ${accountId})
+  `;
+  await database`
+    insert into api_key (id, account_id, name, secret_hash, suffix)
+    values ('10000000-0000-4000-8000-000000000001', ${accountId}, 'evidence',
+      ${"a".repeat(64)}, '12345678')
+  `;
+
+  await expect(migrateDatabase(databaseUrl)).rejects.toThrow();
+
+  const [state] = await database<
+    Array<{
+      accounts: number;
+      apiKeyTable: string | null;
+      clerkIdentityTable: string | null;
+      identities: number;
+      keys: number;
+    }>
+  >`
+    select
+      (select count(*)::int from account) accounts,
+      to_regclass('public.api_key')::text as "apiKeyTable",
+      to_regclass('public.clerk_identity')::text as "clerkIdentityTable",
+      (select count(*)::int from clerk_identity) identities,
+      (select count(*)::int from api_key) keys
+  `;
+
+  expect(state).toEqual({
+    accounts: 1,
+    apiKeyTable: "api_key",
+    clerkIdentityTable: "clerk_identity",
+    identities: 1,
+    keys: 1,
+  });
+});
+
+async function authCleanupState(sql: postgres.Sql) {
+  const [state] = await sql`
+    select
+      (select jsonb_agg(to_jsonb(account) order by id) from account) accounts,
+      (
+        select jsonb_agg(to_jsonb(role_assignment) order by account_id, role)
+        from role_assignment
+      ) roles,
+      (
+        select jsonb_agg(to_jsonb(access_projection) order by issuer, subject)
+        from access_projection
+      ) projections,
+      (
+        select jsonb_agg(to_jsonb(access_projection_receipt) order by event_id)
+        from access_projection_receipt
+      ) receipts,
+      (
+        select jsonb_agg(to_jsonb(source_artifact) order by product, filename)
+        from source_artifact
+      ) artifacts,
+      (select jsonb_agg(to_jsonb(mark) order by serial_number) from mark) marks
+  `;
+  return state;
+}
