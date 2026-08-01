@@ -20,8 +20,9 @@ read_when:
 | Data Version | One monotonic query-visible version for stable pagination. |
 
 There is no corpus, generation, publication, source lane, retry queue, issue
-history, source-version history, per-field claim, contributor, or complete
-frontier table.
+history, source-version history, per-field claim, contributor, complete
+frontier, product-specific credential, or legacy identity table. Every account
+has one unique stable Merchbase User mapping.
 
 ## Source Artifact
 

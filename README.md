@@ -22,12 +22,14 @@ Trademark data is informational, not legal advice. Verify consequential decision
 
 | Interface | Best for |
 | --- | --- |
-| [Website](https://tmterminal.merchbase.co) | Interactive search, trademark detail, API-key management, public status, and help. |
+| [Website](https://tmterminal.merchbase.co) | Interactive search, trademark detail, account access, public status, and help. |
 | HTTP API | Typed integrations with trademark search, exact lookups, text matching, and bulk screening. |
 | `@tmterminal/http-client` | TypeScript applications that want typed Trademark Terminal input and output contracts. |
 | `@tmterminal/cli` (`tt`) | JSON-first shell automation and agentic workflows. |
 
-The website uses MerchBase authentication. The HTTP API, client, and CLI use Trademark Terminal API keys. MerchBase consumes the same API as every other client.
+The website uses a Clerk session. The HTTP API, client, and CLI accept suite-wide
+MerchBase User API Keys managed in the MerchBase Account Center. MerchBase
+consumes the shared OAuth API.
 
 ## Data coverage
 
@@ -66,6 +68,6 @@ See [development operations](docs/operations/development.md) for environment set
 
 ## Project status
 
-Trademark Terminal is under active development. Authentication, search, exact lookups, the website, HTTP client, CLI, and production runtime are operational. The USPTO ingestion lifecycle is being simplified around direct updates to the live trademark database; the accepted design is documented in [ingestion internals](docs/internals/ingestion.md).
+Trademark Terminal is under active development. Authentication, search, exact lookups, the website, HTTP client, CLI, and production runtime are operational. USPTO ingestion updates the live trademark database directly; the accepted design is documented in [ingestion internals](docs/internals/ingestion.md).
 
 Start with the [documentation index](docs/README.md). Product behavior lives under [product](docs/product/README.md), system ownership under [internals](docs/internals/README.md), exact contracts under [reference](docs/reference/README.md), and maintainer workflows under [operations](docs/operations/README.md).

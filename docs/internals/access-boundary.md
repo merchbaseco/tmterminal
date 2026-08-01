@@ -49,19 +49,14 @@ accounts.
 
 ## Local Account
 
-`account.merchbase_user_id` is the only centralized identity mapping. The
-additive migration leaves it nullable and unique. Existing accounts require an
-explicit, reviewed backfill; no request path matches email or legacy Clerk ID.
-Creating a local account is valid only after a verified stable Merchbase User
-has no existing local mapping. Lazy creation fails closed while any legacy
-account remains unmapped, so an incomplete backfill cannot recreate an existing
-user's account.
+`account.merchbase_user_id` is the only centralized identity mapping. It is
+required and unique. No request path matches email, a Clerk subject, or another
+mutable identity attribute. Creating a local account is valid only after a
+verified stable Merchbase User has no existing local mapping.
 
-The legacy Clerk identity and Trademark Terminal API-key tables remain
-data-preserving migration evidence until the approved cutover has proven every
-account mapping and legacy key retirement. Runtime auth does not read them.
-Final not-null enforcement and table removal require a later generated
-migration after those gates.
+Trademark Terminal stores no product-specific credentials or legacy identity
+mapping. Suite-wide credential creation, inspection, and retirement belong to
+the Merchbase Account Center.
 
 ## Background Work
 
