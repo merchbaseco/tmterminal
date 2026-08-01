@@ -1,0 +1,167 @@
+#!/bin/sh
+set -eu
+
+root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+cd "$root"
+
+mode="${1:-}"
+
+psql_readonly() {
+  if [ -n "${AUTH_CLEANUP_DATABASE_URL:-}" ]; then
+    PGOPTIONS="-c default_transaction_read_only=on" psql \
+      "$AUTH_CLEANUP_DATABASE_URL" --set=ON_ERROR_STOP=1 --no-align --quiet --tuples-only
+    return
+  fi
+
+  docker compose --project-name tmterminal --env-file .env exec -T database sh -c \
+    'PGOPTIONS="-c default_transaction_read_only=on" exec psql \
+      --set=ON_ERROR_STOP=1 \
+      --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --no-align --quiet --tuples-only'
+}
+
+case "$mode" in
+  state)
+    psql_readonly <<'SQL'
+begin read only;
+select case
+  when to_regclass('public.api_key') is not null
+    and to_regclass('public.clerk_identity') is not null
+    and exists (
+      select from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'account'
+        and column_name = 'merchbase_user_id'
+        and is_nullable = 'YES'
+    )
+    then 'pre'
+  when to_regclass('public.api_key') is null
+    and to_regclass('public.clerk_identity') is null
+    and exists (
+      select from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'account'
+        and column_name = 'merchbase_user_id'
+        and is_nullable = 'NO'
+    )
+    then 'final'
+  else 'invalid'
+end;
+commit;
+SQL
+    ;;
+  capture)
+    psql_readonly <<'SQL'
+begin read only;
+select json_build_object(
+  'accounts', (select count(*) from account),
+  'accountStateHash', (
+    select md5(coalesce(string_agg(
+      concat_ws('|', id::text, merchbase_user_id, coalesce(name, ''),
+        search_preferences::text, created_at::text),
+      E'\n' order by id
+    ), '')) from account
+  ),
+  'roles', (select count(*) from role_assignment),
+  'roleStateHash', (
+    select md5(coalesce(string_agg(
+      concat_ws('|', account_id::text, role, created_at::text),
+      E'\n' order by account_id, role
+    ), '')) from role_assignment
+  ),
+  'marks', (select count(*) from mark),
+  'sourceArtifacts', (select count(*) from source_artifact),
+  'sourceStateHash', (
+    select md5(coalesce(string_agg(
+      row_to_json(source_artifact)::text,
+      E'\n' order by product, filename
+    ), '')) from source_artifact
+  ),
+  'projections', (select count(*) from access_projection),
+  'projectionStateHash', (
+    select md5(coalesce(string_agg(
+      row_to_json(access_projection)::text,
+      E'\n' order by issuer, subject
+    ), '')) from access_projection
+  ),
+  'projectionReceipts', (select count(*) from access_projection_receipt),
+  'receiptStateHash', (
+    select md5(coalesce(string_agg(
+      row_to_json(access_projection_receipt)::text,
+      E'\n' order by event_id
+    ), '')) from access_projection_receipt
+  )
+);
+commit;
+SQL
+    ;;
+  verify-pre)
+    psql_readonly <<'SQL'
+begin read only;
+do $$
+begin
+  if exists (select from account where merchbase_user_id is null) then
+    raise exception 'auth cleanup requires every account mapping';
+  end if;
+  if exists (
+    select from account group by merchbase_user_id having count(*) > 1
+  ) then
+    raise exception 'auth cleanup requires unique account mappings';
+  end if;
+  if to_regclass('public.api_key') is null
+    or to_regclass('public.clerk_identity') is null then
+    raise exception 'auth cleanup evidence tables are missing';
+  end if;
+end
+$$;
+select json_build_object(
+  'accounts', (select count(*) from account),
+  'mappedAccounts', (select count(*) from account where merchbase_user_id is not null),
+  'legacyIdentities', (select count(*) from clerk_identity),
+  'legacyKeys', (select count(*) from api_key),
+  'activeLegacyKeys', (select count(*) from api_key where revoked_at is null)
+);
+commit;
+SQL
+    ;;
+  verify-final)
+    psql_readonly <<'SQL'
+begin read only;
+do $$
+begin
+  if exists (select from account where merchbase_user_id is null) then
+    raise exception 'auth cleanup left an unmapped account';
+  end if;
+  if exists (
+    select from account group by merchbase_user_id having count(*) > 1
+  ) then
+    raise exception 'auth cleanup left duplicate account mappings';
+  end if;
+  if not exists (
+    select from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'account'
+      and column_name = 'merchbase_user_id'
+      and is_nullable = 'NO'
+  ) then
+    raise exception 'stable account mapping is still nullable';
+  end if;
+  if to_regclass('public.api_key') is not null
+    or to_regclass('public.clerk_identity') is not null then
+    raise exception 'auth cleanup evidence tables remain';
+  end if;
+end
+$$;
+select json_build_object(
+  'accounts', (select count(*) from account),
+  'mappedAccounts', (select count(*) from account where merchbase_user_id is not null),
+  'stableMappingRequired', true,
+  'legacyTablesAbsent', true
+);
+commit;
+SQL
+    ;;
+  *)
+    echo "usage: scripts/auth-cleanup-inventory state|capture|verify-pre|verify-final" >&2
+    exit 2
+    ;;
+esac
