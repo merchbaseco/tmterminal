@@ -9,13 +9,13 @@ read_when:
 
 Trademark Terminal is one Bun workspace around one PostgreSQL database. The API
 serves authenticated reads and account actions; the worker maintains source
-data; the website, HTTP client, and CLI consume the server contract.
+data; the website, HTTP client, CLI, and hosted MCP consume the server contract.
 
 ## Workspace
 
 | Surface | Owner |
 | --- | --- |
-| `apps/server` | Fastify/tRPC API, authentication, queries, source ingestion, worker, and Drizzle schema. |
+| `apps/server` | Fastify/tRPC and MCP API, authentication, queries, source ingestion, worker, and Drizzle schema. |
 | `apps/web` | Private Vite/React website using Clerk and TanStack Query. |
 | `packages/http-client` | Published typed client derived from the server router. |
 | `packages/cli` | Published `tt` JSON automation client. |
@@ -34,8 +34,9 @@ does not run schedules; the worker does not serve customer procedures.
 - Drizzle schema is the database source of truth.
 - External adapters own Clerk and USPTO protocols.
 
-The HTTP client derives its inputs and outputs from the tRPC router. The website
-and CLI do not define parallel DTOs or search semantics.
+The HTTP client derives its inputs and outputs from the tRPC router. The website,
+CLI, and hosted MCP do not define parallel search semantics. MCP invokes the
+authenticated router in-process rather than calling HTTP or querying persistence.
 
 ## Authentication Boundary
 
@@ -50,8 +51,8 @@ Credential selection happens before procedures run:
 6. Apply procedure-specific authorization.
 
 The dashboard route accepts sessions and User API Keys. The separate OAuth route
-accepts only OAuth tokens. Source operations additionally require a session and
-database role; navigation visibility is not authorization. See
+and hosted MCP accept only OAuth tokens. Source operations additionally require
+a session and database role; navigation visibility is not authorization. See
 [Access boundary](access-boundary.md).
 
 ## Data Boundary

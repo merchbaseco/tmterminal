@@ -18,9 +18,9 @@ loopback 5437 for the established Tailscale development path.
 | --- | --- |
 | PostgreSQL 16 | Accounts, source state, live trademark data, and Data Version. |
 | migrate | One-shot Drizzle migration before long-running services. |
-| API | Fastify/tRPC and data-free readiness. |
+| API | Fastify/tRPC, hosted MCP, OAuth discovery, and data-free readiness. |
 | worker | Serial USPTO discovery, download, and application. |
-| Caddy/web | Static website and `/api` proxy. |
+| Caddy/web | Static website plus exact `/api`, `/mcp`, and OAuth discovery proxies. |
 
 PostgreSQL and artifact storage use named volumes. No service binds a public host
 port. The worker handles one temporary ZIP at a time and keeps the 20 GiB floor
@@ -64,6 +64,10 @@ The ignored production `.env` lives at
 `/Users/zknicker/srv/tmterminal/.env`, mode `0600`. Required values include
 database, Clerk, and USPTO credentials. Production authorized parties is exactly
 `https://tmterminal.merchbase.co`.
+
+`MCP_RESOURCE_URL` is non-secret configuration. It defaults to
+`https://tmterminal.merchbase.co/mcp` and must remain an absolute HTTP URL with
+the exact `/mcp` path.
 
 Secrets are not printed, committed, copied into runtime image layers, or exposed
 through readiness.

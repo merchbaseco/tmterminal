@@ -13,5 +13,6 @@ Reference pages are terse lookup surfaces.
 | --- | --- |
 | Procedures, authorization, pagination, and errors | [HTTP API](http-api.md) |
 | Commands, credentials, JSON envelopes, and exits | [CLI](cli.md) |
+| Hosted tools, OAuth discovery, results, and errors | [MCP](mcp.md) |
 | Tables, lifecycle states, source identity, and recency | [Data model](data-model.md) |
 | ODP access, quotas, XML identity, and classification semantics | [USPTO source](uspto-source.md) |

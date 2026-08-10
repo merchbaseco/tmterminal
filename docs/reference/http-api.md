@@ -10,9 +10,12 @@ read_when:
 One tRPC router defines the service contract. Inputs and outputs flow into
 `@tmterminal/http-client`; clients do not duplicate DTOs.
 
-This page describes the executable contract on `origin/main`. Target-only source
-status and Repair behavior stays in product and ingestion docs until the
-implementation changes the router.
+The hosted MCP invokes the authenticated router in-process and exposes exact
+lookup, search, and simplified listing-text screening. See [MCP](mcp.md).
+
+This page describes the executable service contract. Target-only source status
+and Repair behavior stays in product and ingestion docs until the implementation
+changes the router.
 
 ## Authorization
 
@@ -45,15 +48,18 @@ names to callers.
 | `marks.get` | Exactly one eight-digit serial or seven-digit registration identity. |
 | `marks.match` | One to 100 named Text Documents; every overlapping occurrence, half-open UTF-16 span, and live trademark group; each document is limited to 4,096 UTF-16 units and 128 Unicode word tokens. |
 | `marks.screen` | One to 100 named Screen Queries; ordered live exact and partial counts in one Data Version. |
+| `marks.screenText` | One listing text; each matching live trademark once, without source positions. This is the published client, CLI, and MCP screening contract. |
 | `marks.list` | Recent source transaction activity with stable pagination. |
 
 ## Sync
 
 The published client's top-level `status` procedure maps to `sync.status` and
-returns the authenticated safe summary used by `tt status`:
+returns the authenticated safe summary:
 worker activity, Latest Processed, Data Version, last successful update, and
-pending/failed counts. A worker heartbeat older than five minutes reports a
-failed active state. The summary does not expose filenames or repair actions.
+pending/failed counts. Data Version is always a decimal string, matching page
+metadata and continuation inputs. A worker heartbeat older than five minutes
+reports a failed active state. The summary does not expose filenames or repair
+actions.
 
 Serial and registration are identities, never fuzzy query terms.
 

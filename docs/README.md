@@ -12,7 +12,7 @@ Trademark Terminal makes trademark compliance easy for online sellers, primarily
 focused on print-on-demand entrepreneurs in the merch and apparel niche.
 Trademark Terminal maintains a searchable United States trademark database, and
 surfaces the functionality via the tmterminal.merchbase.co website, a dedicated
-HTTP API, and the `tt` CLI native to agentic workflows.
+HTTP API, the `tt` CLI, and hosted MCP tools native to agentic workflows.
 
 These docs state behavior, boundaries, exact contracts, workflows, and durable
 decisions that are hard to recover from code search alone. Source Status,
@@ -28,6 +28,7 @@ describe how USPTO files continuously update the searchable database.
 | Change USPTO ingestion or precedence | [Ingestion internals](internals/ingestion.md), [Data model](reference/data-model.md), [USPTO source](reference/uspto-source.md) |
 | Change source visibility or repair | [Source status](product/source-status.md), [Source repair](operations/source-repair.md) |
 | Change CLI behavior | [CLI reference](reference/cli.md) |
+| Change or connect to hosted MCP | [MCP reference](reference/mcp.md) |
 | Change packages or system boundaries | [Architecture](internals/architecture.md) |
 | Change authentication or account identity | [Access boundary](internals/access-boundary.md) |
 | Change website styling or primitives | [Design system](design/system.md) |
@@ -57,6 +58,7 @@ describe how USPTO files continuously update the searchable database.
 | --- | --- |
 | tRPC procedures, auth, pagination, and error codes | [HTTP API](reference/http-api.md) |
 | `tt` commands, credentials, envelopes, and exits | [CLI](reference/cli.md) |
+| Hosted MCP tools, OAuth, results, and errors | [MCP](reference/mcp.md) |
 | Tables, source states, and mark precedence | [Data model](reference/data-model.md) |
 | ODP access, rate limits, XML identity, and class semantics | [USPTO source](reference/uspto-source.md) |
 

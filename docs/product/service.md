@@ -9,8 +9,8 @@ read_when:
 
 Trademark Terminal is the authenticated United States trademark service for the
 MerchBase product family. It maintains USPTO-derived trademark knowledge and
-serves the same typed behavior to its website, HTTP client, CLI, and downstream
-products.
+serves the same typed behavior to its website, HTTP client, CLI, hosted MCP, and
+downstream products.
 
 ## Users
 
@@ -18,6 +18,7 @@ products.
 - Authenticated website users searching and inspecting marks.
 - MerchBase and other trusted products using the HTTP client.
 - Developers and power users using the JSON-first `tt` CLI.
+- Research agents using the hosted MCP tools.
 
 ## Capabilities
 
@@ -42,6 +43,7 @@ Every data procedure requires one authenticated account context.
 - The HTTP client and CLI use suite-wide Clerk User API Keys.
 - A separate OAuth tRPC endpoint accepts shared Clerk OAuth access tokens for
   downstream Merchbase products.
+- Hosted MCP accepts Clerk OAuth access tokens only.
 - Source diagnostics and operations require a Clerk session plus the
   database-backed operator role.
 - Process and database readiness plus aggregate source status are anonymous.
@@ -71,10 +73,11 @@ rewritten by account defaults.
 | Website | Private search, text matching, bulk screening, mark detail, preferences, and an Account Center link plus public Status and Help pages. |
 | `@tmterminal/http-client` | Typed programmatic access derived from the server router. |
 | `@tmterminal/cli` / `tt` | JSON-first shell automation over API-key-authorized procedures. |
+| Hosted MCP | Read-only agent tools over OAuth-authorized trademark operations. |
 | MerchBase | Downstream consumer that owns its own adapter and product policy. |
 
-The server and website are private applications. Only the HTTP client and CLI
-are publication surfaces.
+The server and website are private applications. The HTTP client, CLI, and
+hosted MCP are publication surfaces.
 
 ## V1 Boundary
 

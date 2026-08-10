@@ -1,8 +1,7 @@
 # Trademark Terminal CLI
 
 `tt` is the JSON-first command-line client for Trademark Terminal. It searches
-United States trademarks, resolves exact identities, checks text, and reads
-service status.
+United States trademarks, resolves exact identities, and screens listing text.
 
 ## Install
 
@@ -30,9 +29,7 @@ printf '%s' "$MERCHBASE_API_KEY" | tt auth set --stdin
 tt search "TERMINAL CLUB" --status live
 tt get --serial 60146682
 tt get --registration 0146682
-printf '%s' "shirt title" | tt match --stdin
-tt list
-tt status
+printf '%s' "shirt title" | tt screen --stdin
 ```
 
 Normal commands write one JSON envelope to stdout on success or stderr on

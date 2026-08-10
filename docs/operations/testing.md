@@ -18,6 +18,7 @@ proportional set once after the diff is frozen.
 | Persistence or ingestion | Focused real-PostgreSQL test, restart/idempotency/cleanup coverage. |
 | Search, matching, or screening | Real PostgreSQL filters, sort, count, page, batching, Data Version, and index plans. |
 | HTTP client or CLI | Router/client build plus JSON-envelope and boundary tests. |
+| Hosted MCP | SDK in-memory tool tests, Fastify OAuth/transport tests, and exact Caddy route coverage. |
 | Website | Focused tests plus one real happy path and riskiest adjacent path. |
 | Schema | Generated migration review, upgrade/idempotency test, drift check. |
 | Deployment | Isolated Compose health and deployment contract. |

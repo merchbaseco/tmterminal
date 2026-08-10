@@ -55,10 +55,8 @@ credential source, and account context without the token.
 tt search <query> [--mode multi|split|wildcard] [--match both|exact|partial] [--status all|live|dead] [--type all|design|typeset|text|other] [--registered all|yes|no] [--sort relevance|newest-activity|oldest-activity] [--offset 0] [--data-version <version>]
 tt get --serial <eight-digit-number>
 tt get --registration <seven-digit-number>
-tt match --text <text> [--type all|design|typeset|text|other]
-tt match --stdin [--type all|design|typeset|text|other]
-tt list [--offset 0] [--data-version <version>]
-tt status
+tt screen --text <text> [--type all|design|typeset|text|other]
+tt screen --stdin [--type all|design|typeset|text|other]
 ```
 
 `--match` is valid only for Multi. Split requires at least one Unicode word
@@ -67,11 +65,10 @@ requires at least three consecutive literal Unicode word characters. `%`, `_`,
 and `\` remain literal. Validation fails before HTTP when the command can prove
 an input is invalid.
 
-`--text` and `--stdin` are mutually exclusive. `match` sends the selected
-text unchanged and returns every live overlap. Spans are half-open JavaScript
-UTF-16 offsets, so `text.slice(start, end)` recovers the source text. Input is
-limited to 4,096 UTF-16 code units and 128 Unicode word tokens; it is rejected,
-never truncated. Accepted input has no hidden candidate or result cap.
+`--text` and `--stdin` are mutually exclusive. `screen` sends the selected text
+unchanged and returns each matching live trademark once, without occurrence
+positions or source-text annotations. Input is limited to 4,096 UTF-16 code
+units and 128 Unicode word tokens; it is rejected, never truncated.
 
 ## Output
 
@@ -94,8 +91,8 @@ the stable JSON code rather than an exit-code taxonomy.
 
 ## Pagination
 
-Paged output preserves the server envelope and Data Version. Follow-up commands
-pass `--data-version`; changed live data returns `CONFLICT`.
+Paged search output preserves the server envelope and Data Version. Follow-up
+searches pass `--data-version`; changed live data returns `CONFLICT`.
 
-Every command requests the fixed 25-item API page. External streaming and
-hidden pagination are outside v1.
+Search requests the fixed 25-item API page. External streaming and hidden
+pagination are outside v1.

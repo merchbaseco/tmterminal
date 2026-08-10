@@ -1,7 +1,8 @@
 # Trademark Terminal HTTP Client
 
-Typed access to Trademark Terminal search, identity lookup, text matching, bulk
-screening, account context, and service status.
+Typed access to Trademark Terminal search, identity lookup, listing-text
+screening, rich text matching, recent activity, account context, and service
+status.
 
 ## Install
 
@@ -29,6 +30,11 @@ const trademark = await client.trademarks.get({
   serialNumber: "60146682",
 });
 
+const screened = await client.trademarks.screen({
+  text: "Terminal Club shirt",
+  type: "all",
+});
+
 const matches = await client.trademarks.match({
   texts: [
     { id: "title", text: "Terminal Club shirt" },
@@ -39,7 +45,9 @@ const matches = await client.trademarks.match({
 ```
 
 Methods return promises directly. Named input and output types are derived from
-the server router. `TmterminalError` is the stable error surface.
+the server router. `screen` returns each matching live trademark once; `match`
+retains named documents and occurrence spans for richer applications.
+`TmterminalError` is the stable error surface.
 
 See the [HTTP API reference](https://github.com/merchbaseco/tmterminal/blob/main/docs/reference/http-api.md)
 for authorization, pagination, matching, screening, and error contracts.
