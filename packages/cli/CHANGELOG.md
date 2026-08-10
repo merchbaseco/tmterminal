@@ -1,7 +1,13 @@
 # Trademark Terminal CLI Changelog
 
-## Unreleased
+## v4.0.0 - 2026-08-10
 
+- Focus the CLI on `get`, `search`, and `screen`; account authentication remains
+  under `tt auth`.
+- Screen one listing text and return each matching live trademark once, without
+  source positions or caller-managed document IDs.
+- Align the HTTP client's screening contract with CLI and MCP while preserving
+  richer matching and bulk checking in the direct API.
 - Use only the suite-wide `MERCHBASE_API_KEY` environment variable and shared
   Merchbase Keychain credential for customer authentication.
 - Reject legacy Trademark Terminal keys and product-specific credential

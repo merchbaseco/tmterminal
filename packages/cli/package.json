@@ -1,7 +1,7 @@
 {
   "name": "@tmterminal/cli",
-  "version": "3.0.0",
-  "description": "Command-line access to Trademark Terminal search, matching, and service status",
+  "version": "4.0.0",
+  "description": "Command-line access to Trademark Terminal exact lookup, search, and listing-text screening",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/merchbaseco/tmterminal.git",
