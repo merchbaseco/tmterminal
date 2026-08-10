@@ -30,10 +30,10 @@ const accessErrorResponse = {
   { code: "FORBIDDEN" | "SERVICE_UNAVAILABLE" | "UNAUTHORIZED"; message: string }
 >;
 
-function context(
+export function createAuthenticatedAppContext(
   database: postgres.Sql,
   auth: AuthenticatedAccount,
-  operator: boolean
+  operator = false
 ): AppContext {
   return {
     account: createAccountService(database, auth.accountId),
@@ -75,7 +75,7 @@ export async function createAppContext({
     (auth.credential.type === "session" &&
       (await accountIsOperator(database, authorized.principal.accountId)));
 
-  return context(database, auth, operator);
+  return createAuthenticatedAppContext(database, auth, operator);
 }
 
 function bearerCredential(authorization: string | undefined) {

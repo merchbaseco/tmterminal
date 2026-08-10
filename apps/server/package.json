@@ -12,7 +12,10 @@
   },
   "dependencies": {
     "@clerk/backend": "3.11.5",
+    "@clerk/mcp-tools": "0.6.0",
+    "@fastify/cors": "11.2.0",
     "@merchbaseco/access": "0.2.1",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "@trpc/server": "11.18.0",
     "drizzle-orm": "0.45.2",
     "fastify": "5.10.0",

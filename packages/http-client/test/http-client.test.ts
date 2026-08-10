@@ -52,7 +52,7 @@ test("exposes plain promise methods with the configured API key", async () => {
   expect(authorizations).toEqual(["Bearer ak_test_secret"]);
 });
 
-test("derives search, match, screen, and list contracts from the server router", async () => {
+test("derives trademark operation contracts from the server router", async () => {
   const requests: URL[] = [];
   server = Bun.serve({
     fetch(request) {
@@ -69,8 +69,8 @@ test("derives search, match, screen, and list contracts from the server router",
         data = { ...data, liveMatchCounts: { exact: 0, partial: 0 } };
       } else if (url.pathname.endsWith("marks.match")) {
         data = { meta: { dataVersion: "7" }, texts: [] };
-      } else if (url.pathname.endsWith("marks.screen")) {
-        data = { meta: { dataVersion: "7" }, queries: [] };
+      } else if (url.pathname.endsWith("marks.screenText")) {
+        data = { meta: { dataVersion: "7" }, trademarks: [] };
       }
       return Response.json({ result: { data } });
     },
@@ -92,7 +92,7 @@ test("derives search, match, screen, and list contracts from the server router",
     type: "text",
   };
   const screen: TrademarkScreenInput = {
-    queries: [{ id: "one", query: "terminal club" }],
+    text: "terminal club",
     type: "text",
   };
 
@@ -104,7 +104,7 @@ test("derives search, match, screen, and list contracts from the server router",
   expect(requests.map((request) => request.pathname)).toEqual([
     "/api/trpc/marks.search",
     "/api/trpc/marks.match",
-    "/api/trpc/marks.screen",
+    "/api/trpc/marks.screenText",
     "/api/trpc/marks.list",
   ]);
   expect(requests.map((request) => JSON.parse(request.searchParams.get("input") ?? "{}"))).toEqual([
@@ -124,7 +124,7 @@ test("exposes safe service status without the internal sync namespace", async ()
         result: {
           data: {
             activeState: "idle",
-            dataVersion: 7,
+            dataVersion: "7",
             failedCount: 0,
             lastSuccessfulUpdateAt: null,
             latestProcessedDate: "2026-07-21",
@@ -205,7 +205,7 @@ test("maps connection failures without a server response", async () => {
 
   expect(error).toBeInstanceOf(TmterminalError);
   expect(error).toMatchObject({
-    code: "CONNECTION_ERROR",
+    code: "SERVICE_UNAVAILABLE",
     status: null,
   });
 });

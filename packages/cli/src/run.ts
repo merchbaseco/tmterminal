@@ -13,7 +13,7 @@ export interface Keychain {
   set: (token: string) => Promise<void>;
 }
 
-export type CliClient = Pick<TmterminalClient, "account" | "status" | "trademarks">;
+export type CliClient = Pick<TmterminalClient, "account" | "trademarks">;
 
 export interface CliDependencies {
   createClient: (options: { apiKey: string; baseUrl: string }) => CliClient;
@@ -90,18 +90,18 @@ function remoteFailure(error: unknown) {
   return error instanceof TmterminalError ? failureResult(error.code, error.message) : null;
 }
 
-function matchInput(invocation: Extract<CliCommand, { kind: "match" }>, stdin: string) {
+function screenInput(invocation: Extract<CliCommand, { kind: "screen" }>, stdin: string) {
   const text = invocation.readsStdin ? stdin : (invocation.text ?? "");
   if (text.trim().length === 0) {
-    throw new BadRequestError("Match text is required");
+    throw new BadRequestError("Screen text is required");
   }
   if (text.length > 4096) {
-    throw new BadRequestError("Match text must contain at most 4096 UTF-16 code units");
+    throw new BadRequestError("Screen text must contain at most 4096 UTF-16 code units");
   }
   if ((text.match(unicodeWordTokens) ?? []).length > 128) {
-    throw new BadRequestError("Match text must contain at most 128 Unicode word tokens");
+    throw new BadRequestError("Screen text must contain at most 128 Unicode word tokens");
   }
-  return { texts: [{ id: "text", text }], type: invocation.type };
+  return { text, type: invocation.type };
 }
 
 export async function runCli(args: string[], dependencies: CliDependencies): Promise<CliResult> {
@@ -148,16 +148,12 @@ export async function runCli(args: string[], dependencies: CliDependencies): Pro
       }
       case "get":
         return success(await authenticated.client.trademarks.get(invocation.input));
-      case "list":
-        return success(await authenticated.client.trademarks.list(invocation.input));
-      case "match":
-        return success(
-          await authenticated.client.trademarks.match(matchInput(invocation, dependencies.stdin))
-        );
       case "search":
         return success(await authenticated.client.trademarks.search(invocation.input));
-      case "status":
-        return success(await authenticated.client.status.get());
+      case "screen":
+        return success(
+          await authenticated.client.trademarks.screen(screenInput(invocation, dependencies.stdin))
+        );
       default:
         throw new CliError("INTERNAL_ERROR", "Unsupported command");
     }

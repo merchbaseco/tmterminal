@@ -14,7 +14,9 @@ import {
   markIdentitySchema,
   matchTextsInputSchema,
   screenQueriesInputSchema,
+  screenTextInputSchema,
 } from "./marks-input.ts";
+import { summarizeScreenedText } from "./screen-text.ts";
 import { searchInputSchema } from "./search-input.ts";
 
 export interface AppContext {
@@ -80,6 +82,13 @@ const marksRouter = t.router({
   screen: t.procedure
     .input(screenQueriesInputSchema)
     .query(({ ctx, input }) => ctx.marks.screen(input)),
+  screenText: t.procedure
+    .input(screenTextInputSchema)
+    .query(async ({ ctx, input }) =>
+      summarizeScreenedText(
+        await ctx.marks.match({ texts: [{ id: "text", text: input.text }], type: input.type })
+      )
+    ),
   search: t.procedure.input(searchInputSchema).query(async ({ ctx, input }) => {
     try {
       return await ctx.marks.search(input);

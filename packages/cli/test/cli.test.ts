@@ -115,6 +115,23 @@ test("unknown commands return one JSON error on stderr", async () => {
   });
 });
 
+test("the seller command inventory excludes internal match, list, and status operations", async () => {
+  const commands = ["match", "list", "status"];
+  const results = await Promise.all(commands.map((command) => runCli([command], dependencies())));
+
+  for (const [index, result] of results.entries()) {
+    const command = commands[index];
+    expect(result.exitCode).toBe(1);
+    expect(json(result)).toMatchObject({
+      error: {
+        code: "BAD_REQUEST",
+        message: expect.stringContaining(`unknown command '${command}'`),
+      },
+      ok: false,
+    });
+  }
+});
+
 test("auth set stores stdin in the shared Keychain entry without echoing it", async () => {
   const stored: string[] = [];
   const result = await runCli(
@@ -389,64 +406,31 @@ test("search rejects mode-specific flags and unsafe continuations before HTTP", 
   expect(json(missingVersion).error.message).toContain("--data-version is required");
 });
 
-test("match supports explicit text and stdin without truncation", async () => {
+test("screen accepts explicit text or stdin and returns only unique matching trademarks", async () => {
   const inputs: unknown[] = [];
+  const data = { meta: { dataVersion: "7" }, trademarks: [searchPage.items[0]] };
   const createClient = () =>
     asClient({
       trademarks: {
-        match: (input: unknown) => {
+        screen: (input: unknown) => {
           inputs.push(input);
-          return Promise.resolve({ meta: { dataVersion: "7" }, texts: [] });
+          return Promise.resolve(data);
         },
       },
     });
   const stdin = "first terminal\nsecond terminal\n";
 
-  await runCli(["match", "--text", "🐢 Cafe\u0301", "--type", "text"], authenticated(createClient));
-  await runCli(["match", "--stdin"], authenticated(createClient, { stdin }));
+  const explicit = await runCli(
+    ["screen", "--text", "🐢 Cafe\u0301", "--type", "text"],
+    authenticated(createClient)
+  );
+  await runCli(["screen", "--stdin"], authenticated(createClient, { stdin }));
 
   expect(inputs).toEqual([
-    { texts: [{ id: "text", text: "🐢 Cafe\u0301" }], type: "text" },
-    { texts: [{ id: "text", text: stdin }], type: "all" },
+    { text: "🐢 Cafe\u0301", type: "text" },
+    { text: stdin, type: "all" },
   ]);
-});
-
-test("list uses the fixed page size and stable continuation", async () => {
-  const inputs: unknown[] = [];
-  const data = { items: [], limit: 25, meta: { dataVersion: "7" }, offset: 25, total: 0 };
-  const result = await runCli(
-    ["list", "--offset", "25", "--data-version", "7"],
-    authenticated(() =>
-      asClient({
-        trademarks: {
-          list: (input: unknown) => {
-            inputs.push(input);
-            return Promise.resolve(data);
-          },
-        },
-      })
-    )
-  );
-
-  expect(inputs).toEqual([{ expectedDataVersion: "7", limit: 25, offset: 25 }]);
-  expect(json(result)).toEqual({ data, ok: true });
-});
-
-test("status calls the safe authenticated service-status procedure", async () => {
-  const data = {
-    activeState: "idle",
-    dataVersion: 0,
-    failedCount: 0,
-    lastSuccessfulUpdateAt: null,
-    latestProcessedDate: null,
-    pendingCount: 0,
-  };
-  const result = await runCli(
-    ["status"],
-    authenticated(() => asClient({ status: { get: () => Promise.resolve(data) } }))
-  );
-
-  expect(json(result)).toEqual({ data, ok: true });
+  expect(json(explicit)).toEqual({ data, ok: true });
 });
 
 test("typed remote errors preserve code and message on stderr", async () => {

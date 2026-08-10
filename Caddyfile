@@ -1,7 +1,8 @@
 :8080 {
 	encode zstd gzip
 
-	handle /api/* {
+	@server path /api/* /mcp /.well-known/oauth-protected-resource /.well-known/oauth-protected-resource/mcp /.well-known/oauth-authorization-server /.well-known/oauth-authorization-server/mcp
+	handle @server {
 		reverse_proxy api:3000
 	}
 

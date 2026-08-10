@@ -1,13 +1,20 @@
 import { z } from "zod";
 
 import { countTextTokens } from "../search/text-matching.ts";
-import type { ListMarksInput, MatchTextsInput, ScreenQueriesInput } from "./contracts.ts";
+import type {
+  ListMarksInput,
+  MatchTextsInput,
+  ScreenQueriesInput,
+  ScreenTextInput,
+} from "./contracts.ts";
 
 const maximumMatchTextCodeUnits = 4096;
 const maximumMatchTextTokens = 128;
 const maximumMatchTexts = 100;
 const maximumScreenQueries = 100;
 const identifierSchema = z.string().trim().min(1).max(100);
+const markTypeSchema = z.enum(["all", "design", "typeset", "text", "other"]);
+const matchTextSchema = z.string().superRefine(validateMatchText);
 
 export const listMarksInputSchema = z
   .object({
@@ -38,13 +45,13 @@ export const matchTextsInputSchema = z
         z
           .object({
             id: identifierSchema,
-            text: z.string().superRefine(validateMatchText),
+            text: matchTextSchema,
           })
           .strict()
       )
       .min(1)
       .max(maximumMatchTexts),
-    type: z.enum(["all", "design", "typeset", "text", "other"]).default("all"),
+    type: markTypeSchema.default("all"),
   })
   .strict()
   .superRefine((input, context) =>
@@ -64,12 +71,19 @@ export const screenQueriesInputSchema = z
       )
       .min(1)
       .max(maximumScreenQueries),
-    type: z.enum(["all", "design", "typeset", "text", "other"]).default("all"),
+    type: markTypeSchema.default("all"),
   })
   .strict()
   .superRefine((input, context) =>
     validateUniqueIds(input.queries, context)
   ) satisfies z.ZodType<ScreenQueriesInput>;
+
+export const screenTextInputSchema = z
+  .object({
+    text: matchTextSchema,
+    type: markTypeSchema.default("all"),
+  })
+  .strict() satisfies z.ZodType<ScreenTextInput>;
 
 function validateMatchText(text: string, context: z.RefinementCtx) {
   if (text.length > maximumMatchTextCodeUnits) {

@@ -14,8 +14,8 @@ export type TrademarkListInput = InternalInputs["marks"]["list"];
 export type TrademarkListPage = InternalOutputs["marks"]["list"];
 export type TrademarkMatchInput = InternalInputs["marks"]["match"];
 export type TrademarkMatchResult = InternalOutputs["marks"]["match"];
-export type TrademarkScreenInput = InternalInputs["marks"]["screen"];
-export type TrademarkScreenResult = InternalOutputs["marks"]["screen"];
+export type TrademarkScreenInput = InternalInputs["marks"]["screenText"];
+export type TrademarkScreenResult = InternalOutputs["marks"]["screenText"];
 export type TrademarkSearchInput = InternalInputs["marks"]["search"];
 export type TrademarkSearchPage = InternalOutputs["marks"]["search"];
 
@@ -99,7 +99,7 @@ export function createTmterminalClient({
       get: (input) => call(() => client.marks.get.query(input)),
       list: (input = {}) => call(() => client.marks.list.query(input)),
       match: (input) => call(() => client.marks.match.query(input)),
-      screen: (input) => call(() => client.marks.screen.query(input)),
+      screen: (input) => call(() => client.marks.screenText.query(input)),
       search: (input) => call(() => client.marks.search.query(input)),
     },
   };
@@ -112,20 +112,20 @@ function publicError(error: unknown) {
   if (error instanceof TRPCClientError) {
     if (!error.data) {
       return new TmterminalError(error.message, {
-        code: "CONNECTION_ERROR",
+        code: "SERVICE_UNAVAILABLE",
         status: null,
       });
     }
     const data = objectValue(error.data);
     return new TmterminalError(error.message, {
-      code: stringValue(data.code) ?? "REQUEST_FAILED",
+      code: stringValue(data.code) ?? "INTERNAL_ERROR",
       details: data,
       requestId: stringValue(data.requestId),
       status: numberValue(data.httpStatus),
     });
   }
   return new TmterminalError(error instanceof Error ? error.message : "Request failed", {
-    code: "CONNECTION_ERROR",
+    code: "SERVICE_UNAVAILABLE",
     status: null,
   });
 }

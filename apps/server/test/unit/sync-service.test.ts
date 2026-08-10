@@ -23,7 +23,7 @@ const now = new Date("2026-01-01T00:01:00Z");
 test("reports the perpetual live database without a corpus frontier", () => {
   expect(syncStatusFromFacts(healthy, now)).toEqual({
     activeState: "idle",
-    dataVersion: 1,
+    dataVersion: "1",
     failedCount: 0,
     lastSuccessfulUpdateAt: "2026-01-01T00:00:00.000Z",
     latestProcessedDate: "2026-01-01",

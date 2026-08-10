@@ -123,6 +123,16 @@ export interface ScreenQueriesResult {
   }>;
 }
 
+export interface ScreenTextInput {
+  text: string;
+  type: "all" | "design" | "typeset" | "text" | "other";
+}
+
+export interface ScreenTextResult {
+  meta: MarkPage["meta"];
+  trademarks: MarkSummary[];
+}
+
 export interface MarksService {
   get: (
     identity: { registrationNumber: string } | { serialNumber: string }
@@ -135,7 +145,7 @@ export interface MarksService {
 
 export interface SyncStatus {
   activeState: "applying" | "discovering" | "downloading" | "failed" | "idle";
-  dataVersion: number;
+  dataVersion: string;
   failedCount: number;
   lastSuccessfulUpdateAt: string | null;
   latestProcessedDate: string | null;

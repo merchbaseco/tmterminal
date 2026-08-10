@@ -1,8 +1,4 @@
-import type {
-  TrademarkGetInput,
-  TrademarkListInput,
-  TrademarkSearchInput,
-} from "@tmterminal/http-client";
+import type { TrademarkGetInput, TrademarkSearchInput } from "@tmterminal/http-client";
 import { Command, CommanderError, InvalidArgumentError, Option } from "commander";
 
 import { BadRequestError } from "./cli-error.js";
@@ -18,10 +14,8 @@ export type CliCommand =
   | { kind: "auth-set"; readsStdin: boolean }
   | { kind: "auth-status" }
   | { input: TrademarkGetInput; kind: "get" }
-  | { input: TrademarkListInput; kind: "list" }
-  | { kind: "match"; readsStdin: boolean; text?: string; type: MatchOptions["type"] }
-  | { input: TrademarkSearchInput; kind: "search" }
-  | { kind: "status" };
+  | { kind: "screen"; readsStdin: boolean; text?: string; type: ScreenOptions["type"] }
+  | { input: TrademarkSearchInput; kind: "search" };
 
 export type ParsedCli =
   | { baseUrl?: string; command: CliCommand; kind: "command" }
@@ -41,7 +35,7 @@ interface SearchOptions extends PageOptions {
   type: "all" | "design" | "other" | "text" | "typeset";
 }
 
-interface MatchOptions {
+interface ScreenOptions {
   stdin?: boolean;
   text?: string;
   type: "all" | "design" | "other" | "text" | "typeset";
@@ -155,7 +149,7 @@ export async function parseCli(args: string[], version: string): Promise<ParsedC
     .exitOverride()
     .addHelpText(
       "after",
-      '\nExamples:\n  tt search "TERMINAL CLUB" --status live\n  tt get --serial 60146682\n  printf \'%s\' "shirt title" | tt match --stdin\n'
+      '\nExamples:\n  tt search "TERMINAL CLUB" --status live\n  tt get --serial 60146682\n  printf \'%s\' "shirt title" | tt screen --stdin\n'
     );
 
   const auth = program.command("auth").description("Manage the selected API credential");
@@ -226,36 +220,23 @@ export async function parseCli(args: string[], version: string): Promise<ParsedC
     });
 
   program
-    .command("match")
-    .description("Match listing text against live trademarks")
+    .command("screen")
+    .description("Screen listing text against live trademarks")
     .option("--text <text>", "Text to inspect")
     .option("--stdin", "Read text from stdin")
     .addOption(
       choices("--type <type>", ["all", "design", "typeset", "text", "other"]).default("all")
     )
-    .action((options: MatchOptions) => {
+    .action((options: ScreenOptions) => {
       if (Boolean(options.text) === Boolean(options.stdin)) {
         throw new BadRequestError("Supply exactly one of --text or --stdin");
       }
       command = {
-        kind: "match",
+        kind: "screen",
         readsStdin: options.stdin === true,
         ...(options.text ? { text: options.text } : {}),
         type: options.type,
       };
-    });
-
-  addPageOptions(program.command("list").description("List recent trademark activity")).action(
-    (options: PageOptions) => {
-      command = { input: pageOptions(options), kind: "list" };
-    }
-  );
-
-  program
-    .command("status")
-    .description("Show safe service and ingestion status")
-    .action(() => {
-      command = { kind: "status" };
     });
 
   try {

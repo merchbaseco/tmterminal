@@ -1,11 +1,19 @@
+import cors from "@fastify/cors";
 import { fastifyTRPCPlugin } from "@trpc/server/adapters/fastify";
 import Fastify, { type FastifyRequest, type FastifyServerOptions } from "fastify";
 
 import { createConfiguredTmterminalAccess, type TmterminalAccess } from "../auth/service-access.ts";
 import { createDatabaseClient } from "../db/client.ts";
+import { createTmterminalMcpAuth } from "../mcp/auth.ts";
+import { createTmterminalMcpDataSource } from "../mcp/data-source.ts";
+import {
+  DEFAULT_MCP_RESOURCE_URL,
+  registerTmterminalMcpRoutes,
+  resolveMcpResourceUrl,
+} from "../mcp/http.ts";
 import { createOperatorSyncService } from "../services/operator-sync-service.ts";
 import { registerClerkWebhook } from "./clerk-webhook.ts";
-import { createAppContext } from "./context.ts";
+import { createAppContext, createAuthenticatedAppContext } from "./context.ts";
 import {
   configuredDevClerkSignIn,
   type DevClerkSignIn,
@@ -19,6 +27,7 @@ interface BuildServerOptions {
   devClerkSignIn?: DevClerkSignIn | null;
   devOperatorMerchbaseUserId?: string;
   logger?: FastifyServerOptions["logger"];
+  mcp?: { publishableKey: string; resourceUrl: string } | null;
   nodeEnv?: string;
 }
 
@@ -45,12 +54,14 @@ export async function buildServer({
   devClerkSignIn,
   devOperatorMerchbaseUserId = process.env.DEV_OPERATOR_MERCHBASE_USER_ID,
   logger = true,
+  mcp,
   nodeEnv = process.env.NODE_ENV,
 }: BuildServerOptions) {
   const database = createDatabaseClient(databaseUrl);
   const resolvedAccess = access ?? createConfiguredTmterminalAccess(database);
   const sourceStatus = createOperatorSyncService(database);
   const server = Fastify({ logger });
+  await server.register(cors, { origin: false });
   const resolvedDevClerkSignIn = resolveDevClerkSignIn(nodeEnv, devClerkSignIn);
   const resolvedDevOperatorMerchbaseUserId = resolveDevOperatorMerchbaseUserId(
     nodeEnv,
@@ -59,6 +70,22 @@ export async function buildServer({
 
   registerDevClerkSignIn(server, resolvedDevClerkSignIn);
   registerClerkWebhook(server, resolvedAccess.webhook);
+
+  const resolvedMcp =
+    mcp === undefined && access === undefined ? configuredMcpRoutes(process.env) : (mcp ?? null);
+  if (resolvedMcp) {
+    await registerTmterminalMcpRoutes(server, {
+      auth: createTmterminalMcpAuth(resolvedAccess.oauth),
+      createDataSource: ({ accountId }) =>
+        createTmterminalMcpDataSource(
+          createAuthenticatedAppContext(database, {
+            accountId,
+            credential: { type: "oauth" },
+          })
+        ),
+      ...resolvedMcp,
+    });
+  }
 
   server.get("/api/health", async (_request, reply) => {
     try {
@@ -112,4 +139,15 @@ export async function buildServer({
   });
 
   return server;
+}
+
+function configuredMcpRoutes(environment: NodeJS.ProcessEnv) {
+  const publishableKey = environment.CLERK_PUBLISHABLE_KEY?.trim();
+  if (!publishableKey) {
+    return null;
+  }
+  return {
+    publishableKey,
+    resourceUrl: resolveMcpResourceUrl(environment.MCP_RESOURCE_URL ?? DEFAULT_MCP_RESOURCE_URL),
+  };
 }

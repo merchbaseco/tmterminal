@@ -16,7 +16,7 @@ export function syncStatusFromFacts(facts: TrademarkIngestionStatus, now = new D
     now.getTime() - workerSignalAt.getTime() > heartbeatStaleAfterMs;
   return {
     activeState: workerFailed ? "failed" : facts.worker.activity,
-    dataVersion: facts.dataVersion,
+    dataVersion: String(facts.dataVersion),
     failedCount: facts.attentionCount + (workerFailed ? 1 : 0),
     lastSuccessfulUpdateAt: facts.lastSuccessfulUpdateAt?.toISOString() ?? null,
     latestProcessedDate: facts.latestProcessedDate,
