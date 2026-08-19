@@ -1,0 +1,22 @@
+{
+  "name": "Trademark Terminal",
+  "user": "ubuntu",
+  "install": "./.cursor/install.sh",
+  "start": "./.cursor/start.sh",
+  "terminals": [
+    {
+      "name": "api",
+      "command": "./.cursor/api.sh",
+      "description": "Trademark Terminal HTTP/MCP API on http://127.0.0.1:3000 against the local database."
+    },
+    {
+      "name": "web",
+      "command": "./.cursor/web.sh",
+      "description": "Trademark Terminal website (Vite dev server) on http://127.0.0.1:5173, proxying /api to the API."
+    }
+  ],
+  "ports": [
+    { "name": "api", "port": 3000 },
+    { "name": "web", "port": 5173 }
+  ]
+}

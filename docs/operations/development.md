@@ -12,14 +12,15 @@ Trademark Terminal uses Bun 1.3.5.
 ## Install And Fast Checks
 
 ```bash
-NODE_AUTH_TOKEN="$(gh auth token)" bun install --frozen-lockfile
+MERCHBASE_GITHUB_NPM_TOKEN="$(gh auth token)" bun install --frozen-lockfile
 bun run check
 bun run build
 ```
 
 `.npmrc` maps `@merchbaseco` to GitHub Packages and contains only the
-`NODE_AUTH_TOKEN` environment placeholder. A local GitHub credential with
-package-read access is required only while installing; never write it to disk.
+`MERCHBASE_GITHUB_NPM_TOKEN` environment placeholder. A local GitHub credential
+with package-read access is required only while installing; never write it to
+disk.
 
 Lint touched authored files explicitly:
 
@@ -97,9 +98,9 @@ BuildKit secret. GitHub Quality receives the same value from the repository
 secret. The key is install-time only; it is never stored in an image or bundled
 into browser code.
 
-Package installation also needs `NODE_AUTH_TOKEN` in the process environment for
-the private `@merchbaseco/access` package. Compose receives it as a BuildKit
-secret; it is not an image environment variable or layer.
+Package installation also needs `MERCHBASE_GITHUB_NPM_TOKEN` in the process
+environment for the private `@merchbaseco/access` package. Compose receives it as
+a BuildKit secret; it is not an image environment variable or layer.
 
 Do not print, commit, copy into images, or pass source credentials to browser
 code. The source key belongs only in the worker.

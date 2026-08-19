@@ -42,7 +42,7 @@ services:
       target: runtime
       secrets:
         - hugeicons_license_key
-        - node_auth_token
+        - merchbase_github_npm_token
       args:
         TMTERMINAL_REVISION: ${TMTERMINAL_REVISION:-development}
     image: tmterminal-core:${TMTERMINAL_REVISION:-development}
@@ -111,7 +111,7 @@ services:
       target: web
       secrets:
         - hugeicons_license_key
-        - node_auth_token
+        - merchbase_github_npm_token
       args:
         TMTERMINAL_REVISION: ${TMTERMINAL_REVISION:-development}
         VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:?set VITE_CLERK_PUBLISHABLE_KEY}
@@ -155,7 +155,7 @@ services:
       target: test
       secrets:
         - hugeicons_license_key
-        - node_auth_token
+        - merchbase_github_npm_token
     command: ["bun", "run", "test:integration"]
     environment:
       TEST_DATABASE_URL: postgres://tmterminal_test:tmterminal_test@test-database:5432/tmterminal_test
@@ -170,5 +170,5 @@ volumes:
 secrets:
   hugeicons_license_key:
     environment: HUGEICONS_LICENSE_KEY
-  node_auth_token:
-    environment: NODE_AUTH_TOKEN
+  merchbase_github_npm_token:
+    environment: MERCHBASE_GITHUB_NPM_TOKEN

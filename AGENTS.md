@@ -110,3 +110,31 @@ The Linear Products team uses the canonical triage label vocabulary in `docs/ope
 ### Domain docs
 
 This is a single-context repository. Root `CONTEXT.md` owns the shared glossary; `docs/README.md` routes durable contracts and decisions.
+
+## Cursor Cloud specific instructions
+
+The Cloud Agent environment is defined by `.cursor/environment.json` and the
+scripts beside it. It provisions Bun (pinned to `packageManager`) and a system
+PostgreSQL 16 cluster, then runs the API and website against an isolated local
+database. Non-obvious points:
+
+- The documented `bun run dev` and `./scripts/compose` are for a workstation:
+  `scripts/dev` rewrites `DATABASE_URL` to the production database over Tailscale
+  and Compose needs Docker. Neither works in Cloud Agents. Use the local runtime
+  instead: `.cursor/start.sh` (starts Postgres and applies migrations) plus the
+  `api` (`http://127.0.0.1:3000`) and `web` (`http://127.0.0.1:5173`, proxies
+  `/api`) terminals. The local dev/test DBs are
+  `postgres://tmterminal:change-me@127.0.0.1:5432/{tmterminal,tmterminal_test}`.
+- `bun install` needs two install-time secrets: `MERCHBASE_GITHUB_NPM_TOKEN`
+  (read:packages for the merchbaseco org; `.npmrc` reads it for the
+  `@merchbaseco` GitHub Packages scope) and `HUGEICONS_LICENSE_KEY` (private
+  `@hugeicons-pro` registry). Bun installs these scoped packages under each app's
+  `node_modules`, not the workspace root.
+- The API boots with placeholder Clerk values, so anonymous `/api/health` and
+  `/api/status` work but authenticated data procedures return 401. Set real
+  `CLERK_*` secrets to exercise authenticated flows; the terminals pick them up
+  automatically when present.
+- Run the real-PostgreSQL integration lane against the local cluster with
+  `TEST_DATABASE_URL=postgres://tmterminal:change-me@127.0.0.1:5432/tmterminal_test bun run test:integration`.
+- `bun run lint` checks the whole tree and currently reports pre-existing Biome
+  findings; CI gates only changed files via `bun run lint:changed`.
