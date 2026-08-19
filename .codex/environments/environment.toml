@@ -4,7 +4,7 @@ name = "tmterminal"
 
 [setup]
 script = '''
-NODE_AUTH_TOKEN="$(gh auth token)" bun install --frozen-lockfile
+MERCHBASE_GITHUB_NPM_TOKEN="$(gh auth token)" bun install --frozen-lockfile
 '''
 
 [[actions]]

@@ -14,7 +14,9 @@ test("the Codex setup authenticates private package installation", async () => {
     "utf8"
   );
 
-  expect(environment).toContain('NODE_AUTH_TOKEN="$(gh auth token)" bun install --frozen-lockfile');
+  expect(environment).toContain(
+    'MERCHBASE_GITHUB_NPM_TOKEN="$(gh auth token)" bun install --frozen-lockfile'
+  );
   expect(environment).not.toMatch(barePrivatePackageInstall);
 });
 
@@ -142,7 +144,7 @@ async function runSessionStart(installed: boolean) {
   await Bun.write(
     join(bin, "bun"),
     `#!/bin/sh
-if test -n "\${NODE_AUTH_TOKEN:-}"; then
+if test -n "\${MERCHBASE_GITHUB_NPM_TOKEN:-}"; then
   printf 'authenticated|%s\\n' "$*" >> "$FAKE_INSTALL_LOG"
 else
   printf 'missing-auth|%s\\n' "$*" >> "$FAKE_INSTALL_LOG"

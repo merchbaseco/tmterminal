@@ -31,7 +31,7 @@ jobs:
       - name: Deploy exact main revision
         env:
           HUGEICONS_LICENSE_KEY: ${{ secrets.HUGEICONS_LICENSE_KEY }}
-          NODE_AUTH_TOKEN: ${{ github.token }}
+          MERCHBASE_GITHUB_NPM_TOKEN: ${{ github.token }}
         working-directory: /Users/zknicker/srv/tmterminal
         run: |
           set -euo pipefail

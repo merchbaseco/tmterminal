@@ -126,10 +126,10 @@ database. Non-obvious points:
   `/api`) terminals. The local dev/test DBs are
   `postgres://tmterminal:change-me@127.0.0.1:5432/{tmterminal,tmterminal_test}`.
 - `bun install` needs two install-time secrets: `MERCHBASE_GITHUB_NPM_TOKEN`
-  (read:packages for the merchbaseco org, mapped to `NODE_AUTH_TOKEN` for the
-  `@merchbaseco` GitHub Packages scope in `.npmrc`) and `HUGEICONS_LICENSE_KEY`
-  (private `@hugeicons-pro` registry). Bun installs these scoped packages under
-  each app's `node_modules`, not the workspace root.
+  (read:packages for the merchbaseco org; `.npmrc` reads it for the
+  `@merchbaseco` GitHub Packages scope) and `HUGEICONS_LICENSE_KEY` (private
+  `@hugeicons-pro` registry). Bun installs these scoped packages under each app's
+  `node_modules`, not the workspace root.
 - The API boots with placeholder Clerk values, so anonymous `/api/health` and
   `/api/status` work but authenticated data procedures return 401. Set real
   `CLERK_*` secrets to exercise authenticated flows; the terminals pick them up

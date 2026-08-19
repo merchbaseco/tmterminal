@@ -26,19 +26,14 @@ if [ ! -x /usr/lib/postgresql/16/bin/postgres ]; then
 fi
 
 # 3. Workspace dependencies. Both credentials are install-time only.
-#    .npmrc reads NODE_AUTH_TOKEN for the @merchbaseco GitHub Packages scope; the
-#    token is supplied as the MERCHBASE_GITHUB_NPM_TOKEN secret (falling back to
-#    an ambient NODE_AUTH_TOKEN or a local gh credential for other setups).
-if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-  if [ -n "${MERCHBASE_GITHUB_NPM_TOKEN:-}" ]; then
-    NODE_AUTH_TOKEN="$MERCHBASE_GITHUB_NPM_TOKEN"
-  elif command -v gh >/dev/null 2>&1; then
-    NODE_AUTH_TOKEN="$(gh auth token 2>/dev/null || true)"
-  fi
+#    .npmrc reads MERCHBASE_GITHUB_NPM_TOKEN for the @merchbaseco GitHub Packages
+#    scope; fall back to a local gh credential for interactive setups.
+if [ -z "${MERCHBASE_GITHUB_NPM_TOKEN:-}" ] && command -v gh >/dev/null 2>&1; then
+  MERCHBASE_GITHUB_NPM_TOKEN="$(gh auth token 2>/dev/null || true)"
 fi
-: "${NODE_AUTH_TOKEN:?Set MERCHBASE_GITHUB_NPM_TOKEN (read:packages for the merchbaseco org) to install @merchbaseco/access}"
+: "${MERCHBASE_GITHUB_NPM_TOKEN:?MERCHBASE_GITHUB_NPM_TOKEN (read:packages for the merchbaseco org) is required to install @merchbaseco/access}"
 : "${HUGEICONS_LICENSE_KEY:?HUGEICONS_LICENSE_KEY is required to install the private @hugeicons-pro packages}"
-export NODE_AUTH_TOKEN HUGEICONS_LICENSE_KEY
+export MERCHBASE_GITHUB_NPM_TOKEN HUGEICONS_LICENSE_KEY
 bun install --frozen-lockfile
 
 # 4. Isolated PostgreSQL cluster owned by the agent user. The data directory is

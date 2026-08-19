@@ -7,9 +7,9 @@ COPY apps/web/package.json apps/web/package.json
 COPY packages/http-client/package.json packages/http-client/package.json
 COPY packages/cli/package.json packages/cli/package.json
 RUN --mount=type=secret,id=hugeicons_license_key,required=true \
-  --mount=type=secret,id=node_auth_token,required=true \
+  --mount=type=secret,id=merchbase_github_npm_token,required=true \
   HUGEICONS_LICENSE_KEY="$(cat /run/secrets/hugeicons_license_key)" \
-  NODE_AUTH_TOKEN="$(cat /run/secrets/node_auth_token)" \
+  MERCHBASE_GITHUB_NPM_TOKEN="$(cat /run/secrets/merchbase_github_npm_token)" \
   bun install --frozen-lockfile
 
 COPY . .
