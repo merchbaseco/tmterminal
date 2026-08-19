@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Idempotent Cloud Agent setup for Trademark Terminal. Runs after checkout to
+# provision the toolchain, workspace dependencies, and an isolated PostgreSQL
+# cluster for development and integration tests.
+set -euo pipefail
+
+root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+cd "$root"
+
+# 1. Bun toolchain, pinned to the repository version.
+bun_version="$(sed -n 's/.*"packageManager": "bun@\([^"]*\)".*/\1/p' package.json)"
+if ! command -v bun >/dev/null 2>&1 || [ "$(bun --version 2>/dev/null || true)" != "$bun_version" ]; then
+  curl -fsSL https://bun.sh/install | bash -s "bun-v${bun_version}"
+fi
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
+sudo ln -sf "$BUN_INSTALL/bin/bun" /usr/local/bin/bun
+
+# 2. System PostgreSQL 16 (matches the Compose and production database major).
+if [ ! -x /usr/lib/postgresql/16/bin/postgres ]; then
+  sudo apt-get update -qq
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq postgresql postgresql-client
+fi
+
+# 3. Workspace dependencies. Both credentials are install-time only.
+if [ -z "${NODE_AUTH_TOKEN:-}" ] && command -v gh >/dev/null 2>&1; then
+  NODE_AUTH_TOKEN="$(gh auth token 2>/dev/null || true)"
+fi
+: "${NODE_AUTH_TOKEN:?NODE_AUTH_TOKEN with read:packages for the merchbaseco org is required to install @merchbaseco/access}"
+: "${HUGEICONS_LICENSE_KEY:?HUGEICONS_LICENSE_KEY is required to install the private @hugeicons-pro packages}"
+export NODE_AUTH_TOKEN HUGEICONS_LICENSE_KEY
+bun install --frozen-lockfile
+
+# 4. Isolated PostgreSQL cluster owned by the agent user. The data directory is
+#    captured in the environment snapshot; the daemon itself is started per boot.
+# shellcheck source=.cursor/postgres-lib.sh
+. "$root/.cursor/postgres-lib.sh"
+sudo mkdir -p "$PG_ROOT"
+sudo chown -R "$(id -un):$(id -gn)" "$PG_ROOT"
+if [ ! -f "$PGDATA/PG_VERSION" ]; then
+  "$PG_BIN/initdb" --pgdata="$PGDATA" --username=postgres --auth=trust --encoding=UTF8 >/dev/null
+fi
+pg_start
+pg_ensure_databases
