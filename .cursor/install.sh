@@ -17,9 +17,12 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 sudo ln -sf "$BUN_INSTALL/bin/bun" /usr/local/bin/bun
 
 # 2. System PostgreSQL 16 (matches the Compose and production database major).
+#    Pipelining is disabled because some build-network proxies answer pipelined
+#    archive.ubuntu.com requests with HTTP 400.
 if [ ! -x /usr/lib/postgresql/16/bin/postgres ]; then
-  sudo apt-get update -qq
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq postgresql postgresql-client
+  apt_opts=(-o Acquire::Retries=5 -o Acquire::http::Pipeline-Depth=0 -o Acquire::http::No-Cache=true)
+  sudo apt-get "${apt_opts[@]}" update
+  sudo DEBIAN_FRONTEND=noninteractive apt-get "${apt_opts[@]}" install -y postgresql postgresql-client
 fi
 
 # 3. Workspace dependencies. Both credentials are install-time only.
