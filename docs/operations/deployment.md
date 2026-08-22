@@ -28,7 +28,18 @@ for both persistent filesystems.
 
 ## GitHub Deployment
 
-Production deployment is the manually dispatched `Deploy Stack` workflow.
+Production deployment is the manually dispatched `Deploy Stack` workflow. A
+push to `main` never deploys; a deploy is an explicit act now that it resolves
+production credentials from 1Password.
+
+**A deploy can only ever ship `main`.** `scripts/deployment-revision` refuses
+unless `HEAD` equals both the dispatched SHA and `origin/main`, so dispatching
+the workflow against a feature branch is refused by design — land the change
+first, then dispatch. The operator dry run (`bun run deploy:dry-run`) needs
+Docker plus an identity that reads both lifecycle vaults, so it runs from a
+workstation with Docker, not from the mini: the host holds only the
+Production-scoped Mac Mini identity and cannot resolve the Development-vault
+install credentials.
 Quality runs first on a GitHub-hosted runner; the self-hosted Mac mini job runs
 only after it passes. The job resets the production checkout to the dispatched
 commit and runs `bun run deploy`, which is `scripts/deploy-with-varlock.ts`.
