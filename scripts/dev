@@ -2,29 +2,35 @@
 set -eu
 
 root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+cd "$root"
 
-set -a
-. "$root/.env"
-set +a
+# Values come from the committed .env.schema, resolved through 1Password by
+# `varlock run`. There is no .env step: the development lifecycle already
+# targets the production database over Tailscale, so nothing is rewritten here.
+# The two overrides below are exported BEFORE the re-exec so they win over the
+# schema (process env has the highest precedence in varlock).
+if [ -z "${TMTERMINAL_DEV_ENV_READY:-}" ]; then
+  web_port="$(dev-port 0)"
+  api_port="$(dev-port 1)"
+  TMTERMINAL_CLERK_AUTHORIZED_PARTIES="http://127.0.0.1:${web_port}"
+  TMTERMINAL_PORT="$api_port"
+  TMTERMINAL_API_PORT="$api_port"
+  TMTERMINAL_WEB_PORT="$web_port"
+  TMTERMINAL_DEV_ENV_READY=1
+  export TMTERMINAL_CLERK_AUTHORIZED_PARTIES TMTERMINAL_PORT TMTERMINAL_API_PORT
+  export TMTERMINAL_WEB_PORT TMTERMINAL_DEV_ENV_READY
+  exec bunx varlock run -- "$0" "$@"
+fi
 
-web_port="$(dev-port 0)"
-api_port="$(dev-port 1)"
-
-: "${DATABASE_URL:?set DATABASE_URL in .env}"
-DATABASE_URL="$(
-  printf '%s\n' "$DATABASE_URL" |
-    sed -E 's#@[^/]+/#@zachs-mac-mini.taila0b849.ts.net:5437/#'
-)"
-CLERK_AUTHORIZED_PARTIES="http://127.0.0.1:${web_port}"
-export CLERK_AUTHORIZED_PARTIES DATABASE_URL
+web_port="$TMTERMINAL_WEB_PORT"
+api_port="$TMTERMINAL_API_PORT"
 
 printf 'Using the production database; mutations are real. Worker and migrations are disabled.\n'
 printf 'Website: http://127.0.0.1:%s\nAPI: http://127.0.0.1:%s\n' "$web_port" "$api_port"
 
-cd "$root"
-HOST="127.0.0.1" PORT="$api_port" bun apps/server/src/server.ts &
+bun apps/server/src/server.ts &
 api_pid=$!
-TMTERMINAL_API_PORT="$api_port" apps/web/node_modules/.bin/vite apps/web --host 127.0.0.1 --port "$web_port" &
+apps/web/node_modules/.bin/vite apps/web --host 127.0.0.1 --port "$web_port" &
 web_pid=$!
 
 cleanup() {

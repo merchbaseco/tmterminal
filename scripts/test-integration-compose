@@ -1,27 +1,20 @@
 #!/bin/sh
 set -eu
 
+# The integration lane is hermetic: VARLOCK_ENV=test resolves every schema item
+# to a fake-but-shaped literal with no 1Password access, and the compose test
+# profile supplies the container-network TMTERMINAL_TEST_DATABASE_URL itself.
 project="${COMPOSE_PROJECT_NAME:-tmterminal-test-$$}"
-export DATABASE_URL="${DATABASE_URL:-postgres://unused:unused@database:5432/unused}"
-export CLERK_AUTHORIZED_PARTIES="${CLERK_AUTHORIZED_PARTIES:-http://127.0.0.1:3000}"
-export CLERK_ISSUER="${CLERK_ISSUER:-https://clerk.test}"
-export CLERK_JWT_KEY="${CLERK_JWT_KEY:-unused-test-key}"
-export CLERK_PUBLISHABLE_KEY="${CLERK_PUBLISHABLE_KEY:-pk_test_unused}"
-export CLERK_SECRET_KEY="${CLERK_SECRET_KEY:-unused-test-key}"
-export CLERK_WEBHOOK_SIGNING_SECRET="${CLERK_WEBHOOK_SIGNING_SECRET:-whsec_unused}"
-export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-unused}"
-export TMTERMINAL_API_PORT="${TMTERMINAL_API_PORT:-0}"
-export TMTERMINAL_WEB_PORT="${TMTERMINAL_WEB_PORT:-0}"
-export USPTO_API_KEY="${USPTO_API_KEY:-unused-test-key}"
-export VITE_CLERK_PUBLISHABLE_KEY="${VITE_CLERK_PUBLISHABLE_KEY:-unused-test-key}"
+export VARLOCK_ENV=test
 
 cleanup() {
-  docker compose --project-name "$project" --profile test down --volumes --remove-orphans
+  bunx varlock run -- docker compose --project-name "$project" --profile test down \
+    --volumes --remove-orphans
 }
 
 trap cleanup EXIT
 
-docker compose --project-name "$project" --profile test up \
+bunx varlock run -- docker compose --project-name "$project" --profile test up \
   --build \
   --abort-on-container-exit \
   --exit-code-from integration-test \

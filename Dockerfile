@@ -6,9 +6,9 @@ COPY apps/server/package.json apps/server/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages/http-client/package.json packages/http-client/package.json
 COPY packages/cli/package.json packages/cli/package.json
-RUN --mount=type=secret,id=hugeicons_license_key,required=true \
+RUN --mount=type=secret,id=merchbase_hugeicons_license_key,required=true \
   --mount=type=secret,id=merchbase_github_npm_token,required=true \
-  HUGEICONS_LICENSE_KEY="$(cat /run/secrets/hugeicons_license_key)" \
+  MERCHBASE_HUGEICONS_LICENSE_KEY="$(cat /run/secrets/merchbase_hugeicons_license_key)" \
   MERCHBASE_GITHUB_NPM_TOKEN="$(cat /run/secrets/merchbase_github_npm_token)" \
   bun install --frozen-lockfile
 
@@ -22,8 +22,8 @@ LABEL org.opencontainers.image.revision=$TMTERMINAL_REVISION
 RUN rm -rf fixtures
 
 FROM workspace AS web-build
-ARG VITE_CLERK_PUBLISHABLE_KEY
-ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
+ARG VITE_MERCHBASE_CLERK_PUBLISHABLE_KEY
+ENV VITE_MERCHBASE_CLERK_PUBLISHABLE_KEY=$VITE_MERCHBASE_CLERK_PUBLISHABLE_KEY
 RUN bun run --cwd apps/web build
 
 FROM caddy:2.11.4-alpine AS web
