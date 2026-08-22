@@ -4,7 +4,16 @@ name = "tmterminal"
 
 [setup]
 script = '''
-MERCHBASE_GITHUB_NPM_TOKEN="$(gh auth token)" bun install --frozen-lockfile
+# Install credentials are @internal schema items fetched under the install
+# switch. A Codex cloud worktree has no 1Password access, so it falls back to
+# the ambient gh credential for the @merchbaseco scope.
+MERCHBASE_GITHUB_NPM_TOKEN="$(TMTERMINAL_RESOLVE_INSTALL_TOKENS=true bunx varlock printenv MERCHBASE_GITHUB_NPM_TOKEN 2>/dev/null || true)"
+if [ -z "$MERCHBASE_GITHUB_NPM_TOKEN" ]; then
+  MERCHBASE_GITHUB_NPM_TOKEN="$(gh auth token)"
+fi
+MERCHBASE_HUGEICONS_LICENSE_KEY="$(TMTERMINAL_RESOLVE_INSTALL_TOKENS=true bunx varlock printenv MERCHBASE_HUGEICONS_LICENSE_KEY 2>/dev/null || true)"
+export MERCHBASE_GITHUB_NPM_TOKEN MERCHBASE_HUGEICONS_LICENSE_KEY
+bun install --frozen-lockfile
 '''
 
 [[actions]]

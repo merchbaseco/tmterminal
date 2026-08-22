@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
-# Per-boot reconciliation for Trademark Terminal. Starts the isolated PostgreSQL
-# cluster, ensures the development and test databases exist, and applies the
-# current schema migrations. It must be idempotent and return.
+# Per-boot reconciliation for Trademark Terminal Cloud Agents. Starts the
+# isolated PostgreSQL cluster, ensures the databases exist, and applies the
+# current schema migrations. Idempotent, and it returns.
 set -euo pipefail
 
 root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$root"
 
-export BUN_INSTALL="$HOME/.bun"
+export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
 export PATH="$BUN_INSTALL/bin:$PATH"
+
+# A cloud VM has no Tailscale, so the schema's development database host is
+# replaced with the local cluster for this session. Nothing sensitive is
+# overridden — the password still resolves from the Development vault.
+export TMTERMINAL_DATABASE_HOST=127.0.0.1
 
 # shellcheck source=.cursor/postgres-lib.sh
 . "$root/.cursor/postgres-lib.sh"
@@ -16,6 +21,4 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 pg_start
 pg_ensure_databases
 
-DATABASE_URL="postgres://${TMTERMINAL_DB_USER}:${TMTERMINAL_DB_PASSWORD}@127.0.0.1:5432/${TMTERMINAL_DB_NAME}"
-export DATABASE_URL
 bun run db:migrate
