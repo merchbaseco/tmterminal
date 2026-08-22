@@ -6,7 +6,7 @@ import { App } from "./app.tsx";
 import "./globals.css";
 
 const root = document.querySelector<HTMLDivElement>("#root");
-const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+const publishableKey = import.meta.env.VITE_MERCHBASE_CLERK_PUBLISHABLE_KEY;
 
 if (!root) {
   throw new Error("Web root is missing");

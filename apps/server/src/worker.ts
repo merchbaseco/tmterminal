@@ -12,14 +12,14 @@ import {
 import { createSyncService } from "./services/sync-service.ts";
 import { isWorkerReady } from "./worker-readiness.ts";
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = process.env.TMTERMINAL_DATABASE_URL;
 
 if (!databaseUrl) {
-  throw new Error("DATABASE_URL is required");
+  throw new Error("TMTERMINAL_DATABASE_URL is required");
 }
-const usptoApiKey = process.env.USPTO_API_KEY;
+const usptoApiKey = process.env.TMTERMINAL_USPTO_API_KEY;
 if (!usptoApiKey) {
-  throw new Error("USPTO_API_KEY is required");
+  throw new Error("TMTERMINAL_USPTO_API_KEY is required");
 }
 
 function milliseconds(name: string, fallback: number) {
@@ -33,9 +33,9 @@ function milliseconds(name: string, fallback: number) {
 const database = createDatabaseClient(databaseUrl);
 const access = createConfiguredCustomerAccess(database);
 const healthFile = "/tmp/tmterminal-worker-ready";
-const requestTimeoutMs = milliseconds("USPTO_REQUEST_TIMEOUT_MS", 15 * 60 * 1000);
+const requestTimeoutMs = milliseconds("TMTERMINAL_USPTO_REQUEST_TIMEOUT_MS", 15 * 60 * 1000);
 const artifactStore = createLocalArtifactStore(
-  process.env.ARTIFACT_STORE_ROOT ?? "/var/lib/tmterminal/artifacts",
+  process.env.TMTERMINAL_ARTIFACT_STORE_ROOT ?? "/var/lib/tmterminal/artifacts",
   {
     stagingMaxAgeMs: requestTimeoutMs * 2,
   }

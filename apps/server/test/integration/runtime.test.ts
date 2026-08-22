@@ -8,7 +8,7 @@ import postgres from "postgres";
 import { migrateDatabase } from "../../src/db/migrate.ts";
 import { resetTestDatabase } from "./test-database.ts";
 
-const databaseUrl = process.env.TEST_DATABASE_URL;
+const databaseUrl = process.env.TMTERMINAL_TEST_DATABASE_URL;
 if (!databaseUrl) {
   throw new Error("TEST_DATABASE_URL is required for PostgreSQL integration tests");
 }

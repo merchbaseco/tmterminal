@@ -1,7 +1,7 @@
 import { useSignIn } from "@clerk/react";
 import { useEffect, useRef } from "react";
 
-const enabled = import.meta.env.DEV && import.meta.env.VITE_DEV_CLERK_AUTO_SIGN_IN === "true";
+const enabled = import.meta.env.DEV && import.meta.env.VITE_TMTERMINAL_DEV_CLERK_AUTO_SIGN_IN === "true";
 
 export function DevAutoSignIn() {
   const attempted = useRef(false);

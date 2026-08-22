@@ -11,7 +11,7 @@ import { reconcileActiveProjectionAccess } from "../../src/services/access-recon
 import { authorizedAccess, fakeTmterminalAccess } from "../fake-access.ts";
 import { resetTestDatabase } from "./test-database.ts";
 
-const databaseUrl = process.env.TEST_DATABASE_URL;
+const databaseUrl = process.env.TMTERMINAL_TEST_DATABASE_URL;
 const signingSecret = `whsec_${Buffer.from("tmterminal-test-secret").toString("base64")}`;
 
 if (!databaseUrl) {

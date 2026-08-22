@@ -19,10 +19,10 @@ export async function migrateDatabase(
 }
 
 if (import.meta.main) {
-  const databaseUrl = process.env.DATABASE_URL;
+  const databaseUrl = process.env.TMTERMINAL_DATABASE_URL;
 
   if (!databaseUrl) {
-    throw new Error("DATABASE_URL is required");
+    throw new Error("TMTERMINAL_DATABASE_URL is required");
   }
 
   await migrateDatabase(databaseUrl);
