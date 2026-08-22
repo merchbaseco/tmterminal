@@ -108,8 +108,10 @@ heartbeatTimer = setInterval(() => {
   });
 }, 10_000);
 await scheduler.start();
-const firstReconciliation = await scheduler.waitForFirstReconciliation();
-if (firstReconciliation.ok) {
-  firstReconciliationComplete = true;
-  await refreshHealth();
-}
+// Blocks until a reconciliation actually succeeds. The heartbeat timer is
+// already running and reports "not ready" until then, so a failing upstream
+// keeps the worker unhealthy rather than wedging it: the scheduler keeps
+// retrying every ten seconds and readiness follows the first success.
+await scheduler.waitForFirstReconciliation();
+firstReconciliationComplete = true;
+await refreshHealth();

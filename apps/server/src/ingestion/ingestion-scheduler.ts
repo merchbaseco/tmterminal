@@ -7,8 +7,11 @@ export function createIngestionScheduler(options: {
   let activeReconciliation: Promise<void> | undefined;
   let nextTimer: Timer | undefined;
   let started = false;
-  let resolveFirstReconciliation!: (outcome: { ok: boolean }) => void;
-  const firstReconciliation = new Promise<{ ok: boolean }>((resolve) => {
+  // Resolves on the first SUCCESSFUL reconciliation, not the first attempt. A
+  // failure leaves it pending so a later retry can still settle it: readiness
+  // must not be wedged forever by one transient upstream error at startup.
+  let resolveFirstReconciliation!: (outcome: { ok: true }) => void;
+  const firstReconciliation = new Promise<{ ok: true }>((resolve) => {
     resolveFirstReconciliation = resolve;
   });
 
@@ -21,7 +24,6 @@ export function createIngestionScheduler(options: {
         await options.reconcile();
         resolveFirstReconciliation({ ok: true });
       } catch (error) {
-        resolveFirstReconciliation({ ok: false });
         (options.onError ?? console.error)(
           error instanceof Error ? error : new Error(String(error))
         );
