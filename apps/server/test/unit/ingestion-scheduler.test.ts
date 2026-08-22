@@ -94,19 +94,36 @@ test("stop waits for an active reconciliation and does not schedule another", as
   expect(timers.scheduled).toHaveLength(0);
 });
 
-test("reports first-reconciliation failure and continues the fixed-delay loop", async () => {
+test("reports a failure, keeps the loop running, and stays unready until a retry succeeds", async () => {
   const timers = fakeTimers();
   const failure = new Error("reconciliation failed");
   const errors: Error[] = [];
+  let attempts = 0;
   const scheduler = createIngestionScheduler({
     onError: (error) => errors.push(error),
-    reconcile: () => Promise.reject(failure),
+    reconcile: () => {
+      attempts += 1;
+      return attempts === 1 ? Promise.reject(failure) : Promise.resolve();
+    },
   });
 
   await scheduler.start();
-  expect(await scheduler.waitForFirstReconciliation()).toEqual({ ok: false });
   await flushPromises();
   expect(errors).toEqual([failure]);
   expect(timers.scheduled.map(({ delay }) => delay)).toEqual([10_000]);
+
+  // A transient failure must not settle readiness: one bad first attempt used
+  // to wedge the worker unhealthy forever.
+  let settled = false;
+  scheduler.waitForFirstReconciliation().then(() => {
+    settled = true;
+  });
+  await flushPromises();
+  expect(settled).toBe(false);
+
+  // The retry the scheduler already queued succeeds, and readiness follows it.
+  timers.scheduled[0]?.callback();
+  await flushPromises();
+  expect(await scheduler.waitForFirstReconciliation()).toEqual({ ok: true });
   await scheduler.stop();
 });
