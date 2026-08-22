@@ -21,6 +21,22 @@ import { readFileSync } from "node:fs";
 const apiContainer = "tmterminal-api-1";
 const workerContainer = "tmterminal-worker-1";
 
+// Production-required sensitive items that deliberately never reach the API
+// container, with the reason. Everything else in that set must arrive there.
+const notDeliveredToApi = new Map([
+  [
+    "TMTERMINAL_DATABASE_PASSWORD",
+    "composed into TMTERMINAL_DATABASE_URL; the database container receives it as POSTGRES_PASSWORD",
+  ],
+  [
+    "TMTERMINAL_USPTO_API_KEY",
+    "read only by the worker, which ingests from the USPTO Open Data Portal",
+  ],
+]);
+
+// Production-required sensitive items the worker must carry.
+const requiredOnWorker = new Set(["TMTERMINAL_DATABASE_URL", "TMTERMINAL_USPTO_API_KEY"]);
+
 // Names the runtime image sets for itself rather than receiving from the
 // schema, plus the literal names the platform requires.
 const imageProvidedNames = new Set([
@@ -116,16 +132,18 @@ for (const container of [apiContainer, workerContainer]) {
     `${container}: ${deliveredNames.length} variables (${deliveredSensitive} sensitive)`
   );
 
-  // Only the API server is expected to carry every production-required item;
-  // the worker deliberately receives a narrower set (no webhook secret, no MCP
-  // configuration).
-  if (container === apiContainer) {
-    for (const name of [...requiredInProduction].sort()) {
-      if (!deliveredNames.includes(name)) {
-        failures.push(
-          `${container}: production-required sensitive item ${name} never reached the container.`
-        );
-      }
+  // The API server carries every production-required item except the ones
+  // listed above; the worker carries the narrower set it actually reads.
+  const expected =
+    container === apiContainer
+      ? [...requiredInProduction].filter((name) => !notDeliveredToApi.has(name))
+      : [...requiredOnWorker];
+
+  for (const name of expected.sort()) {
+    if (!deliveredNames.includes(name)) {
+      failures.push(
+        `${container}: production-required sensitive item ${name} never reached the container.`
+      );
     }
   }
 }
@@ -138,5 +156,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `Delivered environment matches the schema — ${summaries.join("; ")}; ${requiredInProduction.size} production-required items verified on ${apiContainer}.`
+  `Delivered environment matches the schema — ${summaries.join("; ")}; ${requiredInProduction.size} production-required items checked against their expected containers.`
 );
