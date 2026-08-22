@@ -144,9 +144,11 @@ grep -qF 'VARLOCK_ENV: "production"' "$deploy_script"
 # The deploy-agent role slot, with the operator `op run` fallback.
 grep -qF 'DEPLOY_AGENT_PRODUCTION_OP_TOKEN' "$deploy_script"
 grep -qF 'op://Automation/Production Varlock - Mac Mini/credential' "$deploy_script"
-# Install credentials belong to the development lifecycle.
-grep -qF 'VARLOCK_ENV: "development"' "$deploy_script"
-grep -qF 'TMTERMINAL_RESOLVE_INSTALL_TOKENS' "$deploy_script"
+# The image build runs inside a varlock child so it gets both the @public values
+# compose interpolates and, via the shared helper, the @internal install
+# credentials varlock would otherwise strip.
+grep -qF '. ./scripts/install-tokens' "$deploy_script"
+grep -qF -- '--include-internal' "$deploy_script"
 # The centralized-auth cleanup is complete; any other state must refuse.
 grep -qF 'cleanupState !== "final"' "$deploy_script"
 
