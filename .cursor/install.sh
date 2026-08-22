@@ -41,21 +41,9 @@ fi
 #    vault via the Cursor fleet identity. .npmrc reads
 #    MERCHBASE_GITHUB_NPM_TOKEN for the @merchbaseco GitHub Packages scope;
 #    bunfig.toml reads MERCHBASE_HUGEICONS_LICENSE_KEY for @hugeicons-pro.
-if [ -z "${MERCHBASE_GITHUB_NPM_TOKEN:-}" ]; then
-  MERCHBASE_GITHUB_NPM_TOKEN="$(
-    TMTERMINAL_RESOLVE_INSTALL_TOKENS=true bunx "varlock@${VARLOCK_VERSION}" printenv MERCHBASE_GITHUB_NPM_TOKEN
-  )"
-fi
-: "${MERCHBASE_GITHUB_NPM_TOKEN:?MERCHBASE_GITHUB_NPM_TOKEN did not resolve; @merchbaseco/access cannot be installed}"
-
-if [ -z "${MERCHBASE_HUGEICONS_LICENSE_KEY:-}" ]; then
-  MERCHBASE_HUGEICONS_LICENSE_KEY="$(
-    TMTERMINAL_RESOLVE_INSTALL_TOKENS=true bunx "varlock@${VARLOCK_VERSION}" printenv MERCHBASE_HUGEICONS_LICENSE_KEY
-  )"
-fi
-: "${MERCHBASE_HUGEICONS_LICENSE_KEY:?MERCHBASE_HUGEICONS_LICENSE_KEY did not resolve; @hugeicons-pro cannot be installed}"
-
-export MERCHBASE_GITHUB_NPM_TOKEN MERCHBASE_HUGEICONS_LICENSE_KEY
+#    VARLOCK_SPEC pins the version so this works before node_modules exists.
+# shellcheck source=scripts/install-tokens
+VARLOCK_SPEC="varlock@${VARLOCK_VERSION}" . "$root/scripts/install-tokens"
 bun install --frozen-lockfile
 
 # 4. Isolated PostgreSQL cluster owned by the agent user. The data directory is

@@ -1,20 +1,33 @@
 #!/bin/sh
 set -eu
 
+root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+cd "$root"
+
 # The integration lane is hermetic: VARLOCK_ENV=test resolves every schema item
 # to a fake-but-shaped literal with no 1Password access, and the compose test
 # profile supplies the container-network TMTERMINAL_TEST_DATABASE_URL itself.
-project="${COMPOSE_PROJECT_NAME:-tmterminal-test-$$}"
+# The image build still needs the real install credentials, which are @internal
+# and therefore resolved inside the varlock child.
 export VARLOCK_ENV=test
 
+if [ -z "${TMTERMINAL_COMPOSE_ENV_READY:-}" ]; then
+  COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-tmterminal-test-$$}"
+  TMTERMINAL_COMPOSE_ENV_READY=1
+  export COMPOSE_PROJECT_NAME TMTERMINAL_COMPOSE_ENV_READY
+  exec bunx varlock run -- "$0" "$@"
+fi
+
+# shellcheck source=scripts/install-tokens
+. "$root/scripts/install-tokens"
+
 cleanup() {
-  bunx varlock run -- docker compose --project-name "$project" --profile test down \
-    --volumes --remove-orphans
+  docker compose --profile test down --volumes --remove-orphans
 }
 
 trap cleanup EXIT
 
-bunx varlock run -- docker compose --project-name "$project" --profile test up \
+docker compose --profile test up \
   --build \
   --abort-on-container-exit \
   --exit-code-from integration-test \
