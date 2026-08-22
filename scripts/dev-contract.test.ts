@@ -172,6 +172,12 @@ async function runSessionStart(installed: boolean) {
     new URL("./claude-session-start", import.meta.url),
     join(root, "scripts", "claude-session-start")
   );
+  // The hook sources the shared install-token helper, so the fixture mirrors
+  // the real script layout.
+  await copyFile(
+    new URL("./install-tokens", import.meta.url),
+    join(root, "scripts", "install-tokens")
+  );
   await chmod(join(root, "scripts", "claude-session-start"), 0o755);
 
   if (installed) {

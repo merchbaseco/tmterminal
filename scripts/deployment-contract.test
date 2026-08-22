@@ -51,6 +51,7 @@ mkdir "$fake_bin"
 # `bunx varlock run -- <cmd>` is transparent here: the wrapper's contract is
 # that it delivers through varlock and never through --env-file.
 printf '%s\n' '#!/bin/sh' \
+  'if test "$2" = "printenv"; then printf '\''resolved-%s\n'\'' "$3"; exit 0; fi' \
   'test "$1" = "varlock"' 'test "$2" = "run"' 'test "$3" = "--"' 'shift 3' 'exec "$@"' > "$fake_bin/bunx"
 chmod +x "$fake_bin/bunx"
 printf '%s\n' '#!/bin/sh' 'printf '\''%s|%s|%s|%s\n'\'' "$COMPOSE_PROJECT_NAME" "$TMTERMINAL_REVISION" "$TMTERMINAL_DATABASE_PUBLISHED_PORT" "$*"' > "$fake_bin/docker"
@@ -72,11 +73,23 @@ test "$(compose_revision 4100 4101)" = "tmterminal-4100|development-tmterminal-4
 test "$(compose_revision 4200 4201)" = "tmterminal-4200|development-tmterminal-4200|4102|compose config"
 test "$(compose_revision 4100 4101 production-sha)" = "tmterminal-4100|production-sha|4102|compose config"
 
-grep -qF 'bunx varlock run -- docker compose' "$root/scripts/compose"
 if grep -qF -- '--env-file' "$root/scripts/compose"; then
   echo "compose wrapper still delivers through a plaintext env file" >&2
   exit 1
 fi
+
+# `varlock run` strips @internal names from the child environment even when they
+# are already exported, so every entry point that builds an image must
+# re-resolve the install credentials INSIDE the varlock child. Without this the
+# BuildKit `required=true` secret mounts arrive empty and the build fails.
+grep -qF 'TMTERMINAL_RESOLVE_INSTALL_TOKENS=true' "$root/scripts/install-tokens"
+for build_entry_point in scripts/compose scripts/test-integration-compose; do
+  grep -qF 'exec bunx varlock run -- "$0" "$@"' "$root/$build_entry_point"
+  grep -qF '. "$root/scripts/install-tokens"' "$root/$build_entry_point"
+  install_line="$(grep -nF '. "$root/scripts/install-tokens"' "$root/$build_entry_point" | cut -d: -f1)"
+  reexec_line="$(grep -nF 'exec bunx varlock run -- "$0" "$@"' "$root/$build_entry_point" | cut -d: -f1)"
+  test "$reexec_line" -lt "$install_line"
+done
 
 # --- Source import pins the checkout revision and refuses a live worker ---
 
@@ -146,6 +159,13 @@ test "$stack_start_line" -lt "$smoke_line"
 test "$smoke_line" -lt "$verify_line"
 
 grep -qF -- '--set=ON_ERROR_STOP=1' "$root/scripts/auth-cleanup-inventory"
+
+# The deploy-time guard must not demand items that are deliberately composed
+# into another value or read by only one service.
+verify_script="$root/scripts/verify-deployed-secrets.ts"
+grep -qF 'notDeliveredToApi' "$verify_script"
+grep -qF '"TMTERMINAL_DATABASE_PASSWORD"' "$verify_script"
+grep -qF 'requiredOnWorker' "$verify_script"
 
 # --- Deploy workflow: manual only, one secret, both bootstrap slots -------
 
