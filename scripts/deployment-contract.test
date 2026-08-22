@@ -187,6 +187,13 @@ grep -qF 'name: Deploy Stack' "$deployment_workflow"
 grep -qF 'DEPLOY_AGENT_PRODUCTION_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}' "$deployment_workflow"
 grep -qF 'CURSOR_CLOUD_AGENTS_DEVELOPMENT_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}' "$deployment_workflow"
 grep -qF 'run: bun run deploy' "$deployment_workflow"
+# The exact-revision gate requires HEAD to equal origin/main, so the sync step
+# must advance the remote-tracking ref — fetching a bare SHA does not.
+grep -qF 'git fetch origin main' "$deployment_workflow"
+if grep -qF 'git fetch --depth=1 origin "${GITHUB_SHA}"' "$deployment_workflow"; then
+  echo "the deploy sync fetches a bare SHA and leaves origin/main behind" >&2
+  exit 1
+fi
 if grep -qF '  push:' "$deployment_workflow"; then
   echo "the deploy workflow still deploys on main push" >&2
   exit 1
