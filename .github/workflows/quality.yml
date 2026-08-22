@@ -7,43 +7,79 @@ on:
       lint-base:
         required: true
         type: string
-    secrets:
-      HUGEICONS_LICENSE_KEY:
-        required: true
 
 permissions:
   contents: read
-  packages: read
 
 jobs:
   verify:
-    env:
-      HUGEICONS_LICENSE_KEY: ${{ secrets.HUGEICONS_LICENSE_KEY }}
-      MERCHBASE_GITHUB_NPM_TOKEN: ${{ github.token }}
+    name: Check
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.5
+
+      # The private @merchbaseco/* scope needs a real GitHub Packages read
+      # token: Actions' own `github.token` cannot download another repository's
+      # package unless that package grants this repository access, so it is not
+      # a substitute. Both install credentials are @internal schema items,
+      # resolved here from the Development vault through the deploy identity.
+      # The plugin version is pinned in .env.schema, so this works before
+      # node_modules exists. With a bad token `bun install` hangs rather than
+      # failing, hence the timeout.
       - name: Install frozen dependencies
-        run: bun install --frozen-lockfile
+        timeout-minutes: 5
+        env:
+          CURSOR_CLOUD_AGENTS_DEVELOPMENT_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}
+        run: |
+          set -euo pipefail
+          MERCHBASE_GITHUB_NPM_TOKEN="$(
+            TMTERMINAL_RESOLVE_INSTALL_TOKENS=true \
+            bunx varlock@1.16.1 printenv MERCHBASE_GITHUB_NPM_TOKEN
+          )"
+          if [ -z "${MERCHBASE_GITHUB_NPM_TOKEN}" ]; then
+            echo "MERCHBASE_GITHUB_NPM_TOKEN did not resolve; the private @merchbaseco/* packages cannot be installed." >&2
+            exit 1
+          fi
+          MERCHBASE_HUGEICONS_LICENSE_KEY="$(
+            TMTERMINAL_RESOLVE_INSTALL_TOKENS=true \
+            bunx varlock@1.16.1 printenv MERCHBASE_HUGEICONS_LICENSE_KEY
+          )"
+          if [ -z "${MERCHBASE_HUGEICONS_LICENSE_KEY}" ]; then
+            echo "MERCHBASE_HUGEICONS_LICENSE_KEY did not resolve; the licensed @hugeicons-pro packages cannot be installed." >&2
+            exit 1
+          fi
+          export MERCHBASE_GITHUB_NPM_TOKEN MERCHBASE_HUGEICONS_LICENSE_KEY
+          bun install --frozen-lockfile
+
       - name: Lint changed authored files
         env:
           LINT_BASE: ${{ github.event.pull_request.base.sha || inputs.lint-base }}
         run: bun run lint:changed
-      - name: Typecheck and unit tests
+
+      # `check` pins the schema's `test` lifecycle itself, so the gates run
+      # fully offline with no 1Password access of their own.
+      - name: Environment contract, typecheck, and unit tests
         run: bun run check
+
+      # The website build inlines VITE_ values, so the build runs under the
+      # schema's test lifecycle rather than repeating a literal here.
       - name: Build all workspaces
-        run: bun run build
+        run: VARLOCK_ENV=test bunx varlock@1.16.1 run -- bun run build
+
       - name: Test fixture tooling
         run: bun run test:fixtures
+
       - name: Verify generated migration history
         run: |
           bun run db:generate
           git diff --exit-code -- apps/server/drizzle
+
       - name: Run production-shaped PostgreSQL integration tests
         run: bun run test:integration:compose
