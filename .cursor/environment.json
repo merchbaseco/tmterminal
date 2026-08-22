@@ -1,17 +1,17 @@
 {
-  "name": "Trademark Terminal",
+  "name": "Merchbase TMTerminal",
   "user": "ubuntu",
-  "install": "./.cursor/install.sh",
-  "start": "./.cursor/start.sh",
+  "install": "bash .cursor/install.sh",
+  "start": "bash .cursor/start.sh",
   "terminals": [
     {
       "name": "api",
-      "command": "./.cursor/api.sh",
+      "command": "bash .cursor/api.sh",
       "description": "Trademark Terminal HTTP/MCP API on http://127.0.0.1:3000 against the local database."
     },
     {
       "name": "web",
-      "command": "./.cursor/web.sh",
+      "command": "bash .cursor/web.sh",
       "description": "Trademark Terminal website (Vite dev server) on http://127.0.0.1:5173, proxying /api to the API."
     }
   ],
