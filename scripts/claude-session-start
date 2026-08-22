@@ -4,17 +4,12 @@ set -eu
 root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$root"
 
-# The install credentials are @internal schema items, so `varlock run` does not
-# export them; they are fetched explicitly under the install switch. There is no
-# .env step — the committed .env.schema is the whole environment contract.
+# There is no .env step — the committed .env.schema is the whole environment
+# contract. The install credentials are @internal schema items, so they are
+# fetched explicitly under the install switch.
 if [ ! -x apps/web/node_modules/.bin/vite ]; then
-  MERCHBASE_GITHUB_NPM_TOKEN="$(
-    TMTERMINAL_RESOLVE_INSTALL_TOKENS=true bunx varlock printenv MERCHBASE_GITHUB_NPM_TOKEN
-  )"
-  MERCHBASE_HUGEICONS_LICENSE_KEY="$(
-    TMTERMINAL_RESOLVE_INSTALL_TOKENS=true bunx varlock printenv MERCHBASE_HUGEICONS_LICENSE_KEY
-  )"
-  export MERCHBASE_GITHUB_NPM_TOKEN MERCHBASE_HUGEICONS_LICENSE_KEY
+  # shellcheck source=scripts/install-tokens
+  . "$root/scripts/install-tokens"
   bun install --frozen-lockfile >&2
 fi
 

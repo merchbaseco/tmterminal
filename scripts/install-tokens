@@ -1,0 +1,36 @@
+# Exports the two install-time credentials. Source this file; do not execute it.
+#
+# Both are @internal schema items. `varlock run` deliberately strips @internal
+# names from the child environment — even when they are already present in the
+# parent's process environment — so anything that needs them must fetch them
+# explicitly with `varlock printenv` INSIDE the varlock child. Compose reads
+# them from the process environment as BuildKit secrets, and the image build
+# fails with `required=true` mounts if they arrive empty.
+#
+# The lifecycle is pinned to development for the same reason the deploy script
+# pins it: install credentials live in the Development vault, and under any
+# other lifecycle the development 1Password client has no usable authentication
+# (`allowAppAuth=forEnv(development)`, and no bootstrap token is present), so
+# the op() reference would silently resolve empty.
+#
+# `varlock run` marks its child with __VARLOCK_RUN/__VARLOCK_ENV, and a nested
+# varlock invocation reuses the parent's already-resolved values — which have
+# the @internal items blanked. Both markers are cleared so this resolution is a
+# fresh one.
+#
+# Values move through command substitution only; they are never printed, written
+# to a file, or passed as arguments.
+
+MERCHBASE_GITHUB_NPM_TOKEN="$(
+  env -u __VARLOCK_RUN -u __VARLOCK_ENV \
+    VARLOCK_ENV=development TMTERMINAL_RESOLVE_INSTALL_TOKENS=true \
+    bunx "${VARLOCK_SPEC:-varlock}" printenv MERCHBASE_GITHUB_NPM_TOKEN
+)"
+MERCHBASE_HUGEICONS_LICENSE_KEY="$(
+  env -u __VARLOCK_RUN -u __VARLOCK_ENV \
+    VARLOCK_ENV=development TMTERMINAL_RESOLVE_INSTALL_TOKENS=true \
+    bunx "${VARLOCK_SPEC:-varlock}" printenv MERCHBASE_HUGEICONS_LICENSE_KEY
+)"
+: "${MERCHBASE_GITHUB_NPM_TOKEN:?MERCHBASE_GITHUB_NPM_TOKEN did not resolve; private @merchbaseco/* packages cannot be installed}"
+: "${MERCHBASE_HUGEICONS_LICENSE_KEY:?MERCHBASE_HUGEICONS_LICENSE_KEY did not resolve; licensed @hugeicons-pro packages cannot be installed}"
+export MERCHBASE_GITHUB_NPM_TOKEN MERCHBASE_HUGEICONS_LICENSE_KEY
