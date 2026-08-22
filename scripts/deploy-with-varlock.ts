@@ -102,7 +102,7 @@ if (cleanupState !== "final") {
 // varlock child that re-resolves the credentials for itself — the same shape
 // scripts/compose uses. --include-internal keeps the bootstrap token in that
 // child so the nested resolution has an identity.
-const buildCommand = ". ./scripts/install-tokens; exec docker compose --project-name " + projectName + " ";
+const buildCommand = `. ./scripts/install-tokens; exec docker compose --project-name ${projectName} `;
 
 const composeArgs = ["--project-name", projectName];
 
@@ -113,7 +113,15 @@ const composeArgs = ["--project-name", projectName];
 if (dryRun) {
   const rendered = spawnSync(
     "bunx",
-    [`varlock@${varlockVersion}`, "run", "--include-internal", "--", "sh", "-c", `${buildCommand}config`],
+    [
+      `varlock@${varlockVersion}`,
+      "run",
+      "--include-internal",
+      "--",
+      "sh",
+      "-c",
+      `${buildCommand}config`,
+    ],
     { encoding: "utf8", env: environment }
   );
 
@@ -139,7 +147,15 @@ console.log("Building images.");
 
 const build = spawnSync(
   "bunx",
-  [`varlock@${varlockVersion}`, "run", "--include-internal", "--", "sh", "-c", `${buildCommand}build`],
+  [
+    `varlock@${varlockVersion}`,
+    "run",
+    "--include-internal",
+    "--",
+    "sh",
+    "-c",
+    `${buildCommand}build`,
+  ],
   { env: environment, stdio: "inherit" }
 );
 if (build.status !== 0) {
