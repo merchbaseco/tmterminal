@@ -14,7 +14,7 @@ filename=$(basename "$source_path")
 TMTERMINAL_REVISION=$(git rev-parse HEAD)
 export TMTERMINAL_REVISION
 
-worker_container=$(docker compose ps --all --quiet worker)
+worker_container=$(bunx varlock run -- docker compose ps --all --quiet worker)
 if [ -n "$worker_container" ]; then
   worker_state=$(docker inspect --format '{{.State.Status}}' "$worker_container")
   if [ "$worker_state" != "exited" ]; then
@@ -23,7 +23,7 @@ if [ -n "$worker_container" ]; then
   fi
 fi
 
-docker compose run --rm --no-deps \
+bunx varlock run -- docker compose run --rm --no-deps \
   --volume "$source_path:/imports/$filename:ro" \
   worker bun run --cwd apps/server source:repair \
   --product "$product" --filename "$filename" --import "/imports/$filename"

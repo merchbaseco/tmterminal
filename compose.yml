@@ -6,17 +6,24 @@ services:
         limits:
           cpus: "2"
           memory: 2G
+    # The postgres image requires these literal names, and they differ from the
+    # schema's, so these three are the only interpolated values in this file.
+    # Compose interpolates what it substitutes, so a value containing `$` would
+    # be truncated here; everything else uses the pass-through shorthand below
+    # and is immune. They are read only when the data volume is first
+    # initialised, which already happened — changing them does not change the
+    # live role's password.
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-tmterminal}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
-      POSTGRES_USER: ${POSTGRES_USER:-tmterminal}
+      POSTGRES_DB: ${TMTERMINAL_DATABASE_NAME}
+      POSTGRES_PASSWORD: ${TMTERMINAL_DATABASE_PASSWORD}
+      POSTGRES_USER: ${TMTERMINAL_DATABASE_USER}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 2s
       timeout: 3s
       retries: 15
     ports:
-      - "127.0.0.1:${TMTERMINAL_DATABASE_PORT:-5437}:5432"
+      - "127.0.0.1:${TMTERMINAL_DATABASE_PUBLISHED_PORT:-5437}:5432"
     restart: unless-stopped
     volumes:
       - database-data:/var/lib/postgresql/data
@@ -29,8 +36,11 @@ services:
         limits:
           cpus: "1"
           memory: 1G
+    # Pass-through shorthand: Compose takes each value straight from the process
+    # environment (delivered by `varlock run`) without interpolating it, so a
+    # value containing `$` survives intact.
     environment:
-      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      - TMTERMINAL_DATABASE_URL
     depends_on:
       database:
         condition: service_healthy
@@ -41,7 +51,7 @@ services:
       context: .
       target: runtime
       secrets:
-        - hugeicons_license_key
+        - merchbase_hugeicons_license_key
         - merchbase_github_npm_token
       args:
         TMTERMINAL_REVISION: ${TMTERMINAL_REVISION:-development}
@@ -53,15 +63,19 @@ services:
           cpus: "1"
           memory: 1G
     environment:
-      CLERK_AUTHORIZED_PARTIES: ${CLERK_AUTHORIZED_PARTIES:?set CLERK_AUTHORIZED_PARTIES}
-      CLERK_ISSUER: ${CLERK_ISSUER:?set CLERK_ISSUER}
-      CLERK_JWT_KEY: ${CLERK_JWT_KEY:?set CLERK_JWT_KEY}
-      CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY:?set CLERK_PUBLISHABLE_KEY}
-      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:?set CLERK_SECRET_KEY}
-      CLERK_WEBHOOK_SIGNING_SECRET: ${CLERK_WEBHOOK_SIGNING_SECRET:?set CLERK_WEBHOOK_SIGNING_SECRET}
-      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
-      MCP_RESOURCE_URL: ${MCP_RESOURCE_URL:-https://tmterminal.merchbase.co/mcp}
-      NODE_ENV: production
+      - MERCHBASE_CLERK_ISSUER
+      - MERCHBASE_CLERK_JWT_KEY
+      - MERCHBASE_CLERK_PUBLISHABLE_KEY
+      - MERCHBASE_CLERK_SECRET_KEY
+      - TMTERMINAL_CLERK_AUTHORIZED_PARTIES
+      - TMTERMINAL_CLERK_WEBHOOK_SIGNING_SECRET
+      - TMTERMINAL_DATABASE_URL
+      - TMTERMINAL_HOST
+      - TMTERMINAL_MCP_RESOURCE_URL
+      - TMTERMINAL_PORT
+      # The container's own lifecycle signal. VARLOCK_ENV is a varlock builtin
+      # and is never delivered, so in-container branching reads this instead.
+      - NODE_ENV=production
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -83,15 +97,16 @@ services:
           cpus: "2"
           memory: 2G
     environment:
-      ARTIFACT_STORE_ROOT: /var/lib/tmterminal/artifacts
-      CLERK_AUTHORIZED_PARTIES: ${CLERK_AUTHORIZED_PARTIES:?set CLERK_AUTHORIZED_PARTIES}
-      CLERK_ISSUER: ${CLERK_ISSUER:?set CLERK_ISSUER}
-      CLERK_JWT_KEY: ${CLERK_JWT_KEY:?set CLERK_JWT_KEY}
-      CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY:?set CLERK_PUBLISHABLE_KEY}
-      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:?set CLERK_SECRET_KEY}
-      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
-      USPTO_API_KEY: ${USPTO_API_KEY:?set USPTO_API_KEY}
-      USPTO_REQUEST_TIMEOUT_MS: ${USPTO_REQUEST_TIMEOUT_MS:-900000}
+      - MERCHBASE_CLERK_ISSUER
+      - MERCHBASE_CLERK_JWT_KEY
+      - MERCHBASE_CLERK_PUBLISHABLE_KEY
+      - MERCHBASE_CLERK_SECRET_KEY
+      - TMTERMINAL_ARTIFACT_STORE_ROOT
+      - TMTERMINAL_CLERK_AUTHORIZED_PARTIES
+      - TMTERMINAL_DATABASE_URL
+      - TMTERMINAL_USPTO_API_KEY
+      - TMTERMINAL_USPTO_REQUEST_TIMEOUT_MS
+      - NODE_ENV=production
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -110,11 +125,11 @@ services:
       context: .
       target: web
       secrets:
-        - hugeicons_license_key
+        - merchbase_hugeicons_license_key
         - merchbase_github_npm_token
       args:
         TMTERMINAL_REVISION: ${TMTERMINAL_REVISION:-development}
-        VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:?set VITE_CLERK_PUBLISHABLE_KEY}
+        VITE_MERCHBASE_CLERK_PUBLISHABLE_KEY: ${VITE_MERCHBASE_CLERK_PUBLISHABLE_KEY:?set VITE_MERCHBASE_CLERK_PUBLISHABLE_KEY}
     image: tmterminal-web:${TMTERMINAL_REVISION:-development}
     deploy:
       resources:
@@ -154,11 +169,14 @@ services:
       context: .
       target: test
       secrets:
-        - hugeicons_license_key
+        - merchbase_hugeicons_license_key
         - merchbase_github_npm_token
     command: ["bun", "run", "test:integration"]
+    # Runtime-provided: the integration lane supplies its own connection string.
+    # Inside this profile that is the container-network form below; an operator
+    # or cloud agent supplies a loopback form instead.
     environment:
-      TEST_DATABASE_URL: postgres://tmterminal_test:tmterminal_test@test-database:5432/tmterminal_test
+      TMTERMINAL_TEST_DATABASE_URL: postgres://tmterminal_test:tmterminal_test@test-database:5432/tmterminal_test
     depends_on:
       test-database:
         condition: service_healthy
@@ -168,7 +186,7 @@ volumes:
   database-data:
 
 secrets:
-  hugeicons_license_key:
-    environment: HUGEICONS_LICENSE_KEY
+  merchbase_hugeicons_license_key:
+    environment: MERCHBASE_HUGEICONS_LICENSE_KEY
   merchbase_github_npm_token:
     environment: MERCHBASE_GITHUB_NPM_TOKEN

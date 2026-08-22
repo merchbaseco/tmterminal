@@ -5,7 +5,7 @@ set -eu
 public_origin="https://tmterminal.merchbase.co"
 
 compose() {
-  docker compose --project-name tmterminal --env-file .env "$@"
+  docker compose --project-name tmterminal "$@"
 }
 
 probe() {
