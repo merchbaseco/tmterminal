@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { delimiter, join } from "node:path";
 
 /**
@@ -21,7 +21,6 @@ import { delimiter, join } from "node:path";
  */
 const bootstrapName = "DEPLOY_AGENT_PRODUCTION_OP_TOKEN";
 const operatorIdentity = "op://Automation/Production Varlock - Mac Mini/credential";
-const installTokenNames = ["MERCHBASE_GITHUB_NPM_TOKEN", "MERCHBASE_HUGEICONS_LICENSE_KEY"];
 const projectName = "tmterminal";
 const varlockVersion = "1.16.1";
 
@@ -75,9 +74,6 @@ const capture = (command: string, args: string[], env = environment) => {
 const varlockRun = (args: string[], env = environment) =>
   run("bunx", [`varlock@${varlockVersion}`, "run", "--", ...args], env);
 
-const printenv = (name: string, extraEnv: NodeJS.ProcessEnv = {}) =>
-  capture("bunx", [`varlock@${varlockVersion}`, "printenv", name], { ...environment, ...extraEnv });
-
 // The exact-revision gate: refuses a dirty checkout, a HEAD that differs from
 // the dispatched commit, or a HEAD that is not origin/main.
 const expectedRevision = process.env.GITHUB_SHA || capture("git", ["rev-parse", "HEAD"]);
@@ -99,42 +95,14 @@ if (cleanupState !== "final") {
   process.exit(1);
 }
 
-// The image build installs private @merchbaseco/* packages and licensed
-// @hugeicons-pro packages through BuildKit secret mounts, which Compose reads
-// from the process environment. Install credentials belong to the DEVELOPMENT
-// lifecycle — the production identity is Production-vault-scoped — so they are
-// fetched under the development lifecycle with the install switch on.
-for (const name of installTokenNames) {
-  if (environment[name]) {
-    continue;
-  }
-
-  environment[name] = printenv(name, {
-    TMTERMINAL_RESOLVE_INSTALL_TOKENS: "true",
-    VARLOCK_ENV: "development",
-  });
-
-  if (!environment[name]) {
-    console.error(`${name} did not resolve; the image build cannot install its packages.`);
-    process.exit(1);
-  }
-}
-
-// `varlock run` strips @internal items from the child environment, so the image
-// build cannot run under it: Compose would see empty BuildKit secrets and the
-// package install would fail. Build with an explicit environment instead. Every
-// build argument is @public, and the ARG list in the Dockerfile is the single
-// source for which ones exist — the contract check keeps it in step with
-// compose.
-const buildEnvironment: NodeJS.ProcessEnv = { ...environment };
-const argNames = [
-  ...readFileSync("Dockerfile", "utf8").matchAll(/^ARG\s+([A-Z][A-Z0-9_]*)/gmu),
-].map((match) => match[1]);
-for (const name of argNames) {
-  if (!buildEnvironment[name]) {
-    buildEnvironment[name] = printenv(name);
-  }
-}
+// The image build needs two things at once: every @public value Compose
+// interpolates (ports, database identifiers, build arguments) and the two
+// @internal install credentials Compose mounts as BuildKit secrets. `varlock
+// run` supplies the first and strips the second, so the build runs inside a
+// varlock child that re-resolves the credentials for itself — the same shape
+// scripts/compose uses. --include-internal keeps the bootstrap token in that
+// child so the nested resolution has an identity.
+const buildCommand = ". ./scripts/install-tokens; exec docker compose --project-name " + projectName + " ";
 
 const composeArgs = ["--project-name", projectName];
 
@@ -145,8 +113,8 @@ const composeArgs = ["--project-name", projectName];
 if (dryRun) {
   const rendered = spawnSync(
     "bunx",
-    [`varlock@${varlockVersion}`, "run", "--", "docker", "compose", ...composeArgs, "config"],
-    { encoding: "utf8", env: buildEnvironment }
+    [`varlock@${varlockVersion}`, "run", "--include-internal", "--", "sh", "-c", `${buildCommand}config`],
+    { encoding: "utf8", env: environment }
   );
 
   if (rendered.status !== 0) {
@@ -167,14 +135,13 @@ if (dryRun) {
 }
 
 console.log(`Deploying revision ${revision}.`);
-console.log(
-  "Building images. Compose warnings about unset runtime variables are expected here — the build only consumes build arguments and the install tokens."
-);
+console.log("Building images.");
 
-const build = spawnSync("docker", ["compose", ...composeArgs, "build"], {
-  env: buildEnvironment,
-  stdio: "inherit",
-});
+const build = spawnSync(
+  "bunx",
+  [`varlock@${varlockVersion}`, "run", "--include-internal", "--", "sh", "-c", `${buildCommand}build`],
+  { env: environment, stdio: "inherit" }
+);
 if (build.status !== 0) {
   console.error("Image build failed; deploy not attempted.");
   process.exit(build.status ?? 1);
