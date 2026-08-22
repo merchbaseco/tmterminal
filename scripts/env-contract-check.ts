@@ -59,16 +59,34 @@ const outOfContractNames = new Set([
 // Schema items that deliberately never reach a container, with the reason.
 // Anything not listed here that container code reads must be delivered.
 const notDeliveredNames = new Map([
-  ["TMTERMINAL_API_PORT", "host port binding and Vite dev-server proxy target, not a container value"],
+  [
+    "TMTERMINAL_API_PORT",
+    "host port binding and Vite dev-server proxy target, not a container value",
+  ],
   ["TMTERMINAL_WEB_PORT", "host port binding, not a container value"],
   ["TMTERMINAL_DATABASE_PUBLISHED_PORT", "host port binding for the database container"],
   ["TMTERMINAL_DATABASE_HOST", "composed into TMTERMINAL_DATABASE_URL before delivery"],
   ["TMTERMINAL_DATABASE_PORT", "composed into TMTERMINAL_DATABASE_URL before delivery"],
-  ["TMTERMINAL_DATABASE_NAME", "composed into the URL; reaches the database container as POSTGRES_DB"],
-  ["TMTERMINAL_DATABASE_USER", "composed into the URL; reaches the database container as POSTGRES_USER"],
-  ["TMTERMINAL_DATABASE_PASSWORD", "composed into the URL; reaches the database container as POSTGRES_PASSWORD"],
-  ["TMTERMINAL_DEV_CLERK_SIGN_IN_USER_ID", "development-only loopback endpoint; never delivered to production"],
-  ["TMTERMINAL_DEV_OPERATOR_MERCHBASE_USER_ID", "development-only operator surface; never delivered to production"],
+  [
+    "TMTERMINAL_DATABASE_NAME",
+    "composed into the URL; reaches the database container as POSTGRES_DB",
+  ],
+  [
+    "TMTERMINAL_DATABASE_USER",
+    "composed into the URL; reaches the database container as POSTGRES_USER",
+  ],
+  [
+    "TMTERMINAL_DATABASE_PASSWORD",
+    "composed into the URL; reaches the database container as POSTGRES_PASSWORD",
+  ],
+  [
+    "TMTERMINAL_DEV_CLERK_SIGN_IN_USER_ID",
+    "development-only loopback endpoint; never delivered to production",
+  ],
+  [
+    "TMTERMINAL_DEV_OPERATOR_MERCHBASE_USER_ID",
+    "development-only operator surface; never delivered to production",
+  ],
   ["TMTERMINAL_REVISION", "build argument and image tag, not a runtime value"],
   ["VITE_MERCHBASE_CLERK_PUBLISHABLE_KEY", "build-time website input, passed as a build argument"],
   ["VITE_TMTERMINAL_DEV_CLERK_AUTO_SIGN_IN", "build-time website input, development only"],
@@ -177,7 +195,16 @@ const consumerPaths = [
 
 const isMentionedAnywhere = (name: string): boolean =>
   isMentionedInSource(name) ||
-  grepSource(["-rlF", name, "--exclude-dir=node_modules", "--exclude-dir=dist", "--exclude=env-contract-check.ts"], consumerPaths).trim().length > 0;
+  grepSource(
+    [
+      "-rlF",
+      name,
+      "--exclude-dir=node_modules",
+      "--exclude-dir=dist",
+      "--exclude=env-contract-check.ts",
+    ],
+    consumerPaths
+  ).trim().length > 0;
 
 // Compose is indentation-structured, so a block ends at the first line indented
 // no deeper than its header. Every matching block is read, because
@@ -233,7 +260,9 @@ const sorted = (names: Iterable<string>) => [...names].sort();
 
 const schemaItems = readSchemaItems();
 const deliverableNames = new Set(
-  schemaItems.filter((item) => !(item.isInternal || varlockBuiltins.has(item.name))).map((item) => item.name)
+  schemaItems
+    .filter((item) => !(item.isInternal || varlockBuiltins.has(item.name)))
+    .map((item) => item.name)
 );
 const explicitSourceNames = readExplicitSourceNames();
 const composeEnvNames = new Set(readComposeBlocks("environment:", 4));
@@ -255,7 +284,9 @@ for (const item of schemaItems) {
 //    Marking one sensitive means a secret is about to ship to every visitor.
 for (const item of schemaItems) {
   if (item.name.startsWith("VITE_") && item.isSensitive) {
-    issues.push(`${item.name} is @sensitive but VITE_ values are inlined into the public website bundle.`);
+    issues.push(
+      `${item.name} is @sensitive but VITE_ values are inlined into the public website bundle.`
+    );
   }
 }
 
@@ -269,7 +300,9 @@ for (const name of sorted(explicitSourceNames)) {
   if (!deliverableNames.has(name)) {
     issues.push(`${name} is read by the source but is not a deliverable .env.schema item.`);
   } else if (!(composeEnvNames.has(name) || notDeliveredNames.has(name))) {
-    issues.push(`${name} is read by the source but is not delivered in any compose \`environment:\` block.`);
+    issues.push(
+      `${name} is read by the source but is not delivered in any compose \`environment:\` block.`
+    );
   }
 }
 
@@ -316,7 +349,9 @@ for (const name of sorted(composeBuildArgNames)) {
   }
 
   if (!deliverableNames.has(name)) {
-    issues.push(`${name} is passed as a compose build argument but is not a deliverable .env.schema item.`);
+    issues.push(
+      `${name} is passed as a compose build argument but is not a deliverable .env.schema item.`
+    );
   }
 }
 

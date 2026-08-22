@@ -3,9 +3,13 @@ import { chmod, copyFile, mkdir, mkdtemp, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const productionDatabaseBinding = /"127\.0\.0\.1:\$\{TMTERMINAL_DATABASE_PUBLISHED_PORT:-5437\}:5432"/;
+const productionDatabaseBinding =
+  /"127\.0\.0\.1:\$\{TMTERMINAL_DATABASE_PUBLISHED_PORT:-5437\}:5432"/;
 const sessionHookCommand = /^\$\{CLAUDE_PROJECT_DIR\}\/scripts\/claude-session-start$/;
 const containerRuntimeCommand = /\bdocker\b|\bcompose\b/;
+const sourcesAnEnvFile = /^\s*\.\s+.*\.env\b/m;
+const testsForAnEnvFile = /-f\s+\.env\b/;
+const hardCodedDatabasePassword = /TMTERMINAL_DB_PASSWORD=/;
 
 test("the Codex setup resolves private-package credentials through the schema", async () => {
   const environment = await readFile(
@@ -17,7 +21,9 @@ test("the Codex setup resolves private-package credentials through the schema", 
     "TMTERMINAL_RESOLVE_INSTALL_TOKENS=true bunx varlock printenv MERCHBASE_GITHUB_NPM_TOKEN"
   );
   // The install must be authenticated: the credentials are exported before it.
-  const exportIndex = environment.indexOf("export MERCHBASE_GITHUB_NPM_TOKEN MERCHBASE_HUGEICONS_LICENSE_KEY");
+  const exportIndex = environment.indexOf(
+    "export MERCHBASE_GITHUB_NPM_TOKEN MERCHBASE_HUGEICONS_LICENSE_KEY"
+  );
   const installIndex = environment.indexOf("bun install --frozen-lockfile");
   expect(exportIndex).toBeGreaterThan(-1);
   expect(installIndex).toBeGreaterThan(exportIndex);
@@ -28,9 +34,17 @@ test("no venue copies or reads a plaintext env file", async () => {
   expect(gitignore).toContain("!.env.schema");
   expect(gitignore).not.toContain("!.env.example");
 
-  for (const path of ["../.cursor/install.sh", "../.cursor/start.sh", "../scripts/dev", "../scripts/compose"]) {
-    const contents = await readFile(new URL(path, import.meta.url), "utf8");
-    expect(contents).not.toMatch(/^\s*\.\s+"?\$?\{?root\}?"?\/\.env/m);
+  const venuePaths = [
+    "../.cursor/install.sh",
+    "../.cursor/start.sh",
+    "../scripts/dev",
+    "../scripts/compose",
+  ];
+  const venues = await Promise.all(
+    venuePaths.map((path) => readFile(new URL(path, import.meta.url), "utf8"))
+  );
+  for (const contents of venues) {
+    expect(contents).not.toMatch(sourcesAnEnvFile);
     expect(contents).not.toContain("--env-file");
   }
 });
@@ -53,9 +67,12 @@ test("the Cursor cloud environment overrides only the database host", async () =
 
   // The cluster listens on the schema's development port, so the port is not
   // overridden anywhere; only the host is.
-  const postgresLib = await readFile(new URL("../.cursor/postgres-lib.sh", import.meta.url), "utf8");
+  const postgresLib = await readFile(
+    new URL("../.cursor/postgres-lib.sh", import.meta.url),
+    "utf8"
+  );
   expect(postgresLib).toContain("PG_PORT=5437");
-  expect(postgresLib).not.toMatch(/TMTERMINAL_DB_PASSWORD=/);
+  expect(postgresLib).not.toMatch(hardCodedDatabasePassword);
 });
 
 test("development starts local API and web through varlock against the Mac mini database", async () => {
@@ -108,7 +125,8 @@ while :; do :; done
       PATH: `${bin}:/usr/bin:/bin:/usr/sbin:/sbin`,
       TMTERMINAL_API_PORT: "4101",
       TMTERMINAL_CLERK_AUTHORIZED_PARTIES: "http://127.0.0.1:4100",
-      TMTERMINAL_DATABASE_URL: "postgres://tmturtle:secret@zachs-mac-mini.taila0b849.ts.net:5437/tmturtle",
+      TMTERMINAL_DATABASE_URL:
+        "postgres://tmturtle:secret@zachs-mac-mini.taila0b849.ts.net:5437/tmturtle",
       TMTERMINAL_DEV_ENV_READY: "1",
       TMTERMINAL_HOST: "127.0.0.1",
       TMTERMINAL_PORT: "4101",
@@ -132,9 +150,7 @@ while :; do :; done
         "api|postgres://tmturtle:secret@zachs-mac-mini.taila0b849.ts.net:5437/tmturtle|4101|http://127.0.0.1:4100|127.0.0.1|apps/server/src/server.ts"
       )
     );
-    expect(calls).toContain(
-      "web|pk_test_tmterminal|4101|apps/web --host 127.0.0.1 --port 4100"
-    );
+    expect(calls).toContain("web|pk_test_tmterminal|4101|apps/web --host 127.0.0.1 --port 4100");
     expect(calls.join("\n")).not.toContain("worker");
     expect(calls.join("\n")).not.toContain("migrate");
     const stoppedVitePid = (await Bun.file(vitePid).text()).trim();
@@ -226,8 +242,8 @@ test("the session hook prepares a fresh checkout for the dev preview", async () 
   expect(hook).not.toContain("gh auth token");
   // No plaintext env step: the hook neither reads nor asks for a .env file.
   expect(hook).not.toContain("Missing .env");
-  expect(hook).not.toMatch(/-f\s+\.env\b/);
-  expect(hook).not.toMatch(/^\s*\.\s+.*\.env\b/m);
+  expect(hook).not.toMatch(testsForAnEnvFile);
+  expect(hook).not.toMatch(sourcesAnEnvFile);
 
   const { exitCode, installs, launch } = await runSessionStart(false);
 
