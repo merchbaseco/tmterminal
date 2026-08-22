@@ -5,6 +5,8 @@ root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 temporary_directory="$(mktemp -d)"
 trap 'rm -rf "$temporary_directory"' EXIT
 
+# --- Exact-revision gate -------------------------------------------------
+
 repository="$temporary_directory/repository"
 git init --quiet "$repository"
 git -C "$repository" config user.email test@example.com
@@ -42,25 +44,41 @@ if (cd "$repository" && "$root/scripts/deployment-revision" "$(git -C "$reposito
   exit 1
 fi
 
+# --- Compose wrapper: per-checkout ports, revision, and varlock delivery --
+
 fake_bin="$temporary_directory/bin"
 mkdir "$fake_bin"
-printf '%s\n' '#!/bin/sh' 'printf '\''%s|%s|%s\n'\'' "$COMPOSE_PROJECT_NAME" "$TMTERMINAL_REVISION" "$TMTERMINAL_DATABASE_PORT"' > "$fake_bin/docker"
+# `bunx varlock run -- <cmd>` is transparent here: the wrapper's contract is
+# that it delivers through varlock and never through --env-file.
+printf '%s\n' '#!/bin/sh' \
+  'test "$1" = "varlock"' 'test "$2" = "run"' 'test "$3" = "--"' 'shift 3' 'exec "$@"' > "$fake_bin/bunx"
+chmod +x "$fake_bin/bunx"
+printf '%s\n' '#!/bin/sh' 'printf '\''%s|%s|%s|%s\n'\'' "$COMPOSE_PROJECT_NAME" "$TMTERMINAL_REVISION" "$TMTERMINAL_DATABASE_PUBLISHED_PORT" "$*"' > "$fake_bin/docker"
 chmod +x "$fake_bin/docker"
 printf '%s\n' '#!/bin/sh' 'test "$1" = 2' 'printf '\''4102\n'\''' > "$fake_bin/dev-port"
 chmod +x "$fake_bin/dev-port"
 
 compose_revision() (
   explicit_revision="${3:-}"
-  unset CLERK_AUTHORIZED_PARTIES COMPOSE_PROJECT_NAME TMTERMINAL_REVISION
+  unset TMTERMINAL_CLERK_AUTHORIZED_PARTIES COMPOSE_PROJECT_NAME TMTERMINAL_REVISION
+  unset TMTERMINAL_DATABASE_PUBLISHED_PORT
   if test -n "$explicit_revision"; then
     export TMTERMINAL_REVISION="$explicit_revision"
   fi
   PATH="$fake_bin:$PATH" TMTERMINAL_WEB_PORT="$1" TMTERMINAL_API_PORT="$2" "$root/scripts/compose" config
 )
 
-test "$(compose_revision 4100 4101)" = "tmterminal-4100|development-tmterminal-4100|4102"
-test "$(compose_revision 4200 4201)" = "tmterminal-4200|development-tmterminal-4200|4102"
-test "$(compose_revision 4100 4101 production-sha)" = "tmterminal-4100|production-sha|4102"
+test "$(compose_revision 4100 4101)" = "tmterminal-4100|development-tmterminal-4100|4102|compose config"
+test "$(compose_revision 4200 4201)" = "tmterminal-4200|development-tmterminal-4200|4102|compose config"
+test "$(compose_revision 4100 4101 production-sha)" = "tmterminal-4100|production-sha|4102|compose config"
+
+grep -qF 'bunx varlock run -- docker compose' "$root/scripts/compose"
+if grep -qF -- '--env-file' "$root/scripts/compose"; then
+  echo "compose wrapper still delivers through a plaintext env file" >&2
+  exit 1
+fi
+
+# --- Source import pins the checkout revision and refuses a live worker ---
 
 printf '%s\n' '#!/bin/sh' \
   'if test "$*" = "compose ps --all --quiet worker"; then test -n "${FAKE_WORKER_STATE:-}" && printf '\''worker-id\n'\''; exit 0; fi' \
@@ -89,38 +107,85 @@ if (
   exit 1
 fi
 
-deployment_workflow="$root/.github/workflows/deploy.yml"
-grep -qF 'HUGEICONS_LICENSE_KEY: ${{ secrets.HUGEICONS_LICENSE_KEY }}' "$deployment_workflow"
-grep -qF 'auth-cleanup-approved:' "$deployment_workflow"
-grep -qF 'if: inputs.auth-cleanup-approved == true' "$deployment_workflow"
-if grep -qF '  push:' "$deployment_workflow"; then
-  echo "centralized-auth release still deploys on main push" >&2
-  exit 1
-fi
-worker_stop_line="$(grep -nF 'docker compose --project-name tmterminal --env-file .env stop api worker' "$deployment_workflow" | cut -d: -f1)"
-migration_lines="$(grep -nF 'docker compose --project-name tmterminal --env-file .env run --rm migrate' "$deployment_workflow" | cut -d: -f1)"
-migration_line="$(printf '%s\n' "$migration_lines" | head -n 1)"
-preservation_line="$(grep -nF 'test "$preservation_before" = "$preservation_after"' "$deployment_workflow" | cut -d: -f1)"
-final_state_line="$(grep -nF '            final)' "$deployment_workflow" | cut -d: -f1)"
-stack_start_line="$(grep -nF 'docker compose --project-name tmterminal --env-file .env up --detach --remove-orphans --wait' "$deployment_workflow" | cut -d: -f1)"
+# --- Deploy script: refusals, lifecycle pin, and step ordering ------------
+
+deploy_script="$root/scripts/deploy-with-varlock.ts"
+
+# A checkout .env silently overrides the schema, so the deploy must refuse.
+grep -qF "existsSync('.env')" "$deploy_script" || grep -qF 'existsSync(".env")' "$deploy_script"
+# The production lifecycle is pinned by the script, never inherited.
+grep -qF 'VARLOCK_ENV: "production"' "$deploy_script"
+# The deploy-agent role slot, with the operator `op run` fallback.
+grep -qF 'DEPLOY_AGENT_PRODUCTION_OP_TOKEN' "$deploy_script"
+grep -qF 'op://Automation/Production Varlock - Mac Mini/credential' "$deploy_script"
+# Install credentials belong to the development lifecycle.
+grep -qF 'VARLOCK_ENV: "development"' "$deploy_script"
+grep -qF 'TMTERMINAL_RESOLVE_INSTALL_TOKENS' "$deploy_script"
+# The centralized-auth cleanup is complete; any other state must refuse.
+grep -qF 'cleanupState !== "final"' "$deploy_script"
+
+line_of() {
+  grep -nF "$1" "$deploy_script" | head -n 1 | cut -d: -f1
+}
+worker_stop_line="$(line_of 'Stopping the API and worker')"
+migration_line="$(line_of 'Applying migrations')"
+invariant_line="$(line_of 'Post-migration invariant check')"
+stack_start_line="$(line_of 'Starting the stack')"
+smoke_line="$(line_of 'Deployment smoke')"
+verify_line="$(line_of 'verify-deployed-secrets.ts')"
 test -n "$worker_stop_line"
 test -n "$migration_line"
-test "$(printf '%s\n' "$migration_lines" | wc -l | tr -d ' ')" -eq 2
-test -n "$preservation_line"
-test -n "$final_state_line"
+test -n "$invariant_line"
 test -n "$stack_start_line"
+test -n "$smoke_line"
+test -n "$verify_line"
 test "$worker_stop_line" -lt "$migration_line"
-test "$migration_line" -lt "$preservation_line"
-test "$preservation_line" -lt "$stack_start_line"
-test "$final_state_line" -lt "$stack_start_line"
-test "$worker_stop_line" -lt "$stack_start_line"
+test "$migration_line" -lt "$invariant_line"
+test "$invariant_line" -lt "$stack_start_line"
+test "$stack_start_line" -lt "$smoke_line"
+test "$smoke_line" -lt "$verify_line"
 
 grep -qF -- '--set=ON_ERROR_STOP=1' "$root/scripts/auth-cleanup-inventory"
+
+# --- Deploy workflow: manual only, one secret, both bootstrap slots -------
+
+deployment_workflow="$root/.github/workflows/deploy.yml"
+grep -qF 'name: Deploy Stack' "$deployment_workflow"
+grep -qF 'DEPLOY_AGENT_PRODUCTION_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}' "$deployment_workflow"
+grep -qF 'CURSOR_CLOUD_AGENTS_DEVELOPMENT_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}' "$deployment_workflow"
+grep -qF 'run: bun run deploy' "$deployment_workflow"
+if grep -qF '  push:' "$deployment_workflow"; then
+  echo "the deploy workflow still deploys on main push" >&2
+  exit 1
+fi
+if grep -qE 'secrets\.(HUGEICONS_LICENSE_KEY|MERCHBASE_GITHUB_NPM_TOKEN)' "$deployment_workflow"; then
+  echo "the deploy workflow still injects install credentials as platform secrets" >&2
+  exit 1
+fi
+if grep -qF -- '--env-file' "$deployment_workflow"; then
+  echo "the deploy workflow still delivers through a plaintext env file" >&2
+  exit 1
+fi
+
+# Quality resolves install credentials through the schema, not github.token.
+quality_workflow="$root/.github/workflows/quality.yml"
+grep -qF 'CURSOR_CLOUD_AGENTS_DEVELOPMENT_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}' "$quality_workflow"
+grep -qF 'timeout-minutes: 5' "$quality_workflow"
+if grep -qF '${{ github.token }}' "$quality_workflow"; then
+  echo "Quality still installs private packages with the ambient github.token" >&2
+  exit 1
+fi
+
+# --- Deployment smoke keeps its worker-heartbeat gate ---------------------
 
 deployment_smoke="$root/scripts/deployment-smoke"
 grep -qF 'current_error is null and last_heartbeat_at' "$deployment_smoke"
 if grep -qF 'source_lane' "$deployment_smoke"; then
   echo "deployment smoke still depends on the retired source lane" >&2
+  exit 1
+fi
+if grep -qF -- '--env-file' "$deployment_smoke"; then
+  echo "deployment smoke still delivers through a plaintext env file" >&2
   exit 1
 fi
 
