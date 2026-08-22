@@ -89,6 +89,13 @@ fi
 # re-resolve the install credentials INSIDE the varlock child. Without this the
 # BuildKit `required=true` secret mounts arrive empty and the build fails.
 grep -qF 'TMTERMINAL_RESOLVE_INSTALL_TOKENS=true' "$root/scripts/install-tokens"
+# The nested resolution must start clean: varlock's run markers would make it
+# reuse the parent's blanked values, and an inherited empty credential would
+# outrank the schema.
+grep -qF 'VARLOCK_ENV=development' "$root/scripts/install-tokens"
+for cleared in __VARLOCK_RUN __VARLOCK_ENV MERCHBASE_GITHUB_NPM_TOKEN MERCHBASE_HUGEICONS_LICENSE_KEY; do
+  grep -qF -- "-u $cleared" "$root/scripts/install-tokens"
+done
 for build_entry_point in scripts/compose scripts/test-integration-compose; do
   grep -qF 'exec bunx varlock run --include-internal -- "$0" "$@"' "$root/$build_entry_point"
   grep -qF '. "$root/scripts/install-tokens"' "$root/$build_entry_point"
