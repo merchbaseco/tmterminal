@@ -99,7 +99,9 @@ export function resolveMcpResourceUrl(value: string | undefined) {
   try {
     url = new URL(value ?? "");
   } catch (cause) {
-    throw new Error("TMTERMINAL_MCP_RESOURCE_URL must be an absolute HTTP URL ending in /mcp", { cause });
+    throw new Error("TMTERMINAL_MCP_RESOURCE_URL must be an absolute HTTP URL ending in /mcp", {
+      cause,
+    });
   }
   if (
     !["http:", "https:"].includes(url.protocol) ||

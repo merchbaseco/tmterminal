@@ -6,10 +6,7 @@ import { createConfiguredTmterminalAccess, type TmterminalAccess } from "../auth
 import { createDatabaseClient } from "../db/client.ts";
 import { createTmterminalMcpAuth } from "../mcp/auth.ts";
 import { createTmterminalMcpDataSource } from "../mcp/data-source.ts";
-import {
-  registerTmterminalMcpRoutes,
-  resolveMcpResourceUrl,
-} from "../mcp/http.ts";
+import { registerTmterminalMcpRoutes, resolveMcpResourceUrl } from "../mcp/http.ts";
 import { createOperatorSyncService } from "../services/operator-sync-service.ts";
 import { registerClerkWebhook } from "./clerk-webhook.ts";
 import { createAppContext, createAuthenticatedAppContext } from "./context.ts";

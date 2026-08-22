@@ -33,6 +33,8 @@ const imageProvidedNames = new Set([
   "TERM",
 ]);
 
+const schemaItemPattern = /^([A-Z][A-Z0-9_]*)=/u;
+
 const schema = readFileSync(".env.schema", "utf8");
 const declared = new Set<string>();
 const sensitive = new Set<string>();
@@ -45,14 +47,17 @@ for (const line of schema.split("\n")) {
     continue;
   }
 
-  const item = /^([A-Z][A-Z0-9_]*)=/u.exec(line);
+  const item = schemaItemPattern.exec(line);
   if (item) {
-    const name = item[1];
+    const [, name] = item;
     if (!decorators.includes("@internal")) {
       declared.add(name);
       if (decorators.includes("@sensitive")) {
         sensitive.add(name);
-        if (/ @required(\s|$)/u.test(decorators) || decorators.includes("@required=forEnv(production")) {
+        if (
+          / @required(\s|$)/u.test(decorators) ||
+          decorators.includes("@required=forEnv(production")
+        ) {
           requiredInProduction.add(name);
         }
       }
@@ -63,10 +68,14 @@ for (const line of schema.split("\n")) {
 }
 
 const deliveredNamesFor = (container: string): string[] => {
-  const inspected = spawnSync("docker", ["inspect", container, "--format", "{{json .Config.Env}}"], {
-    encoding: "utf8",
-    env: process.env,
-  });
+  const inspected = spawnSync(
+    "docker",
+    ["inspect", container, "--format", "{{json .Config.Env}}"],
+    {
+      encoding: "utf8",
+      env: process.env,
+    }
+  );
 
   if (inspected.status !== 0) {
     console.error(`Unable to inspect the ${container} container.`);
@@ -96,12 +105,16 @@ for (const container of [apiContainer, workerContainer]) {
 
   for (const name of deliveredNames) {
     if (!declared.has(name)) {
-      failures.push(`${container}: delivered variable ${name} is not a deliverable .env.schema item (stale name?).`);
+      failures.push(
+        `${container}: delivered variable ${name} is not a deliverable .env.schema item (stale name?).`
+      );
     }
   }
 
   const deliveredSensitive = deliveredNames.filter((name) => sensitive.has(name)).length;
-  summaries.push(`${container}: ${deliveredNames.length} variables (${deliveredSensitive} sensitive)`);
+  summaries.push(
+    `${container}: ${deliveredNames.length} variables (${deliveredSensitive} sensitive)`
+  );
 
   // Only the API server is expected to carry every production-required item;
   // the worker deliberately receives a narrower set (no webhook secret, no MCP
@@ -109,7 +122,9 @@ for (const container of [apiContainer, workerContainer]) {
   if (container === apiContainer) {
     for (const name of [...requiredInProduction].sort()) {
       if (!deliveredNames.includes(name)) {
-        failures.push(`${container}: production-required sensitive item ${name} never reached the container.`);
+        failures.push(
+          `${container}: production-required sensitive item ${name} never reached the container.`
+        );
       }
     }
   }

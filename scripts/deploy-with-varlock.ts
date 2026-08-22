@@ -53,10 +53,14 @@ const environment: NodeJS.ProcessEnv = {
 };
 
 if (!process.env[bootstrapName]) {
-  const reexec = spawnSync("op", ["run", "--", "bun", process.argv[1] ?? "", ...process.argv.slice(2)], {
-    env: { ...environment, [bootstrapName]: operatorIdentity },
-    stdio: "inherit",
-  });
+  const reexec = spawnSync(
+    "op",
+    ["run", "--", "bun", process.argv[1] ?? "", ...process.argv.slice(2)],
+    {
+      env: { ...environment, [bootstrapName]: operatorIdentity },
+      stdio: "inherit",
+    }
+  );
   process.exit(reexec.status ?? 1);
 }
 
@@ -89,7 +93,9 @@ environment.TMTERMINAL_REVISION = revision;
 // match the database and must not be deployed automatically.
 const cleanupState = capture("./scripts/auth-cleanup-inventory", ["state"]);
 if (cleanupState !== "final") {
-  console.error(`Refusing to deploy: auth cleanup state is "${cleanupState || "unknown"}", expected "final".`);
+  console.error(
+    `Refusing to deploy: auth cleanup state is "${cleanupState || "unknown"}", expected "final".`
+  );
   process.exit(1);
 }
 
@@ -121,9 +127,9 @@ for (const name of installTokenNames) {
 // source for which ones exist — the contract check keeps it in step with
 // compose.
 const buildEnvironment: NodeJS.ProcessEnv = { ...environment };
-const argNames = [...readFileSync("Dockerfile", "utf8").matchAll(/^ARG\s+([A-Z][A-Z0-9_]*)/gmu)].map(
-  (match) => match[1]
-);
+const argNames = [
+  ...readFileSync("Dockerfile", "utf8").matchAll(/^ARG\s+([A-Z][A-Z0-9_]*)/gmu),
+].map((match) => match[1]);
 for (const name of argNames) {
   if (!buildEnvironment[name]) {
     buildEnvironment[name] = printenv(name);
@@ -151,7 +157,9 @@ if (dryRun) {
 
   // The rendered document contains resolved secrets, so only its shape is
   // reported — never its contents.
-  const services = [...(rendered.stdout ?? "").matchAll(/^ {2}([a-z][a-z0-9-]*):$/gmu)].map((match) => match[1]);
+  const services = [...(rendered.stdout ?? "").matchAll(/^ {2}([a-z][a-z0-9-]*):$/gmu)].map(
+    (match) => match[1]
+  );
   console.log(
     `Dry run OK: schema resolved at revision ${revision} and Compose rendered ${services.length} services (${services.join(", ")}).`
   );
@@ -183,7 +191,15 @@ const step = (label: string, args: string[]) => {
 // The worker stops before the schema changes, and the API follows, so no writer
 // is live while the one-shot migration runs.
 step("Stopping the API and worker", ["docker", "compose", ...composeArgs, "stop", "api", "worker"]);
-step("Starting the database", ["docker", "compose", ...composeArgs, "up", "--detach", "--wait", "database"]);
+step("Starting the database", [
+  "docker",
+  "compose",
+  ...composeArgs,
+  "up",
+  "--detach",
+  "--wait",
+  "database",
+]);
 step("Pre-migration invariant check", ["./scripts/auth-cleanup-inventory", "verify-final"]);
 step("Applying migrations", ["docker", "compose", ...composeArgs, "run", "--rm", "migrate"]);
 step("Post-migration invariant check", ["./scripts/auth-cleanup-inventory", "verify-final"]);
