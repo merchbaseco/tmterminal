@@ -15,7 +15,10 @@ if [ -z "${TMTERMINAL_COMPOSE_ENV_READY:-}" ]; then
   COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-tmterminal-test-$$}"
   TMTERMINAL_COMPOSE_ENV_READY=1
   export COMPOSE_PROJECT_NAME TMTERMINAL_COMPOSE_ENV_READY
-  exec bunx varlock run -- "$0" "$@"
+  # --include-internal keeps the @internal bootstrap token in the child;
+  # without it the nested resolution below has no 1Password identity and
+  # falls back to desktop auth, which does not exist on a CI runner.
+  exec bunx varlock run --include-internal -- "$0" "$@"
 fi
 
 # shellcheck source=scripts/install-tokens
