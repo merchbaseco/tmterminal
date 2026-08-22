@@ -43,7 +43,7 @@ The harness creates a unique Compose project and removes its containers,
 network, and temporary database at exit. To use an already isolated database:
 
 ```bash
-TEST_DATABASE_URL=postgres://user:password@127.0.0.1:5432/tmterminal_test \
+TMTERMINAL_TEST_DATABASE_URL=postgres://user:password@127.0.0.1:5437/tmterminal_test \
   bun run test:integration
 ```
 

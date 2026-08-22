@@ -50,7 +50,7 @@ its exact path:
 ```bash
 backup_dir=/Users/zknicker/srv/tmterminal-backups/<UTC-timestamp>
 install -d -m 700 "$backup_dir"
-docker compose --project-name tmterminal --env-file .env exec -T database \
+bunx varlock run -- docker compose --project-name tmterminal exec -T database \
   sh -c 'pg_dump --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
   --format=custom --no-owner' >"$backup_dir/tmterminal.dump"
 shasum -a 256 "$backup_dir/tmterminal.dump" >"$backup_dir/tmterminal.dump.sha256"
@@ -80,8 +80,8 @@ preservation_before="$(
   AUTH_CLEANUP_DATABASE_URL="<isolated-restore-url>" \
     ./scripts/auth-cleanup-inventory capture
 )"
-DATABASE_URL="<isolated-restore-url>" bun run db:migrate
-DATABASE_URL="<isolated-restore-url>" bun run db:migrate
+TMTERMINAL_DATABASE_URL="<isolated-restore-url>" bun run --cwd apps/server db:migrate
+TMTERMINAL_DATABASE_URL="<isolated-restore-url>" bun run --cwd apps/server db:migrate
 preservation_after="$(
   AUTH_CLEANUP_DATABASE_URL="<isolated-restore-url>" \
     ./scripts/auth-cleanup-inventory capture

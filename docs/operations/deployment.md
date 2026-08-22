@@ -28,27 +28,29 @@ for both persistent filesystems.
 
 ## GitHub Deployment
 
-Production deployment is manually dispatched. Quality runs first on a
-GitHub-hosted runner; the self-hosted Mac mini job runs only after quality
-passes and the operator confirms the required production approval.
+Production deployment is the manually dispatched `Deploy Stack` workflow.
+Quality runs first on a GitHub-hosted runner; the self-hosted Mac mini job runs
+only after it passes. The job resets the production checkout to the dispatched
+commit and runs `bun run deploy`, which is `scripts/deploy-with-varlock.ts`.
 
-The deploy job:
+That script:
 
-1. fast-forwards the clean production checkout;
-2. requires `HEAD` to equal both `origin/main` and the workflow SHA;
-3. builds core and web images labeled with that exact revision;
-4. stops the existing worker before changing the stack;
-5. stops the API and worker, captures the preservation fingerprint, and runs
-   the one-shot migration;
-6. requires unchanged product state and the final stable-mapping invariant
-   before restarting API, worker, and web;
-7. runs `scripts/deployment-smoke`.
+1. refuses to run if a `.env` exists in the checkout — Varlock loads it above
+   the schema, so a leftover file silently overrides the contract;
+2. pins `VARLOCK_ENV=production`, and fills the deploy-agent role slot from the
+   repository secret (or, for an operator run, re-execs under `op run` with the
+   Mac Mini identity);
+3. requires `HEAD` to equal both `origin/main` and the workflow SHA;
+4. requires the centralized-auth cleanup state to be `final`;
+5. resolves the two install credentials under the development lifecycle and
+   builds core and web images labeled with that exact revision;
+6. stops the API and worker, runs the one-shot migration between two
+   stable-mapping invariant checks, then restarts the stack;
+7. runs `scripts/deployment-smoke` and then `scripts/verify-deployed-secrets.ts`.
 
-The final centralized-auth cleanup includes an intentional authenticated API
-outage while the migration and stopped-writer preservation gate run. A failed
-gate leaves the API and worker stopped for the documented recovery procedure.
-Deployment retries recognize the final schema and do not rerun the destructive
-pre-cleanup evidence gate.
+The migration window is an intentional authenticated API outage. A failed
+invariant check leaves the API and worker stopped for the documented recovery
+procedure.
 
 The checkout-integrity script refuses tracked, staged, or untracked nonignored
 changes. It never cleans or resets the host.
@@ -60,14 +62,19 @@ authenticated reads independently observable.
 
 ## Secrets
 
-The ignored production `.env` lives at
-`/Users/zknicker/srv/tmterminal/.env`, mode `0600`. Required values include
-database, Clerk, and USPTO credentials. Production authorized parties is exactly
-`https://tmterminal.merchbase.co`.
+There is no `.env` on the production host. Every value resolves from
+1Password through the committed schema at deploy time and reaches the
+containers as environment, never as a generated plaintext file — see
+[Environment](environment.md). The deploy script refuses to run if a `.env`
+reappears in the checkout.
 
-`MCP_RESOURCE_URL` is non-secret configuration. It defaults to
-`https://tmterminal.merchbase.co/mcp` and must remain an absolute HTTP URL with
-the exact `/mcp` path.
+`TMTERMINAL_MCP_RESOURCE_URL` is non-secret configuration owned by the schema.
+It must remain an absolute HTTP URL with the exact `/mcp` path.
+
+`scripts/verify-deployed-secrets.ts` runs after every deploy and name-diffs
+what Docker baked into the containers against the schema's sensitivity split: a
+delivered name the schema does not declare is stale, and a production-required
+sensitive item missing from the API container is a failure.
 
 Secrets are not printed, committed, copied into runtime image layers, or exposed
 through readiness.
@@ -96,7 +103,7 @@ Run it explicitly on the host with:
 ```bash
 cd /Users/zknicker/srv/tmterminal
 export TMTERMINAL_REVISION="$(git rev-parse HEAD)"
-./scripts/deployment-smoke
+VARLOCK_ENV=production bunx varlock run -- ./scripts/deployment-smoke
 ```
 
 For an ingestion schema cutover, leave the worker stopped until migration,
@@ -112,10 +119,15 @@ volumes:
 ```bash
 git switch --detach <compatible-sha>
 export TMTERMINAL_REVISION="$(git rev-parse HEAD)"
-docker compose --project-name tmterminal --env-file .env build
-docker compose --project-name tmterminal --env-file .env up --detach --remove-orphans --wait
-./scripts/deployment-smoke
+export VARLOCK_ENV=production
+bunx varlock run -- docker compose --project-name tmterminal build
+bunx varlock run -- docker compose --project-name tmterminal up --detach --remove-orphans --wait
+bunx varlock run -- ./scripts/deployment-smoke
 ```
+
+An operator rollback on the mini itself cannot resolve Development-vault
+install credentials, so rebuild from an operator MacBook or re-dispatch
+`Deploy Stack` at the target revision.
 
 Do not run a revision against a schema it does not own. Do not delete volumes as
 part of rollback. A failed forward-only schema change requires a corrected

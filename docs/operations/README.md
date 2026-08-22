@@ -13,6 +13,7 @@ recover safely.
 | Workflow | Doc |
 | --- | --- |
 | Install, live-data local servers, ports, and readiness | [Development](development.md) |
+| Environment contract, 1Password sources, and bootstrap identities | [Environment](environment.md) |
 | Verification lanes and fixture expectations | [Testing](testing.md) |
 | Mac mini release, smoke, monitoring, and rollback | [Deployment](deployment.md) |
 | Centralized-auth inventory, backup, mapping, cutover, and rollback | [Access cutover](access-cutover.md) |

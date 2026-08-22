@@ -12,15 +12,18 @@ Trademark Terminal uses Bun 1.3.5.
 ## Install And Fast Checks
 
 ```bash
-MERCHBASE_GITHUB_NPM_TOKEN="$(gh auth token)" bun install --frozen-lockfile
+export MERCHBASE_GITHUB_NPM_TOKEN="$(TMTERMINAL_RESOLVE_INSTALL_TOKENS=true bunx varlock printenv MERCHBASE_GITHUB_NPM_TOKEN)"
+export MERCHBASE_HUGEICONS_LICENSE_KEY="$(TMTERMINAL_RESOLVE_INSTALL_TOKENS=true bunx varlock printenv MERCHBASE_HUGEICONS_LICENSE_KEY)"
+bun install --frozen-lockfile
 bun run check
 bun run build
 ```
 
-`.npmrc` maps `@merchbaseco` to GitHub Packages and contains only the
-`MERCHBASE_GITHUB_NPM_TOKEN` environment placeholder. A local GitHub credential
-with package-read access is required only while installing; never write it to
-disk.
+`.npmrc` maps `@merchbaseco` to GitHub Packages and `bunfig.toml` maps
+`@hugeicons-pro` to the vendor registry; both contain only environment
+placeholders. Both credentials are `@internal` schema items, so `varlock run`
+does not export them — they are fetched explicitly under the install switch.
+The Claude Code session hook does this automatically for a fresh checkout.
 
 Lint touched authored files explicitly:
 
@@ -37,23 +40,20 @@ not run a repository-wide autofix during feature work.
 bun run dev
 ```
 
-This starts the API and Vite website on deterministic `dev-port` ports and reads
-the ignored `.env`. It connects to production PostgreSQL on the Mac mini over
-the established Tailscale path. It does not migrate or start a worker.
+This starts the API and Vite website on deterministic `dev-port` ports. Every
+value resolves from the committed `.env.schema` through 1Password — there is no
+`.env` step. It connects to production PostgreSQL on the Mac mini over the
+established Tailscale path. It does not migrate or start a worker.
 
 Searches and status reads use live data. Account preference actions write live
 account state. Use the isolated integration lane for schema, authentication, or
 destructive work.
 
-Optional local Clerk automation uses:
-
-```dotenv
-DEV_CLERK_SIGN_IN_USER_ID=<development-user>
-VITE_DEV_CLERK_AUTO_SIGN_IN=true
-```
-
-The development sign-in endpoint exists only on loopback with the explicit
-server opt-in. It creates a normal Clerk session and is absent in production.
+Local Clerk automation resolves from the schema:
+`TMTERMINAL_DEV_CLERK_SIGN_IN_USER_ID` comes from
+`op://Development/Dev Sign-In User - TMTerminal`, and
+`VITE_TMTERMINAL_DEV_CLERK_AUTO_SIGN_IN` opts the website in. The development
+sign-in endpoint exists only on loopback and is absent in production.
 
 ## Agent Harnesses
 
@@ -68,42 +68,22 @@ this checkout's first `dev-port`.
 
 The launch config pins the preview to `http://127.0.0.1:<port>`. Clerk
 authorizes the exact origin `./scripts/dev` exports as
-`CLERK_AUTHORIZED_PARTIES`, so opening the same website on `localhost` is a
-different origin and every data procedure answers 401.
+`TMTERMINAL_CLERK_AUTHORIZED_PARTIES`, so opening the same website on
+`localhost` is a different origin and every data procedure answers 401.
 
-Claude Code worktrees are fresh checkouts. `.worktreeinclude` lists the ignored
-files they receive, currently `.env`; everything else comes from the session
-hook.
+Claude Code worktrees are fresh checkouts and need no ignored files: the
+committed schema is the whole environment contract, and the session hook
+installs dependencies.
 
 ## Environment
 
-The ignored `.env` supplies:
+Names, sources, and per-venue delivery live in [Environment](environment.md).
+Nothing in this repository reads a `.env` file.
 
-- `DATABASE_URL`
-- `POSTGRES_PASSWORD`
-- `CLERK_SECRET_KEY`
-- `CLERK_AUTHORIZED_PARTIES`
-- `CLERK_ISSUER`
-- `CLERK_JWT_KEY`
-- `CLERK_PUBLISHABLE_KEY`
-- `CLERK_WEBHOOK_SIGNING_SECRET`
-- `HUGEICONS_LICENSE_KEY`
-- `VITE_CLERK_PUBLISHABLE_KEY`
-- `USPTO_API_KEY`
-
-Package installation also needs `HUGEICONS_LICENSE_KEY` in the shell
-environment so Bun can resolve the scoped `@hugeicons-pro/*` icon package (see
-the root `bunfig.toml` registry scope). Compose exposes it to image builds as a
-BuildKit secret. GitHub Quality receives the same value from the repository
-secret. The key is install-time only; it is never stored in an image or bundled
-into browser code.
-
-Package installation also needs `MERCHBASE_GITHUB_NPM_TOKEN` in the process
-environment for the private `@merchbaseco/access` package. Compose receives it as
-a BuildKit secret; it is not an image environment variable or layer.
-
-Do not print, commit, copy into images, or pass source credentials to browser
-code. The source key belongs only in the worker.
+Install credentials are install-time only: Compose passes them to image builds
+as BuildKit secrets, and they are never stored in an image layer, an image
+environment variable, or browser code. The USPTO source key belongs only to the
+worker.
 
 ## Readiness
 

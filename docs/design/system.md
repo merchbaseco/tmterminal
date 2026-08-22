@@ -25,7 +25,7 @@ Icons come from HugeIcons (`@hugeicons/react` with the
 `@hugeicons-pro/core-stroke-rounded` set). Use them only where they improve
 recognition, hierarchy, or affordance — search, disclosures, navigation,
 appearance, and compact actions — and never as a substitute for necessary text
-labels. Installing the scoped icon package requires `HUGEICONS_LICENSE_KEY` in
+labels. Installing the scoped icon package requires `MERCHBASE_HUGEICONS_LICENSE_KEY` in
 the environment (see the root `bunfig.toml` registry scope).
 
 Working order:

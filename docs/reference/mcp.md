@@ -24,8 +24,9 @@ available at both root and path-specific well-known URLs:
 - `/.well-known/oauth-authorization-server/mcp`
 
 Each request resolves a fresh authenticated Trademark Terminal account through
-the local Access Projection. `MCP_RESOURCE_URL` defaults to the production MCP
-URL and may select another absolute HTTP `/mcp` URL for a deployment.
+the local Access Projection. `TMTERMINAL_MCP_RESOURCE_URL` is owned by
+`.env.schema`, resolves to the production MCP URL, and may select another
+absolute HTTP `/mcp` URL for a deployment.
 
 ## Tools
 
