@@ -91,6 +91,24 @@ cluster on the same port and overrides exactly one public value —
 Both `env:check` and `env:contract` run inside `bun run check`, so a drifted
 contract fails before review.
 
+## Traps
+
+Two behaviours of `varlock run` cost real debugging time here; both have
+regression coverage in `scripts/deployment-contract.test`.
+
+**`varlock run` strips every `@internal` item from the child, even one already
+exported in the parent.** Anything that builds an image therefore cannot rely on
+the install credentials being inherited — the BuildKit `required=true` mounts
+arrive empty and the build fails. Every build entry point sources
+`scripts/install-tokens`, which re-resolves them inside the child.
+
+**A nested `varlock` call reuses the parent's already-resolved values, and the
+bootstrap token is itself `@internal`.** So the nested resolution has no
+1Password identity and silently falls back to desktop authentication, which no
+CI runner has. The outer `varlock run` therefore passes `--include-internal`,
+and the helper clears `__VARLOCK_RUN`/`__VARLOCK_ENV` so its own resolution is a
+fresh one pinned to the development lifecycle.
+
 ## Changing a variable
 
 1. Add or rename it in `.env.schema` with explicit `@sensitive` or `@public` and a `test` arm.
