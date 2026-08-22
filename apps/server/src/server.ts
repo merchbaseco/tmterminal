@@ -1,14 +1,14 @@
 import { buildServer } from "./api/server.ts";
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = process.env.TMTERMINAL_DATABASE_URL;
 
 if (!databaseUrl) {
-  throw new Error("DATABASE_URL is required");
+  throw new Error("TMTERMINAL_DATABASE_URL is required");
 }
 
 const server = await buildServer({ databaseUrl });
-const port = Number(process.env.PORT ?? 3000);
-const host = process.env.HOST ?? "0.0.0.0";
+const port = Number(process.env.TMTERMINAL_PORT ?? 3000);
+const host = process.env.TMTERMINAL_HOST ?? "0.0.0.0";
 
 await server.listen({ host, port });
 

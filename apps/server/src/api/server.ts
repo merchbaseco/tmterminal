@@ -7,7 +7,6 @@ import { createDatabaseClient } from "../db/client.ts";
 import { createTmterminalMcpAuth } from "../mcp/auth.ts";
 import { createTmterminalMcpDataSource } from "../mcp/data-source.ts";
 import {
-  DEFAULT_MCP_RESOURCE_URL,
   registerTmterminalMcpRoutes,
   resolveMcpResourceUrl,
 } from "../mcp/http.ts";
@@ -52,7 +51,7 @@ export async function buildServer({
   access,
   databaseUrl,
   devClerkSignIn,
-  devOperatorMerchbaseUserId = process.env.DEV_OPERATOR_MERCHBASE_USER_ID,
+  devOperatorMerchbaseUserId = process.env.TMTERMINAL_DEV_OPERATOR_MERCHBASE_USER_ID,
   logger = true,
   mcp,
   nodeEnv = process.env.NODE_ENV,
@@ -142,12 +141,12 @@ export async function buildServer({
 }
 
 function configuredMcpRoutes(environment: NodeJS.ProcessEnv) {
-  const publishableKey = environment.CLERK_PUBLISHABLE_KEY?.trim();
+  const publishableKey = environment.MERCHBASE_CLERK_PUBLISHABLE_KEY?.trim();
   if (!publishableKey) {
     return null;
   }
   return {
     publishableKey,
-    resourceUrl: resolveMcpResourceUrl(environment.MCP_RESOURCE_URL ?? DEFAULT_MCP_RESOURCE_URL),
+    resourceUrl: resolveMcpResourceUrl(environment.TMTERMINAL_MCP_RESOURCE_URL),
   };
 }

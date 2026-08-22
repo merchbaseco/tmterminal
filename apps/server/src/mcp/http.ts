@@ -18,8 +18,6 @@ import {
 import type { TmterminalMcpDataSource } from "./data-source.ts";
 import { createTmterminalMcpServer } from "./server.ts";
 
-export const DEFAULT_MCP_RESOURCE_URL = "https://tmterminal.merchbase.co/mcp";
-
 const protectedResourceBasePath = "/.well-known/oauth-protected-resource";
 const authorizationServerBasePath = "/.well-known/oauth-authorization-server";
 
@@ -96,12 +94,12 @@ export function registerTmterminalMcpRoutes(
   });
 }
 
-export function resolveMcpResourceUrl(value = DEFAULT_MCP_RESOURCE_URL) {
+export function resolveMcpResourceUrl(value: string | undefined) {
   let url: URL;
   try {
-    url = new URL(value);
+    url = new URL(value ?? "");
   } catch (cause) {
-    throw new Error("MCP_RESOURCE_URL must be an absolute HTTP URL ending in /mcp", { cause });
+    throw new Error("TMTERMINAL_MCP_RESOURCE_URL must be an absolute HTTP URL ending in /mcp", { cause });
   }
   if (
     !["http:", "https:"].includes(url.protocol) ||
@@ -111,7 +109,7 @@ export function resolveMcpResourceUrl(value = DEFAULT_MCP_RESOURCE_URL) {
     url.search ||
     url.hash
   ) {
-    throw new Error("MCP_RESOURCE_URL must be an absolute HTTP URL ending in /mcp");
+    throw new Error("TMTERMINAL_MCP_RESOURCE_URL must be an absolute HTTP URL ending in /mcp");
   }
   return url.toString();
 }

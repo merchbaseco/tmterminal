@@ -11,14 +11,14 @@ export type DevClerkSignIn = {
 };
 
 export function configuredDevClerkSignIn(): DevClerkSignIn | null {
-  const userId = process.env.DEV_CLERK_SIGN_IN_USER_ID?.trim();
+  const userId = process.env.TMTERMINAL_DEV_CLERK_SIGN_IN_USER_ID?.trim();
   if (!userId) {
     return null;
   }
 
-  const secretKey = process.env.CLERK_SECRET_KEY?.trim();
+  const secretKey = process.env.MERCHBASE_CLERK_SECRET_KEY?.trim();
   if (!secretKey) {
-    throw new Error("CLERK_SECRET_KEY is required when DEV_CLERK_SIGN_IN_USER_ID is set");
+    throw new Error("MERCHBASE_CLERK_SECRET_KEY is required when TMTERMINAL_DEV_CLERK_SIGN_IN_USER_ID is set");
   }
 
   const clerk = createClerkClient({ secretKey });

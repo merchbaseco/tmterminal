@@ -28,7 +28,7 @@ export function createConfiguredTmterminalAccess(database: postgres.Sql): Tmterm
     webhook: createClerkAccessWebhookHandler({
       issuer: configured.issuer,
       onIdentityChanged: configured.authenticator.invalidateApiKeys,
-      signingSecret: requiredEnvironment("CLERK_WEBHOOK_SIGNING_SECRET"),
+      signingSecret: requiredEnvironment("TMTERMINAL_CLERK_WEBHOOK_SIGNING_SECRET"),
       store: configured.projections,
     }),
   };
@@ -39,16 +39,16 @@ export function createConfiguredCustomerAccess(database: postgres.Sql) {
 }
 
 function createConfiguredAccessServices(database: postgres.Sql) {
-  const issuer = requiredEnvironment("CLERK_ISSUER");
+  const issuer = requiredEnvironment("MERCHBASE_CLERK_ISSUER");
   const authenticator = createClerkAuthenticator({
-    authorizedParties: requiredEnvironment("CLERK_AUTHORIZED_PARTIES")
+    authorizedParties: requiredEnvironment("TMTERMINAL_CLERK_AUTHORIZED_PARTIES")
       .split(",")
       .map((party) => party.trim())
       .filter(Boolean),
     issuer,
-    jwtKey: requiredEnvironment("CLERK_JWT_KEY"),
-    publishableKey: requiredEnvironment("CLERK_PUBLISHABLE_KEY"),
-    secretKey: requiredEnvironment("CLERK_SECRET_KEY"),
+    jwtKey: requiredEnvironment("MERCHBASE_CLERK_JWT_KEY"),
+    publishableKey: requiredEnvironment("MERCHBASE_CLERK_PUBLISHABLE_KEY"),
+    secretKey: requiredEnvironment("MERCHBASE_CLERK_SECRET_KEY"),
   });
   const projections = createAccessProjectionStore(database);
   const resolveServicePrincipal = async ({ merchbaseUserId }: { merchbaseUserId: string }) => ({

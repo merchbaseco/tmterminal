@@ -64,15 +64,15 @@ function parseInput(args: string[]): Input {
   };
 }
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = process.env.TMTERMINAL_DATABASE_URL;
 if (!databaseUrl) {
-  throw new Error("DATABASE_URL is required");
+  throw new Error("TMTERMINAL_DATABASE_URL is required");
 }
 
 const input = parseInput(Bun.argv.slice(2));
 const database = createDatabaseClient(databaseUrl);
 const artifactStore = createLocalArtifactStore(
-  process.env.ARTIFACT_STORE_ROOT ?? "/var/lib/tmterminal/artifacts"
+  process.env.TMTERMINAL_ARTIFACT_STORE_ROOT ?? "/var/lib/tmterminal/artifacts"
 );
 
 try {
