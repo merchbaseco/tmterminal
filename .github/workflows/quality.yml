@@ -16,6 +16,13 @@ jobs:
     name: Check
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # The single platform-held bootstrap, mapped into the development slot. Both
+    # the dependency install and the Compose integration lane resolve @internal
+    # install credentials through the schema, and neither runner has the
+    # 1Password CLI, so the service-account token is the only way they can.
+    # Everything else pins VARLOCK_ENV=test and touches no vault at all.
+    env:
+      CURSOR_CLOUD_AGENTS_DEVELOPMENT_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -35,8 +42,6 @@ jobs:
       # failing, hence the timeout.
       - name: Install frozen dependencies
         timeout-minutes: 5
-        env:
-          CURSOR_CLOUD_AGENTS_DEVELOPMENT_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}
         run: |
           set -euo pipefail
           MERCHBASE_GITHUB_NPM_TOKEN="$(
