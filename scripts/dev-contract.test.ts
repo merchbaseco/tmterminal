@@ -56,6 +56,17 @@ test("production publishes the development database port on loopback only", asyn
   expect(compose).not.toContain('"5437:5432"');
 });
 
+test("containers receive resolved values and never resolve them", async () => {
+  const compose = await readFile(new URL("../compose.yml", import.meta.url), "utf8");
+  const dockerignore = await readFile(new URL("../.dockerignore", import.meta.url), "utf8");
+
+  // The root db:migrate wraps varlock for operators; the container must call the
+  // workspace script directly, because the image carries no .env.schema.
+  expect(compose).toContain('command: ["bun", "run", "--cwd", "apps/server", "db:migrate"]');
+  expect(compose).not.toContain('command: ["bun", "run", "db:migrate"]');
+  expect(dockerignore).toContain(".env.*");
+});
+
 test("the Cursor cloud environment overrides only the database host", async () => {
   const environment = JSON.parse(
     await readFile(new URL("../.cursor/environment.json", import.meta.url), "utf8")

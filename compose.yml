@@ -30,7 +30,10 @@ services:
 
   migrate:
     image: tmterminal-core:${TMTERMINAL_REVISION:-development}
-    command: ["bun", "run", "db:migrate"]
+    # The workspace script, not the root one: the root `db:migrate` wraps this
+    # in `varlock run` for operators, and the image deliberately carries no
+    # .env.schema — containers receive resolved values, they never resolve them.
+    command: ["bun", "run", "--cwd", "apps/server", "db:migrate"]
     deploy:
       resources:
         limits:
