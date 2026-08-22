@@ -33,8 +33,13 @@ Commit the release metadata, create annotated tag `cli-vX.Y.Z`, then push
 
 ## Publish
 
-The repo-root ignored `.env` may contain `NPM_TOKEN`. Pass it directly through
-npm's registry auth option; exporting `NPM_TOKEN` alone is insufficient.
+Publishing uses the suite-wide `MERCHBASE_NPM_PUBLISH_TOKEN`, an `@internal`
+schema item gated behind the release switch. Fetch it and pass it directly
+through npm's registry auth option; exporting it alone is insufficient:
+
+```bash
+npm publish --//registry.npmjs.org/:_authToken="$(TMTERMINAL_RESOLVE_RELEASE_TOKENS=true bunx varlock printenv MERCHBASE_NPM_PUBLISH_TOKEN)"
+```
 
 Publish `@tmterminal/http-client` first. Confirm its registry version, then
 publish `@tmterminal/cli` and confirm that version. Never republish
