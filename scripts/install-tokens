@@ -16,18 +16,21 @@
 # `varlock run` marks its child with __VARLOCK_RUN/__VARLOCK_ENV, and a nested
 # varlock invocation reuses the parent's already-resolved values — which have
 # the @internal items blanked. Both markers are cleared so this resolution is a
-# fresh one.
+# fresh one. The two credential names are cleared too: under --include-internal
+# the parent injects them as empty strings (their context switch was off), and
+# process env outranks the schema, so an inherited "" would win over the value
+# this resolution is trying to fetch.
 #
 # Values move through command substitution only; they are never printed, written
 # to a file, or passed as arguments.
 
 MERCHBASE_GITHUB_NPM_TOKEN="$(
-  env -u __VARLOCK_RUN -u __VARLOCK_ENV \
+  env -u __VARLOCK_RUN -u __VARLOCK_ENV -u MERCHBASE_GITHUB_NPM_TOKEN \
     VARLOCK_ENV=development TMTERMINAL_RESOLVE_INSTALL_TOKENS=true \
     bunx "${VARLOCK_SPEC:-varlock}" printenv MERCHBASE_GITHUB_NPM_TOKEN
 )"
 MERCHBASE_HUGEICONS_LICENSE_KEY="$(
-  env -u __VARLOCK_RUN -u __VARLOCK_ENV \
+  env -u __VARLOCK_RUN -u __VARLOCK_ENV -u MERCHBASE_HUGEICONS_LICENSE_KEY \
     VARLOCK_ENV=development TMTERMINAL_RESOLVE_INSTALL_TOKENS=true \
     bunx "${VARLOCK_SPEC:-varlock}" printenv MERCHBASE_HUGEICONS_LICENSE_KEY
 )"
