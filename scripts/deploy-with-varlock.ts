@@ -102,7 +102,13 @@ if (cleanupState !== "final") {
 // varlock child that re-resolves the credentials for itself — the same shape
 // scripts/compose uses. --include-internal keeps the bootstrap token in that
 // child so the nested resolution has an identity.
-const buildCommand = `. ./scripts/install-tokens; exec docker compose --project-name ${projectName} `;
+// VARLOCK_SPEC pins the nested resolution inside scripts/install-tokens. The
+// deploy checkout has no node_modules, so a bare `bunx varlock` there would
+// silently fetch whatever is newest on npm in the middle of a production
+// deploy.
+const buildCommand =
+  `VARLOCK_SPEC="varlock@${varlockVersion}" . ./scripts/install-tokens; ` +
+  `exec docker compose --project-name ${projectName} `;
 
 const composeArgs = ["--project-name", projectName];
 
