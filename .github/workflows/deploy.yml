@@ -31,8 +31,11 @@ jobs:
         working-directory: /Users/zknicker/srv/tmterminal
         run: |
           set -euo pipefail
-          git fetch --depth=1 origin "${GITHUB_SHA}"
-          git reset --hard FETCH_HEAD
+          # Fetch the branch, not just the commit: scripts/deployment-revision
+          # requires HEAD to equal origin/main, and fetching a bare SHA leaves
+          # the remote-tracking ref behind.
+          git fetch origin main
+          git reset --hard "${GITHUB_SHA}"
           git rev-parse HEAD
 
       - name: Deploy
