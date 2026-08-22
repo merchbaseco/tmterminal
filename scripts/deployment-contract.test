@@ -48,11 +48,17 @@ fi
 
 fake_bin="$temporary_directory/bin"
 mkdir "$fake_bin"
-# `bunx varlock run -- <cmd>` is transparent here: the wrapper's contract is
-# that it delivers through varlock and never through --env-file.
+# `bunx varlock run [flags] -- <cmd>` is transparent here: the wrapper's
+# contract is that it delivers through varlock and never through --env-file.
+# `varlock printenv` is answered inline so the install-token helper resolves.
 printf '%s\n' '#!/bin/sh' \
+  'test "$1" = "varlock"' \
   'if test "$2" = "printenv"; then printf '\''resolved-%s\n'\'' "$3"; exit 0; fi' \
-  'test "$1" = "varlock"' 'test "$2" = "run"' 'test "$3" = "--"' 'shift 3' 'exec "$@"' > "$fake_bin/bunx"
+  'test "$2" = "run"' \
+  'shift 2' \
+  'while test "$#" -gt 0 && test "$1" != "--"; do shift; done' \
+  'shift' \
+  'exec "$@"' > "$fake_bin/bunx"
 chmod +x "$fake_bin/bunx"
 printf '%s\n' '#!/bin/sh' 'printf '\''%s|%s|%s|%s\n'\'' "$COMPOSE_PROJECT_NAME" "$TMTERMINAL_REVISION" "$TMTERMINAL_DATABASE_PUBLISHED_PORT" "$*"' > "$fake_bin/docker"
 chmod +x "$fake_bin/docker"
@@ -84,10 +90,10 @@ fi
 # BuildKit `required=true` secret mounts arrive empty and the build fails.
 grep -qF 'TMTERMINAL_RESOLVE_INSTALL_TOKENS=true' "$root/scripts/install-tokens"
 for build_entry_point in scripts/compose scripts/test-integration-compose; do
-  grep -qF 'exec bunx varlock run -- "$0" "$@"' "$root/$build_entry_point"
+  grep -qF 'exec bunx varlock run --include-internal -- "$0" "$@"' "$root/$build_entry_point"
   grep -qF '. "$root/scripts/install-tokens"' "$root/$build_entry_point"
   install_line="$(grep -nF '. "$root/scripts/install-tokens"' "$root/$build_entry_point" | cut -d: -f1)"
-  reexec_line="$(grep -nF 'exec bunx varlock run -- "$0" "$@"' "$root/$build_entry_point" | cut -d: -f1)"
+  reexec_line="$(grep -nF 'exec bunx varlock run --include-internal -- "$0" "$@"' "$root/$build_entry_point" | cut -d: -f1)"
   test "$reexec_line" -lt "$install_line"
 done
 

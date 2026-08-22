@@ -21,11 +21,15 @@ if [ -z "${TMTERMINAL_COMPOSE_ENV_READY:-}" ]; then
   export COMPOSE_PROJECT_NAME TMTERMINAL_CLERK_AUTHORIZED_PARTIES TMTERMINAL_REVISION
   export TMTERMINAL_WEB_PORT TMTERMINAL_API_PORT TMTERMINAL_DATABASE_PUBLISHED_PORT
   export TMTERMINAL_COMPOSE_ENV_READY
-  exec bunx varlock run -- "$0" "$@"
+  # --include-internal keeps the @internal bootstrap token in the child;
+  # without it the nested resolution below has no 1Password identity and
+  # falls back to desktop auth, which does not exist on a CI runner.
+  exec bunx varlock run --include-internal -- "$0" "$@"
 fi
 
-# Inside the varlock child: the @internal install credentials were stripped on
-# the way in, so re-resolve them here for the image build's BuildKit secrets.
+# Inside the varlock child: the @internal install credentials are still blank
+# here (their context switch is off), so re-resolve them for the image build's
+# BuildKit secrets.
 # shellcheck source=scripts/install-tokens
 . "$root/scripts/install-tokens"
 
