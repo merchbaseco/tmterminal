@@ -2,6 +2,9 @@ name: Quality
 
 on:
   pull_request:
+  push:
+    branches:
+      - main
   workflow_call:
     inputs:
       lint-base:
@@ -11,11 +14,18 @@ on:
 permissions:
   contents: read
 
+# Polite Quality: a per-commit run is cheap and cancellable. The group keys on
+# the calling workflow too, so a Deploy preflight never shares a group with a
+# pull-request run.
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
     name: Check
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     # The single platform-held bootstrap, mapped into the development slot. Both
     # the dependency install and the Compose integration lane resolve @internal
     # install credentials through the schema, and neither runner has the
@@ -65,26 +75,75 @@ jobs:
 
       - name: Lint changed authored files
         env:
-          LINT_BASE: ${{ github.event.pull_request.base.sha || inputs.lint-base }}
+          LINT_BASE: ${{ github.event.pull_request.base.sha || inputs.lint-base || github.event.before }}
         run: bun run lint:changed
 
-      # `check` pins the schema's `test` lifecycle itself, so the gates run
+      # `check:fast` pins the schema's `test` lifecycle itself, so the gates run
       # fully offline with no 1Password access of their own.
+      #
+      # Policy, not an oversight: this job is the fast lane only. It
+      # deliberately does not build the workspaces, does not run the USPTO
+      # fixture tooling, and does not run the production-shaped PostgreSQL
+      # integration lane — that lane alone cost more than a minute per commit,
+      # because it builds images and boots Compose. All three now live in
+      # `bun run check`, which the operator runs locally and which the
+      # `full` job below runs as the Deploy preflight, so nothing is skipped
+      # where it matters. Keep this job free of builds, image builds, and
+      # Compose.
       - name: Environment contract, typecheck, and unit tests
-        run: bun run check
+        run: bun run check:fast
 
-      # The website build inlines VITE_ values, so the build runs under the
-      # schema's test lifecycle rather than repeating a literal here.
-      - name: Build all workspaces
-        run: VARLOCK_ENV=test bunx varlock@1.16.1 run -- bun run build
-
-      - name: Test fixture tooling
-        run: bun run test:fixtures
-
+      # Cheap and contract-shaped rather than heavy: it proves the committed
+      # migration history still matches the schema, in about a second.
       - name: Verify generated migration history
         run: |
           bun run db:generate
           git diff --exit-code -- apps/server/drizzle
 
-      - name: Run production-shaped PostgreSQL integration tests
-        run: bun run test:integration:compose
+  full:
+    name: Full check
+    # Deploy preflight only. `lint-base` is a required `workflow_call` input, so
+    # it is non-empty exactly when Deploy called this workflow and empty on an
+    # ordinary push or pull request. Pushes and PRs get the fast lane above;
+    # the thing that actually ships still gets every lane.
+    if: ${{ inputs.lint-base != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CURSOR_CLOUD_AGENTS_DEVELOPMENT_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.5
+
+      - name: Install frozen dependencies
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          MERCHBASE_GITHUB_NPM_TOKEN="$(
+            TMTERMINAL_RESOLVE_INSTALL_TOKENS=true \
+            bunx varlock@1.16.1 printenv MERCHBASE_GITHUB_NPM_TOKEN
+          )"
+          if [ -z "${MERCHBASE_GITHUB_NPM_TOKEN}" ]; then
+            echo "MERCHBASE_GITHUB_NPM_TOKEN did not resolve; the private @merchbaseco/* packages cannot be installed." >&2
+            exit 1
+          fi
+          MERCHBASE_HUGEICONS_LICENSE_KEY="$(
+            TMTERMINAL_RESOLVE_INSTALL_TOKENS=true \
+            bunx varlock@1.16.1 printenv MERCHBASE_HUGEICONS_LICENSE_KEY
+          )"
+          if [ -z "${MERCHBASE_HUGEICONS_LICENSE_KEY}" ]; then
+            echo "MERCHBASE_HUGEICONS_LICENSE_KEY did not resolve; the licensed @hugeicons-pro packages cannot be installed." >&2
+            exit 1
+          fi
+          export MERCHBASE_GITHUB_NPM_TOKEN MERCHBASE_HUGEICONS_LICENSE_KEY
+          bun install --frozen-lockfile
+
+      # The website build inlines VITE_ values, so the whole of `check` runs
+      # under the schema's test lifecycle rather than repeating a literal here.
+      - name: Fast lane, fixture tooling, Compose integration, and builds
+        run: VARLOCK_ENV=test bunx varlock@1.16.1 run -- bun run check
