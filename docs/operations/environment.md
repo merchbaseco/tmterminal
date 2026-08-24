@@ -13,8 +13,7 @@ canonical name, its type, its sensitivity, and its per-lifecycle source. There
 is no `.env` file anywhere in this repository's workflows — not in a checkout,
 not on the production host, not in a worktree. Secrets live in 1Password;
 Varlock resolves them into a process environment at the moment they are needed.
-
-Policy and fleet-wide detail: `~/Programming/agents/docs/secrets-architecture.md`.
+That policy is deliberate and fleet-wide; preserve its shape when editing.
 
 ## Source, delivery, runtime
 
