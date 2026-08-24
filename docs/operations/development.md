@@ -15,9 +15,20 @@ Trademark Terminal uses Bun 1.3.5.
 export MERCHBASE_GITHUB_NPM_TOKEN="$(TMTERMINAL_RESOLVE_INSTALL_TOKENS=true bunx varlock printenv MERCHBASE_GITHUB_NPM_TOKEN)"
 export MERCHBASE_HUGEICONS_LICENSE_KEY="$(TMTERMINAL_RESOLVE_INSTALL_TOKENS=true bunx varlock printenv MERCHBASE_HUGEICONS_LICENSE_KEY)"
 bun install --frozen-lockfile
-bun run check
-bun run build
+bun run check:fast
 ```
+
+`check:fast` is the polite lane — the environment contract, typecheck, and the
+fast tests — and it is exactly what the Quality workflow runs on every push and
+pull request. Before pushing, run the full set, which adds fixture tooling, the
+Compose PostgreSQL integration lane, and every workspace build:
+
+```bash
+bun run check
+```
+
+That split is deliberate; see "Quality is the fast lane, on purpose" in
+`docs/operations/testing.md` before changing it.
 
 `.npmrc` maps `@merchbaseco` to GitHub Packages and `bunfig.toml` maps
 `@hugeicons-pro` to the vendor registry; both contain only environment

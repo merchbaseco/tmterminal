@@ -83,8 +83,11 @@ Before any PRD commit, PR, merge, or closeout:
    branches, compatibility paths, duplicate state, and code outside the narrow contract.
 3. Report what was removed and justify every remaining nontrivial branch or state surface.
 4. Obtain orchestrator approval, then run an independent review.
-5. Run lint for every touched authored path, typecheck, focused tests, build, and every applicable
-   domain-specific verification lane.
+5. Run lint for every touched authored path, then `bun run check` — the full set, not just
+   `check:fast` — plus every applicable domain-specific verification lane. The Quality workflow
+   deliberately runs only the fast lane per commit; read "Quality is the fast lane, on purpose"
+   in `docs/operations/testing.md` before changing `.github/workflows/quality.yml` or the
+   `check` / `check:fast` scripts.
 6. Commit and ship only after review findings are resolved; close Linear and archive the Codex task
    only after deployment acceptance.
 

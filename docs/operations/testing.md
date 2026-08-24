@@ -3,6 +3,7 @@ summary: Defines Trademark Terminal verification lanes for lint, types, units, P
 read_when:
   - choosing checks for a server, ingestion, search, client, CLI, website, migration, or deployment change
   - diagnosing failing CI, fixtures, PostgreSQL integration, or browser acceptance
+  - changing the Quality workflow, the `check` scripts, or which lanes run on every commit
 ---
 
 # Testing
@@ -29,6 +30,8 @@ proportional set once after the diff is frozen.
 bun run lint -- <touched-authored-paths...>
 bun run typecheck
 bun run test
+bun run check:fast
+bun run check
 bun run build
 bun run docs:list
 ```
@@ -91,6 +94,32 @@ Clerk, API, or browser behavior.
 
 ## CI
 
-Pull requests run frozen install, changed-file lint, check, build, fixture-tool
-tests, migration drift, and production-shaped PostgreSQL integration on a
-GitHub-hosted runner.
+### Quality is the fast lane, on purpose
+
+`bun run check` is split, and the split is deliberate — preserve it.
+
+`bun run check:fast` is the polite lane: `env:check`, `env:contract`,
+`typecheck`, and `test`. `bun run check` is `check:fast` plus the heavy lanes —
+`test:fixtures`, `test:integration:compose`, and `build`. Total coverage is
+unchanged; the heavy lanes simply stop running on every commit.
+
+| Trigger | What runs |
+| --- | --- |
+| Push to `main`, pull request | Frozen install, changed-file lint, `check:fast`, migration drift. Target: under a minute. |
+| Deploy dispatch | The same fast job, plus a `full` job running `bun run check` — fixture tooling, Compose PostgreSQL integration, and every workspace build. |
+| Local, before pushing | `bun run check`. |
+
+The `full` job keys off `lint-base`, a required `workflow_call` input, so it is
+non-empty exactly when Deploy called the workflow. The Compose integration lane
+alone cost more than a minute per commit because it builds images and boots
+Compose; it now gates the thing that actually ships instead of every push.
+Builds stay out of the fast lane because the deploy path builds the images for
+real and is the build's proof.
+
+This shape is fleet-wide, not a Trademark Terminal quirk: Quality answers one
+question per push — is the contract intact and does the fast stuff pass? — in
+under about sixty seconds, with installs capped at `timeout-minutes: 5` and a
+concurrency group that cancels in progress. Application builds, browser and GPU
+tests, golden corpora, database simulations, and licensed or heavyweight
+downloads belong to full `check` instead. Canonical standard:
+`~/Programming/agents/docs/quality-ci-standard.md` (agents repo).
