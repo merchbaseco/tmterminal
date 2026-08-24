@@ -13,3 +13,4 @@ fixtures/uspto/**/*.doc
 !.codex/environments/environment.toml
 .claude/*
 !.claude/settings.json
+.agents/
