@@ -212,4 +212,13 @@ const verified = spawnSync("bun", ["scripts/verify-deployed-secrets.ts"], {
   env: environment,
   stdio: "inherit",
 });
+
+// Mac mini hygiene. Every deploy rebuilds the images and leaves the previous
+// ones dangling, so without this they pool on the host between deploys.
+// Dangling images only — never volumes, and never a blanket `system prune`.
+spawnSync("docker", ["image", "prune", "-f"], {
+  env: environment,
+  stdio: "inherit",
+});
+
 process.exit(verified.status ?? 1);
