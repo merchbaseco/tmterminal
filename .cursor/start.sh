@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Per-boot reconciliation for Trademark Terminal Cloud Agents. Starts the
-# isolated PostgreSQL cluster, ensures the databases exist, and applies the
-# current schema migrations. Idempotent, and it returns.
+# isolated PostgreSQL cluster, ensures the databases exist, applies the current
+# schema migrations, and refills the database with synthetic development data.
+# Idempotent, and it returns.
 set -euo pipefail
 
 root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
@@ -21,4 +22,18 @@ export TMTERMINAL_DATABASE_HOST=127.0.0.1
 pg_start
 pg_ensure_databases
 
+# Migrations are not best-effort: the API and the integration lane both expect
+# the current schema, so a failure here must stop the boot.
 bun run db:migrate
+
+# Synthetic development data, so a cloud session opens search, mark detail, and
+# Source Status with a current week of trademark activity instead of empty
+# states. Seeded per boot rather than baked into the environment snapshot,
+# because the dataset is anchored to the current date and a week-old snapshot
+# would show a week-old week. The seed only ever reaches the local cluster: it
+# refuses any database host that is not loopback, and it fabricates every row
+# rather than calling the USPTO Open Data Portal. Best-effort — a session must
+# still boot if seeding fails.
+if ! bun run db:seed:dev >/dev/null; then
+  echo "[start] Skipping synthetic dev data (seed failed)." >&2
+fi
