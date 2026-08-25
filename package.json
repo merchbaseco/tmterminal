@@ -17,6 +17,7 @@
     "compose:up": "./scripts/compose up --build --detach --wait",
     "db:generate": "bun run --cwd apps/server db:generate",
     "db:migrate": "bunx varlock run -- bun run --cwd apps/server db:migrate",
+    "db:seed:dev": "bunx varlock run -- bun run --cwd apps/server db:seed:dev",
     "deploy": "bun run scripts/deploy-with-varlock.ts",
     "deploy:dry-run": "bun run scripts/deploy-with-varlock.ts --dry-run",
     "deploy:verify": "bun run scripts/verify-deployed-secrets.ts",

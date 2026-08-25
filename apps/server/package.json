@@ -6,6 +6,7 @@
     "build": "bun build src/server.ts src/worker.ts src/db/migrate.ts --outdir dist --target bun",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun run src/db/migrate.ts",
+    "db:seed:dev": "bun run src/seed-dev-data.ts",
     "source:repair": "bun run src/source-repair.ts",
     "start": "bun run src/server.ts",
     "worker": "bun run src/worker.ts"
