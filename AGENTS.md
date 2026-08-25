@@ -128,9 +128,13 @@ website against that local database. Non-obvious points:
 - The documented `bun run dev` and `./scripts/compose` are for a workstation:
   the schema's development arm points at the production database over Tailscale,
   and Compose needs Docker. Neither works in Cloud Agents. Use the local runtime
-  instead: `.cursor/start.sh` (starts Postgres and applies migrations) plus the
-  `api` (`http://127.0.0.1:3000`) and `web` (`http://127.0.0.1:5173`, proxies
-  `/api`) terminals.
+  instead: `.cursor/start.sh` (starts Postgres, applies migrations, and seeds
+  synthetic development data) plus the `api` (`http://127.0.0.1:3000`) and
+  `web` (`http://127.0.0.1:5173`, proxies `/api`) terminals.
+- A cloud session therefore opens with a current week of fabricated trademark
+  data already in the local database. `bun run db:seed:dev` refills it; it
+  refuses any non-loopback database host and never calls the USPTO Open Data
+  Portal. See [Development](docs/operations/development.md).
 - The local cluster listens on the schema's development database port, so a
   cloud session overrides exactly one public value —
   `TMTERMINAL_DATABASE_HOST=127.0.0.1`. The role and password still resolve from

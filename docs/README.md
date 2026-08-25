@@ -66,7 +66,7 @@ describe how USPTO files continuously update the searchable database.
 
 | Workflow | Doc |
 | --- | --- |
-| Install, local servers, Compose, ports, and readiness | [Development](operations/development.md) |
+| Install, local servers, Compose, synthetic data, ports, and readiness | [Development](operations/development.md) |
 | Unit, PostgreSQL, fixture, browser, and deployment checks | [Testing](operations/testing.md) |
 | Mac mini release, smoke, monitoring, and rollback | [Deployment](operations/deployment.md) |
 | Prepare or execute centralized-auth cutover | [Access cutover](operations/access-cutover.md) |
