@@ -49,16 +49,19 @@ switch, and is fetched explicitly with `varlock printenv`:
 | --- | --- | --- |
 | `MERCHBASE_GITHUB_NPM_TOKEN` | `TMTERMINAL_RESOLVE_INSTALL_TOKENS` | `op://Development/GitHub Packages Read - Merchbase` |
 | `MERCHBASE_HUGEICONS_LICENSE_KEY` | `TMTERMINAL_RESOLVE_INSTALL_TOKENS` | `op://Development/HugeIcons Pro - Merchbase` |
-| `MERCHBASE_AGENTS_READ_TOKEN` | `TMTERMINAL_RESOLVE_INSTALL_TOKENS` | `op://Development/GitHub Agents Read - Merchbase` |
 | `MERCHBASE_NPM_PUBLISH_TOKEN` | `TMTERMINAL_RESOLVE_RELEASE_TOKENS` | `op://Tooling/NPM Publish - Merchbase` |
 
-The first two are exported by `scripts/install-tokens` and hard-fail when they
-do not resolve, because `bun install` cannot proceed without them.
-`MERCHBASE_AGENTS_READ_TOKEN` is resolved inline by `.cursor/install.sh`
-instead: it fetches the private agents repo's tarball and seeds `.agents/skills`
-so a cloud agent discovers the same fleet skill library a local agent gets from
-the operator's home-directory links. That step is best-effort and never fails
-the install, and the token is unset again as soon as the fetch completes.
+The two install credentials are exported by `scripts/install-tokens` and
+hard-fail when they do not resolve, because `bun install` cannot proceed
+without them.
+
+Agent tooling is deliberately outside this contract. `.cursor/install.sh` also
+seeds `.agents/skills` from the private agents repo so a cloud agent discovers
+the same fleet skill library a local agent gets from the operator's
+home-directory links. It reads `CURSOR_CLOUD_AGENTS_GH_READ_TOKEN`, a GitHub
+PAT that Cursor injects as an account-level Runtime Secret — no varlock and no
+1Password lookup — and every failure path skips seeding rather than failing the
+install.
 
 Gating matters: Vite and the Docker build re-resolve the whole schema in
 contexts that cannot reach 1Password, so an ungated `op()` reference breaks the
