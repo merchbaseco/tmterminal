@@ -2,8 +2,7 @@ import { createClerkClient } from "@clerk/backend";
 import type { FastifyInstance } from "fastify";
 
 const signInTokenTtlSeconds = 60;
-const localHostname = "127.0.0.1";
-const localPeerAddress = "127.0.0.1";
+const loopbackPeerAddresses = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 
 export interface DevClerkSignIn {
   createToken: (userId: string, expiresInSeconds: number) => Promise<string>;
@@ -44,12 +43,17 @@ export function registerDevClerkSignIn(
     return;
   }
 
+  // The peer is the gate, not the Host header. A cloud development session
+  // reaches the website through a port forwarder, so the browser's Host is the
+  // forwarder's name — but the request still arrives from the Vite dev server's
+  // /api proxy on this machine. Requiring a loopback peer keeps a widened bind
+  // address (see TMTERMINAL_DEV_HOST) from widening who can mint a ticket.
   server.post("/api/dev/clerk-sign-in-token", async (request, reply) => {
-    if (
-      request.hostname.toLowerCase() !== localHostname ||
-      request.raw.socket.remoteAddress !== localPeerAddress
-    ) {
-      return reply.code(403).send({ error: "Dev Clerk sign-in is only available on localhost" });
+    const peer = request.raw.socket.remoteAddress;
+    if (!(peer && loopbackPeerAddresses.has(peer))) {
+      return reply
+        .code(403)
+        .send({ error: "Dev Clerk sign-in is only available to a caller on this machine" });
     }
 
     return {
