@@ -67,7 +67,7 @@ test("containers receive resolved values and never resolve them", async () => {
   expect(dockerignore).toContain(".env.*");
 });
 
-test("the Cursor cloud environment overrides only the database host", async () => {
+test("the Cursor cloud environment overrides the database host and the dev binds", async () => {
   const environment = JSON.parse(
     await readFile(new URL("../.cursor/environment.json", import.meta.url), "utf8")
   );
@@ -75,6 +75,18 @@ test("the Cursor cloud environment overrides only the database host", async () =
 
   const start = await readFile(new URL("../.cursor/start.sh", import.meta.url), "utf8");
   expect(start).toContain("export TMTERMINAL_DATABASE_HOST=127.0.0.1");
+
+  // Cursor forwards the ports it can see, and it sees only non-loopback binds.
+  const api = await readFile(new URL("../.cursor/api.sh", import.meta.url), "utf8");
+  const web = await readFile(new URL("../.cursor/web.sh", import.meta.url), "utf8");
+  expect(api).toContain("export TMTERMINAL_HOST=0.0.0.0");
+  expect(web).toContain("export TMTERMINAL_DEV_HOST=0.0.0.0");
+  expect(web).toContain("export VITE_TMTERMINAL_DEV_CLERK_AUTO_SIGN_IN=true");
+
+  // The seed's receipt is the boot's receipt; a discarded one leaves a session
+  // with no evidence of what it is looking at.
+  expect(start).toContain("bun run db:seed:dev");
+  expect(start).not.toContain("db:seed:dev >/dev/null");
 
   // The cluster listens on the schema's development port, so the port is not
   // overridden anywhere; only the host is.
@@ -161,7 +173,9 @@ while :; do :; done
         "api|postgres://tmturtle:secret@zachs-mac-mini.taila0b849.ts.net:5437/tmturtle|4101|http://127.0.0.1:4100|127.0.0.1|apps/server/src/server.ts"
       )
     );
-    expect(calls).toContain("web|pk_test_tmterminal|4101|apps/web --host 127.0.0.1 --port 4100");
+    // The bind address is the Vite config's to decide from TMTERMINAL_DEV_HOST,
+    // so the command line carries only the port.
+    expect(calls).toContain("web|pk_test_tmterminal|4101|apps/web --port 4100");
     expect(calls.join("\n")).not.toContain("worker");
     expect(calls.join("\n")).not.toContain("migrate");
     const stoppedVitePid = (await Bun.file(vitePid).text()).trim();

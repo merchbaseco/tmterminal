@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { DEV_SIGN_IN_MERCHBASE_USER_ID } from "@merchbaseco/access/dev";
 
 import { buildDevSeedPlan, defaultSeedOptions } from "../../src/dev-seed/plan.ts";
 import type { DevSeedOptions, DevSeedPlan, SeedRow } from "../../src/dev-seed/types.ts";
@@ -237,6 +238,13 @@ describe("buildDevSeedPlan", () => {
 
     expect(account?.merchbase_user_id).toBe(defaultSeedOptions.merchbaseUserId);
     expect(account?.search_preferences).toMatchObject({ defaultStatus: "live", pageSize: 50 });
+  });
+
+  // The account has to belong to whoever the development sign-in authenticates
+  // as, or a cloud session opens signed in to an account that owns none of this.
+  test("gives the seeded data to the shared Dev Sign-In user", () => {
+    expect(defaultSeedOptions.merchbaseUserId).toBe(DEV_SIGN_IN_MERCHBASE_USER_ID);
+    expect(buildPlan().merchbaseUserId).toBe(DEV_SIGN_IN_MERCHBASE_USER_ID);
   });
 
   test("attributes every mark to a source file it plans", () => {

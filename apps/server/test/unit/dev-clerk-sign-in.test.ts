@@ -35,7 +35,7 @@ describe("POST /api/dev/clerk-sign-in-token", () => {
     await Promise.all(servers.splice(0).map((server) => server.close()));
   });
 
-  test("creates a 60-second Clerk ticket only for localhost", async () => {
+  test("creates a 60-second Clerk ticket for a caller on this machine", async () => {
     const calls: Array<{ expiresInSeconds: number; userId: string }> = [];
     const server = await buildServer({
       access: fakeTmterminalAccess(),
@@ -67,16 +67,15 @@ describe("POST /api/dev/clerk-sign-in-token", () => {
     expect(calls).toEqual([{ expiresInSeconds: 60, userId: "user_dev" }]);
   });
 
-  test("rejects non-local hosts before creating a ticket", async () => {
-    let called = false;
+  // A cloud development session reaches the website through a port forwarder,
+  // so the browser's Host is the forwarder's name and the request arrives from
+  // the Vite proxy on this machine. That has to work.
+  test("serves a forwarded Host when the caller is still on this machine", async () => {
     const server = await buildServer({
       access: fakeTmterminalAccess(),
       databaseUrl,
       devClerkSignIn: {
-        createToken: () => {
-          called = true;
-          return Promise.resolve("unused-ticket");
-        },
+        createToken: () => Promise.resolve("short-lived-ticket"),
         userId: "user_dev",
       },
       logger: false,
@@ -85,17 +84,16 @@ describe("POST /api/dev/clerk-sign-in-token", () => {
     servers.push(server);
 
     const response = await server.inject({
-      headers: { host: "tmterminal.merchbase.co" },
+      headers: { host: "tmterminal-5173.forwarded.example" },
       method: "POST",
       remoteAddress: "127.0.0.1",
       url: "/api/dev/clerk-sign-in-token",
     });
 
-    expect(response.statusCode).toBe(403);
-    expect(called).toBe(false);
+    expect(response.statusCode).toBe(200);
   });
 
-  test("rejects a spoofed local Host from a non-loopback peer", async () => {
+  test("rejects a non-loopback peer", async () => {
     let called = false;
     const server = await buildServer({
       access: fakeTmterminalAccess(),
