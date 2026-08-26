@@ -3,6 +3,7 @@ summary: Defines Clerk credential verification, local Access Projections, stable
 read_when:
   - changing authentication, account identity, Clerk webhooks, API keys, OAuth, or operator authorization
   - changing Access Projection persistence, reconciliation, or user-owned background work
+  - diagnosing why a locally seeded database refuses a signed-in developer, or changing the development Access Projection bootstrap
 ---
 
 # Access Boundary
@@ -17,7 +18,7 @@ Every protected request:
 
 1. extracts one bearer credential;
 2. verifies a route-appropriate Clerk credential through
-   `@merchbaseco/access@0.2.1`;
+   `@merchbaseco/access@0.4.0`;
 3. resolves the known issuer and subject from the local Access Projection;
 4. evaluates fixed service `tmterminal`;
 5. finds or creates the local service account by stable Merchbase User ID.
@@ -46,6 +47,27 @@ to repair missed webhooks or direct Clerk changes. Repair joins projections to
 existing local account mappings: account mappings without a projection do not
 trigger Clerk reads, and projection-only suite users do not create product
 accounts.
+
+## Development Bootstrap
+
+No Clerk webhook is ever delivered to a workstation or a cloud VM, so a freshly
+migrated local database has no projection and every request fails before any
+seeded data can be seen. `bun run db:seed:dev` therefore calls
+`bootstrapDevAccessProjection` from `@merchbaseco/access/dev` first, which
+applies the projection the webhook would have written for the shared Merchbase
+Dev Sign-In user through this repository's own `AccessProjectionStore`. There is
+no hand-written projection SQL and no override: the package refuses a production
+environment, a non-loopback database, and the production Clerk issuer, and it
+claims a `sourceUpdatedAt` older than any real Clerk timestamp, so a genuine
+webhook or cold load always wins over the bootstrap and a revocation can never
+be masked. The seeded account is that user's, and every account in a seeded
+database is an operator.
+
+The issuer must be byte-identical to the one `createClerkAuthenticator` runs
+with — both read `MERCHBASE_CLERK_ISSUER` — because a projection written under a
+different issuer authorizes nobody. If the bootstrap reports that a newer event
+already owns the subject, delete the local database's `access_projection` and
+`access_projection_receipt` rows and re-seed.
 
 ## Local Account
 

@@ -1,9 +1,10 @@
 ---
-summary: Defines local installation, fast checks, live-data development, synthetic data seeding and its local-only guard, ports, environment variables, and readiness.
+summary: Defines local installation, fast checks, live-data development, automatic development sign-in, synthetic data seeding and its local-only guard, development server binds, ports, and readiness.
 read_when:
   - starting or diagnosing the live-data development API or website
-  - changing root scripts, ports, environment variables, readiness, or local runtime behavior
+  - changing root scripts, ports, bind addresses, environment variables, readiness, or local runtime behavior
   - seeding synthetic trademark data, or changing what the seed produces, which database it may touch, or how cloud sessions get it
+  - changing automatic development sign-in, or diagnosing a cloud session that opens signed out, empty, or unreachable
 ---
 
 # Development
@@ -61,11 +62,19 @@ Searches and status reads use live data. Account preference actions write live
 account state. Use the isolated integration lane for schema, authentication, or
 destructive work.
 
-Local Clerk automation resolves from the schema:
-`TMTERMINAL_DEV_CLERK_SIGN_IN_USER_ID` comes from
-`op://Development/Dev Sign-In User - TMTerminal`, and
-`VITE_TMTERMINAL_DEV_CLERK_AUTO_SIGN_IN` opts the website in. The development
-sign-in endpoint exists only on loopback and is absent in production.
+Development sign-in resolves from the schema.
+`TMTERMINAL_DEV_CLERK_SIGN_IN_USER_ID` is the shared Merchbase Dev Sign-In user
+— an opaque identifier in the development Clerk instance, committed rather than
+vaulted, because an ephemeral worktree or cloud VM has to be correct before it
+can reach 1Password. `VITE_TMTERMINAL_DEV_CLERK_AUTO_SIGN_IN` opts the website
+in, and it is off for a workstation: `bun run dev` still signs in by hand.
+
+`POST /api/dev/clerk-sign-in-token` mints a 60-second Clerk sign-in ticket for
+that user. It is absent whenever `NODE_ENV=production`, absent when the user id
+is unset (which is what the production lifecycle resolves), and answers only a
+caller on this machine — the peer address is the gate, not the `Host` header, so
+it keeps working behind a port forwarder without widening who can mint a ticket.
+Tickets are never logged.
 
 ## Synthetic Development Data
 
@@ -83,7 +92,8 @@ One run writes roughly six thousand rows in well under a second:
 | Status and type | Live, dead, and unknown marks, and every drawing-code bucket, so each search filter has both sides. |
 | Source files | One USPTO daily file per day of the window plus an annual baseline, covering complete, applying, awaiting-application, blocked, needs-attention, and deferred states. |
 | Worker | A worker row that has just checked in, naming the file it is applying. |
-| Account | One seeded account with saved, non-default search preferences. |
+| Account | One account, owned by the shared Merchbase Dev Sign-In user, with saved, non-default search preferences. |
+| Access | That user's Access Projection, so the signed-in developer is authorized to see all of it. |
 
 Every mark is attributed to the source file that carried it, and its
 transaction date is that file's day, so Latest Processed, the activity chart,
@@ -98,17 +108,34 @@ Useful flags:
 | `--seed=<string>` | Picks the dataset. The same seed always produces the same register. |
 | `--marks=<n>` | Size of the catalog. Default 600. |
 | `--days=<n>` | Length of the source-file window. Default 30. |
-| `--merchbase-user-id=<mbu_…>` | Merchbase user the seeded account maps to. Default `mbu_dev_seed`. |
+| `--merchbase-user-id=<mbu_…>` | Merchbase user the seeded account maps to. Defaults to the shared Merchbase Dev Sign-In user. |
+
+The run prints a receipt: the database it wrote to, the Merchbase user and Clerk
+subject the data and the Access Projection belong to, a row count per table, and
+the day the newest applied source file covers. It carries no credential.
 
 Re-running replaces the previous dataset rather than stacking a second one on
 top: every table the seed owns is cleared inside the same transaction that
-refills it. A developer's own Clerk-created account and its saved preferences
-survive a re-seed — the seed removes only its own account row.
+refills it. The seed removes only its own account row, so an account you created
+by signing in with your own Clerk user keeps its saved preferences. Preferences
+saved while signed in as the Dev Sign-In user do not survive: that is the seed's
+own row, and a cloud session re-seeds on every boot.
 
-Every account in a seeded database is granted the `operator` role, because the
-seed cannot know which Merchbase user a local Clerk session resolves to and the
-operator Source Status surface is otherwise unreachable. Sign in first, then
-re-seed, to pick up the grant.
+### It authorizes before it fills
+
+The seed's first act is `bootstrapDevAccessProjection` from
+`@merchbaseco/access/dev`, which writes the Access Projection a Clerk webhook
+would have delivered for the shared Merchbase Dev Sign-In user. Without it a
+migrated database has no projection at all and every data procedure fails before
+any of these rows can be seen. See
+[Access Boundary](../internals/access-boundary.md) for what the bootstrap
+refuses and what to do when it reports a newer event.
+
+Every account in a seeded database is granted the `operator` role, so the
+operator Source Status surface renders for the seeded user and for a developer's
+own Clerk-created account alike. The loopback guard is what keeps that grant off
+any shared database. Sign in with your own account first, then re-seed, to pick
+up the grant.
 
 The seeded worker heartbeat goes stale after five minutes and Source Status
 then reports the worker as failed. That is the truth about a database with no
@@ -147,7 +174,34 @@ Cursor Cloud Agents get the data for free: `.cursor/start.sh` provisions the
 isolated local cluster, migrates it, and seeds it on every boot. Seeding is per
 boot rather than baked into the environment snapshot because the dataset is
 anchored to the current date, and a week-old snapshot would show a week-old
-week. A failed seed logs and is skipped; it never blocks the session.
+week. The seed's receipt is the boot's receipt, so it is printed rather than
+discarded. A failed seed logs and is skipped; it never blocks the session.
+
+Such a session opens signed in. `.cursor/web.sh` exports
+`VITE_TMTERMINAL_DEV_CLERK_AUTO_SIGN_IN=true`, the website asks the API for a
+ticket on load, and the Merchbase Dev Sign-In user it authenticates as is the
+one the seeded data and its Access Projection belong to. A workstation is
+deliberately not armed this way.
+
+## Development Server Binds
+
+`TMTERMINAL_DEV_HOST` is the Vite development server's bind address and
+`TMTERMINAL_HOST` is the API's. Both default to loopback, which keeps a
+development server — and the synthetic data behind it — off the network.
+
+A venue reached through a port forwarder sets both to `0.0.0.0` for its own
+commands, because such forwarders find a session's ports by watching for
+listening sockets and a loopback-only bind is invisible to them.
+`.cursor/api.sh` and `.cursor/web.sh` do exactly that, which is where the
+knowledge that Cursor works this way belongs — application code stays
+vendor-neutral. A widened `TMTERMINAL_DEV_HOST` also relaxes Vite's host
+allowlist, because a forwarded request arrives carrying the forwarder's own name
+in `Host` and Vite would otherwise answer "Blocked request" instead of the
+website.
+
+Only the socket widens. The Clerk session still has to carry an authorized
+party, so the browser origin remains the loopback one
+`TMTERMINAL_CLERK_AUTHORIZED_PARTIES` names.
 
 ## Agent Harnesses
 

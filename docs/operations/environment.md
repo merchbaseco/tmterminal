@@ -70,11 +70,16 @@ build.
 ## Project-owned items
 
 `Clerk Webhook - TMTerminal` (Production), `Postgres - TMTerminal` (Production
-and Development, one credential cross-referenced in both notes),
+and Development, one credential cross-referenced in both notes), and
 `USPTO ODP API - TMTerminal` (Production and Development, one provider key
-cross-referenced), `Dev Sign-In User - TMTerminal` (Development). Everything
-Clerk-instance-wide, every package registry credential, and the icon licence
-come from shared `- Merchbase` items and are never copied per repository.
+cross-referenced). Everything Clerk-instance-wide, every package registry
+credential, and the icon licence come from shared `- Merchbase` items and are
+never copied per repository.
+
+The shared Merchbase Dev Sign-In user's Clerk id is committed in the schema
+rather than vaulted. It is an opaque development-instance identifier, not a
+credential, and an ephemeral worktree or cloud VM has to be correct before it
+can reach 1Password — `@merchbaseco/access` commits the same subject.
 
 ## Database
 
@@ -85,8 +90,11 @@ workstation reaches the same database over Tailscale. Mutations from
 before the rename; that is a database migration, not an environment change.
 
 A Cursor cloud agent has no Tailscale, so it provisions its own PostgreSQL
-cluster on the same port and overrides exactly one public value —
-`TMTERMINAL_DATABASE_HOST` — for that session.
+cluster on the same port and overrides `TMTERMINAL_DATABASE_HOST` for that
+session. Its two other session overrides are bind addresses, not credentials:
+`TMTERMINAL_HOST` and `TMTERMINAL_DEV_HOST` widen to `0.0.0.0` so Cursor's port
+forwarder can see the listening sockets. See
+[Development](development.md#development-server-binds).
 
 ## Commands
 
