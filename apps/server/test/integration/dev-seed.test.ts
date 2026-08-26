@@ -2,14 +2,19 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import postgres from "postgres";
 import { defaultSearchPreferences } from "../../src/account-preferences.ts";
 import { migrateDatabase } from "../../src/db/migrate.ts";
-import { buildDevSeedPlan, defaultSeedOptions } from "../../src/dev-seed/plan.ts";
+import {
+  buildDevSeedPlan,
+  defaultSeedOptions,
+  legacySeedMerchbaseUserId,
+} from "../../src/dev-seed/plan.ts";
 import { writeDevSeedPlan } from "../../src/dev-seed/write-plan.ts";
 import { resetTestDatabase } from "./test-database.ts";
 
 /**
- * The seed's contract against a real database: a re-run refreshes the week
- * instead of stacking a second one on top of it, and it leaves a developer's
- * own account alone while making it an operator.
+ * The seed's contract against a real database: it takes over the account row a
+ * pre-cutover seed left behind, a re-run refreshes the week instead of stacking
+ * a second one on top of it, and it leaves a developer's own account alone
+ * while making it an operator.
  */
 
 const databaseUrl = process.env.TMTERMINAL_TEST_DATABASE_URL;
@@ -49,6 +54,43 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await database.end({ timeout: 1 });
+});
+
+test("takes over the account row a pre-cutover seed left behind", async () => {
+  // The field failure: before the Dev Sign-In cutover the seed wrote this same
+  // deterministic account id under `mbu_dev_seed`, and the old seed granted it
+  // the operator role too. Clearing by owner alone skips that row, so the
+  // insert below used to fail on `account_pkey`.
+  const plan = buildDevSeedPlan(options);
+  await database`
+    insert into account (id, merchbase_user_id, name, search_preferences)
+    values (${plan.accountId}, ${legacySeedMerchbaseUserId}, 'Dev Seed Terminal',
+      ${database.json(defaultSearchPreferences)})
+  `;
+  await database`insert into role_assignment (account_id, role) values (${plan.accountId}, 'operator')`;
+
+  await writeDevSeedPlan(database, plan);
+
+  // Ownership converged: one row at that id, now the Dev Sign-In user's, and
+  // nothing left behind under the retired fixture owner.
+  const owners = await database<Array<{ merchbaseUserId: string; name: string }>>`
+    select merchbase_user_id as "merchbaseUserId", name from account where id = ${plan.accountId}
+  `;
+  expect(owners.map((row) => [row.merchbaseUserId, row.name])).toEqual([
+    [defaultSeedOptions.merchbaseUserId, "Merchbase Dev Sign-In"],
+  ]);
+
+  const [stragglers] = await database<[{ count: number }]>`
+    select count(*)::int as count from account
+    where merchbase_user_id = ${legacySeedMerchbaseUserId}
+  `;
+  expect(stragglers?.count).toBe(0);
+
+  // The developer's own account is not collateral: it was never in range.
+  const [developer] = await database<[{ count: number }]>`
+    select count(*)::int as count from account where id = ${developerAccountId}
+  `;
+  expect(developer?.count).toBe(1);
 });
 
 test("a re-run refreshes the dataset instead of duplicating it", async () => {
