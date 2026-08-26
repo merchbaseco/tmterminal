@@ -1,3 +1,5 @@
+import { DEV_SIGN_IN_MERCHBASE_USER_ID } from "@merchbaseco/access/dev";
+
 import { defaultSearchPreferences } from "../account-preferences.ts";
 import { buildCatalog } from "./build-catalog.ts";
 import { buildSourceState } from "./build-source-state.ts";
@@ -13,14 +15,19 @@ import type { DevSeedOptions, DevSeedPlan, SeedRow, SeedTableWrite } from "./typ
  * while still always describing this week.
  */
 
+/**
+ * The seeded account belongs to the shared Merchbase Dev Sign-In user, so the
+ * developer the automatic development sign-in authenticates as opens the site
+ * owning this data rather than looking at someone else's rows.
+ */
 export const defaultSeedOptions = {
   dayCount: 30,
   markCount: 600,
-  merchbaseUserId: "mbu_dev_seed",
+  merchbaseUserId: DEV_SIGN_IN_MERCHBASE_USER_ID,
   seed: "tmterminal-dev",
 } as const;
 
-const seedAccountName = "Dev Seed Terminal";
+const seedAccountName = "Merchbase Dev Sign-In";
 
 export function buildDevSeedPlan(options: DevSeedOptions): DevSeedPlan {
   const random = createSeededRandom(options.seed);

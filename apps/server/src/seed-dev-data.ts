@@ -1,9 +1,11 @@
+import { bootstrapDevAccessProjection } from "@merchbaseco/access/dev";
 import postgres from "postgres";
 
 import { migrateDatabase } from "./db/migrate.ts";
 import { assertLocalSeedTarget, describeTarget } from "./dev-seed/local-database-guard.ts";
 import { buildDevSeedPlan, defaultSeedOptions } from "./dev-seed/plan.ts";
 import { writeDevSeedPlan } from "./dev-seed/write-plan.ts";
+import { createAccessProjectionStore } from "./queries/access-projection-store.ts";
 
 /**
  * Fills a local database with a synthetic week of trademark data so search,
@@ -13,6 +15,13 @@ import { writeDevSeedPlan } from "./dev-seed/write-plan.ts";
  *
  *   bun run db:seed:dev
  *   bun run db:seed:dev --seed=friday --marks=200 --days=14
+ *
+ * Authorization comes first. A migrated database holds no Access Projection —
+ * those arrive by Clerk webhook, and no webhook is ever delivered to a
+ * workstation or a cloud VM — so every request would fail before any of this
+ * data could be seen. `bootstrapDevAccessProjection` writes the projection the
+ * webhook would have written for the shared Merchbase Dev Sign-In user through
+ * this repository's own store, and the seeded account is that user's.
  *
  * Every row is fabricated locally. The seed never contacts the USPTO Open Data
  * Portal, and it never leaves an artifact in a state a running ingestion
@@ -33,6 +42,13 @@ if (!databaseUrl) {
 
 const target = assertLocalSeedTarget({ databaseUrl, nodeEnv: process.env.NODE_ENV });
 
+// The exact value `createClerkAuthenticator` runs with: a projection written
+// under a different issuer authorizes nobody.
+const issuer = process.env.MERCHBASE_CLERK_ISSUER?.trim();
+if (!issuer) {
+  throw new Error("MERCHBASE_CLERK_ISSUER is required. Run through `bunx varlock run --`.");
+}
+
 const options = {
   dayCount: readInt("--days", defaultSeedOptions.dayCount),
   markCount: readInt("--marks", defaultSeedOptions.markCount),
@@ -46,12 +62,23 @@ const database = postgres(databaseUrl, { max: 1 });
 
 try {
   await migrateDatabase(databaseUrl);
+  const access = await bootstrapDevAccessProjection({
+    databaseUrl,
+    issuer,
+    service: "tmterminal",
+    store: createAccessProjectionStore(database),
+  });
   const plan = buildDevSeedPlan(options);
   await writeDevSeedPlan(database, plan);
 
   process.stdout.write(
     `${JSON.stringify(
       {
+        accessProjection: {
+          clerkSubject: access.clerkSubject,
+          issuer: access.issuer,
+          merchbaseUserId: access.merchbaseUserId,
+        },
         dayCount: options.dayCount,
         durationMs: Date.now() - startedAt,
         latestProcessedDate: plan.latestProcessedDate,
