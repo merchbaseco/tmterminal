@@ -13,7 +13,7 @@ if (!root) {
 }
 
 if (!publishableKey) {
-  throw new Error("VITE_CLERK_PUBLISHABLE_KEY is required");
+  throw new Error("VITE_MERCHBASE_CLERK_PUBLISHABLE_KEY is required");
 }
 
 createRoot(root).render(
