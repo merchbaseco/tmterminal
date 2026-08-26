@@ -30,7 +30,7 @@ printf 'Website: http://127.0.0.1:%s\nAPI: http://127.0.0.1:%s\n' "$web_port" "$
 
 bun apps/server/src/server.ts &
 api_pid=$!
-apps/web/node_modules/.bin/vite apps/web --host 127.0.0.1 --port "$web_port" &
+apps/web/node_modules/.bin/vite apps/web --port "$web_port" &
 web_pid=$!
 
 cleanup() {
