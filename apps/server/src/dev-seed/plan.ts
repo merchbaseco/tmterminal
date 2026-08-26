@@ -27,6 +27,15 @@ export const defaultSeedOptions = {
   seed: "tmterminal-dev",
 } as const;
 
+/**
+ * The Merchbase user the seed's account row carried before the Dev Sign-In
+ * cutover. The account id is drawn from the seeded RNG, so a database an older
+ * seed filled already holds a row at the exact id this run inserts, owned by
+ * this fixture user instead. The writer replaces that one row; see
+ * `write-plan.ts`.
+ */
+export const legacySeedMerchbaseUserId = "mbu_dev_seed";
+
 const seedAccountName = "Merchbase Dev Sign-In";
 
 export function buildDevSeedPlan(options: DevSeedOptions): DevSeedPlan {
@@ -45,8 +54,10 @@ export function buildDevSeedPlan(options: DevSeedOptions): DevSeedPlan {
     random,
   });
 
+  const account = buildAccountRow(options, random);
+
   const rowsByTable: Record<string, SeedRow[]> = {
-    account: [buildAccountRow(options, random)],
+    account: [account],
     data_state: source.dataState,
     mark: catalog.marks,
     mark_class: catalog.classes,
@@ -65,6 +76,7 @@ export function buildDevSeedPlan(options: DevSeedOptions): DevSeedPlan {
   }));
 
   return {
+    accountId: account.id,
     latestProcessedDate: source.latestProcessedDate,
     merchbaseUserId: options.merchbaseUserId,
     showcaseWordMarks: catalog.showcaseWordMarks,

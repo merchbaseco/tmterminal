@@ -156,9 +156,10 @@ export const seedTableOrder: SeedTableName[] = [
  * Clear order for a re-run. The four `mark_*` child tables cascade from `mark`
  * but are deleted explicitly so the reset is legible rather than implied.
  * `account` is absent: the seed owns only its own account row and removes that
- * one by `merchbase_user_id`, so a developer's Clerk-created account and its
- * saved search preferences survive a re-seed. `role_assignment` is absent for
- * the same reason — the writer re-grants the operator role instead.
+ * one by owner and by its own deterministic id, so a developer's Clerk-created
+ * account and its saved search preferences survive a re-seed. `role_assignment`
+ * is absent for the same reason — the writer re-grants the operator role
+ * instead.
  */
 export const seedClearOrder: string[] = [
   "mark_status_event",

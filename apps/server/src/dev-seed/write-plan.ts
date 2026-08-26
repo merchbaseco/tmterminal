@@ -1,5 +1,6 @@
 import type postgres from "postgres";
 
+import { legacySeedMerchbaseUserId } from "./plan.ts";
 import { seedClearOrder } from "./table-columns.ts";
 import type { DevSeedPlan, SeedTableWrite } from "./types.ts";
 
@@ -12,7 +13,7 @@ import type { DevSeedPlan, SeedTableWrite } from "./types.ts";
 
 export async function writeDevSeedPlan(database: postgres.Sql, plan: DevSeedPlan) {
   await database.begin(async (transaction) => {
-    await clearSeededData(transaction, plan.merchbaseUserId);
+    await clearSeededData(transaction, plan);
 
     for (const table of plan.tables) {
       // biome-ignore lint/performance/noAwaitInLoops: Tables insert in foreign-key order, so each write waits for its parent.
@@ -25,20 +26,38 @@ export async function writeDevSeedPlan(database: postgres.Sql, plan: DevSeedPlan
 
 async function clearSeededData(
   transaction: postgres.TransactionSql,
-  merchbaseUserId: string
+  plan: DevSeedPlan
 ): Promise<void> {
   for (const table of seedClearOrder) {
     // biome-ignore lint/performance/noAwaitInLoops: The clear is ordered so every child table empties before its parent.
     await transaction.unsafe(`delete from ${table}`);
   }
 
-  // Role assignments hold a plain foreign key to `account`, so the seed
-  // account's roles go first or the delete below is refused.
+  // Role assignments hold a plain foreign key to `account`, so the replaced
+  // accounts' roles go first or the delete below is refused.
   await transaction`
     delete from role_assignment
-    where account_id in (select id from account where merchbase_user_id = ${merchbaseUserId})
+    where account_id in (select id from account where ${matchReplacedAccount(transaction, plan)})
   `;
-  await transaction`delete from account where merchbase_user_id = ${merchbaseUserId}`;
+  await transaction`delete from account where ${matchReplacedAccount(transaction, plan)}`;
+}
+
+/**
+ * The account rows this run replaces, matched two ways. The first is the seed's
+ * own owner, which is the whole story on a database this seed has filled since
+ * the Dev Sign-In cutover. The second is the row a pre-cutover seed left at the
+ * very id this run is about to insert: the id comes from the seeded RNG, so it
+ * is identical across the cutover while the owner is not, and matching on owner
+ * alone leaves that row in place for the insert to collide with on
+ * `account_pkey`. Both arms are exact — this run's own deterministic id under
+ * the one known fixture owner — so a developer's Clerk-created account is never
+ * in range.
+ */
+function matchReplacedAccount(transaction: postgres.TransactionSql, plan: DevSeedPlan) {
+  return transaction`
+    merchbase_user_id = ${plan.merchbaseUserId}
+      or (id = ${plan.accountId} and merchbase_user_id = ${legacySeedMerchbaseUserId})
+  `;
 }
 
 async function insertTableRows(
