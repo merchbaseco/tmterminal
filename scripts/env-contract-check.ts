@@ -81,8 +81,9 @@ const notDeliveredNames = new Map([
   ],
   [
     "TMTERMINAL_DEV_CLERK_SIGN_IN_USER_ID",
-    "development-only loopback endpoint; never delivered to production",
+    "development-only sign-in endpoint; never delivered to production",
   ],
+  ["TMTERMINAL_DEV_HOST", "development server bind address, not a container value"],
   [
     "TMTERMINAL_DEV_OPERATOR_MERCHBASE_USER_ID",
     "development-only operator surface; never delivered to production",
