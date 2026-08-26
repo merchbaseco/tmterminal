@@ -7,12 +7,12 @@
     {
       "name": "api",
       "command": "bash .cursor/api.sh",
-      "description": "Trademark Terminal HTTP/MCP API on http://127.0.0.1:3000 against the local database."
+      "description": "Trademark Terminal HTTP/MCP API on port 3000 against the local database. It binds every interface here because Cursor forwards a session's ports by watching for listening sockets; the development sign-in endpoint still answers only a caller on this machine."
     },
     {
       "name": "web",
       "command": "bash .cursor/web.sh",
-      "description": "Trademark Terminal website (Vite dev server) on http://127.0.0.1:5173, proxying /api to the API."
+      "description": "Trademark Terminal website (Vite dev server) on port 5173, proxying /api to the API. It binds every interface for the same port-forwarding reason, and signs in automatically as the shared Merchbase Dev Sign-In user, which owns the seeded data. Open this URL to navigate the app."
     }
   ],
   "ports": [{ "name": "api", "port": 3000 }, { "name": "web", "port": 5173 }]

@@ -32,8 +32,14 @@ bun run db:migrate
 # because the dataset is anchored to the current date and a week-old snapshot
 # would show a week-old week. The seed only ever reaches the local cluster: it
 # refuses any database host that is not loopback, and it fabricates every row
-# rather than calling the USPTO Open Data Portal. Best-effort — a session must
-# still boot if seeding fails.
-if ! bun run db:seed:dev >/dev/null; then
+# rather than calling the USPTO Open Data Portal.
+#
+# Its receipt is the boot's own receipt — database target, the Merchbase user
+# the Access Projection and the seeded account are attached to, row counts, and
+# the day the newest applied source file covers — so it is printed rather than
+# discarded. It carries no credential. Best-effort: a session must still boot if
+# seeding fails.
+echo "[start] Seeding synthetic development data."
+if ! bun run db:seed:dev; then
   echo "[start] Skipping synthetic dev data (seed failed)." >&2
 fi
