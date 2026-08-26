@@ -121,6 +121,14 @@ by signing in with your own Clerk user keeps its saved preferences. Preferences
 saved while signed in as the Dev Sign-In user do not survive: that is the seed's
 own row, and a cloud session re-seeds on every boot.
 
+"Its own account row" is matched two ways. The usual one is the Merchbase user
+the row belongs to. The second covers a database an earlier seed filled: the
+account id comes from the seeded RNG, so it is the same before and after the Dev
+Sign-In cutover, while the owner was the retired `mbu_dev_seed` fixture user.
+The seed takes that one row over rather than failing on `account_pkey`. Both
+matches are exact — this run's own deterministic id under that one known owner —
+so nothing else is ever in range.
+
 ### It authorizes before it fills
 
 The seed's first act is `bootstrapDevAccessProjection` from
