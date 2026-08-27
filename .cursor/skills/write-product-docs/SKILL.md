@@ -9,16 +9,14 @@ v1. Write as-built docs for people who use the product and for agents that
 read markdown. Code wins disagreements. Do not document internals, operator
 runbooks, unshipped design, or a second API contract.
 
-This skill is portable. Product nouns on capability pages come from the
-repository glossary. Welcome talks the way a seller talks.
+This skill is portable. Talk the way the audience talks. Use glossary nouns
+when a page is a contract.
 
 ## Principles
 
-1. **Welcome is a product page, then a hub.** Name the product, the
-   category, the audience, and the company. Say what you type, what you look
-   up, that the catalog stays current, and that results are available to
-   programs and agents. Then job cards, one working request, and next links.
-   Do not open with a slogan or a single clipped sentence.
+1. **Welcome is a product page, then a hub.** Say what the product is and
+   who it is for, in the [Voice](#voice) register. Then job cards, one
+   working request, and next links. Do not open with a slogan.
 2. **Quickstart is the first-success path.** Account or credential, one
    install or open, one working request, What's next.
 3. **Name pages after nouns.** Search Marks, CLI, Status, Class 025. A
@@ -47,9 +45,30 @@ repository glossary. Welcome talks the way a seller talks.
 
 ## Voice
 
-Write like the person who ships the product, not like a docs template.
+These rules apply on every page. Welcome is allowed to sell. A flag
+reference may be dry. Same person, different jobs.
 
-**Welcome opener (keep this shape):**
+- **Write like the person who ships the product.** If you would not say it
+  to a customer, do not publish it. Docs-template cadence is a defect.
+- **Say what it is and who it is for** before how it works. Category and
+  audience first. Company when it orients. No metaphor, no warning opener,
+  no "this guide covers."
+- **Everyday language until the page is a contract.** People type phrases
+  for t-shirts and look up serial numbers. Glossary nouns (Search Query,
+  Data Version) appear when the exact term is the product.
+- **Spoken cadence.** Compound sentences with `or` and `and` are fine. Do
+  not chop a living sentence into telegrams so it sounds like docs.
+- **Concrete objects.** A t-shirt, a serial, the USPTO, a CLI, MCP. Not
+  catalog, surfaces, jobs, fixtures, or "the offering."
+- **You is the reader. We / our is the product.** Repeat the clear word.
+  Do not cycle service / platform / offering for variety.
+- **Say what someone does, then what they get.** Imperatives for action.
+  If programs and agents can call it, say so on the page that introduces
+  the product. Do not quarantine automation behind a chooser.
+- **Fix typos. Do not rewrite a human sentence into a tidier paraphrase
+  of itself.**
+
+Worked example, Welcome on this site (not a sentence template):
 
 > Trademark Terminal is a trademark search and compliance tool for
 > print-on-demand sellers from MerchBase. Type a prospective phrase for a
@@ -57,33 +76,14 @@ Write like the person who ships the product, not like a docs template.
 > in the database is kept up to date from USPTO's database, and all of our
 > results are accessible for programmatic and agentic use with a CLI and MCP.
 
-What that sample is doing, and what to repeat:
-
-- Sentence 1 is category + audience + company. Not a metaphor. Not a warning.
-- Sentence 2 is two seller actions joined by `or`: type a phrase for a
-  t-shirt, or look up a serial. Everyday nouns (`t-shirt`, `phrase`,
-  `serial number`) beat glossary nouns on Welcome.
-- Sentence 3 is one spoken compound: freshness, then access, joined by
-  `and`. Do not split it into clipped fragments or a Class 025 parenthetical
-  unless the page is the Class 025 limit.
-- `We` / `our` is the product. Programs and agents are part of the pitch
-  (`CLI`, `MCP`), not a later "automate" section.
-- Fix typos. Do not "docs-ify" the cadence.
-
-**Guides** switch to glossary nouns (Search Query, Multi, Data Version) and
-shorter procedural sentences. Do not carry Welcome's marketing paragraph
-into CLI flags.
-
-**Do not** replace this voice with slogan contrasts, stacked telegrams, or
-a second, tidier paraphrase of the same Welcome.
-
 ## Process
 
 1. Inventory shipped surfaces and recurring jobs. Assign URL namespaces.
 2. Earn every page. Retire chooser pages.
 3. Pick one hero example from shipped behavior. Reuse it.
 4. Write the runnable example before the prose.
-5. Draft capability pages first. Write Welcome last, in the Voice shape.
+5. Draft capability pages first. Write Welcome last, in the Voice
+   register.
 6. Open guides with the answer. Tables for auth, limits, errors. What's next.
 7. Legal is a thin link-out. Operator repair is not a seller surface.
 8. **Deslop.** Run `no-ai-slop` (`.agents/skills/no-ai-slop`) as
@@ -119,8 +119,8 @@ schema, ingestion, deploy, unshipped design.
 
 ## After a page
 
-Confirm the command, URL, auth rule, glossary (on guides), Voice shape (on
-Welcome), and that deslop ran.
+Confirm the command, URL, auth rule, glossary where the page is a
+contract, Voice on every page, and that deslop ran.
 
 ## This repository
 
