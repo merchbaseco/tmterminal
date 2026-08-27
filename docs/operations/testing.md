@@ -86,7 +86,7 @@ generation and fails on drift.
 
 ## Browser Acceptance
 
-User-facing changes use the repository app-verification workflow. Verify one
+User-facing changes use `.cursor/skills/verify-trademark-terminal/`. Verify one
 real authenticated happy path, the riskiest adjacent failure or navigation path,
 and cleanup of smoke state. A component test alone does not prove routing,
 Clerk, API, or browser behavior.

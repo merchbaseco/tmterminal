@@ -46,7 +46,7 @@ Actions. Ordinary merges to `main` do not. Do not deploy from a laptop.
 - Ingestion: restart, idempotency, cleanup, replay, and live visibility.
 - Search: filter, sort, count, pagination, and index use.
 - Client and CLI: generated contracts plus JSON envelopes.
-- Website: focused tests plus a real browser happy path.
+- Website: focused tests plus the `verify-trademark-terminal` happy and adjacent paths.
 - Deploy: Compose health before release.
 
 CI Quality is the fast lane (`bun run check:fast`). `bun run check` is the
