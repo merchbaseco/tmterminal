@@ -117,7 +117,8 @@ This is a single-context repository. Root `CONTEXT.md` owns the shared glossary;
 ### Product docs
 
 Public seller docs live in `apps/docs` and ship at `/docs`. Write and rewrite
-them with `.cursor/skills/write-product-docs`. Maintainer docs stay in `docs/`.
+them with `.cursor/skills/write-product-docs`, then run a `no-ai-slop` pass.
+Maintainer docs stay in `docs/`.
 
 ## Cursor Cloud specific instructions
 
