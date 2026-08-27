@@ -238,6 +238,14 @@ if grep -qF '${{ github.token }}' "$quality_workflow"; then
   echo "Quality still installs private packages with the ambient github.token" >&2
   exit 1
 fi
+if grep -qF 'run -- bun run check' "$quality_workflow"; then
+  echo "the full check still wraps bun run check in varlock run, which breaks compose integration on a runner without the op CLI" >&2
+  exit 1
+fi
+if ! grep -qF 'VARLOCK_ENV=test bunx varlock run -- bun run build' "$root/package.json"; then
+  echo "check no longer wraps only the website build under the test lifecycle" >&2
+  exit 1
+fi
 
 # --- Deployment smoke keeps its worker-heartbeat gate ---------------------
 
