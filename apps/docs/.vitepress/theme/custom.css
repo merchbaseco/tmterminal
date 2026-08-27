@@ -44,12 +44,12 @@
 
 .tt-logo {
   display: inline-flex;
-  align-items: center;
   gap: 0.5rem;
+  align-items: center;
   height: 2.25rem;
   padding: 0 0.5rem 0 0.625rem;
-  border-radius: 0.35rem;
   background: #151616;
+  border-radius: 0.35rem;
 }
 
 .dark .tt-logo {
@@ -57,11 +57,11 @@
 }
 
 .tt-logo-word {
-  color: #f5f2ea;
   font-size: 0.8125rem;
   font-weight: 900;
-  letter-spacing: -0.02em;
   line-height: 1;
+  color: #f5f2ea;
+  letter-spacing: -0.02em;
 }
 
 .tt-logo-mark {

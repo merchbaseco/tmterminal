@@ -4,9 +4,7 @@ export default defineConfig({
   base: "/docs/",
   cleanUrls: true,
   description: "Search United States trademarks for print-on-demand work.",
-  head: [
-    ["link", { href: "/docs/favicon.svg", rel: "icon", type: "image/svg+xml" }],
-  ],
+  head: [["link", { href: "/docs/favicon.svg", rel: "icon", type: "image/svg+xml" }]],
   ignoreDeadLinks: (url) => url.startsWith("/") && !url.startsWith("/docs"),
   themeConfig: {
     nav: [
