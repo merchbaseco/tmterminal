@@ -428,7 +428,7 @@ function TopBar({ pathname }: { pathname: string }) {
           >
             Status
           </a>
-          <a className={navItemClassName} href="/docs">
+          <a className={navItemClassName} href="/docs/">
             Docs
           </a>
           <Show when="signed-in">
@@ -520,7 +520,7 @@ function MobileNavMenu({
         >
           Status
         </MenuLinkItem>
-        <MenuLinkItem href="/docs">Docs</MenuLinkItem>
+        <MenuLinkItem href="/docs/">Docs</MenuLinkItem>
         {signedIn ? (
           <MenuLinkItem
             aria-current={pathname === "/account" ? "page" : undefined}

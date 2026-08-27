@@ -537,7 +537,7 @@ test("shows public Status and Docs without exposing operator sections", async ()
   expect(screen.queryByText("Source files")).toBeNull();
 
   const docs = screen.getByRole("link", { name: "Docs" });
-  expect(docs.getAttribute("href")).toBe("/docs");
+  expect(docs.getAttribute("href")).toBe("/docs/");
 });
 
 test("shows operator details on the shared Status page", async () => {

@@ -33,7 +33,7 @@ test("VitePress is mounted at /docs/", async () => {
 test("the website sends Docs to /docs and does not keep a Help page", async () => {
   const app = await readFile(new URL("apps/web/src/app.tsx", root), "utf8");
 
-  expect(app).toContain('href="/docs"');
+  expect(app).toContain('href="/docs/"');
   expect(app).toContain('window.location.replace("/docs/")');
   expect(app).not.toContain("HelpPage");
 });
