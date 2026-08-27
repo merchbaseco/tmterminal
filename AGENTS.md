@@ -114,6 +114,11 @@ The Linear Products team uses the canonical triage label vocabulary in `docs/ope
 
 This is a single-context repository. Root `CONTEXT.md` owns the shared glossary; `docs/README.md` routes durable contracts and decisions.
 
+### Product docs
+
+Public seller docs live in `apps/docs` and ship at `/docs`. Write and rewrite
+them with `.cursor/skills/write-product-docs`. Maintainer docs stay in `docs/`.
+
 ## Cursor Cloud specific instructions
 
 The Cloud Agent environment is defined by `.cursor/environment.json` (named
