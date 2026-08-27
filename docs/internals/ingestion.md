@@ -180,8 +180,8 @@ Coverage groups are not persisted releases or query gates.
 
 ## Historical Repair
 
-Repair is explicit, one file at a time, through `bun run source:repair`.
-An agent inspects durable state before authorizing any new provider request.
+Repair is explicit and one file at a time. An agent inspects durable state
+before authorizing any new provider request.
 Existing data remains searchable and is corrected record by record. A parser
 release does not automatically replay all completed history.
 

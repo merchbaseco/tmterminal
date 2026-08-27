@@ -32,7 +32,6 @@
     "release:check": "bun run release:version-check && bun run --cwd packages/http-client build && bun run --cwd packages/cli build && bun test packages/http-client/test && bun test packages/cli/test && npm --workspace @tmterminal/http-client pack --dry-run && npm --workspace @tmterminal/cli pack --dry-run",
     "release:version-check": "bun run scripts/check-release-versions.ts",
     "source:import": "./scripts/source-import",
-    "source:repair": "bunx varlock run -- docker compose exec -T worker bun run --cwd apps/server source:repair",
     "test": "VARLOCK_ENV=test bun test apps/server/test/unit packages/http-client/test packages/cli/test scripts/dev-contract.test.ts && VARLOCK_ENV=test bun test apps/web/test && ./scripts/deployment-contract.test",
     "test:fixtures": "bun test scripts/uspto-fixtures.test.ts",
     "test:integration": "VARLOCK_ENV=test bun test apps/server/test/integration",

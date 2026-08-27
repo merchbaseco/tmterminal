@@ -29,14 +29,15 @@ off. Website origin is `127.0.0.1`, not `localhost`.
 
 The committed `.env.schema` is the contract. Varlock resolves values from
 1Password. There is no `.env` file. `VARLOCK_ENV` is `production`,
-`development`, or `test`. The only platform-held secret is
-`GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN`.
+`development`, or `test`. GitHub Actions stores one secret,
+`GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN`, so CI and deploy can read 1Password.
+Everything else comes from the schema.
 
 ## Release
 
-Use the `release-trademark-terminal` skill. It updates `CHANGELOG.md` and
-opens a PR. Merging to `main` deploys through GitHub Actions. Do not deploy
-from a laptop.
+Use the `release-trademark-terminal` skill. It bumps `VERSION`, updates
+`CHANGELOG.md`, and opens a PR. Merging a release PR deploys through GitHub
+Actions. Ordinary merges to `main` do not. Do not deploy from a laptop.
 
 ## Verification
 
