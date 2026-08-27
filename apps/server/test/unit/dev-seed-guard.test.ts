@@ -6,9 +6,9 @@ import {
 } from "../../src/dev-seed/local-database-guard.ts";
 
 /**
- * The guard is the only thing standing between `bun run db:seed:dev` and the
- * live database, because the development lifecycle resolves to it by default.
- * These cases are the refusal contract, not incidental coverage.
+ * The guard is the last refusal in front of `bun run db:seed:dev`. Development
+ * is loopback by default; these cases keep an overridden off-box URL from
+ * wiping live tables.
  */
 
 const notLoopback = /is not loopback/;

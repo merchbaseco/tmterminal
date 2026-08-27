@@ -1,0 +1,81 @@
+:root {
+  --vp-font-family-base: "Archivo Variable", "Archivo", sans-serif;
+  --vp-font-family-mono: ui-monospace, "SF Mono", "Menlo", monospace;
+  --vp-c-bg: #f5f2ea;
+  --vp-c-bg-alt: #efece3;
+  --vp-c-bg-elv: #fbfbf6;
+  --vp-c-bg-soft: #e8e8df;
+  --vp-c-text-1: #171714;
+  --vp-c-text-2: #65655e;
+  --vp-c-text-3: #65655e;
+  --vp-c-divider: #c9c9bf;
+  --vp-c-gutter: #efece3;
+  --vp-c-border: #c9c9bf;
+  --vp-c-brand-1: #687600;
+  --vp-c-brand-2: #556200;
+  --vp-c-brand-3: #4a5600;
+  --vp-c-brand-soft: rgb(104 118 0 / 12%);
+  --vp-c-tip-1: #687600;
+  --vp-button-brand-bg: #151616;
+  --vp-button-brand-hover-bg: #1b1c1c;
+  --vp-button-brand-text: #f5f2ea;
+}
+
+.dark {
+  --vp-c-bg: #0d0e0e;
+  --vp-c-bg-alt: #151616;
+  --vp-c-bg-elv: #151616;
+  --vp-c-bg-soft: #1b1c1c;
+  --vp-c-text-1: #f1f2ef;
+  --vp-c-text-2: #969793;
+  --vp-c-text-3: #969793;
+  --vp-c-divider: #2d2e2e;
+  --vp-c-gutter: #0d0e0e;
+  --vp-c-border: #2d2e2e;
+  --vp-c-brand-1: #d7f52a;
+  --vp-c-brand-2: #c6e326;
+  --vp-c-brand-3: #b4d11f;
+  --vp-c-brand-soft: rgb(215 245 42 / 16%);
+  --vp-c-tip-1: #d7f52a;
+  --vp-button-brand-bg: #d7f52a;
+  --vp-button-brand-hover-bg: #c6e326;
+  --vp-button-brand-text: #171714;
+}
+
+.tt-logo {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  height: 2.25rem;
+  padding: 0 0.5rem 0 0.625rem;
+  background: #151616;
+  border-radius: 0.35rem;
+}
+
+.dark .tt-logo {
+  border: 1px solid #2d2e2e;
+}
+
+.tt-logo-word {
+  font-size: 0.8125rem;
+  font-weight: 900;
+  line-height: 1;
+  color: #f5f2ea;
+  letter-spacing: -0.02em;
+}
+
+.tt-logo-mark {
+  width: 1.15rem;
+  height: 1.15rem;
+  color: #d7f52a;
+}
+
+.VPNavBarTitle .title {
+  display: flex;
+  align-items: center;
+  border: 0;
+}
+
+.vp-doc h1 {
+  letter-spacing: -0.02em;
+}

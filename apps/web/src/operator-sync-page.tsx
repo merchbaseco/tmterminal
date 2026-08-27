@@ -295,9 +295,9 @@ function AboutStatus() {
       </h2>
       <p className="m-0 max-w-[52rem] py-5 pr-4 pl-[clamp(1.5rem,3vw,3rem)] text-muted-foreground max-[48rem]:pt-3 max-[48rem]:pl-4">
         Trademark Terminal processes official USPTO trademark records for International Class 025.
-        Learn how search modes, statuses, and mark types work on the{" "}
-        <a className="text-foreground underline underline-offset-4" href="/help">
-          Help page
+        Learn how search modes, statuses, and mark types work in the{" "}
+        <a className="text-foreground underline underline-offset-4" href="/docs/">
+          docs
         </a>
         .
       </p>

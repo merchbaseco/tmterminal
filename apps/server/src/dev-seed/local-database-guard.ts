@@ -1,11 +1,8 @@
 /**
  * The dev seed clears and refills the trademark tables with fabricated marks.
- * "Not production" is not a safe test for where it may run: the schema's
- * development arm points at the Mac mini over Tailscale, and that host serves
- * the live database (see docs/operations/development.md). The only
- * structurally safe target is a PostgreSQL running on this machine, so the
- * guard allows loopback and refuses everything else, including every hostname
- * that could resolve off-box.
+ * Development is loopback, but a process can still be pointed at production.
+ * The only structurally safe target is PostgreSQL on this machine: loopback
+ * hosts only, including every hostname that could resolve off-box.
  */
 
 const loopbackHostnames = new Set(["127.0.0.1", "::1", "localhost"]);
@@ -26,8 +23,8 @@ export class SeedTargetRefusedError extends Error {
         `Reason: ${reason}`,
         `Target: ${target}`,
         "TMTERMINAL_DATABASE_URL must point at 127.0.0.1, ::1, or localhost.",
-        "Development resolves to the live Trademark Terminal database over Tailscale, which this seed must never touch.",
-        "Start a local PostgreSQL and override the host for the run, for example: TMTERMINAL_DATABASE_HOST=127.0.0.1 bun run db:seed:dev",
+        "This seed must never touch a non-loopback host.",
+        "Point the run at local PostgreSQL, for example: TMTERMINAL_DATABASE_HOST=127.0.0.1 bun run db:seed:dev",
       ].join("\n")
     );
     this.name = "SeedTargetRefusedError";

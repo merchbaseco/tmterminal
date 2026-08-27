@@ -30,7 +30,6 @@ import { appearanceChangedEvent, applyAppearance, savedAppearance } from "./appe
 import { type BulkCheckApi, BulkCheckPage } from "./bulk-check-page.tsx";
 import { CheckTextPage, type TextCheckApi } from "./check-text-page.tsx";
 import { DevAutoSignIn } from "./dev-auto-sign-in.tsx";
-import { HelpPage } from "./help-page.tsx";
 import { LegalFooter } from "./legal-footer.tsx";
 import { type MarkApi, MarkDetailPage } from "./mark-detail-page.tsx";
 import type { OperatorSyncApi, PublicStatusApi } from "./operator-sync-page.tsx";
@@ -290,7 +289,7 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
   } else if (location.pathname === "/status") {
     page = <StatusRoute operatorApi={operator || import.meta.env.DEV ? operatorApi : undefined} />;
   } else if (location.pathname === "/help") {
-    page = <HelpPage />;
+    page = <RedirectToDocs />;
   } else if (location.pathname === "/account") {
     page = (
       <AccountPage
@@ -429,13 +428,8 @@ function TopBar({ pathname }: { pathname: string }) {
           >
             Status
           </a>
-          <a
-            aria-current={pathname === "/help" ? "page" : undefined}
-            className={cn(navItemClassName, pathname === "/help" && activeNavItemClassName)}
-            href="/help"
-            onClick={navigate}
-          >
-            Help
+          <a className={navItemClassName} href="/docs/">
+            Docs
           </a>
           <Show when="signed-in">
             <a
@@ -526,14 +520,7 @@ function MobileNavMenu({
         >
           Status
         </MenuLinkItem>
-        <MenuLinkItem
-          aria-current={pathname === "/help" ? "page" : undefined}
-          className={currentItemClass(pathname === "/help")}
-          href="/help"
-          onClick={navigate}
-        >
-          Help
-        </MenuLinkItem>
+        <MenuLinkItem href="/docs/">Docs</MenuLinkItem>
         {signedIn ? (
           <MenuLinkItem
             aria-current={pathname === "/account" ? "page" : undefined}
@@ -599,6 +586,13 @@ function SignedOutSearch({ search }: { search: string }) {
   );
 }
 
+function RedirectToDocs() {
+  useEffect(() => {
+    window.location.replace("/docs/");
+  }, []);
+  return null;
+}
+
 export function App() {
   const location = useBrowserLocation();
   const [queryClient] = useState(
@@ -611,7 +605,7 @@ export function App() {
   if (location.pathname === "/status") {
     signedOutPage = <StatusRoute />;
   } else if (location.pathname === "/help") {
-    signedOutPage = <HelpPage />;
+    signedOutPage = <RedirectToDocs />;
   }
 
   return (

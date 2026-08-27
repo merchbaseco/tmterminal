@@ -126,7 +126,7 @@ field instead of inverting it. Illustration beyond the mark is deferred.
   the intersections ground the page without turning every value into a card.
 - Primary page mastheads remain intentionally gigantic. Do not reduce their scale
   to make technical controls or metadata feel more conventional.
-- Help and Account use one shared masthead treatment: no eyebrow, one static
+- Account uses one shared masthead treatment: no eyebrow, one static
   expressive title that stays on one line, and one short descriptive line
   beneath it. Status has no separate masthead: its large 30-day activity chart
   is the page anchor and starts at the shared page-start position. Three catalog

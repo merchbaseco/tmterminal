@@ -1,0 +1,31 @@
+# Trademark Terminal
+
+> Trademark search and compliance tool for print-on-demand sellers from MerchBase.
+
+https://tmterminal.merchbase.co/docs/
+
+## Get started
+
+- https://tmterminal.merchbase.co/docs/
+- https://tmterminal.merchbase.co/docs/quickstart
+- https://tmterminal.merchbase.co/docs/sign-in
+- https://tmterminal.merchbase.co/docs/status
+
+## Search
+
+- https://tmterminal.merchbase.co/docs/search-marks
+- https://tmterminal.merchbase.co/docs/check-text
+- https://tmterminal.merchbase.co/docs/bulk-check
+- https://tmterminal.merchbase.co/docs/results
+- https://tmterminal.merchbase.co/docs/mark-records
+
+## Clients
+
+- https://tmterminal.merchbase.co/docs/cli
+- https://tmterminal.merchbase.co/docs/http-client
+- https://tmterminal.merchbase.co/docs/mcp
+
+## Limits
+
+- https://tmterminal.merchbase.co/docs/class-025
+- https://tmterminal.merchbase.co/docs/legal

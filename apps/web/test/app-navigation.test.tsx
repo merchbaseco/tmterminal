@@ -527,7 +527,7 @@ test("compact menu exposes primary navigation on small screens", async () => {
   expect(await screen.findByRole("heading", { name: "Status" })).toBeTruthy();
 });
 
-test("shows public Status and Help without exposing operator sections", async () => {
+test("shows public Status and Docs without exposing operator sections", async () => {
   render(<App />);
 
   fireEvent.click(screen.getByRole("link", { name: "Status" }));
@@ -536,9 +536,8 @@ test("shows public Status and Help without exposing operator sections", async ()
   expect(screen.queryByText("Needs attention")).toBeNull();
   expect(screen.queryByText("Source files")).toBeNull();
 
-  fireEvent.click(screen.getByRole("link", { name: "Help" }));
-  expect(await screen.findByRole("heading", { name: "SEARCH SMARTER" })).toBeTruthy();
-  expect(screen.getByText("Search modes")).toBeTruthy();
+  const docs = screen.getByRole("link", { name: "Docs" });
+  expect(docs.getAttribute("href")).toBe("/docs/");
 });
 
 test("shows operator details on the shared Status page", async () => {

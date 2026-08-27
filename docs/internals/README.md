@@ -1,17 +1,12 @@
 ---
-summary: Routes Trademark Terminal internals for workspace ownership, service boundaries, persistence, and source ingestion.
+summary: Routes ingestion and access internals that are hard to recover from code search.
 read_when:
-  - locating the owner of server, website, client, CLI, authentication, database, or worker behavior
-  - checking system boundaries before changing ingestion or query architecture
+  - checking authentication or ingestion boundaries
 ---
 
 # Internals
 
-Internals docs explain where behavior lives and which boundaries must survive
-refactoring.
-
 | System | Doc |
 | --- | --- |
-| Workspace, applications, clients, auth, and persistence | [Architecture](architecture.md) |
 | Clerk credentials, Access Projections, and stable service accounts | [Access boundary](access-boundary.md) |
 | Source discovery, download, validation, application, cleanup, and restart | [Ingestion](ingestion.md) |

@@ -4,6 +4,8 @@
 !.env.schema
 node_modules/
 dist/
+apps/docs/.vitepress/cache/
+apps/docs/.vitepress/dist/
 coverage/
 tmp/
 fixtures/uspto/**/*.zip

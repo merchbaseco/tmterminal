@@ -182,7 +182,7 @@ grep -qF 'notDeliveredToApi' "$verify_script"
 grep -qF '"TMTERMINAL_DATABASE_PASSWORD"' "$verify_script"
 grep -qF 'requiredOnWorker' "$verify_script"
 
-# --- Deploy workflow: manual only, one secret, both bootstrap slots -------
+# --- Deploy workflow: VERSION-gated release, one secret, both bootstrap slots -------
 
 deployment_workflow="$root/.github/workflows/deploy.yml"
 grep -qF 'name: Deploy Stack' "$deployment_workflow"
@@ -196,8 +196,29 @@ if grep -qF 'git fetch --depth=1 origin "${GITHUB_SHA}"' "$deployment_workflow";
   echo "the deploy sync fetches a bare SHA and leaves origin/main behind" >&2
   exit 1
 fi
-if grep -qF '  push:' "$deployment_workflow"; then
-  echo "the deploy workflow still deploys on main push" >&2
+# Ordinary main merges must not deploy. The only push trigger is a VERSION bump.
+if ! grep -qF -- '- VERSION' "$deployment_workflow"; then
+  echo "the deploy workflow is not gated on VERSION" >&2
+  exit 1
+fi
+if ! grep -qF '    paths:' "$deployment_workflow"; then
+  echo "the deploy workflow still deploys on every main push" >&2
+  exit 1
+fi
+product_version="$(tr -d '[:space:]' < "$root/VERSION")"
+case "$product_version" in
+  [0-9]*.[0-9]*.[0-9]*) ;;
+  *)
+    echo "VERSION is not MAJOR.MINOR.PATCH: $product_version" >&2
+    exit 1
+    ;;
+esac
+if ! grep -qF 'readFileSync(new URL("../../VERSION", import.meta.url)' "$root/apps/web/vite.config.ts"; then
+  echo "the website build no longer reads VERSION" >&2
+  exit 1
+fi
+if ! grep -qF '__TMTERMINAL_VERSION__' "$root/apps/web/src/product-version.ts"; then
+  echo "the website footer no longer uses the Vite-injected VERSION" >&2
   exit 1
 fi
 if grep -qE 'secrets\.(HUGEICONS_LICENSE_KEY|MERCHBASE_GITHUB_NPM_TOKEN)' "$deployment_workflow"; then
@@ -215,6 +236,14 @@ grep -qF 'CURSOR_CLOUD_AGENTS_DEVELOPMENT_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_
 grep -qF 'timeout-minutes: 5' "$quality_workflow"
 if grep -qF '${{ github.token }}' "$quality_workflow"; then
   echo "Quality still installs private packages with the ambient github.token" >&2
+  exit 1
+fi
+if grep -qF 'run -- bun run check' "$quality_workflow"; then
+  echo "the full check still wraps bun run check in varlock run, which breaks compose integration on a runner without the op CLI" >&2
+  exit 1
+fi
+if ! grep -qF 'VARLOCK_ENV=test bunx varlock run -- bun run build' "$root/package.json"; then
+  echo "check no longer wraps only the website build under the test lifecycle" >&2
   exit 1
 fi
 

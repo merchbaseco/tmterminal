@@ -180,11 +180,10 @@ Coverage groups are not persisted releases or query gates.
 
 ## Historical Repair
 
-Repair is explicit, one file at a time, through the private repository workflow.
-An agent inspects durable state before authorizing any new provider request.
+Repair is explicit and one file at a time. An agent inspects durable state
+before authorizing any new provider request.
 Existing data remains searchable and is corrected record by record. A parser
-release does not automatically replay all completed history. See
-[Source repair](../operations/source-repair.md).
+release does not automatically replay all completed history.
 
 ## In-place Migration
 
@@ -202,5 +201,4 @@ are reacquired only through explicit one-file operator actions.
 
 - [Data model](../reference/data-model.md)
 - [USPTO source](../reference/uspto-source.md)
-- [Source status](../product/source-status.md)
 - [Live trademark knowledge decision](../decisions/live-trademark-knowledge.md)
