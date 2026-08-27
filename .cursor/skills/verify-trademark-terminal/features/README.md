@@ -8,7 +8,7 @@ This directory is the maintained source for verifying user-facing website behavi
 
 - Doctor is green: `.cursor/skills/verify-trademark-terminal/scripts/doctor.sh`
 - Browser origin is the loopback URL the venue advertises (`http://127.0.0.1:5173` in Cloud Agents).
-- Cloud: signed in as the Dev Sign-In user; seeded showcase marks exist (`GNOME` and the other solo marks).
+- Cloud: signed in as the Dev Sign-In user; seeded showcase marks exist (`GNOME` and the other solo marks). That account’s saved defaults are not product defaults: Status `Live`, Sort `Newest activity`, 50 per page, comfortable density.
 - Workstation: signed in with a real Clerk session against live data. Do not seed. Do not treat `GNOME` as guaranteed.
 - Desktop viewport (≥ 48rem) unless the recipe is the mobile menu.
 - Never drive a second stack on the same ports.

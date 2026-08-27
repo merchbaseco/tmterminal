@@ -11,7 +11,8 @@ ok() { printf 'ok    %s\n' "$1"; }
 bad() { printf 'fail  %s\n' "$1" >&2; failed=1; }
 
 local_pg=no
-if command -v ss >/dev/null && ss -ltn | grep -q ':5437 '; then
+# Schema development port. Prefer a TCP probe — `ss` is not on every image.
+if timeout 1 bash -c 'echo >/dev/tcp/127.0.0.1/5437' >/dev/null 2>&1; then
   local_pg=yes
 fi
 
