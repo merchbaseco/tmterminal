@@ -97,7 +97,7 @@ Before any PRD commit, PR, merge, or closeout:
 - Ingestion changes require restart, idempotency, cleanup, source-coordinate, artifact-replay, live-visibility, and transaction coverage.
 - Search changes require filter, sort, count, pagination, and index-use coverage.
 - Client and CLI changes require contract generation/build plus JSON-envelope tests.
-- Website changes require focused automated checks plus the `app-feature-verification` happy and adjacent paths.
+- Website changes require focused automated checks plus the `verify-trademark-terminal` happy and adjacent paths.
 - Deployment changes require local Compose health verification before release.
 
 ## Agent skills
