@@ -111,6 +111,7 @@ jobs:
     timeout-minutes: 30
     env:
       CURSOR_CLOUD_AGENTS_DEVELOPMENT_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}
+      DEPLOY_AGENT_PRODUCTION_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -143,7 +144,9 @@ jobs:
           export MERCHBASE_GITHUB_NPM_TOKEN MERCHBASE_HUGEICONS_LICENSE_KEY
           bun install --frozen-lockfile
 
-      # The website build inlines VITE_ values, so the whole of `check` runs
-      # under the schema's test lifecycle rather than repeating a literal here.
+      # Do not wrap this in `varlock run`. The Compose integration lane re-execs
+      # itself with `--include-internal`; a parent varlock session makes that
+      # nested run ask for the `op` CLI, which GitHub-hosted runners do not have.
+      # `check` wraps only the website build so VITE_ values stay on the test arm.
       - name: Fast lane, fixture tooling, Compose integration, and builds
-        run: VARLOCK_ENV=test bunx varlock@1.16.1 run -- bun run check
+        run: bun run check
