@@ -12,7 +12,12 @@
     {
       "name": "web",
       "command": "bash .cursor/web.sh",
-      "description": "Trademark Terminal website (Vite dev server) on port 5173, proxying /api to the API. It binds every interface for the same port-forwarding reason, and signs in automatically as the shared Merchbase Dev Sign-In user, which owns the seeded data. Open this URL to navigate the app."
+      "description": "Trademark Terminal website (Vite dev server) on port 5173, proxying /api to the API and /docs to VitePress. It binds every interface for the same port-forwarding reason, and signs in automatically as the shared Merchbase Dev Sign-In user, which owns the seeded data. Open this URL to navigate the app."
+    },
+    {
+      "name": "docs",
+      "command": "bash .cursor/docs.sh",
+      "description": "VitePress product docs on port 5174. The website proxies /docs here, so open http://127.0.0.1:5173/docs."
     }
   ],
   "ports": [{ "name": "api", "port": 3000 }, { "name": "web", "port": 5173 }]

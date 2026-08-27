@@ -1,8 +1,14 @@
 name: Deploy Stack
 
-# Manual only. Pushing to main does not deploy: a deploy is an explicit act now
-# that it resolves production credentials from 1Password.
+# GitHub Actions owns production deploys. A release PR bumps VERSION; merging
+# that change to main ships the revision after the full check preflight.
+# Ordinary main merges do not deploy. workflow_dispatch redeploys current main.
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - VERSION
   workflow_dispatch:
 
 concurrency:

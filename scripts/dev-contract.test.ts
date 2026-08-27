@@ -67,6 +67,14 @@ test("containers receive resolved values and never resolve them", async () => {
   expect(dockerignore).toContain(".env.*");
 });
 
+test("development schema host is loopback", async () => {
+  const schema = await readFile(new URL("../.env.schema", import.meta.url), "utf8");
+  expect(schema).toContain(
+    "TMTERMINAL_DATABASE_HOST=if(eq($VARLOCK_ENV, production), database, 127.0.0.1)"
+  );
+  expect(schema).not.toContain("zachs-mac-mini");
+});
+
 test("the Cursor cloud environment overrides the database host and the dev binds", async () => {
   const environment = JSON.parse(
     await readFile(new URL("../.cursor/environment.json", import.meta.url), "utf8")
@@ -75,6 +83,7 @@ test("the Cursor cloud environment overrides the database host and the dev binds
 
   const start = await readFile(new URL("../.cursor/start.sh", import.meta.url), "utf8");
   expect(start).toContain("export TMTERMINAL_DATABASE_HOST=127.0.0.1");
+  expect(start).toContain("scripts/dev-db");
 
   // Cursor forwards the ports it can see, and it sees only non-loopback binds.
   const api = await readFile(new URL("../.cursor/api.sh", import.meta.url), "utf8");
@@ -85,8 +94,10 @@ test("the Cursor cloud environment overrides the database host and the dev binds
 
   // The seed's receipt is the boot's receipt; a discarded one leaves a session
   // with no evidence of what it is looking at.
-  expect(start).toContain("bun run db:seed:dev");
-  expect(start).not.toContain("db:seed:dev >/dev/null");
+  const devDb = await readFile(new URL("./dev-db", import.meta.url), "utf8");
+  expect(devDb).toContain("bun run db:seed:dev");
+  expect(devDb).not.toContain("db:seed:dev >/dev/null");
+  expect(devDb).toContain("TMTERMINAL_DATABASE_HOST");
 
   // The cluster listens on the schema's development port, so the port is not
   // overridden anywhere; only the host is.
@@ -98,7 +109,7 @@ test("the Cursor cloud environment overrides the database host and the dev binds
   expect(postgresLib).not.toMatch(hardCodedDatabasePassword);
 });
 
-test("development starts local API and web through varlock against the Mac mini database", async () => {
+test("development starts local API and web through varlock against loopback Postgres", async () => {
   const packageJson = JSON.parse(
     await readFile(new URL("../package.json", import.meta.url), "utf8")
   );
@@ -112,6 +123,7 @@ test("development starts local API and web through varlock against the Mac mini 
   const vitePid = join(root, "vite.pid");
   await mkdir(join(root, "scripts"));
   await mkdir(join(root, "apps/web/node_modules/.bin"), { recursive: true });
+  await mkdir(join(root, "apps/docs/node_modules/.bin"), { recursive: true });
   await mkdir(bin);
   await copyFile(new URL("./dev", import.meta.url), join(root, "scripts", "dev"));
   await Bun.write(
@@ -138,6 +150,15 @@ while :; do :; done
   await chmod(join(root, "scripts", "dev"), 0o755);
   await chmod(join(bin, "bun"), 0o755);
   await chmod(join(root, "apps/web/node_modules/.bin/vite"), 0o755);
+  await Bun.write(
+    join(root, "apps/docs/node_modules/.bin/vitepress"),
+    `#!/bin/sh
+printf 'docs|%s\\n' "$*" >> "$FAKE_BUN_LOG"
+trap 'exit 0' TERM
+while :; do :; done
+`
+  );
+  await chmod(join(root, "apps/docs/node_modules/.bin/vitepress"), 0o755);
 
   // The re-exec under `varlock run` has already happened at this point, so the
   // resolved environment is supplied directly — the same seam varlock fills.
@@ -148,8 +169,7 @@ while :; do :; done
       PATH: `${bin}:/usr/bin:/bin:/usr/sbin:/sbin`,
       TMTERMINAL_API_PORT: "4101",
       TMTERMINAL_CLERK_AUTHORIZED_PARTIES: "http://127.0.0.1:4100",
-      TMTERMINAL_DATABASE_URL:
-        "postgres://tmturtle:secret@zachs-mac-mini.taila0b849.ts.net:5437/tmturtle",
+      TMTERMINAL_DATABASE_URL: "postgres://tmturtle:secret@127.0.0.1:5437/tmturtle",
       TMTERMINAL_DEV_ENV_READY: "1",
       TMTERMINAL_HOST: "127.0.0.1",
       TMTERMINAL_PORT: "4101",
@@ -163,19 +183,20 @@ while :; do :; done
   try {
     expect(await process.exited).toBe(7);
     expect(await new Response(process.stdout).text()).toContain(
-      "Using the production database; mutations are real."
+      "Local development database on 127.0.0.1. Seed is fabricated. Worker is off."
     );
     expect(packageJson.scripts.dev).toBe("./scripts/dev");
     const calls = (await Bun.file(log).text()).trim().split("\n");
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
     expect(calls).toContainEqual(
       expect.stringContaining(
-        "api|postgres://tmturtle:secret@zachs-mac-mini.taila0b849.ts.net:5437/tmturtle|4101|http://127.0.0.1:4100|127.0.0.1|apps/server/src/server.ts"
+        "api|postgres://tmturtle:secret@127.0.0.1:5437/tmturtle|4101|http://127.0.0.1:4100|127.0.0.1|apps/server/src/server.ts"
       )
     );
     // The bind address is the Vite config's to decide from TMTERMINAL_DEV_HOST,
     // so the command line carries only the port.
     expect(calls).toContain("web|pk_test_tmterminal|4101|apps/web --port 4100");
+    expect(calls).toContain("docs|dev apps/docs --port 5174 --host 127.0.0.1");
     expect(calls.join("\n")).not.toContain("worker");
     expect(calls.join("\n")).not.toContain("migrate");
     const stoppedVitePid = (await Bun.file(vitePid).text()).trim();

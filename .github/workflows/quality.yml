@@ -26,10 +26,10 @@ jobs:
     name: Check
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # The single platform-held bootstrap, mapped into the development slot. Both
-    # the dependency install and the Compose integration lane resolve @internal
-    # install credentials through the schema, and neither runner has the
-    # 1Password CLI, so the service-account token is the only way they can.
+    # GitHub Actions stores one secret: the 1Password token mapped into the
+    # development slot. Both the dependency install and the Compose integration
+    # lane resolve @internal install credentials through the schema, and neither
+    # runner has the 1Password CLI, so that token is how they read the vault.
     # Everything else pins VARLOCK_ENV=test and touches no vault at all.
     env:
       CURSOR_CLOUD_AGENTS_DEVELOPMENT_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}
@@ -87,9 +87,9 @@ jobs:
       # integration lane — that lane alone cost more than a minute per commit,
       # because it builds images and boots Compose. All three now live in
       # `bun run check`, which the operator runs locally and which the
-      # `full` job below runs as the Deploy preflight, so nothing is skipped
-      # where it matters. Keep this job free of builds, image builds, and
-      # Compose.
+      # `full` job below runs as the Deploy preflight (push to main or
+      # dispatch), so nothing is skipped where it matters. Keep this job free
+      # of builds, image builds, and Compose.
       - name: Environment contract, typecheck, and unit tests
         run: bun run check:fast
 
@@ -104,8 +104,8 @@ jobs:
     name: Full check
     # Deploy preflight only. `lint-base` is a required `workflow_call` input, so
     # it is non-empty exactly when Deploy called this workflow and empty on an
-    # ordinary push or pull request. Pushes and PRs get the fast lane above;
-    # the thing that actually ships still gets every lane.
+    # ordinary pull request. PRs get the fast lane above; a push to main or a
+    # dispatch still gets every lane before the Mac mini job runs.
     if: ${{ inputs.lint-base != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30

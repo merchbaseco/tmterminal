@@ -57,9 +57,8 @@ if [ ! -f "$PGDATA/PG_VERSION" ]; then
 fi
 pg_start
 
-# The schema's development arm points at the Mac mini over Tailscale, which a
-# cloud VM cannot reach. Override that one public value for this session; the
-# password still resolves from the Development vault and provisions the role.
+# Development is loopback. The password still resolves from the Development
+# vault and provisions the local role.
 export TMTERMINAL_DATABASE_HOST=127.0.0.1
 pg_ensure_databases
 

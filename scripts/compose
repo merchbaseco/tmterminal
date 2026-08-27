@@ -17,9 +17,14 @@ if [ -z "${TMTERMINAL_COMPOSE_ENV_READY:-}" ]; then
   COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-tmterminal-${TMTERMINAL_WEB_PORT}}"
   TMTERMINAL_CLERK_AUTHORIZED_PARTIES="${TMTERMINAL_CLERK_AUTHORIZED_PARTIES:-http://127.0.0.1:${TMTERMINAL_WEB_PORT}}"
   TMTERMINAL_REVISION="${TMTERMINAL_REVISION:-development-${COMPOSE_PROJECT_NAME}}"
+  # Schema development host is loopback for host-run API/web. Inside Compose
+  # the API talks to the database service on the container network.
+  TMTERMINAL_DATABASE_HOST=database
+  TMTERMINAL_DATABASE_PORT=5432
   TMTERMINAL_COMPOSE_ENV_READY=1
   export COMPOSE_PROJECT_NAME TMTERMINAL_CLERK_AUTHORIZED_PARTIES TMTERMINAL_REVISION
   export TMTERMINAL_WEB_PORT TMTERMINAL_API_PORT TMTERMINAL_DATABASE_PUBLISHED_PORT
+  export TMTERMINAL_DATABASE_HOST TMTERMINAL_DATABASE_PORT
   export TMTERMINAL_COMPOSE_ENV_READY
   # --include-internal keeps the @internal bootstrap token in the child;
   # without it the nested resolution below has no 1Password identity and

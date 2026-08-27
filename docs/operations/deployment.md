@@ -10,7 +10,7 @@ read_when:
 Trademark Terminal runs from `/Users/zknicker/srv/tmterminal` as Compose project
 `tmterminal`. Cloudflare Tunnel sends `https://tmterminal.merchbase.co` to loopback
 Caddy on port 8095. API diagnostics use loopback port 3095; PostgreSQL uses
-loopback 5437 for the established Tailscale development path.
+loopback 5437 for host and Tailscale operator access.
 
 ## Topology
 
@@ -20,7 +20,7 @@ loopback 5437 for the established Tailscale development path.
 | migrate | One-shot Drizzle migration before long-running services. |
 | API | Fastify/tRPC, hosted MCP, OAuth discovery, and data-free readiness. |
 | worker | Serial USPTO discovery, download, and application. |
-| Caddy/web | Static website plus exact `/api`, `/mcp`, and OAuth discovery proxies. |
+| Caddy/web | Static website and `/docs`, plus exact `/api`, `/mcp`, and OAuth discovery proxies. |
 
 PostgreSQL and artifact storage use named volumes. No service binds a public host
 port. The worker handles one temporary ZIP at a time and keeps the 20 GiB floor
@@ -28,14 +28,15 @@ for both persistent filesystems.
 
 ## GitHub Deployment
 
-Production deployment is the manually dispatched `Deploy Stack` workflow. A
-push to `main` never deploys; a deploy is an explicit act now that it resolves
-production credentials from 1Password.
+Production deployment is GitHub Actions. A release PR bumps `VERSION` and
+records `CHANGELOG.md`. Merging that `VERSION` change onto `main` runs
+`Deploy Stack` after the full check preflight. Ordinary merges to `main` do
+not deploy. `workflow_dispatch` redeploys current `main`. Use the
+`release-trademark-terminal` skill to cut the release PR.
 
 **A deploy can only ever ship `main`.** `scripts/deployment-revision` refuses
-unless `HEAD` equals both the dispatched SHA and `origin/main`, so dispatching
-the workflow against a feature branch is refused by design — land the change
-first, then dispatch. The operator dry run (`bun run deploy:dry-run`) needs
+unless `HEAD` equals both the workflow SHA and `origin/main`. Feature branches
+do not deploy. The operator dry run (`bun run deploy:dry-run`) needs
 Docker plus an identity that reads both lifecycle vaults, so it runs from a
 workstation with Docker, not from the mini: the host holds only the
 Production-scoped Mac Mini identity and cannot resolve the Development-vault
@@ -74,10 +75,9 @@ authenticated reads independently observable.
 ## Secrets
 
 There is no `.env` on the production host. Every value resolves from
-1Password through the committed schema at deploy time and reaches the
-containers as environment, never as a generated plaintext file — see
-[Environment](environment.md). The deploy script refuses to run if a `.env`
-reappears in the checkout.
+1Password through the committed `.env.schema` at deploy time and reaches the
+containers as environment, never as a generated plaintext file. The deploy
+script refuses to run if a `.env` reappears in the checkout.
 
 `TMTERMINAL_MCP_RESOURCE_URL` is non-secret configuration owned by the schema.
 It must remain an absolute HTTP URL with the exact `/mcp` path.
