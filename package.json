@@ -22,7 +22,6 @@
     "deploy:dry-run": "bun run scripts/deploy-with-varlock.ts --dry-run",
     "deploy:verify": "bun run scripts/verify-deployed-secrets.ts",
     "dev": "./scripts/dev",
-    "docs:list": "docs-list",
     "env:check": "VARLOCK_ENV=test bunx varlock load --agent --skip-cache -p .env.schema",
     "env:contract": "bun run scripts/env-contract-check.ts",
     "env:load": "bunx varlock load --agent",

@@ -33,7 +33,6 @@ bun run test
 bun run check:fast
 bun run check
 bun run build
-bun run docs:list
 ```
 
 Disposable PostgreSQL:
