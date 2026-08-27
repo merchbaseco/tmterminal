@@ -65,9 +65,9 @@ bun run lint
 bun run build
 ```
 
-See [development](docs/operations/development.md) for environment setup and
-[testing](docs/operations/testing.md) for PostgreSQL and production-shaped
-verification.
+`bun run dev` starts local Postgres, migrates, seeds fabricated data, and
+serves the API and website. See [testing](docs/operations/testing.md) for
+PostgreSQL and production-shaped verification.
 
 ## Project status
 

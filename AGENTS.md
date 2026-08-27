@@ -18,17 +18,25 @@ to that file for Matt Pocock skills.
   readiness (`/api/health`) and aggregate `/api/status` only.
 - Annual and daily are USPTO packaging, not query-visible datasets.
 
-## Venue
+## Development
 
-Cloud Agents use `.cursor/start.sh` and local Postgres on `127.0.0.1`. The
-website origin must be `127.0.0.1`, not `localhost`. Seed is fabricated and
-local only. See [Development](docs/operations/development.md).
+One model everywhere. `bun run dev` and Cloud `.cursor/start.sh` both use
+local Postgres on `127.0.0.1`, apply migrations, and seed fabricated data.
+The seed refuses any non-loopback host and never calls USPTO. Worker stays
+off. Website origin is `127.0.0.1`, not `localhost`.
 
-Workstation `bun run dev` points at production over Tailscale. Do not seed a
-non-loopback database.
+## Secrets
 
-Secrets resolve from 1Password through Varlock. There is no `.env` file.
-See [Environment](docs/operations/environment.md).
+The committed `.env.schema` is the contract. Varlock resolves values from
+1Password. There is no `.env` file. `VARLOCK_ENV` is `production`,
+`development`, or `test`. The only platform-held secret is
+`GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN`.
+
+## Release
+
+Use the `release-trademark-terminal` skill. It updates `CHANGELOG.md` and
+opens a PR. Merging to `main` deploys through GitHub Actions. Do not deploy
+from a laptop.
 
 ## Verification
 
@@ -44,8 +52,8 @@ full set. Read [Testing](docs/operations/testing.md) before changing that split.
 
 ## Operator
 
-- Repair one source file only after reading
-  [Source repair](docs/operations/source-repair.md).
 - Linear lives on the Products team (`PRD`) with the `Trademark Terminal`
   label. Triage labels are in [Issues](docs/operations/issues.md).
 - Quiet Utility and COSS rules live in [Design](docs/design/system.md).
+- Production topology and rollback notes live in
+  [Deployment](docs/operations/deployment.md).

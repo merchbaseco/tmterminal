@@ -180,11 +180,10 @@ Coverage groups are not persisted releases or query gates.
 
 ## Historical Repair
 
-Repair is explicit, one file at a time, through the private repository workflow.
+Repair is explicit, one file at a time, through `bun run source:repair`.
 An agent inspects durable state before authorizing any new provider request.
 Existing data remains searchable and is corrected record by record. A parser
-release does not automatically replay all completed history. See
-[Source repair](../operations/source-repair.md).
+release does not automatically replay all completed history.
 
 ## In-place Migration
 

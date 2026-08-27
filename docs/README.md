@@ -18,11 +18,8 @@ These pages stay because they are hard to recover from code search.
 | Clerk credentials and Access Projections | [Access boundary](internals/access-boundary.md) |
 | Tables, source states, mark precedence | [Data model](reference/data-model.md) |
 | ODP quotas, XML identity, class semantics | [USPTO source](reference/uspto-source.md) |
-| Local install, Cloud vs workstation, seed | [Development](operations/development.md) |
-| Varlock and 1Password | [Environment](operations/environment.md) |
 | Verification lanes | [Testing](operations/testing.md) |
 | Mac mini release | [Deployment](operations/deployment.md) |
-| Repair one source file | [Source repair](operations/source-repair.md) |
 | Linear routing and triage labels | [Issues](operations/issues.md) |
 | Quiet Utility / COSS | [Design](design/system.md) |
 | Live data is immediately queryable | [Live trademark knowledge](decisions/live-trademark-knowledge.md) |
