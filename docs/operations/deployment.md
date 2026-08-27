@@ -20,7 +20,7 @@ loopback 5437 for the established Tailscale development path.
 | migrate | One-shot Drizzle migration before long-running services. |
 | API | Fastify/tRPC, hosted MCP, OAuth discovery, and data-free readiness. |
 | worker | Serial USPTO discovery, download, and application. |
-| Caddy/web | Static website plus exact `/api`, `/mcp`, and OAuth discovery proxies. |
+| Caddy/web | Static website and `/docs`, plus exact `/api`, `/mcp`, and OAuth discovery proxies. |
 
 PostgreSQL and artifact storage use named volumes. No service binds a public host
 port. The worker handles one temporary ZIP at a time and keeps the 20 GiB floor

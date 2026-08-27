@@ -144,7 +144,7 @@ or request an unbounded result set for every phrase at once.
 /marks/:serial-number     mark detail
 /account                  Account and API-key management
 /status                   public status; operator details for approved admins
-/help                     public search and data help
+/docs                     public product documentation
 ```
 
 Search URLs encode submitted query, mode, match options, filters, and sort.
@@ -152,7 +152,7 @@ Loaded infinite-scroll depth is navigation state, not URL state.
 
 ## Help
 
-The public Help page explains Multi, Split, and Wildcard search; result status,
+The public docs explain Multi, Split, and Wildcard search; result status,
 type, identity, and filters; the USPTO source; and the legal disclaimer. It uses
 customer language and does not expose parser or source-file internals.
 

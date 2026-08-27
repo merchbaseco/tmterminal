@@ -112,6 +112,7 @@ test("development starts local API and web through varlock against the Mac mini 
   const vitePid = join(root, "vite.pid");
   await mkdir(join(root, "scripts"));
   await mkdir(join(root, "apps/web/node_modules/.bin"), { recursive: true });
+  await mkdir(join(root, "apps/docs/node_modules/.bin"), { recursive: true });
   await mkdir(bin);
   await copyFile(new URL("./dev", import.meta.url), join(root, "scripts", "dev"));
   await Bun.write(
@@ -138,6 +139,15 @@ while :; do :; done
   await chmod(join(root, "scripts", "dev"), 0o755);
   await chmod(join(bin, "bun"), 0o755);
   await chmod(join(root, "apps/web/node_modules/.bin/vite"), 0o755);
+  await Bun.write(
+    join(root, "apps/docs/node_modules/.bin/vitepress"),
+    `#!/bin/sh
+printf 'docs|%s\\n' "$*" >> "$FAKE_BUN_LOG"
+trap 'exit 0' TERM
+while :; do :; done
+`
+  );
+  await chmod(join(root, "apps/docs/node_modules/.bin/vitepress"), 0o755);
 
   // The re-exec under `varlock run` has already happened at this point, so the
   // resolved environment is supplied directly — the same seam varlock fills.
@@ -167,7 +177,7 @@ while :; do :; done
     );
     expect(packageJson.scripts.dev).toBe("./scripts/dev");
     const calls = (await Bun.file(log).text()).trim().split("\n");
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
     expect(calls).toContainEqual(
       expect.stringContaining(
         "api|postgres://tmturtle:secret@zachs-mac-mini.taila0b849.ts.net:5437/tmturtle|4101|http://127.0.0.1:4100|127.0.0.1|apps/server/src/server.ts"
@@ -176,6 +186,7 @@ while :; do :; done
     // The bind address is the Vite config's to decide from TMTERMINAL_DEV_HOST,
     // so the command line carries only the port.
     expect(calls).toContain("web|pk_test_tmterminal|4101|apps/web --port 4100");
+    expect(calls).toContain("docs|dev apps/docs --port 5174 --host 127.0.0.1");
     expect(calls.join("\n")).not.toContain("worker");
     expect(calls.join("\n")).not.toContain("migrate");
     const stoppedVitePid = (await Bun.file(vitePid).text()).trim();

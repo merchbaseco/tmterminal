@@ -6,6 +6,16 @@
 		reverse_proxy api:3000
 	}
 
+	redir /help /docs 308
+	redir /help/ /docs 308
+	redir /docs /docs/ 308
+
+	handle /docs* {
+		root * /srv
+		try_files {path} {path}.html {path}/index.html /docs/index.html
+		file_server
+	}
+
 	handle {
 		root * /srv
 		try_files {path} /index.html

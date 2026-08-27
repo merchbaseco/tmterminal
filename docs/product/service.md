@@ -70,7 +70,7 @@ rewritten by account defaults.
 
 | Surface | Role |
 | --- | --- |
-| Website | Private search, text matching, bulk screening, mark detail, preferences, and an Account Center link plus public Status and Help pages. |
+| Website | Private search, text matching, bulk screening, mark detail, preferences, and an Account Center link plus public Status and `/docs`. |
 | `@tmterminal/http-client` | Typed programmatic access derived from the server router. |
 | `@tmterminal/cli` / `tt` | JSON-first shell automation over API-key-authorized procedures. |
 | Hosted MCP | Read-only agent tools over OAuth-authorized trademark operations. |

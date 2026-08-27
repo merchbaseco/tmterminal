@@ -1,0 +1,31 @@
+# Trademark Terminal
+
+> Search United States trademarks for print-on-demand work. Evidence, not a verdict. Class 025 in v1.
+
+https://tmterminal.merchbase.co/docs/
+
+## Start
+
+- https://tmterminal.merchbase.co/docs/
+- https://tmterminal.merchbase.co/docs/sign-in
+- https://tmterminal.merchbase.co/docs/status
+
+## Search
+
+- https://tmterminal.merchbase.co/docs/search-marks
+- https://tmterminal.merchbase.co/docs/reading-results
+- https://tmterminal.merchbase.co/docs/check-text
+- https://tmterminal.merchbase.co/docs/bulk-check
+- https://tmterminal.merchbase.co/docs/mark-records
+
+## Automate
+
+- https://tmterminal.merchbase.co/docs/automate
+- https://tmterminal.merchbase.co/docs/cli
+- https://tmterminal.merchbase.co/docs/http-client
+- https://tmterminal.merchbase.co/docs/mcp
+
+## Limits
+
+- https://tmterminal.merchbase.co/docs/class-025
+- https://tmterminal.merchbase.co/docs/legal

@@ -1,0 +1,23 @@
+:root {
+  --vp-font-family-base: "Archivo Variable", "Archivo", sans-serif;
+  --vp-font-family-mono: ui-monospace, "SF Mono", "Menlo", monospace;
+  --vp-c-brand-1: #6b7a12;
+  --vp-c-brand-2: #5c6a0f;
+  --vp-c-brand-3: #4d590c;
+  --vp-c-brand-soft: rgb(215 245 42 / 16%);
+}
+
+.dark {
+  --vp-c-brand-1: #d7f52a;
+  --vp-c-brand-2: #c6e326;
+  --vp-c-brand-3: #b4d11f;
+  --vp-c-bg: #0d0e0e;
+  --vp-c-bg-alt: #151616;
+  --vp-c-bg-elv: #151616;
+  --vp-c-bg-soft: #1b1c1c;
+}
+
+.vp-doc h1,
+.VPNavBarTitle .title {
+  letter-spacing: -0.02em;
+}

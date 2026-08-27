@@ -23,6 +23,7 @@ describe how USPTO files continuously update the searchable database.
 
 | Task | Read |
 | --- | --- |
+| Read seller-facing product docs | [tmterminal.merchbase.co/docs](https://tmterminal.merchbase.co/docs) |
 | Understand product scope | [Product docs](product/README.md), [Service](product/service.md) |
 | Change search, matching, screening, or mark detail | [Search](product/search.md), [HTTP API](reference/http-api.md) |
 | Change USPTO ingestion or precedence | [Ingestion internals](internals/ingestion.md), [Data model](reference/data-model.md), [USPTO source](reference/uspto-source.md) |
