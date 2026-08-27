@@ -50,6 +50,7 @@ export default defineConfig(({ command }) => {
           host: devServerHost,
           proxy: {
             "/api": `http://127.0.0.1:${apiPort}`,
+            "/docs": "http://127.0.0.1:5174",
           },
         }
       : undefined,

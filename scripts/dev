@@ -27,16 +27,19 @@ web_port="$TMTERMINAL_WEB_PORT"
 api_port="$TMTERMINAL_API_PORT"
 
 printf 'Local development database on 127.0.0.1. Seed is fabricated. Worker is off.\n'
-printf 'Website: http://127.0.0.1:%s\nAPI: http://127.0.0.1:%s\n' "$web_port" "$api_port"
+printf 'Website: http://127.0.0.1:%s\nAPI: http://127.0.0.1:%s\nDocs: http://127.0.0.1:%s/docs\n' \
+  "$web_port" "$api_port" "$web_port"
 
 bun apps/server/src/server.ts &
 api_pid=$!
 apps/web/node_modules/.bin/vite apps/web --port "$web_port" &
 web_pid=$!
+apps/docs/node_modules/.bin/vitepress dev apps/docs --port 5174 --host 127.0.0.1 &
+docs_pid=$!
 
 cleanup() {
-  kill "$api_pid" "$web_pid" 2>/dev/null || true
-  wait "$api_pid" "$web_pid" 2>/dev/null || true
+  kill "$api_pid" "$web_pid" "$docs_pid" 2>/dev/null || true
+  wait "$api_pid" "$web_pid" "$docs_pid" 2>/dev/null || true
 }
 trap cleanup EXIT
 trap 'exit 130' INT
@@ -54,6 +57,14 @@ while :; do
   fi
   if ! kill -0 "$web_pid" 2>/dev/null; then
     if wait "$web_pid"; then
+      status=1
+    else
+      status=$?
+    fi
+    break
+  fi
+  if ! kill -0 "$docs_pid" 2>/dev/null; then
+    if wait "$docs_pid"; then
       status=1
     else
       status=$?

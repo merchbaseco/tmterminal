@@ -23,7 +23,8 @@ to that file for Matt Pocock skills.
 One model everywhere. `bun run dev` and Cloud `.cursor/start.sh` both use
 local Postgres on `127.0.0.1`, apply migrations, and seed fabricated data.
 The seed refuses any non-loopback host and never calls USPTO. Worker stays
-off. Website origin is `127.0.0.1`, not `localhost`.
+off. Website origin is `127.0.0.1`, not `localhost`. Docs at `/docs` on the
+website port; VitePress also serves them on `127.0.0.1:5174` during `dev`.
 
 ## Secrets
 
@@ -58,3 +59,5 @@ full set. Read [Testing](docs/operations/testing.md) before changing that split.
 - Quiet Utility and COSS rules live in [Design](docs/design/system.md).
 - Production topology and rollback notes live in
   [Deployment](docs/operations/deployment.md).
+- Public docs live in `apps/docs` and ship at `/docs`. Write them with the
+  fleet `write-product-docs` skill.

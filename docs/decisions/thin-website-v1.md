@@ -22,7 +22,7 @@ marketing and dashboard surface would distract from the trademark service.
 
 V1 includes a private Vite/React website using shared MerchBase Clerk
 authentication. It exposes authenticated search, text matching, bulk screening,
-mark detail, and API-key management; Status and Help are public. Source errors,
+mark detail, and API-key management; Status and `/docs` are public. Source errors,
 file details, and repair remain operator-only. Stock COSS UI and the documented
 visual system keep the surface narrow.
 

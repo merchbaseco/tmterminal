@@ -7,6 +7,9 @@
       "!!apps/server/drizzle/**/*.sql",
       "!!apps/web/src/components/charts",
       "!!apps/web/src/components/shimmering-text.tsx",
+      "!!apps/docs/.vitepress/cache",
+      "!!apps/docs/.vitepress/dist",
+      "!!apps/docs/public",
       "!!apps/web/src/components/ui",
       "!!fixtures/uspto/records",
       "!!fixtures/uspto/prologs"

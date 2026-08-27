@@ -6,7 +6,7 @@ read_when:
 
 # Maintainer notes
 
-Seller help is [tmterminal.merchbase.co/help](https://tmterminal.merchbase.co/help).
+Seller docs are [tmterminal.merchbase.co/docs](https://tmterminal.merchbase.co/docs).
 CLI and HTTP contracts live in the published package READMEs. Shared nouns live
 in root [`GLOSSARY.md`](../GLOSSARY.md). `CONTEXT.md` is a symlink to that file.
 

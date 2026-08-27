@@ -78,8 +78,8 @@ the live trademark database directly. See
 [ingestion](docs/internals/ingestion.md) and
 [live trademark knowledge](docs/decisions/live-trademark-knowledge.md).
 
-Seller-facing product help lives on
-[tmterminal.merchbase.co/help](https://tmterminal.merchbase.co/help). CLI and
+Seller-facing product docs live on
+[tmterminal.merchbase.co/docs](https://tmterminal.merchbase.co/docs). CLI and
 HTTP contracts live in [`packages/cli`](packages/cli/README.md) and
 [`packages/http-client`](packages/http-client/README.md). Shared nouns live in
 [`GLOSSARY.md`](GLOSSARY.md). Remaining maintainer notes are listed in
