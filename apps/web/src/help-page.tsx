@@ -26,7 +26,7 @@ export function HelpPage() {
 
       <section className="mt-[clamp(2.5rem,5vw,4.5rem)] grid grid-cols-[minmax(12rem,0.45fr)_minmax(0,1fr)] border-border border-y max-[48rem]:grid-cols-1">
         <h2 className="m-0 border-border border-r py-[clamp(2rem,4vw,3.5rem)] pr-[clamp(1.5rem,3vw,3rem)] font-semibold text-base max-[48rem]:border-r-0 max-[48rem]:pr-0 max-[48rem]:pb-0">
-          Search modes
+          Search Marks
         </h2>
         <dl className="m-0 grid gap-6 py-[clamp(2rem,4vw,3.5rem)] pl-[clamp(1.5rem,3vw,3rem)] max-[48rem]:pt-5 max-[48rem]:pl-0">
           {searchModes.map((mode) => (
@@ -37,6 +37,21 @@ export function HelpPage() {
           ))}
         </dl>
       </section>
+
+      <HelpSection title="Check Text">
+        <p>
+          Paste listing copy. Trademark Terminal finds live marks that appear as exact phrases in
+          that text. Highlighted passages are navigation, not a verdict. Selecting a passage filters
+          the result list to the marks behind it.
+        </p>
+      </HelpSection>
+
+      <HelpSection title="Bulk Check">
+        <p>
+          Enter one phrase per line. Each phrase gets live exact and live partial counts. Counts are
+          evidence. They do not say a phrase is safe. Open a phrase to see ordinary search results.
+        </p>
+      </HelpSection>
 
       <HelpSection title="Reading results">
         <p>
@@ -56,11 +71,51 @@ export function HelpPage() {
         </p>
       </HelpSection>
 
+      <HelpSection title="Mark records">
+        <p>
+          Each mark has a stable page at its eight-digit serial number. Registration numbers are
+          seven digits and appear only after the USPTO registers the mark. The page shows owner,
+          classes, goods and services, and status history. Open the official USPTO TSDR record from
+          the mark page when you need the government file.
+        </p>
+      </HelpSection>
+
+      <HelpSection title="Status">
+        <p>
+          Latest Processed is the newest source coverage date that applied safely. Searches stay
+          available while newer files are processed. Public status shows catalog totals and recent
+          activity, not individual source errors.
+        </p>
+      </HelpSection>
+
+      <HelpSection title="Account and API keys">
+        <p>
+          Search defaults live on Account. Create and retire suite-wide API keys in the{" "}
+          <a
+            className="text-foreground underline underline-offset-4"
+            href="https://merchbase.co/account/api-keys/"
+          >
+            MerchBase Account Center
+          </a>
+          . Trademark Terminal does not issue product-specific keys.
+        </p>
+      </HelpSection>
+
+      <HelpSection title="Automation">
+        <p>
+          <code>tt</code> is the JSON CLI for search, exact lookup, and listing-text screening.
+          <code className="ml-1">@tmterminal/http-client</code> is the typed TypeScript client.
+          Hosted MCP at <code>/mcp</code> uses Clerk OAuth, not API keys. Package READMEs own
+          install, flags, envelopes, and errors.
+        </p>
+      </HelpSection>
+
       <HelpSection title="Data and limitations">
         <p>
           Trademark Terminal processes USPTO source files as they are published. The Status page
           shows the latest processed date and recent processing activity; searches remain available
-          while newer files are being processed.
+          while newer files are being processed. V1 materializes complete details for International
+          Class 025.
         </p>
         <p>
           This service is not affiliated with or endorsed by the USPTO. Trademark data is

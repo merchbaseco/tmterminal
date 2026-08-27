@@ -20,4 +20,3 @@ recover safely.
 | CLI and HTTP client npm releases | [npm packages](npm-packages.md) |
 | Inspect and repair one source file | [Source repair](source-repair.md) |
 | Create and triage Linear issues | [Issues](issues.md) |
-| Maintain repository docs | [Docs policy](../docs-policy.md) |

@@ -202,5 +202,4 @@ are reacquired only through explicit one-file operator actions.
 
 - [Data model](../reference/data-model.md)
 - [USPTO source](../reference/uspto-source.md)
-- [Source status](../product/source-status.md)
 - [Live trademark knowledge decision](../decisions/live-trademark-knowledge.md)

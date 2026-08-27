@@ -65,10 +65,22 @@ bun run lint
 bun run build
 ```
 
-See [development operations](docs/operations/development.md) for environment setup and [testing](docs/operations/testing.md) for PostgreSQL and production-shaped verification.
+See [development](docs/operations/development.md) for environment setup and
+[testing](docs/operations/testing.md) for PostgreSQL and production-shaped
+verification.
 
 ## Project status
 
-Trademark Terminal is under active development. Authentication, search, exact lookups, the website, HTTP client, CLI, and production runtime are operational. The hosted MCP is implemented and awaits deployment. USPTO ingestion updates the live trademark database directly; the accepted design is documented in [ingestion internals](docs/internals/ingestion.md).
+Trademark Terminal is under active development. Authentication, search, exact
+lookups, the website, HTTP client, CLI, and production runtime are operational.
+The hosted MCP is implemented and awaits deployment. USPTO ingestion updates
+the live trademark database directly. See
+[ingestion](docs/internals/ingestion.md) and
+[live trademark knowledge](docs/decisions/live-trademark-knowledge.md).
 
-Start with the [documentation index](docs/README.md). Product behavior lives under [product](docs/product/README.md), system ownership under [internals](docs/internals/README.md), exact contracts under [reference](docs/reference/README.md), and maintainer workflows under [operations](docs/operations/README.md).
+Seller-facing product help lives on
+[tmterminal.merchbase.co/help](https://tmterminal.merchbase.co/help). CLI and
+HTTP contracts live in [`packages/cli`](packages/cli/README.md) and
+[`packages/http-client`](packages/http-client/README.md). Shared nouns live in
+[`GLOSSARY.md`](GLOSSARY.md). Remaining maintainer notes are listed in
+[`docs/README.md`](docs/README.md).

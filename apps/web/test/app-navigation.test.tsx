@@ -538,7 +538,7 @@ test("shows public Status and Help without exposing operator sections", async ()
 
   fireEvent.click(screen.getByRole("link", { name: "Help" }));
   expect(await screen.findByRole("heading", { name: "SEARCH SMARTER" })).toBeTruthy();
-  expect(screen.getByText("Search modes")).toBeTruthy();
+  expect(screen.getByText("Search Marks")).toBeTruthy();
 });
 
 test("shows operator details on the shared Status page", async () => {

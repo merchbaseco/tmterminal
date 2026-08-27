@@ -1,18 +1,16 @@
 ---
-summary: Routes exact Trademark Terminal contracts for HTTP procedures, CLI behavior, persistence states, precedence, and USPTO source data.
+summary: Routes USPTO and persistence contracts that are not published package README material.
 read_when:
-  - looking up an exact command, procedure, state, error code, precedence rule, or source requirement
-  - changing code where a wrong identifier, ordering rule, or provider assumption would corrupt behavior
+  - looking up source identity, precedence, or USPTO provider rules
 ---
 
 # Reference
 
-Reference pages are terse lookup surfaces.
-
 | Contract | Doc |
 | --- | --- |
-| Procedures, authorization, pagination, and errors | [HTTP API](http-api.md) |
-| Commands, credentials, JSON envelopes, and exits | [CLI](cli.md) |
-| Hosted tools, OAuth discovery, results, and errors | [MCP](mcp.md) |
 | Tables, lifecycle states, source identity, and recency | [Data model](data-model.md) |
 | ODP access, quotas, XML identity, and classification semantics | [USPTO source](uspto-source.md) |
+
+CLI, HTTP, and MCP contracts live in
+[`packages/cli/README.md`](../../packages/cli/README.md) and
+[`packages/http-client/README.md`](../../packages/http-client/README.md).
