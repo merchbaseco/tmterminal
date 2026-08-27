@@ -9,9 +9,9 @@ import { createAccessProjectionStore } from "./queries/access-projection-store.t
 
 /**
  * Fills a local database with a synthetic week of trademark data so search,
- * mark detail, screening, and Source Status have something to render. Never
- * auto-runs on a workstation: development points at the live database over
- * Tailscale, and the loopback guard is what keeps this away from it.
+ * mark detail, screening, and Source Status have something to render.
+ * `bun run dev` and Cloud start run it. The loopback guard refuses any
+ * non-local host.
  *
  *   bun run db:seed:dev
  *   bun run db:seed:dev --seed=friday --marks=200 --days=14
