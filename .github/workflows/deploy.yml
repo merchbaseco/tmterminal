@@ -1,11 +1,14 @@
 name: Deploy Stack
 
-# GitHub Actions owns production deploys. A push to main ships that revision
-# after the full check preflight. workflow_dispatch redeploys current main.
+# GitHub Actions owns production deploys. A release PR bumps VERSION; merging
+# that change to main ships the revision after the full check preflight.
+# Ordinary main merges do not deploy. workflow_dispatch redeploys current main.
 on:
   push:
     branches:
       - main
+    paths:
+      - VERSION
   workflow_dispatch:
 
 concurrency:

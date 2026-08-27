@@ -105,7 +105,7 @@ unchanged; the heavy lanes simply stop running on every commit.
 | Trigger | What runs |
 | --- | --- |
 | Push to `main`, pull request | Frozen install, changed-file lint, `check:fast`, migration drift. Target: under a minute. |
-| Deploy dispatch | The same fast job, plus a `full` job running `bun run check` — fixture tooling, Compose PostgreSQL integration, and every workspace build. |
+| Release deploy (`VERSION` change on `main`, or dispatch) | The same fast job, plus a `full` job running `bun run check` — fixture tooling, Compose PostgreSQL integration, and every workspace build. |
 | Local, before pushing | `bun run check`. |
 
 The `full` job keys off `lint-base`, a required `workflow_call` input, so it is

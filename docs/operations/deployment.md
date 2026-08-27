@@ -28,10 +28,11 @@ for both persistent filesystems.
 
 ## GitHub Deployment
 
-Production deployment is GitHub Actions. A push to `main` runs `Deploy Stack`
-after the full check preflight. `workflow_dispatch` redeploys current `main`.
-Use the `release-trademark-terminal` skill to record a changelog PR before a
-batched ship.
+Production deployment is GitHub Actions. A release PR bumps `VERSION` and
+records `CHANGELOG.md`. Merging that `VERSION` change onto `main` runs
+`Deploy Stack` after the full check preflight. Ordinary merges to `main` do
+not deploy. `workflow_dispatch` redeploys current `main`. Use the
+`release-trademark-terminal` skill to cut the release PR.
 
 **A deploy can only ever ship `main`.** `scripts/deployment-revision` refuses
 unless `HEAD` equals both the workflow SHA and `origin/main`. Feature branches

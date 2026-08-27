@@ -1,2 +1,5 @@
 [install.scopes]
 "@hugeicons-pro" = { token = "$MERCHBASE_HUGEICONS_LICENSE_KEY", url = "https://npm.hugeicons.com/" }
+
+[test]
+preload = ["./apps/web/test/preload-product-version.ts"]

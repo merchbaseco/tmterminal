@@ -1,7 +1,10 @@
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
+
+const productVersion = readFileSync(new URL("../../VERSION", import.meta.url), "utf8").trim();
 
 /**
  * `TMTERMINAL_DEV_HOST` is the repository's contract for the development
@@ -32,6 +35,9 @@ export default defineConfig(({ command }) => {
   }
 
   return {
+    define: {
+      __TMTERMINAL_VERSION__: JSON.stringify(productVersion),
+    },
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
