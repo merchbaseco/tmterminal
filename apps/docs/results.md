@@ -1,8 +1,8 @@
 ---
-title: Reading results
+title: Results
 ---
 
-# Reading results
+# Results
 
 A row is a trademark record, not a decision. Open the mark when you need owner, classes, goods, or status history.
 
@@ -28,3 +28,9 @@ The serial number is eight digits and identifies the application. A registration
 ## Counts
 
 Bulk Check and search summaries report live exact and live partial counts. A zero means this catalog did not find a live match for that query. It does not mean the phrase is safe to print.
+
+## What's next
+
+- [Mark records](/mark-records)
+- [Class 025](/class-025)
+- [Legal](/legal)

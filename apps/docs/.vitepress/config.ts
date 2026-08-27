@@ -4,6 +4,9 @@ export default defineConfig({
   base: "/docs/",
   cleanUrls: true,
   description: "Search United States trademarks for print-on-demand work.",
+  head: [
+    ["link", { href: "/docs/favicon.svg", rel: "icon", type: "image/svg+xml" }],
+  ],
   ignoreDeadLinks: (url) => url.startsWith("/") && !url.startsWith("/docs"),
   themeConfig: {
     nav: [
@@ -15,40 +18,40 @@ export default defineConfig({
     sidebar: [
       {
         items: [
-          { link: "/", text: "What this is" },
-          { link: "/sign-in", text: "Sign in and API keys" },
-          { link: "/status", text: "How current the data is" },
+          { link: "/", text: "Welcome" },
+          { link: "/quickstart", text: "Quickstart" },
+          { link: "/sign-in", text: "Sign in" },
+          { link: "/status", text: "Status" },
         ],
-        text: "Start",
+        text: "Get started",
       },
       {
         items: [
           { link: "/search-marks", text: "Search Marks" },
-          { link: "/reading-results", text: "Reading results" },
           { link: "/check-text", text: "Check Text" },
           { link: "/bulk-check", text: "Bulk Check" },
+          { link: "/results", text: "Results" },
           { link: "/mark-records", text: "Mark records" },
         ],
         text: "Search",
       },
       {
         items: [
-          { link: "/automate", text: "Which client to use" },
           { link: "/cli", text: "CLI" },
           { link: "/http-client", text: "HTTP client" },
           { link: "/mcp", text: "MCP" },
         ],
-        text: "Automate",
+        text: "Clients",
       },
       {
         items: [
-          { link: "/class-025", text: "Class 025 and what we do not do" },
-          { link: "/legal", text: "Legal and USPTO" },
+          { link: "/class-025", text: "Class 025" },
+          { link: "/legal", text: "Legal" },
         ],
         text: "Limits",
       },
     ],
-    siteTitle: "Trademark Terminal",
+    siteTitle: false,
   },
   title: "Trademark Terminal",
   vite: {

@@ -23,9 +23,11 @@ test("VitePress is mounted at /docs/", async () => {
   const config = await readFile(new URL("apps/docs/.vitepress/config.ts", root), "utf8");
 
   expect(config).toContain('base: "/docs/"');
+  expect(config).toContain('link: "/quickstart"');
   expect(config).toContain('link: "/search-marks"');
   expect(config).toContain('link: "/cli"');
   expect(config).toContain('link: "/mcp"');
+  expect(config).not.toContain('link: "/automate"');
 });
 
 test("the website sends Docs to /docs and does not keep a Help page", async () => {

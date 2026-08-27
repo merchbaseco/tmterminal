@@ -18,3 +18,9 @@ Look up a mark without browsing:
 tt get --serial 60146682
 tt get --registration 0146682
 ```
+
+## What's next
+
+- [Results](/results)
+- [CLI](/cli)
+- [Legal](/legal)
