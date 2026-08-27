@@ -4,7 +4,7 @@ title: Results
 
 # Results
 
-A row is a trademark record, not a decision. Open the mark when you need owner, classes, goods, or status history.
+Open a row for owner, classes, goods, and status history.
 
 ## Live and Dead
 
@@ -13,7 +13,7 @@ These follow the current USPTO status.
 - **Live** means the USPTO reports an active application or registration.
 - **Dead** means the record is abandoned, cancelled, or expired.
 
-Dead marks still exist. They are evidence of what was claimed, not a green light to copy them.
+Dead marks stay in the catalog. They show abandoned, cancelled, and expired claims.
 
 ## Mark type
 
@@ -27,7 +27,7 @@ The serial number is eight digits and identifies the application. A registration
 
 ## Counts
 
-Bulk Check and search summaries report live exact and live partial counts. A zero means this catalog did not find a live match for that query. It does not mean the phrase is safe to print.
+Bulk Check and search summaries report live exact and live partial counts. Zero means this catalog has no live match for that query. For a clearance opinion, use the USPTO file and counsel. See [Legal](/legal).
 
 ## What's next
 

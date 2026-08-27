@@ -16,7 +16,7 @@ Every request needs a Clerk OAuth bearer token for service `tmterminal`. API key
 | `tmterminal_get` | One exact serial or registration |
 | `tmterminal_screen` | One listing text; each matching live mark once |
 
-Get an identity. Search a word or phrase. Screen complete listing text. Treat results as evidence, never as a safety verdict.
+Get an identity. Search a word or phrase. Screen complete listing text.
 
 Search continuation passes `meta.dataVersion` as `expectedDataVersion`. After `CONFLICT`, restart at offset zero.
 

@@ -1,10 +1,16 @@
 ---
-title: Get started
+title: Welcome
 ---
 
-# Get started
+# Welcome
 
-Search United States trademarks for print-on-demand work. Counts are evidence, not a verdict.
+Trademark Terminal is MerchBase's trademark search for print-on-demand.
+Type a word you would print on a shirt, paste a listing, or open a serial
+number. We keep United States Class 025 current from USPTO source files
+(clothing, footwear, and headgear) and we serve the same jobs on the
+website, in the `tt` CLI, in `@tmterminal/http-client`, and over hosted MCP.
+
+These docs use `TERMINAL CLUB` as the working example.
 
 ## Search
 

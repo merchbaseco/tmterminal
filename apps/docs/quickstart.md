@@ -4,7 +4,7 @@ title: Quickstart
 
 # Quickstart
 
-Sign in, run one search, and read the row as a record.
+Sign in and run your first search.
 
 ## Step 1: Sign in
 
@@ -53,9 +53,7 @@ const results = await client.trademarks.search({
 
 ## Step 3: Read the result
 
-A row is a trademark record, not a decision. Live and Dead follow USPTO status. A zero means this catalog did not find a live match. It does not mean the phrase is safe to print.
-
-See [Results](/results).
+Each row is a trademark. Live and Dead follow USPTO status. A live exact count of 0 means this catalog has no live match for that query. [Results](/results) explains what a count includes.
 
 ## What's next
 

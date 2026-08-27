@@ -1,6 +1,6 @@
 # Trademark Terminal
 
-> Search United States trademarks for print-on-demand work. Evidence, not a verdict. Class 025 in v1.
+> MerchBase trademark search for print-on-demand. United States Class 025 from USPTO source files.
 
 https://tmterminal.merchbase.co/docs/
 
