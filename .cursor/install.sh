@@ -71,7 +71,7 @@ pg_ensure_databases
 #    repository's environment contract, so the PAT lives in Cursor's own secret
 #    store rather than in .env.schema, and nothing here touches varlock. The
 #    tarball fetch leaves no credential or git state on disk. Always refetched
-#    into $HOME/.agents/upstream so setup/seed-cloud.sh can symlink skills,
+#    into $HOME/.agents/upstream so cursor/setup.sh can symlink skills,
 #    pstack, and the model rule. Snapshot reuse cannot pin a stale copy.
 #    Best-effort: every failure path logs and skips — seeding must never fail
 #    the install. CURSOR_CLOUD_AGENTS_REF overrides the git ref (default main).
@@ -83,17 +83,17 @@ if [ -n "${CURSOR_CLOUD_AGENTS_GH_READ_TOKEN:-}" ]; then
   if curl -fsSL -H "Authorization: Bearer $CURSOR_CLOUD_AGENTS_GH_READ_TOKEN" \
     "https://api.github.com/repos/zknicker/agents/tarball/${agents_ref}" \
     | tar -xz -C "$agents_upstream" --strip-components=1; then
-    if [ -f "$agents_upstream/setup/seed-cloud.sh" ]; then
-      if bash "$agents_upstream/setup/seed-cloud.sh" \
+    if [ -f "$agents_upstream/cursor/setup.sh" ]; then
+      if bash "$agents_upstream/cursor/setup.sh" \
         --skills "$root/.agents/skills" \
         --rules "$root/.cursor/rules" \
         --plugin-local "${HOME}/.cursor/plugins/local"; then
         echo "[install] Linked fleet agent skills from ${agents_ref}."
       else
-        echo "[install] Skipping fleet agent skills (seed-cloud.sh failed)." >&2
+        echo "[install] Skipping fleet agent skills (cursor/setup.sh failed)." >&2
       fi
     else
-      echo "[install] Skipping fleet agent skills (seed-cloud.sh unavailable)." >&2
+      echo "[install] Skipping fleet agent skills (cursor/setup.sh unavailable)." >&2
     fi
   else
     echo "[install] Skipping fleet agent skills (tarball fetch failed)." >&2
