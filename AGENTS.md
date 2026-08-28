@@ -38,7 +38,9 @@ Everything else comes from the schema.
 
 Use the `release-trademark-terminal` skill. It bumps `VERSION`, updates
 `CHANGELOG.md`, and opens a PR. Merging a release PR deploys through GitHub
-Actions. Ordinary merges to `main` do not. Do not deploy from a laptop.
+Actions. After deploy, `./scripts/create-product-release` tags `vX.Y.Z`.
+Packages use `cli-vX.Y.Z` and their own `release:check` path. Ordinary
+merges to `main` do not deploy. Do not deploy from a laptop.
 
 ## Verification
 
