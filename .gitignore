@@ -16,3 +16,4 @@ fixtures/uspto/**/*.doc
 .claude/*
 !.claude/settings.json
 .agents/
+.cursor/rules/pstack-models.mdc
