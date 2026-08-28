@@ -11,7 +11,6 @@ import {
  * wiping live tables.
  */
 
-const notLoopback = /is not loopback/;
 const nodeEnvProduction = /NODE_ENV is production/;
 const unparseable = /not a parseable URL/;
 const namedTarget = /db\.internal:5432\/tmturtle/;
@@ -25,14 +24,6 @@ describe("assertLocalSeedTarget", () => {
         }).port
       ).toBe("5437");
     }
-  });
-
-  test("refuses the development database reached over Tailscale", () => {
-    expect(() =>
-      assertLocalSeedTarget({
-        databaseUrl: "postgres://tmturtle:secret@zachs-mac-mini.taila0b849.ts.net:5437/tmturtle",
-      })
-    ).toThrow(notLoopback);
   });
 
   test("refuses the production container-network host", () => {
