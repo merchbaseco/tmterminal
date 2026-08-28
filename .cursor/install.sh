@@ -71,33 +71,33 @@ pg_ensure_databases
 #    repository's environment contract, so the PAT lives in Cursor's own secret
 #    store rather than in .env.schema, and nothing here touches varlock. The
 #    tarball fetch leaves no credential or git state on disk. Always refetched
-#    so snapshot reuse cannot pin a stale copy. Best-effort: every failure path
-#    logs and skips — seeding must never fail the install.
+#    into $HOME/.agents/upstream so setup/seed-cloud.sh can symlink skills,
+#    pstack, and the model rule. Snapshot reuse cannot pin a stale copy.
+#    Best-effort: every failure path logs and skips — seeding must never fail
+#    the install. CURSOR_CLOUD_AGENTS_REF overrides the git ref (default main).
 if [ -n "${CURSOR_CLOUD_AGENTS_GH_READ_TOKEN:-}" ]; then
-  skills_tmp="$(mktemp -d)" || skills_tmp=""
-  if [ -n "$skills_tmp" ] &&
-    curl -fsSL -H "Authorization: Bearer $CURSOR_CLOUD_AGENTS_GH_READ_TOKEN" \
-      https://api.github.com/repos/zknicker/agents/tarball/main \
-      | tar -xz -C "$skills_tmp"; then
-    skills_src=""
-    for skills_candidate in "$skills_tmp"/*/agents/skills; do
-      if [ -d "$skills_candidate" ]; then
-        skills_src="$skills_candidate"
-        break
+  agents_upstream="${HOME}/.agents/upstream"
+  agents_ref="${CURSOR_CLOUD_AGENTS_REF:-main}"
+  rm -rf "$agents_upstream"
+  mkdir -p "$agents_upstream"
+  if curl -fsSL -H "Authorization: Bearer $CURSOR_CLOUD_AGENTS_GH_READ_TOKEN" \
+    "https://api.github.com/repos/zknicker/agents/tarball/${agents_ref}" \
+    | tar -xz -C "$agents_upstream" --strip-components=1; then
+    if [ -f "$agents_upstream/setup/seed-cloud.sh" ]; then
+      if bash "$agents_upstream/setup/seed-cloud.sh" \
+        --skills "$root/.agents/skills" \
+        --rules "$root/.cursor/rules" \
+        --plugin-local "${HOME}/.cursor/plugins/local"; then
+        echo "[install] Linked fleet agent skills from ${agents_ref}."
+      else
+        echo "[install] Skipping fleet agent skills (seed-cloud.sh failed)." >&2
       fi
-    done
-    if [ -n "$skills_src" ] &&
-      mkdir -p "$root/.agents" &&
-      rm -rf "$root/.agents/skills" &&
-      cp -R "$skills_src" "$root/.agents/skills"; then
-      echo "[install] Seeded fleet agent skills into .agents/skills."
     else
-      echo "[install] Skipping fleet agent skills (skills directory unavailable)." >&2
+      echo "[install] Skipping fleet agent skills (seed-cloud.sh unavailable)." >&2
     fi
   else
     echo "[install] Skipping fleet agent skills (tarball fetch failed)." >&2
   fi
-  rm -rf "$skills_tmp" || true
 else
   echo "[install] Skipping fleet agent skills (no read token)." >&2
 fi
