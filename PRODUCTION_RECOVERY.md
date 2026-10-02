@@ -37,10 +37,11 @@ UPDATE worker_status
 SET current_error = NULL,
     updated_at = NOW()
 WHERE id = 'uspto'
-  AND current_error LIKE '%USPTO ODP request failed with HTTP 429%';
+  AND current_error LIKE '%USPTO ODP request failed with HTTP 429%'
+  AND current_error NOT LIKE 'Discovery backoff until%';
 ```
 
-**Important**: Do not clear errors with "Discovery backoff until" prefix, as these represent active backoff periods that respect provider timing.
+**Critical**: The `NOT LIKE 'Discovery backoff until%'` clause ensures active backoff periods are never cleared, preserving provider timing signals atomically.
 
 ### 3. Verify Recovery
 
