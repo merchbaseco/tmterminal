@@ -423,19 +423,31 @@ export function createTrademarkIngestion(options: {
       `;
       return { action: "discovered" as const, artifactCount };
     } catch (error) {
+      const observedAt = now();
+      const errorMessage = safeError(error);
+
       if (error instanceof SourceHttpError) {
-        const observedAt = now();
-        const retryNotBefore = providerRetryNotBefore(error.responseState, observedAt);
-        const backoffUntil = retryNotBefore ?? new Date(observedAt.getTime() + 60_000);
-        const adjustedLastDiscovery = new Date(backoffUntil.getTime() - discoveryIntervalMs);
-        await options.database`
-          update worker_status set activity = 'idle', current_error = null,
-            last_discovery_at = ${adjustedLastDiscovery}, last_heartbeat_at = ${observedAt}, updated_at = ${observedAt}
-          where id = 'uspto'
-        `;
-        return null;
+        const isTransient =
+          error.responseState.status === 429 || error.responseState.status === 503;
+
+        if (isTransient) {
+          const retryNotBefore = providerRetryNotBefore(error.responseState, observedAt);
+          const backoffUntil = retryNotBefore ?? new Date(observedAt.getTime() + 60_000);
+          const adjustedLastDiscovery = new Date(backoffUntil.getTime() - discoveryIntervalMs);
+
+          await options.database`
+            update worker_status set activity = 'idle', 
+              current_error = ${`Discovery backoff: ${errorMessage}`},
+              last_discovery_at = ${adjustedLastDiscovery}, 
+              last_heartbeat_at = ${observedAt}, 
+              updated_at = ${observedAt}
+            where id = 'uspto'
+          `;
+          return null;
+        }
       }
-      await heartbeat("idle", null, safeError(error));
+
+      await heartbeat("idle", null, errorMessage);
       throw error;
     }
   }
@@ -497,7 +509,8 @@ export function createTrademarkIngestion(options: {
     const [worker] = await options.database<Array<{ currentError: string | null }>>`
       select current_error as "currentError" from worker_status where id = 'uspto'
     `;
-    if (worker?.currentError) {
+    const isBackoffError = worker?.currentError?.startsWith("Discovery backoff: ");
+    if (worker?.currentError && !isBackoffError) {
       return { action: "stopped" as const };
     }
     await heartbeat();

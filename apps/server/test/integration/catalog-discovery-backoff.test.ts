@@ -119,11 +119,11 @@ test("a transient 429 with retry-after respects backoff timing", async () => {
   expect(firstResult).not.toEqual({ action: "stopped" }); // Should not be stopped
   expect(discoveryCalls).toBe(1);
 
-  // Worker should not have a persisted error
+  // Worker should have backoff error (visible but not blocking)
   const [worker1] = await database<Array<{ currentError: string | null }>>`
     select current_error as "currentError" from worker_status where id = 'uspto'
   `;
-  expect(worker1?.currentError).toBeNull();
+  expect(worker1?.currentError).toContain("Discovery backoff:");
 
   // Advance time by 30 seconds (still within backoff)
   now = new Date(now.getTime() + 30 * 1000);

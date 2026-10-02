@@ -105,11 +105,11 @@ test("a transient catalog 429 does not persist error and respects backoff timing
   expect(await module.reconcile()).toEqual({ action: "idle" });
   expect(discoveryCalls).toBe(1);
 
-  // Error is NOT persisted in worker_status.current_error
+  // Error is stored with "Discovery backoff:" prefix (visible but not blocking)
   const [worker] = await database<Array<{ currentError: string | null; lastDiscoveryAt: Date | null }>>`
     select current_error as "currentError", last_discovery_at as "lastDiscoveryAt" from worker_status where id = 'uspto'
   `;
-  expect(worker?.currentError).toBeNull();
+  expect(worker?.currentError).toContain("Discovery backoff:");
   
   // last_discovery_at is adjusted so that lastDiscoveryAt + 24h = backoff expiry
   // This allows the existing timing check to enforce backoff without schema changes
