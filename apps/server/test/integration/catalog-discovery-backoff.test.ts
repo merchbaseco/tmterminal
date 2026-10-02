@@ -5,14 +5,10 @@ import postgres from "postgres";
 
 import { migrateDatabase } from "../../src/db/migrate.ts";
 import type { ArtifactStore } from "../../src/ingestion/artifact-store.ts";
-import { SourceHttpError } from "../../src/ingestion/source-catalog.ts";
-import type {
-  DiscoveredArtifact,
-  DiscoveredProduct,
-  SourceCatalog,
-} from "../../src/ingestion/source-catalog.ts";
+import type { DiscoveredArtifact, DiscoveredProduct } from "../../src/ingestion/source-catalog.ts";
 import {
   SourceContractError,
+  SourceHttpError,
   SourceTransportError,
 } from "../../src/ingestion/source-catalog.ts";
 import { createTrademarkIngestion } from "../../src/ingestion/trademark-ingestion.ts";
@@ -23,7 +19,7 @@ if (!databaseUrl) {
   throw new Error("TEST_DATABASE_URL is required for PostgreSQL integration tests");
 }
 const database = postgres(databaseUrl, { max: 3, prepare: false });
-const sha = "a".repeat(64);
+const _sha = "a".repeat(64);
 const annualFilename = "apc18840407-20251231-01.zip";
 const dailyFilename = "apc260101.zip";
 const retained = new Set<string>();
@@ -91,7 +87,7 @@ test("a transient 429 with retry-after respects backoff timing", async () => {
     now: () => now,
     sourceCatalog: {
       discover: async (product) => {
-        discoveryCalls++;
+        discoveryCalls += 1;
         if (discoveryCalls === 1) {
           throw new SourceHttpError(
             "USPTO ODP request failed with HTTP 429",
@@ -127,7 +123,7 @@ test("a transient 429 with retry-after respects backoff timing", async () => {
 
   // Advance time by 30 seconds (still within backoff)
   now = new Date(now.getTime() + 30 * 1000);
-  const duringBackoff = await module.reconcile();
+  const _duringBackoff = await module.reconcile();
   expect(discoveryCalls).toBe(1); // Discovery should not be retried during backoff
 
   // Advance time past the backoff (60 seconds from first failure)
@@ -146,7 +142,7 @@ test("a transient 429 without retry-after uses conservative backoff", async () =
     now: () => now,
     sourceCatalog: {
       discover: async (product) => {
-        discoveryCalls++;
+        discoveryCalls += 1;
         attemptTime = new Date(now);
         if (discoveryCalls === 1) {
           throw new SourceHttpError(
@@ -184,7 +180,7 @@ test("a transient 429 without retry-after uses conservative backoff", async () =
   now = new Date(now.getTime() + 35 * 1000);
   await module.reconcile();
   expect(discoveryCalls).toBeGreaterThan(1); // Should have retried
-  
+
   // Verify backoff was at least 60 seconds
   const retryTime = attemptTime!;
   const backoffMs = retryTime.getTime() - firstAttempt.getTime();
@@ -199,7 +195,7 @@ test("a non-retryable SourceContractError stops the worker", async () => {
     now: () => now,
     sourceCatalog: {
       discover: async () => {
-        discoveryCalls++;
+        discoveryCalls += 1;
         throw new SourceContractError("USPTO catalog returned invalid data");
       },
       download: async ({ filename }) => ({
@@ -237,7 +233,7 @@ test("a non-retryable SourceTransportError stops the worker", async () => {
     now: () => now,
     sourceCatalog: {
       discover: async () => {
-        discoveryCalls++;
+        discoveryCalls += 1;
         throw new SourceTransportError("Network connection failed");
       },
       download: async ({ filename }) => ({
@@ -272,7 +268,7 @@ test("successful discovery after prior 429 clears any lingering error state", as
     now: () => now,
     sourceCatalog: {
       discover: async (product) => {
-        discoveryCalls++;
+        discoveryCalls += 1;
         if (shouldFail) {
           shouldFail = false;
           throw new SourceHttpError(
@@ -302,7 +298,7 @@ test("successful discovery after prior 429 clears any lingering error state", as
 
   // Advance past backoff
   now = new Date(now.getTime() + 10 * 1000);
-  
+
   // Second reconcile: succeeds
   const result = await module.reconcile();
   expect(result).toEqual({ action: "discovered", artifactCount: 3 });

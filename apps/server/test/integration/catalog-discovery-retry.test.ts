@@ -5,11 +5,7 @@ import postgres from "postgres";
 
 import { migrateDatabase } from "../../src/db/migrate.ts";
 import type { ArtifactStore } from "../../src/ingestion/artifact-store.ts";
-import type {
-  DiscoveredArtifact,
-  DiscoveredProduct,
-  SourceCatalog,
-} from "../../src/ingestion/source-catalog.ts";
+import type { DiscoveredArtifact, DiscoveredProduct } from "../../src/ingestion/source-catalog.ts";
 import { SourceHttpError } from "../../src/ingestion/source-catalog.ts";
 import { createTrademarkIngestion } from "../../src/ingestion/trademark-ingestion.ts";
 import { resetTestDatabase } from "./test-database.ts";
@@ -19,7 +15,7 @@ if (!databaseUrl) {
   throw new Error("TEST_DATABASE_URL is required for PostgreSQL integration tests");
 }
 const database = postgres(databaseUrl, { max: 3, prepare: false });
-const sha = "a".repeat(64);
+const _sha = "a".repeat(64);
 const annualFilename = "apc18840407-20251231-01.zip";
 const dailyFilename = "apc260101.zip";
 const retained = new Set<string>();
@@ -86,7 +82,7 @@ test("a transient catalog 429 does not persist error and respects backoff timing
     now: () => now,
     sourceCatalog: {
       discover: async () => {
-        discoveryCalls++;
+        discoveryCalls += 1;
         throw new SourceHttpError(
           "USPTO ODP request failed with HTTP 429",
           { retryAfter: "60", status: 429 },
@@ -106,11 +102,13 @@ test("a transient catalog 429 does not persist error and respects backoff timing
   expect(discoveryCalls).toBe(1);
 
   // Error is stored with "Discovery backoff:" prefix (visible but not blocking)
-  const [worker] = await database<Array<{ currentError: string | null; lastDiscoveryAt: Date | null }>>`
+  const [worker] = await database<
+    Array<{ currentError: string | null; lastDiscoveryAt: Date | null }>
+  >`
     select current_error as "currentError", last_discovery_at as "lastDiscoveryAt" from worker_status where id = 'uspto'
   `;
   expect(worker?.currentError).toContain("Discovery backoff:");
-  
+
   // last_discovery_at is adjusted so that lastDiscoveryAt + 24h = backoff expiry
   // This allows the existing timing check to enforce backoff without schema changes
   const expectedDiscoveryAt = new Date("2026-01-03T12:01:00Z").getTime() - 24 * 60 * 60 * 1000;
@@ -137,8 +135,8 @@ test("a transient catalog 429 followed by success should recover", async () => {
     now: () => now,
     sourceCatalog: {
       discover: async (product) => {
-        discoveryCalls++;
-        attemptCount++;
+        discoveryCalls += 1;
+        attemptCount += 1;
         if (attemptCount === 1) {
           throw new SourceHttpError(
             "USPTO ODP request failed with HTTP 429",
@@ -148,9 +146,7 @@ test("a transient catalog 429 followed by success should recover", async () => {
         }
         // Second attempt succeeds
         return product === "TRTYRAP"
-          ? discovered("TRTYRAP", "YEARLY", [
-              artifact(annualFilename, "1884-04-07", "2025-12-31"),
-            ])
+          ? discovered("TRTYRAP", "YEARLY", [artifact(annualFilename, "1884-04-07", "2025-12-31")])
           : discovered("TRTDXFAP", "DAILY", [
               artifact("apc251231.zip", "2025-12-31", "2025-12-31"),
               artifact(dailyFilename, "2026-01-01", "2026-01-01"),
@@ -173,7 +169,7 @@ test("a transient catalog 429 followed by success should recover", async () => {
 
   // Second reconcile should retry discovery and succeed
   const result = await module.reconcile();
-  
+
   expect(result).toEqual({ action: "discovered", artifactCount: 3 });
   expect(discoveryCalls).toBe(3); // 1 failed + 2 successful (one per product)
 
