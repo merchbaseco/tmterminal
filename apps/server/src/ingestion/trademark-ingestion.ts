@@ -401,11 +401,12 @@ export function createTrademarkIngestion(options: {
     const [worker] = await options.database<Array<{ lastDiscoveryAt: Date | null }>>`
       select last_discovery_at as "lastDiscoveryAt" from worker_status where id = 'uspto'
     `;
-    if (
-      worker?.lastDiscoveryAt &&
-      worker.lastDiscoveryAt.getTime() + discoveryIntervalMs > now().getTime()
-    ) {
-      return null;
+    const currentTime = now().getTime();
+    if (worker?.lastDiscoveryAt) {
+      const lastAttempt = worker.lastDiscoveryAt.getTime();
+      if (lastAttempt + discoveryIntervalMs > currentTime) {
+        return null;
+      }
     }
     await heartbeat("discovering");
     try {
@@ -422,6 +423,18 @@ export function createTrademarkIngestion(options: {
       `;
       return { action: "discovered" as const, artifactCount };
     } catch (error) {
+      if (error instanceof SourceHttpError) {
+        const observedAt = now();
+        const retryNotBefore = providerRetryNotBefore(error.responseState, observedAt);
+        const backoffUntil = retryNotBefore ?? new Date(observedAt.getTime() + 60_000);
+        const adjustedLastDiscovery = new Date(backoffUntil.getTime() - discoveryIntervalMs);
+        await options.database`
+          update worker_status set activity = 'idle', current_error = null,
+            last_discovery_at = ${adjustedLastDiscovery}, last_heartbeat_at = ${observedAt}, updated_at = ${observedAt}
+          where id = 'uspto'
+        `;
+        return null;
+      }
       await heartbeat("idle", null, safeError(error));
       throw error;
     }
