@@ -450,6 +450,177 @@ test("an artifact-store failure stops ingestion before another provider request"
   expect(downloaded).toEqual([annualFilename]);
 });
 
+test("discovery HTTP 429 without retry-after header backs off for 60 seconds", async () => {
+  await database`
+    update worker_status set last_discovery_at = ${new Date(now.getTime() - 25 * 60 * 60 * 1000)}
+    where id = 'uspto'
+  `;
+  const module = ingestion(
+    catalog({
+      discover: () => {
+        throw new SourceHttpError(
+          "USPTO rate limited this request",
+          { status: 429 },
+          "catalog"
+        );
+      },
+    })
+  );
+
+  expect(await module.reconcile()).toBeNull();
+  const [worker] = await database<Array<{ currentError: string | null }>>`
+    select current_error as "currentError" from worker_status where id = 'uspto'
+  `;
+  expect(worker?.currentError).toMatch(
+    /^Discovery backoff until \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z: SourceHttpError/
+  );
+  const match = worker?.currentError?.match(/^Discovery backoff until ([^:]+):/);
+  expect(match).toBeTruthy();
+  if (match) {
+    const backoffUntil = new Date(match[1]);
+    expect(backoffUntil.getTime() - now.getTime()).toBeGreaterThanOrEqual(59_000);
+    expect(backoffUntil.getTime() - now.getTime()).toBeLessThanOrEqual(61_000);
+  }
+});
+
+test("discovery HTTP 429 with retry-after header respects provider timing", async () => {
+  await database`
+    update worker_status set last_discovery_at = ${new Date(now.getTime() - 25 * 60 * 60 * 1000)}
+    where id = 'uspto'
+  `;
+  const module = ingestion(
+    catalog({
+      discover: () => {
+        throw new SourceHttpError(
+          "USPTO rate limited this request",
+          { retryAfter: "120", status: 429 },
+          "catalog"
+        );
+      },
+    })
+  );
+
+  expect(await module.reconcile()).toBeNull();
+  const [worker] = await database<Array<{ currentError: string | null }>>`
+    select current_error as "currentError" from worker_status where id = 'uspto'
+  `;
+  const match = worker?.currentError?.match(/^Discovery backoff until ([^:]+):/);
+  expect(match).toBeTruthy();
+  if (match) {
+    const backoffUntil = new Date(match[1]);
+    expect(backoffUntil.getTime() - now.getTime()).toBeGreaterThanOrEqual(119_000);
+    expect(backoffUntil.getTime() - now.getTime()).toBeLessThanOrEqual(121_000);
+  }
+});
+
+test("discovery HTTP 503 backs off and does not stop worker", async () => {
+  await database`
+    update worker_status set last_discovery_at = ${new Date(now.getTime() - 25 * 60 * 60 * 1000)}
+    where id = 'uspto'
+  `;
+  const module = ingestion(
+    catalog({
+      discover: () => {
+        throw new SourceHttpError(
+          "USPTO service unavailable",
+          { retryAfter: "30", status: 503 },
+          "catalog"
+        );
+      },
+    })
+  );
+
+  expect(await module.reconcile()).toBeNull();
+  const [worker] = await database<Array<{ currentError: string | null }>>`
+    select current_error as "currentError" from worker_status where id = 'uspto'
+  `;
+  expect(worker?.currentError).toMatch(/^Discovery backoff until .+: SourceHttpError/);
+  expect(await module.reconcile()).toBeNull();
+});
+
+test("discovery permanent HTTP errors stop worker immediately", async () => {
+  await database`
+    update worker_status set last_discovery_at = ${new Date(now.getTime() - 25 * 60 * 60 * 1000)}
+    where id = 'uspto'
+  `;
+  const module = ingestion(
+    catalog({
+      discover: () => {
+        throw new SourceHttpError("USPTO endpoint not found", { status: 404 }, "catalog");
+      },
+    })
+  );
+
+  await expect(module.reconcile()).rejects.toThrow("USPTO endpoint not found");
+  const [worker] = await database<Array<{ currentError: string | null }>>`
+    select current_error as "currentError" from worker_status where id = 'uspto'
+  `;
+  expect(worker?.currentError).toBe("SourceHttpError: USPTO endpoint not found");
+  expect(await module.reconcile()).toEqual({ action: "stopped" });
+});
+
+test("discovery HTTP 429 backoff expires and allows retry after waiting period", async () => {
+  await database`
+    update worker_status set last_discovery_at = ${new Date(now.getTime() - 25 * 60 * 60 * 1000)}
+    where id = 'uspto'
+  `;
+  let attemptCount = 0;
+  const module = ingestion(
+    catalog({
+      discover: (product) => {
+        attemptCount += 1;
+        if (attemptCount === 1) {
+          throw new SourceHttpError(
+            "USPTO rate limited this request",
+            { retryAfter: "5", status: 429 },
+            "catalog"
+          );
+        }
+        return product === "TRTYRAP"
+          ? discovered("TRTYRAP", "YEARLY", [artifact(annualFilename, "1884-04-07", "2025-12-31")])
+          : discovered("TRTDXFAP", "DAILY", [
+              artifact("apc251231.zip", "2025-12-31", "2025-12-31"),
+              artifact(dailyFilename, "2026-01-01", "2026-01-01"),
+            ]);
+      },
+    })
+  );
+
+  expect(await module.reconcile()).toBeNull();
+  expect(attemptCount).toBe(1);
+  expect(await module.reconcile()).toBeNull();
+  expect(attemptCount).toBe(1);
+
+  now = new Date(now.getTime() + 6_000);
+  expect(await module.reconcile()).toEqual({ action: "discovered", artifactCount: 3 });
+  expect(attemptCount).toBe(3);
+  const [worker] = await database<Array<{ currentError: string | null }>>`
+    select current_error as "currentError" from worker_status where id = 'uspto'
+  `;
+  expect(worker?.currentError).toBeNull();
+});
+
+test("discovery contract errors stop worker immediately", async () => {
+  await database`
+    update worker_status set last_discovery_at = ${new Date(now.getTime() - 25 * 60 * 60 * 1000)}
+    where id = 'uspto'
+  `;
+  const module = ingestion(
+    catalog({
+      discover: () => {
+        throw new SourceContractError("USPTO catalog has invalid metadata");
+      },
+    })
+  );
+
+  await expect(module.reconcile()).rejects.toThrow("USPTO catalog has invalid metadata");
+  const [worker] = await database<Array<{ currentError: string | null }>>`
+    select current_error as "currentError" from worker_status where id = 'uspto'
+  `;
+  expect(worker?.currentError).toBe("SourceContractError: USPTO catalog has invalid metadata");
+  expect(await module.reconcile()).toEqual({ action: "stopped" });
+});
+
 test("restart blocks an interrupted download without another provider request", async () => {
   await database`
     insert into source_artifact (

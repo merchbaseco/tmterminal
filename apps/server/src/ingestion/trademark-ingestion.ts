@@ -80,6 +80,15 @@ export function createTrademarkIngestion(options: {
     currentFilename: string | null = null,
     currentError: string | null = null
   ) {
+    if (currentError === null) {
+      const [worker] = await options.database<Array<{ currentError: string | null }>>`
+        select current_error as "currentError" from worker_status where id = 'uspto'
+      `;
+      if (worker?.currentError?.startsWith("Discovery backoff until ")) {
+        currentError = worker.currentError;
+      }
+    }
+    
     await options.database`
       insert into worker_status (id, activity, current_filename, current_error, last_heartbeat_at, updated_at)
       values ('uspto', ${activity}, ${currentFilename}, ${currentError}, ${now()}, ${now()})
@@ -398,15 +407,29 @@ export function createTrademarkIngestion(options: {
   }
 
   async function discoverIfDue() {
-    const [worker] = await options.database<Array<{ lastDiscoveryAt: Date | null }>>`
-      select last_discovery_at as "lastDiscoveryAt" from worker_status where id = 'uspto'
+    const [worker] = await options.database<Array<{ 
+      currentError: string | null;
+      lastDiscoveryAt: Date | null;
+    }>>`
+      select current_error as "currentError", last_discovery_at as "lastDiscoveryAt" 
+      from worker_status where id = 'uspto'
     `;
-    const currentTime = now().getTime();
-    if (worker?.lastDiscoveryAt) {
-      const lastAttempt = worker.lastDiscoveryAt.getTime();
-      if (lastAttempt + discoveryIntervalMs > currentTime) {
-        return null;
+    
+    if (worker?.currentError?.startsWith("Discovery backoff until ")) {
+      const match = worker.currentError.match(/^Discovery backoff until ([^:]+):/);
+      if (match) {
+        const backoffUntil = new Date(match[1]);
+        if (backoffUntil.getTime() > now().getTime()) {
+          return null;
+        }
       }
+    }
+    
+    if (
+      worker?.lastDiscoveryAt &&
+      worker.lastDiscoveryAt.getTime() + discoveryIntervalMs > now().getTime()
+    ) {
+      return null;
     }
     await heartbeat("discovering");
     try {
@@ -433,12 +456,11 @@ export function createTrademarkIngestion(options: {
         if (isTransient) {
           const retryNotBefore = providerRetryNotBefore(error.responseState, observedAt);
           const backoffUntil = retryNotBefore ?? new Date(observedAt.getTime() + 60_000);
-          const adjustedLastDiscovery = new Date(backoffUntil.getTime() - discoveryIntervalMs);
-
+          const backoffError = `Discovery backoff until ${backoffUntil.toISOString()}: ${errorMessage}`;
+          
           await options.database`
             update worker_status set activity = 'idle', 
-              current_error = ${`Discovery backoff: ${errorMessage}`},
-              last_discovery_at = ${adjustedLastDiscovery}, 
+              current_error = ${backoffError},
               last_heartbeat_at = ${observedAt}, 
               updated_at = ${observedAt}
             where id = 'uspto'
@@ -509,7 +531,7 @@ export function createTrademarkIngestion(options: {
     const [worker] = await options.database<Array<{ currentError: string | null }>>`
       select current_error as "currentError" from worker_status where id = 'uspto'
     `;
-    const isBackoffError = worker?.currentError?.startsWith("Discovery backoff: ");
+    const isBackoffError = worker?.currentError?.startsWith('Discovery backoff until ');
     if (worker?.currentError && !isBackoffError) {
       return { action: "stopped" as const };
     }

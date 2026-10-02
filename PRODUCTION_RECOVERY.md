@@ -28,15 +28,19 @@ Expected: `current_error` contains "USPTO ODP request failed with HTTP 429"
 
 ### 2. Clear Persisted Error
 
-The fix (PR #57) now distinguishes transient errors (429, 503) from permanent failures and stores them with "Discovery backoff: " prefix. However, the existing persisted error predates this fix and will continue blocking reconcile.
+The fix (PR #57) now distinguishes transient errors (429, 503) from permanent failures and stores them with "Discovery backoff until" prefix. However, the existing persisted error predates this fix and will continue blocking reconcile.
 
-After PR #57 is deployed, clear the stale error manually:
+After PR #57 is deployed, clear the stale 429 error manually:
 
 ```sql
 UPDATE worker_status 
 SET current_error = NULL,
     updated_at = NOW()
-WHERE id = 'uspto';
+WHERE id = 'uspto'
+  AND (
+    current_error LIKE 'SourceHttpError: USPTO ODP request failed with HTTP 429%'
+    OR current_error LIKE 'Discovery backoff until%'
+  );
 ```
 
 ### 3. Verify Recovery
@@ -46,21 +50,26 @@ Monitor worker logs for successful discovery:
 Worker log should show: "discovered" action with artifact count
 ```
 
-Check data freshness:
+Check data freshness and worker status:
 ```sql
 SELECT 
   latest_processed_date,
-  last_successful_update_at
+  worker_current_error,
+  worker_last_discovery_at
 FROM (
   SELECT 
     max(source_to_date)::text as latest_processed_date,
-    (SELECT last_successful_update_at FROM data_state WHERE id = 'uspto') as last_successful_update_at
+    (SELECT current_error FROM worker_status WHERE id = 'uspto') as worker_current_error,
+    (SELECT last_discovery_at FROM worker_status WHERE id = 'uspto') as worker_last_discovery_at
   FROM source_artifact 
   WHERE applied_record_count > 0
 ) status;
 ```
 
-Expected: `latest_processed_date` advances beyond 2026-08-27
+Expected:
+- `latest_processed_date` advances beyond 2026-08-27
+- `worker_current_error` is NULL or contains valid backoff prefix
+- `worker_last_discovery_at` advances after deployment
 
 ### 4. Future Prevention
 
