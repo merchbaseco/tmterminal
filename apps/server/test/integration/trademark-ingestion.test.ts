@@ -567,21 +567,25 @@ test("discovery HTTP 429 backoff expires and allows retry after waiting period",
   let attemptCount = 0;
   const module = ingestion(
     catalog({
-      discover: async (product) => {
+      discover: (product) => {
         attemptCount += 1;
         if (attemptCount === 1) {
-          throw new SourceHttpError(
-            "USPTO rate limited this request",
-            { retryAfter: "5", status: 429 },
-            "catalog"
+          return Promise.reject(
+            new SourceHttpError(
+              "USPTO rate limited this request",
+              { retryAfter: "5", status: 429 },
+              "catalog"
+            )
           );
         }
-        return product === "TRTYRAP"
-          ? discovered("TRTYRAP", "YEARLY", [artifact(annualFilename, "1884-04-07", "2025-12-31")])
-          : discovered("TRTDXFAP", "DAILY", [
-              artifact("apc251231.zip", "2025-12-31", "2025-12-31"),
-              artifact(dailyFilename, "2026-01-01", "2026-01-01"),
-            ]);
+        return Promise.resolve(
+          product === "TRTYRAP"
+            ? discovered("TRTYRAP", "YEARLY", [artifact(annualFilename, "1884-04-07", "2025-12-31")])
+            : discovered("TRTDXFAP", "DAILY", [
+                artifact("apc251231.zip", "2025-12-31", "2025-12-31"),
+                artifact(dailyFilename, "2026-01-01", "2026-01-01"),
+              ])
+        );
       },
     })
   );
