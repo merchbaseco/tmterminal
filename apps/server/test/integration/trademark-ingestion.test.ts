@@ -48,9 +48,9 @@ const reserved = new Map<string, { bytes: number; objectKey: string; sha256: str
 let downloaded: string[] = [];
 let now = new Date("2026-01-03T12:00:00Z");
 const discoveryBackoffTimestampPattern =
-  /^Discovery backoff until \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z: SourceHttpError/;
-const discoveryBackoffParsePattern = /^Discovery backoff until ([^:]+):/;
-const discoveryBackoffGenericPattern = /^Discovery backoff until .+: SourceHttpError/;
+  /^Discovery backoff until \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z:/;
+const discoveryBackoffParsePattern = /^Discovery backoff until ([\d\-T:.Z]+):/;
+const discoveryBackoffGenericPattern = /^Discovery backoff until .+:/;
 
 const artifactStore: ArtifactStore = {
   async *listObjectKeys() {
@@ -467,7 +467,7 @@ test("discovery HTTP 429 without retry-after header backs off for 60 seconds", a
     })
   );
 
-  expect(await module.reconcile()).toBeNull();
+  expect(await module.reconcile()).toEqual({ action: "idle" });
   const [worker] = await database<Array<{ currentError: string | null }>>`
     select current_error as "currentError" from worker_status where id = 'uspto'
   `;
@@ -499,7 +499,7 @@ test("discovery HTTP 429 with retry-after header respects provider timing", asyn
     })
   );
 
-  expect(await module.reconcile()).toBeNull();
+  expect(await module.reconcile()).toEqual({ action: "idle" });
   const [worker] = await database<Array<{ currentError: string | null }>>`
     select current_error as "currentError" from worker_status where id = 'uspto'
   `;
@@ -530,12 +530,12 @@ test("discovery HTTP 503 backs off and does not stop worker", async () => {
     })
   );
 
-  expect(await module.reconcile()).toBeNull();
+  expect(await module.reconcile()).toEqual({ action: "idle" });
   const [worker] = await database<Array<{ currentError: string | null }>>`
     select current_error as "currentError" from worker_status where id = 'uspto'
   `;
   expect(worker?.currentError).toMatch(discoveryBackoffGenericPattern);
-  expect(await module.reconcile()).toBeNull();
+  expect(await module.reconcile()).toEqual({ action: "idle" });
 });
 
 test("discovery permanent HTTP errors stop worker immediately", async () => {
@@ -555,7 +555,7 @@ test("discovery permanent HTTP errors stop worker immediately", async () => {
   const [worker] = await database<Array<{ currentError: string | null }>>`
     select current_error as "currentError" from worker_status where id = 'uspto'
   `;
-  expect(worker?.currentError).toBe("SourceHttpError: USPTO endpoint not found");
+  expect(worker?.currentError).toBe("USPTO endpoint not found");
   expect(await module.reconcile()).toEqual({ action: "stopped" });
 });
 
@@ -592,9 +592,9 @@ test("discovery HTTP 429 backoff expires and allows retry after waiting period",
     })
   );
 
-  expect(await module.reconcile()).toBeNull();
+  expect(await module.reconcile()).toEqual({ action: "idle" });
   expect(attemptCount).toBe(1);
-  expect(await module.reconcile()).toBeNull();
+  expect(await module.reconcile()).toEqual({ action: "idle" });
   expect(attemptCount).toBe(1);
 
   now = new Date(now.getTime() + 6000);
@@ -623,7 +623,7 @@ test("discovery contract errors stop worker immediately", async () => {
   const [worker] = await database<Array<{ currentError: string | null }>>`
     select current_error as "currentError" from worker_status where id = 'uspto'
   `;
-  expect(worker?.currentError).toBe("SourceContractError: USPTO catalog has invalid metadata");
+  expect(worker?.currentError).toBe("USPTO catalog has invalid metadata");
   expect(await module.reconcile()).toEqual({ action: "stopped" });
 });
 

@@ -29,7 +29,7 @@ const expectedFrequency: Record<SourceProduct, string> = {
 const discoveryIntervalMs = 24 * 60 * 60 * 1000;
 const discoveryInsertBatchSize = 250;
 const interruptedDownloadError = "Download interrupted before verified bytes were retained";
-const discoveryBackoffPattern = /^Discovery backoff until ([^:]+):/;
+const discoveryBackoffPattern = /^Discovery backoff until ([\d\-T:.Z]+):/;
 
 type Database = postgres.Sql | postgres.TransactionSql;
 

@@ -37,11 +37,10 @@ UPDATE worker_status
 SET current_error = NULL,
     updated_at = NOW()
 WHERE id = 'uspto'
-  AND (
-    current_error LIKE 'SourceHttpError: USPTO ODP request failed with HTTP 429%'
-    OR current_error LIKE 'Discovery backoff until%'
-  );
+  AND current_error LIKE '%USPTO ODP request failed with HTTP 429%';
 ```
+
+**Important**: Do not clear errors with "Discovery backoff until" prefix, as these represent active backoff periods that respect provider timing.
 
 ### 3. Verify Recovery
 
