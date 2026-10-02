@@ -45,20 +45,17 @@ WHERE id = 'uspto'
 
 ### 3. Verify Recovery
 
-Monitor worker logs for successful discovery:
-```
-Worker log should show: "discovered" action with artifact count
-```
-
 Check data freshness and worker status:
 ```sql
 SELECT 
   latest_processed_date,
+  last_successful_update_at,
   worker_current_error,
   worker_last_discovery_at
 FROM (
   SELECT 
     max(source_to_date)::text as latest_processed_date,
+    (SELECT last_successful_update_at FROM data_state WHERE id = 'uspto') as last_successful_update_at,
     (SELECT current_error FROM worker_status WHERE id = 'uspto') as worker_current_error,
     (SELECT last_discovery_at FROM worker_status WHERE id = 'uspto') as worker_last_discovery_at
   FROM source_artifact 
