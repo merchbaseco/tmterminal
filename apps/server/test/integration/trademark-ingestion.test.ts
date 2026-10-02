@@ -580,7 +580,9 @@ test("discovery HTTP 429 backoff expires and allows retry after waiting period",
         }
         return Promise.resolve(
           product === "TRTYRAP"
-            ? discovered("TRTYRAP", "YEARLY", [artifact(annualFilename, "1884-04-07", "2025-12-31")])
+            ? discovered("TRTYRAP", "YEARLY", [
+                artifact(annualFilename, "1884-04-07", "2025-12-31"),
+              ])
             : discovered("TRTDXFAP", "DAILY", [
                 artifact("apc251231.zip", "2025-12-31", "2025-12-31"),
                 artifact(dailyFilename, "2026-01-01", "2026-01-01"),
