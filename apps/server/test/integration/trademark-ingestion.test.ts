@@ -474,8 +474,9 @@ test("discovery HTTP 429 without retry-after header backs off for 60 seconds", a
   expect(worker?.currentError).toMatch(discoveryBackoffTimestampPattern);
   const match = worker?.currentError?.match(discoveryBackoffParsePattern);
   expect(match).toBeTruthy();
-  if (match) {
-    const backoffUntil = new Date(match[1]);
+  const timestamp = match?.[1];
+  if (timestamp) {
+    const backoffUntil = new Date(timestamp);
     expect(backoffUntil.getTime() - now.getTime()).toBeGreaterThanOrEqual(59_000);
     expect(backoffUntil.getTime() - now.getTime()).toBeLessThanOrEqual(61_000);
   }
@@ -504,8 +505,9 @@ test("discovery HTTP 429 with retry-after header respects provider timing", asyn
   `;
   const match = worker?.currentError?.match(discoveryBackoffParsePattern);
   expect(match).toBeTruthy();
-  if (match) {
-    const backoffUntil = new Date(match[1]);
+  const timestamp = match?.[1];
+  if (timestamp) {
+    const backoffUntil = new Date(timestamp);
     expect(backoffUntil.getTime() - now.getTime()).toBeGreaterThanOrEqual(119_000);
     expect(backoffUntil.getTime() - now.getTime()).toBeLessThanOrEqual(121_000);
   }
@@ -565,7 +567,7 @@ test("discovery HTTP 429 backoff expires and allows retry after waiting period",
   let attemptCount = 0;
   const module = ingestion(
     catalog({
-      discover: (product) => {
+      discover: async (product) => {
         attemptCount += 1;
         if (attemptCount === 1) {
           throw new SourceHttpError(

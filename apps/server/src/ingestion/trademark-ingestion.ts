@@ -411,8 +411,9 @@ export function createTrademarkIngestion(options: {
   function checkBackoff(worker: { currentError: string | null } | undefined) {
     if (worker?.currentError?.startsWith("Discovery backoff until ")) {
       const match = worker.currentError.match(discoveryBackoffPattern);
-      if (match) {
-        const backoffUntil = new Date(match[1]);
+      const timestamp = match?.[1];
+      if (timestamp) {
+        const backoffUntil = new Date(timestamp);
         if (backoffUntil.getTime() > now().getTime()) {
           return true;
         }
