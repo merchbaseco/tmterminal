@@ -47,6 +47,10 @@ const documents = new Map<string, string>();
 const reserved = new Map<string, { bytes: number; objectKey: string; sha256: string }>();
 let downloaded: string[] = [];
 let now = new Date("2026-01-03T12:00:00Z");
+const discoveryBackoffTimestampPattern =
+  /^Discovery backoff until \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z: SourceHttpError/;
+const discoveryBackoffParsePattern = /^Discovery backoff until ([^:]+):/;
+const discoveryBackoffGenericPattern = /^Discovery backoff until .+: SourceHttpError/;
 
 const artifactStore: ArtifactStore = {
   async *listObjectKeys() {
@@ -458,11 +462,7 @@ test("discovery HTTP 429 without retry-after header backs off for 60 seconds", a
   const module = ingestion(
     catalog({
       discover: () => {
-        throw new SourceHttpError(
-          "USPTO rate limited this request",
-          { status: 429 },
-          "catalog"
-        );
+        throw new SourceHttpError("USPTO rate limited this request", { status: 429 }, "catalog");
       },
     })
   );
@@ -471,10 +471,8 @@ test("discovery HTTP 429 without retry-after header backs off for 60 seconds", a
   const [worker] = await database<Array<{ currentError: string | null }>>`
     select current_error as "currentError" from worker_status where id = 'uspto'
   `;
-  expect(worker?.currentError).toMatch(
-    /^Discovery backoff until \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z: SourceHttpError/
-  );
-  const match = worker?.currentError?.match(/^Discovery backoff until ([^:]+):/);
+  expect(worker?.currentError).toMatch(discoveryBackoffTimestampPattern);
+  const match = worker?.currentError?.match(discoveryBackoffParsePattern);
   expect(match).toBeTruthy();
   if (match) {
     const backoffUntil = new Date(match[1]);
@@ -504,7 +502,7 @@ test("discovery HTTP 429 with retry-after header respects provider timing", asyn
   const [worker] = await database<Array<{ currentError: string | null }>>`
     select current_error as "currentError" from worker_status where id = 'uspto'
   `;
-  const match = worker?.currentError?.match(/^Discovery backoff until ([^:]+):/);
+  const match = worker?.currentError?.match(discoveryBackoffParsePattern);
   expect(match).toBeTruthy();
   if (match) {
     const backoffUntil = new Date(match[1]);
@@ -534,7 +532,7 @@ test("discovery HTTP 503 backs off and does not stop worker", async () => {
   const [worker] = await database<Array<{ currentError: string | null }>>`
     select current_error as "currentError" from worker_status where id = 'uspto'
   `;
-  expect(worker?.currentError).toMatch(/^Discovery backoff until .+: SourceHttpError/);
+  expect(worker?.currentError).toMatch(discoveryBackoffGenericPattern);
   expect(await module.reconcile()).toBeNull();
 });
 
@@ -591,7 +589,7 @@ test("discovery HTTP 429 backoff expires and allows retry after waiting period",
   expect(await module.reconcile()).toBeNull();
   expect(attemptCount).toBe(1);
 
-  now = new Date(now.getTime() + 6_000);
+  now = new Date(now.getTime() + 6000);
   expect(await module.reconcile()).toEqual({ action: "discovered", artifactCount: 3 });
   expect(attemptCount).toBe(3);
   const [worker] = await database<Array<{ currentError: string | null }>>`

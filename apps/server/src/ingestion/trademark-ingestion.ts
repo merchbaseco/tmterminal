@@ -29,6 +29,7 @@ const expectedFrequency: Record<SourceProduct, string> = {
 const discoveryIntervalMs = 24 * 60 * 60 * 1000;
 const discoveryInsertBatchSize = 250;
 const interruptedDownloadError = "Download interrupted before verified bytes were retained";
+const discoveryBackoffPattern = /^Discovery backoff until ([^:]+):/;
 
 type Database = postgres.Sql | postgres.TransactionSql;
 
@@ -80,18 +81,19 @@ export function createTrademarkIngestion(options: {
     currentFilename: string | null = null,
     currentError: string | null = null
   ) {
-    if (currentError === null) {
+    let errorToStore = currentError;
+    if (errorToStore === null) {
       const [worker] = await options.database<Array<{ currentError: string | null }>>`
         select current_error as "currentError" from worker_status where id = 'uspto'
       `;
       if (worker?.currentError?.startsWith("Discovery backoff until ")) {
-        currentError = worker.currentError;
+        errorToStore = worker.currentError;
       }
     }
-    
+
     await options.database`
       insert into worker_status (id, activity, current_filename, current_error, last_heartbeat_at, updated_at)
-      values ('uspto', ${activity}, ${currentFilename}, ${currentError}, ${now()}, ${now()})
+      values ('uspto', ${activity}, ${currentFilename}, ${errorToStore}, ${now()}, ${now()})
       on conflict (id) do update set activity = excluded.activity,
         current_filename = excluded.current_filename, current_error = excluded.current_error,
         last_heartbeat_at = excluded.last_heartbeat_at, updated_at = excluded.updated_at
@@ -406,25 +408,34 @@ export function createTrademarkIngestion(options: {
     }
   }
 
-  async function discoverIfDue() {
-    const [worker] = await options.database<Array<{ 
-      currentError: string | null;
-      lastDiscoveryAt: Date | null;
-    }>>`
-      select current_error as "currentError", last_discovery_at as "lastDiscoveryAt" 
-      from worker_status where id = 'uspto'
-    `;
-    
+  function checkBackoff(worker: { currentError: string | null } | undefined) {
     if (worker?.currentError?.startsWith("Discovery backoff until ")) {
-      const match = worker.currentError.match(/^Discovery backoff until ([^:]+):/);
+      const match = worker.currentError.match(discoveryBackoffPattern);
       if (match) {
         const backoffUntil = new Date(match[1]);
         if (backoffUntil.getTime() > now().getTime()) {
-          return null;
+          return true;
         }
       }
     }
-    
+    return false;
+  }
+
+  async function discoverIfDue() {
+    const [worker] = await options.database<
+      Array<{
+        currentError: string | null;
+        lastDiscoveryAt: Date | null;
+      }>
+    >`
+      select current_error as "currentError", last_discovery_at as "lastDiscoveryAt"
+      from worker_status where id = 'uspto'
+    `;
+
+    if (checkBackoff(worker)) {
+      return null;
+    }
+
     if (
       worker?.lastDiscoveryAt &&
       worker.lastDiscoveryAt.getTime() + discoveryIntervalMs > now().getTime()
@@ -457,11 +468,11 @@ export function createTrademarkIngestion(options: {
           const retryNotBefore = providerRetryNotBefore(error.responseState, observedAt);
           const backoffUntil = retryNotBefore ?? new Date(observedAt.getTime() + 60_000);
           const backoffError = `Discovery backoff until ${backoffUntil.toISOString()}: ${errorMessage}`;
-          
+
           await options.database`
-            update worker_status set activity = 'idle', 
+            update worker_status set activity = 'idle',
               current_error = ${backoffError},
-              last_heartbeat_at = ${observedAt}, 
+              last_heartbeat_at = ${observedAt},
               updated_at = ${observedAt}
             where id = 'uspto'
           `;
@@ -531,7 +542,7 @@ export function createTrademarkIngestion(options: {
     const [worker] = await options.database<Array<{ currentError: string | null }>>`
       select current_error as "currentError" from worker_status where id = 'uspto'
     `;
-    const isBackoffError = worker?.currentError?.startsWith('Discovery backoff until ');
+    const isBackoffError = worker?.currentError?.startsWith("Discovery backoff until ");
     if (worker?.currentError && !isBackoffError) {
       return { action: "stopped" as const };
     }
