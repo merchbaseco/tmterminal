@@ -86,6 +86,7 @@ test("a transient 429 with retry-after respects backoff timing", async () => {
     extractXml: async (archivePath) => Readable.from([documents.get(archivePath) ?? ""]),
     now: () => now,
     sourceCatalog: {
+      // biome-ignore lint/suspicious/useAwait: matches SourceCatalog interface
       discover: async (product) => {
         discoveryCalls += 1;
         if (discoveryCalls === 1) {
@@ -141,6 +142,7 @@ test("a transient 429 without retry-after uses conservative backoff", async () =
     extractXml: async (archivePath) => Readable.from([documents.get(archivePath) ?? ""]),
     now: () => now,
     sourceCatalog: {
+      // biome-ignore lint/suspicious/useAwait: matches SourceCatalog interface
       discover: async (product) => {
         discoveryCalls += 1;
         attemptTime = new Date(now);
@@ -169,6 +171,7 @@ test("a transient 429 without retry-after uses conservative backoff", async () =
   // First reconcile triggers discovery, which throws 429 without retry-after
   await module.reconcile();
   expect(discoveryCalls).toBe(1);
+  // biome-ignore lint/style/noNonNullAssertion: test setup guarantees non-null
   const firstAttempt = attemptTime!;
 
   // Advance time by 30 seconds (should still be in conservative backoff)
@@ -182,6 +185,7 @@ test("a transient 429 without retry-after uses conservative backoff", async () =
   expect(discoveryCalls).toBeGreaterThan(1); // Should have retried
 
   // Verify backoff was at least 60 seconds
+  // biome-ignore lint/style/noNonNullAssertion: test setup guarantees non-null
   const retryTime = attemptTime!;
   const backoffMs = retryTime.getTime() - firstAttempt.getTime();
   expect(backoffMs).toBeGreaterThanOrEqual(60 * 1000);
@@ -194,6 +198,7 @@ test("a non-retryable SourceContractError stops the worker", async () => {
     extractXml: async (archivePath) => Readable.from([documents.get(archivePath) ?? ""]),
     now: () => now,
     sourceCatalog: {
+      // biome-ignore lint/suspicious/useAwait: matches SourceCatalog interface
       discover: async () => {
         discoveryCalls += 1;
         throw new SourceContractError("USPTO catalog returned invalid data");
@@ -232,6 +237,7 @@ test("a non-retryable SourceTransportError stops the worker", async () => {
     extractXml: async (archivePath) => Readable.from([documents.get(archivePath) ?? ""]),
     now: () => now,
     sourceCatalog: {
+      // biome-ignore lint/suspicious/useAwait: matches SourceCatalog interface
       discover: async () => {
         discoveryCalls += 1;
         throw new SourceTransportError("Network connection failed");
@@ -267,6 +273,7 @@ test("successful discovery after prior 429 clears any lingering error state", as
     extractXml: async (archivePath) => Readable.from([documents.get(archivePath) ?? ""]),
     now: () => now,
     sourceCatalog: {
+      // biome-ignore lint/suspicious/useAwait: matches SourceCatalog interface
       discover: async (product) => {
         discoveryCalls += 1;
         if (shouldFail) {

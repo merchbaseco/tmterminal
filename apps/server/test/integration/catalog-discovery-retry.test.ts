@@ -81,6 +81,7 @@ test("a transient catalog 429 does not persist error and respects backoff timing
     extractXml: async (archivePath) => Readable.from([documents.get(archivePath) ?? ""]),
     now: () => now,
     sourceCatalog: {
+      // biome-ignore lint/suspicious/useAwait: matches SourceCatalog interface
       discover: async () => {
         discoveryCalls += 1;
         throw new SourceHttpError(
@@ -134,6 +135,7 @@ test("a transient catalog 429 followed by success should recover", async () => {
     extractXml: async (archivePath) => Readable.from([documents.get(archivePath) ?? ""]),
     now: () => now,
     sourceCatalog: {
+      // biome-ignore lint/suspicious/useAwait: matches SourceCatalog interface
       discover: async (product) => {
         discoveryCalls += 1;
         attemptCount += 1;
