@@ -15,7 +15,6 @@ if (!databaseUrl) {
   throw new Error("TEST_DATABASE_URL is required for PostgreSQL integration tests");
 }
 const database = postgres(databaseUrl, { max: 3, prepare: false });
-const _sha = "a".repeat(64);
 const annualFilename = "apc18840407-20251231-01.zip";
 const dailyFilename = "apc260101.zip";
 const retained = new Set<string>();

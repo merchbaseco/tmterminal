@@ -19,7 +19,6 @@ if (!databaseUrl) {
   throw new Error("TEST_DATABASE_URL is required for PostgreSQL integration tests");
 }
 const database = postgres(databaseUrl, { max: 3, prepare: false });
-const _sha = "a".repeat(64);
 const annualFilename = "apc18840407-20251231-01.zip";
 const dailyFilename = "apc260101.zip";
 const retained = new Set<string>();
@@ -124,7 +123,7 @@ test("a transient 429 with retry-after respects backoff timing", async () => {
 
   // Advance time by 30 seconds (still within backoff)
   now = new Date(now.getTime() + 30 * 1000);
-  const _duringBackoff = await module.reconcile();
+  await module.reconcile();
   expect(discoveryCalls).toBe(1); // Discovery should not be retried during backoff
 
   // Advance time past the backoff (60 seconds from first failure)
