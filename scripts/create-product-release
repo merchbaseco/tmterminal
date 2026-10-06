@@ -1,0 +1,41 @@
+#!/bin/sh
+set -eu
+
+root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+cd "$root"
+
+version="$(tr -d '[:space:]' < VERSION)"
+case "$version" in
+  [0-9]*.[0-9]*.[0-9]*) ;;
+  *)
+    echo "VERSION is not MAJOR.MINOR.PATCH: $version" >&2
+    exit 1
+    ;;
+esac
+
+tag="v${version}"
+title="Trademark Terminal ${tag}"
+notes="$(mktemp)"
+trap 'rm -f "$notes"' EXIT
+
+awk -v ver="$version" '
+  $0 ~ ("^## " ver " - ") { p = 1; next }
+  p && /^## / { exit }
+  p { print }
+' CHANGELOG.md > "$notes"
+
+if [ ! -s "$notes" ]; then
+  echo "CHANGELOG.md has no heading for $version" >&2
+  exit 1
+fi
+
+if [ "${1:-}" = "--dry-run" ]; then
+  printf '%s\n' "$title"
+  cat "$notes"
+  exit 0
+fi
+
+exec gh release create "$tag" \
+  --title "$title" \
+  --notes-file "$notes" \
+  "$@"

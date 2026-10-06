@@ -1,6 +1,6 @@
 ---
 name: release-trademark-terminal
-description: Cut a Trademark Terminal release. Bumps VERSION, updates CHANGELOG.md, opens a PR to main, and leaves deploy to GitHub Actions. Use for /release, ship, or cut a release.
+description: Cut a Trademark Terminal product release. Bumps VERSION, updates CHANGELOG.md, opens a PR to main, and leaves deploy to GitHub Actions. After deploy, creates GitHub Release vX.Y.Z. Does not publish npm. Use for /release, ship, or cut a release.
 ---
 
 # Release Trademark Terminal
@@ -16,7 +16,8 @@ redeploy of current `main`.
 2. Read `VERSION`. Bump it as semver (`MAJOR.MINOR.PATCH`). Patch for fixes,
    minor for additive product work, major for a breaking caller or website
    contract. Do not bump `@tmterminal/cli` or `@tmterminal/http-client` here.
-   Package versions have their own `release:check` path.
+   Those packages share their own clock and `release:check` path. A product
+   `1.0.0` and a CLI `4.0.0` are correct.
 3. Collect Conventional Commits on `main` since the last dated version heading
    in `CHANGELOG.md`.
 4. Move those bullets from `## Unreleased` into a new `## X.Y.Z - YYYY-MM-DD`
@@ -30,12 +31,17 @@ redeploy of current `main`.
 
 ## After merge
 
-The Actions run is the release. If it fails, fix forward or re-dispatch
+The Actions run is the deploy. If it fails, fix forward or re-dispatch
 `Deploy Stack` on `main`. Rollback is still a known-good revert PR, not a
 laptop compose rebuild.
 
+After deploy succeeds, run `./scripts/create-product-release`. That tags
+`vX.Y.Z` from `VERSION` and opens a GitHub Release from the matching
+`CHANGELOG.md` heading. Title is `Trademark Terminal vX.Y.Z`. It does not
+create `cli-v*` tags and does not publish npm.
+
 ## Out of scope
 
-- npm package publishes
+- npm package publishes (`docs/operations/npm-packages.md`)
 - Editing production secrets
 - Importing a USPTO source ZIP

@@ -221,6 +221,23 @@ if ! grep -qF '__TMTERMINAL_VERSION__' "$root/apps/web/src/product-version.ts"; 
   echo "the website footer no longer uses the Vite-injected VERSION" >&2
   exit 1
 fi
+if grep -qF 'VERSION' "$root/scripts/check-release-versions.ts"; then
+  echo "package release:check now couples VERSION to npm versions" >&2
+  exit 1
+fi
+grep -qF './scripts/create-product-release' "$root/.cursor/skills/release-trademark-terminal/SKILL.md"
+grep -qF 'cli-v*' "$root/.cursor/skills/release-trademark-terminal/SKILL.md"
+grep -qF 'different clock' "$root/docs/operations/npm-packages.md"
+grep -qF -- '--latest=false' "$root/docs/operations/npm-packages.md"
+grep -qF 'tag="v${version}"' "$root/scripts/create-product-release"
+if ! grep -qF 'gh release create' "$root/scripts/create-product-release"; then
+  echo "create-product-release no longer opens a GitHub Release" >&2
+  exit 1
+fi
+if grep -qF 'cli-v' "$root/scripts/create-product-release"; then
+  echo "create-product-release now creates CLI tags" >&2
+  exit 1
+fi
 if grep -qE 'secrets\.(HUGEICONS_LICENSE_KEY|MERCHBASE_GITHUB_NPM_TOKEN)' "$deployment_workflow"; then
   echo "the deploy workflow still injects install credentials as platform secrets" >&2
   exit 1

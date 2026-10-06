@@ -10,6 +10,11 @@ read_when:
 Release `@tmterminal/http-client` and `@tmterminal/cli` at one
 shared `X.Y.Z`. The CLI tag `cli-vX.Y.Z` is the release boundary.
 
+Product version is a different clock. `VERSION`, the website footer, the
+deploy gate, and GitHub tag `vX.Y.Z` move when the running service changes.
+Do not bump these packages to match `VERSION`, and do not bump `VERSION` to
+match these packages. `bun run release:check` syncs the two packages only.
+
 ## Changelog
 
 Update `packages/cli/CHANGELOG.md` only during release preparation. Do not keep
@@ -48,7 +53,8 @@ an existing version.
 ## GitHub Release
 
 Create a GitHub Release from `cli-vX.Y.Z`. Use the matching changelog entry as
-the release notes and title it `Trademark Terminal CLI vX.Y.Z`.
+the release notes and title it `Trademark Terminal CLI vX.Y.Z`. Pass
+`--latest=false` so the product Release `vX.Y.Z` stays Latest.
 
 Final acceptance requires the two npm registry versions, the GitHub Release,
 and a clean global install whose `tt --version`, help, and authenticated status
