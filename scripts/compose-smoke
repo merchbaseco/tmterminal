@@ -7,7 +7,31 @@ if [ -z "${TMTERMINAL_WEB_PORT:-}" ] || [ -z "${TMTERMINAL_API_PORT:-}" ]; then
 fi
 export TMTERMINAL_WEB_PORT TMTERMINAL_API_PORT
 
-test "$(curl --fail --silent "http://127.0.0.1:${TMTERMINAL_API_PORT}/api/health")" = '{"status":"ready"}'
+health_body="$(curl --silent --show-error --max-time 15 "http://127.0.0.1:${TMTERMINAL_API_PORT}/api/health")" || {
+  printf '%s\n' "unreachable" >&2
+  exit 1
+}
+printf '%s\n' "${health_body}"
+printf '%s' "${health_body}" | bun -e '
+const text = await Bun.stdin.text();
+let body;
+try {
+  body = JSON.parse(text);
+} catch {
+  process.exit(1);
+}
+if (body === null || typeof body !== "object" || Array.isArray(body)) process.exit(1);
+const keys = Object.keys(body);
+const failing = body.failing;
+const pass =
+  (body.status === "ok" && keys.length === 1) ||
+  (body.status === "degraded" &&
+    keys.length === 2 &&
+    Array.isArray(failing) &&
+    failing.length > 0 &&
+    !failing.includes("database"));
+if (!pass) process.exit(1);
+'
 curl --fail --silent --output /dev/null "http://127.0.0.1:${TMTERMINAL_WEB_PORT}/"
 
 for service in database api worker web; do

@@ -103,11 +103,21 @@ to run that destructive cleanup.
 - database, migration, API, worker, and web health;
 - at least 20 GiB free in database and artifact volumes;
 - bounded loopback and public HTTPS probes;
-- anonymous data-free readiness;
+- anonymous health;
 - source worker heartbeat without claiming source completeness.
 
-The anonymous readiness response is exactly `{"status":"ready"}` and contains
-no trademark data. Readiness does not claim source completeness.
+The anonymous readiness body is exactly `{"status":"ok"}` on HTTP 200. HTTP 503
+is `{"status":"degraded","failing":[...]}`. The `failing` names, in order, are
+`database`, `worker`, and `uspto_data`. `database` means the health read
+did not answer within 2 seconds. `worker` fails when the heartbeat is missing
+or older than 5 minutes, or the worker is stopped. `uspto_data` fails when the
+last successful USPTO update is missing or older than 96 hours. The body has
+no trademark rows, error text, or counts, and it does not claim source
+completeness.
+
+Compose treats the API container as healthy when Postgres answered, so a
+worker or data problem does not stop the website. Deployment smoke still
+requires the exact `{"status":"ok"}` body.
 
 Run it explicitly on the host with:
 

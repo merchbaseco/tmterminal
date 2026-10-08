@@ -83,7 +83,7 @@ services:
       migrate:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "bun", "-e", "const r=await fetch('http://127.0.0.1:3000/api/health');if(!r.ok)process.exit(1)"]
+      test: ["CMD", "bun", "-e", "const r=await fetch('http://127.0.0.1:3000/api/health');const text=await r.text();let body;try{body=JSON.parse(text)}catch{process.exit(1)}if(body===null||typeof body!=='object'||Array.isArray(body))process.exit(1);const keys=Object.keys(body);const failing=body.failing;const pass=(body.status==='ok'&&keys.length===1)||(body.status==='degraded'&&keys.length===2&&Array.isArray(failing)&&failing.length>0&&!failing.includes('database'));if(!pass)process.exit(1)"]
       interval: 2s
       timeout: 3s
       retries: 15

@@ -7,6 +7,7 @@ import { createDatabaseClient } from "../db/client.ts";
 import { createTmterminalMcpAuth } from "../mcp/auth.ts";
 import { createTmterminalMcpDataSource } from "../mcp/data-source.ts";
 import { registerTmterminalMcpRoutes, resolveMcpResourceUrl } from "../mcp/http.ts";
+import { checkHealth } from "../services/health.ts";
 import { createOperatorSyncService } from "../services/operator-sync-service.ts";
 import { registerClerkWebhook } from "./clerk-webhook.ts";
 import { createAppContext, createAuthenticatedAppContext } from "./context.ts";
@@ -84,11 +85,15 @@ export async function buildServer({
   }
 
   server.get("/api/health", async (_request, reply) => {
-    try {
-      await database`select 1`;
-      return { status: "ready" };
-    } catch {
-      return reply.code(503).send({ status: "unavailable" });
+    const report = await checkHealth(database);
+    reply.header("Cache-Control", "no-store");
+    switch (report.status) {
+      case "ok":
+        return report;
+      case "degraded":
+        return reply.code(503).send(report);
+      default:
+        return report satisfies never;
     }
   });
 

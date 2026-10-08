@@ -33,7 +33,7 @@ Run the helper first whenever the page looks unsigned-in, empty, or unreachable:
 .cursor/skills/verify-trademark-terminal/scripts/doctor.sh
 ```
 
-It is read-only. It checks API `GET /api/health` (`{"status":"ready"}`), website HTTP 200 on the loopback origin, anonymous `GET /api/status`, and (cloud only) that `POST /api/dev/clerk-sign-in-token` mints a ticket from this machine. Fail the run if health is not ready, the website is not 200, or a cloud session is signed out after a reload.
+It is read-only. It checks API `GET /api/health`, website HTTP 200 on the loopback origin, anonymous `GET /api/status`, and (cloud only) that `POST /api/dev/clerk-sign-in-token` mints a ticket from this machine. Doctor accepts `{"status":"ok"}` or `{"status":"degraded","failing":[...]}` when `failing` does not include `database`. Doctor fails when health is unreachable, the body is unusable, or `failing` includes `database`. Fail the run if the website is not 200, or a cloud session is signed out after a reload.
 
 ## Drive
 

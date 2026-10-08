@@ -10,6 +10,29 @@ failed=0
 ok() { printf 'ok    %s\n' "$1"; }
 bad() { printf 'fail  %s\n' "$1" >&2; failed=1; }
 
+health_acceptable() {
+  printf '%s' "$1" | bun -e '
+    const text = await Bun.stdin.text();
+    let body;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      process.exit(1);
+    }
+    if (body === null || typeof body !== "object" || Array.isArray(body)) process.exit(1);
+    const keys = Object.keys(body);
+    const failing = body.failing;
+    const pass =
+      (body.status === "ok" && keys.length === 1) ||
+      (body.status === "degraded" &&
+        keys.length === 2 &&
+        Array.isArray(failing) &&
+        failing.length > 0 &&
+        !failing.includes("database"));
+    if (!pass) process.exit(1);
+  '
+}
+
 local_pg=no
 # Schema development port. Prefer a TCP probe — `ss` is not on every image.
 if timeout 1 bash -c 'echo >/dev/tcp/127.0.0.1/5437' >/dev/null 2>&1; then
@@ -30,11 +53,13 @@ printf 'venue=%s\n' "${venue}"
 printf 'api=%s\n' "${api_origin}"
 printf 'web=%s\n' "${web_origin}"
 
-health="$(curl -sS --max-time 5 "${api_origin}/api/health" || true)"
-if [[ "${health}" == '{"status":"ready"}' ]]; then
-  ok "api health ready"
+health_file="${scratch}/health.json"
+if ! curl -sS -o "${health_file}" --max-time 5 "${api_origin}/api/health"; then
+  bad "api health unreachable"
+elif health_acceptable "$(cat "${health_file}")"; then
+  ok "api health $(cat "${health_file}")"
 else
-  bad "api health: ${health:-unreachable}"
+  bad "api health: $(cat "${health_file}")"
 fi
 
 web_code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "${web_origin}/" || true)"

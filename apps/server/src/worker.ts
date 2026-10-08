@@ -97,9 +97,6 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 }
 
 await Bun.write(healthFile, "0");
-await checkDatabase();
-await ingestion.initialize();
-accessReconciliation.start();
 heartbeatTimer = setInterval(() => {
   refreshHealth().catch(async (error) => {
     console.error("Worker database readiness failed", error);
@@ -107,11 +104,10 @@ heartbeatTimer = setInterval(() => {
     process.exit(1);
   });
 }, 10_000);
+await refreshHealth();
+await ingestion.initialize();
+accessReconciliation.start();
 await scheduler.start();
-// Blocks until a reconciliation actually succeeds. The heartbeat timer is
-// already running and reports "not ready" until then, so a failing upstream
-// keeps the worker unhealthy rather than wedging it: the scheduler keeps
-// retrying every ten seconds and readiness follows the first success.
 await scheduler.waitForFirstReconciliation();
 firstReconciliationComplete = true;
 await refreshHealth();

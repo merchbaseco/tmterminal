@@ -26,10 +26,26 @@ const expectedFrequency: Record<SourceProduct, string> = {
   TRTDXFAP: "daily",
   TRTYRAP: "yearly",
 };
-const discoveryIntervalMs = 24 * 60 * 60 * 1000;
+export const discoveryIntervalMs = 24 * 60 * 60 * 1000;
+export const workerHeartbeatStaleAfterMs = 5 * 60 * 1000;
+export const discoveryBackoffPrefix = "Discovery backoff until ";
 const discoveryInsertBatchSize = 250;
 const interruptedDownloadError = "Download interrupted before verified bytes were retained";
-const discoveryBackoffPattern = /^Discovery backoff until ([\d\-T:.Z]+):/;
+const discoveryBackoffPattern = new RegExp(
+  `^${discoveryBackoffPrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([\\d\\-T:.Z]+):`
+);
+
+export type WorkerErrorKind = "none" | "discovery_backoff" | "stopped";
+
+export function classifyWorkerError(currentError: string | null): WorkerErrorKind {
+  if (currentError === null) {
+    return "none";
+  }
+  if (currentError.startsWith(discoveryBackoffPrefix)) {
+    return "discovery_backoff";
+  }
+  return "stopped";
+}
 
 type Database = postgres.Sql | postgres.TransactionSql;
 
@@ -86,8 +102,9 @@ export function createTrademarkIngestion(options: {
       const [worker] = await options.database<Array<{ currentError: string | null }>>`
         select current_error as "currentError" from worker_status where id = 'uspto'
       `;
-      if (worker?.currentError?.startsWith("Discovery backoff until ")) {
-        errorToStore = worker.currentError;
+      const storedError = worker?.currentError ?? null;
+      if (classifyWorkerError(storedError) === "discovery_backoff") {
+        errorToStore = storedError;
       }
     }
 
@@ -409,17 +426,16 @@ export function createTrademarkIngestion(options: {
   }
 
   function checkBackoff(worker: { currentError: string | null } | undefined) {
-    if (worker?.currentError?.startsWith("Discovery backoff until ")) {
-      const match = worker.currentError.match(discoveryBackoffPattern);
-      const timestamp = match?.[1];
-      if (timestamp) {
-        const backoffUntil = new Date(timestamp);
-        if (backoffUntil.getTime() > now().getTime()) {
-          return true;
-        }
-      }
+    const currentError = worker?.currentError ?? null;
+    if (classifyWorkerError(currentError) !== "discovery_backoff" || currentError === null) {
+      return false;
     }
-    return false;
+    const timestamp = currentError.match(discoveryBackoffPattern)?.[1];
+    if (!timestamp) {
+      return false;
+    }
+    const backoffUntil = new Date(timestamp);
+    return backoffUntil.getTime() > now().getTime();
   }
 
   async function discoverIfDue() {
@@ -468,7 +484,7 @@ export function createTrademarkIngestion(options: {
         if (isTransient) {
           const retryNotBefore = providerRetryNotBefore(error.responseState, observedAt);
           const backoffUntil = retryNotBefore ?? new Date(observedAt.getTime() + 60_000);
-          const backoffError = `Discovery backoff until ${backoffUntil.toISOString()}: ${errorMessage}`;
+          const backoffError = `${discoveryBackoffPrefix}${backoffUntil.toISOString()}: ${errorMessage}`;
 
           await options.database`
             update worker_status set activity = 'idle',
@@ -543,8 +559,7 @@ export function createTrademarkIngestion(options: {
     const [worker] = await options.database<Array<{ currentError: string | null }>>`
       select current_error as "currentError" from worker_status where id = 'uspto'
     `;
-    const isBackoffError = worker?.currentError?.startsWith("Discovery backoff until ");
-    if (worker?.currentError && !isBackoffError) {
+    if (classifyWorkerError(worker?.currentError ?? null) === "stopped") {
       return { action: "stopped" as const };
     }
     await heartbeat();
@@ -644,7 +659,7 @@ export async function readTrademarkIngestionStatus(
   const activity = facts.activity ?? "idle";
   const heartbeatIsCurrent =
     facts.lastHeartbeatAt !== null &&
-    at.getTime() - facts.lastHeartbeatAt.getTime() <= 5 * 60 * 1000;
+    at.getTime() - facts.lastHeartbeatAt.getTime() <= workerHeartbeatStaleAfterMs;
   let currentArtifact: TrademarkIngestionStatus["currentArtifact"] = null;
   if (heartbeatIsCurrent && activity === "discovering") {
     currentArtifact = { filename: "USPTO source catalog", state: activity };

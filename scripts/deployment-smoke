@@ -12,6 +12,14 @@ probe() {
   curl --connect-timeout 5 --max-time 15 "$@"
 }
 
+require_exact_ok() {
+  body="$(probe --silent "$1" || true)"
+  if [ "$body" != '{"status":"ok"}' ]; then
+    printf '%s\n' "$body" >&2
+    exit 1
+  fi
+}
+
 database_available_kb="$(compose exec -T database df -Pk /var/lib/postgresql/data | awk 'NR == 2 { print $4 }')"
 artifact_available_kb="$(compose exec -T worker df -Pk /var/lib/tmterminal/artifacts | awk 'NR == 2 { print $4 }')"
 test "$database_available_kb" -ge 20971520
@@ -19,10 +27,10 @@ test "$artifact_available_kb" -ge 20971520
 
 api_address="$(compose port api 3000)"
 web_address="$(compose port web 8080)"
-test "$(probe --fail --silent "http://${api_address}/api/health")" = '{"status":"ready"}'
+require_exact_ok "http://${api_address}/api/health"
 test "$(probe --silent --output /dev/null --write-out '%{http_code}' --request POST "http://${api_address}/api/dev/clerk-sign-in-token")" = "404"
 probe --fail --silent --output /dev/null "http://${web_address}/"
-test "$(probe --fail --silent "${public_origin}/api/health")" = '{"status":"ready"}'
+require_exact_ok "${public_origin}/api/health"
 probe --fail --silent --output /dev/null "${public_origin}/"
 
 for service in database api worker web; do
