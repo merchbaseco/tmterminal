@@ -58,7 +58,7 @@ retains named documents and occurrence spans for richer applications.
 | Operator source pages | Clerk session plus operator role |
 | `/api/oauth/trpc` | Clerk OAuth access token |
 | Hosted MCP (`/mcp`) | Clerk OAuth only. API keys are rejected. |
-| `/api/health` and aggregate `/api/status` | Anonymous |
+| `/health/live`, `/api/health`, and aggregate `/api/status` | Anonymous |
 
 API keys are suite-wide Clerk User API Keys from the
 [MerchBase Account Center](https://merchbase.co/account/api-keys/).

@@ -35,6 +35,10 @@ test("a migrated database with no heartbeat or successful update fails worker an
 
   expect(response.statusCode).toBe(503);
   expect(response.body).toBe('{"status":"degraded","failing":["worker","uspto_data"]}');
+
+  const live = await server.inject({ method: "GET", url: "/health/live" });
+  expect(live.statusCode).toBe(200);
+  expect(live.body).toBe('{"status":"ok"}');
 });
 
 test("a fresh heartbeat and successful update are ok", async () => {
@@ -66,4 +70,8 @@ test("a heartbeat 6 minutes in the past fails worker", async () => {
 
   expect(response.statusCode).toBe(503);
   expect(response.body).toBe('{"status":"degraded","failing":["worker"]}');
+
+  const live = await server.inject({ method: "GET", url: "/health/live" });
+  expect(live.statusCode).toBe(200);
+  expect(live.body).toBe('{"status":"ok"}');
 });

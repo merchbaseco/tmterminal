@@ -55,6 +55,15 @@ export async function checkHealth(database: postgres.Sql): Promise<HealthReport>
   }
 }
 
+export async function checkLive(database: postgres.Sql): Promise<HealthReport> {
+  try {
+    await queryWithinDeadline(database`select 1`);
+    return { status: "ok" };
+  } catch {
+    return degraded(["database"]);
+  }
+}
+
 function degraded(failing: readonly [HealthCheckName, ...HealthCheckName[]]): HealthReport {
   // biome-ignore assist/source/useSortedKeys: The readiness body is exact bytes, with status before failing.
   return { status: "degraded", failing };
@@ -105,9 +114,8 @@ function usptoDataIsFailing(read: Extract<HealthRead, { kind: "read" }>) {
 }
 
 async function readHealth(database: postgres.Sql): Promise<HealthRead> {
-  let timer: Timer | undefined;
   try {
-    const query = database<HealthRow[]>`
+    const rows = await queryWithinDeadline(database<HealthRow[]>`
       select current_timestamp as "observedAt",
         worker.last_heartbeat_at as "workerHeartbeatAt",
         worker.current_error as "currentError",
@@ -115,16 +123,7 @@ async function readHealth(database: postgres.Sql): Promise<HealthRead> {
       from (select 1) anchor
       left join worker_status worker on worker.id = 'uspto'
       left join data_state state on state.id = 'uspto'
-    `;
-    const rows = await Promise.race([
-      query,
-      new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => {
-          query.cancel();
-          reject(new Error("health read deadline"));
-        }, healthReadDeadlineMs);
-      }),
-    ]);
+    `);
     const [row] = rows;
     if (!row) {
       return { kind: "unreadable" };
@@ -138,6 +137,21 @@ async function readHealth(database: postgres.Sql): Promise<HealthRead> {
     };
   } catch {
     return { kind: "unreadable" };
+  }
+}
+
+async function queryWithinDeadline<T>(query: Promise<T> & { cancel: () => void }): Promise<T> {
+  let timer: Timer | undefined;
+  try {
+    return await Promise.race([
+      query,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          query.cancel();
+          reject(new Error("health read deadline"));
+        }, healthReadDeadlineMs);
+      }),
+    ]);
   } finally {
     if (timer !== undefined) {
       clearTimeout(timer);

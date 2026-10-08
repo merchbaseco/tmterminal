@@ -19,10 +19,14 @@ describe("GET /api/health", () => {
     servers.push(server);
 
     const response = await server.inject({ method: "GET", url: "/api/health" });
+    const live = await server.inject({ method: "GET", url: "/health/live" });
 
     expect(response.statusCode).toBe(503);
     expect(response.body).toBe('{"status":"degraded","failing":["database"]}');
     expect(response.headers["cache-control"]).toBe("no-store");
+    expect(live.statusCode).toBe(503);
+    expect(live.body).toBe('{"status":"degraded","failing":["database"]}');
+    expect(live.headers["cache-control"]).toBe("no-store");
   });
 
   test("does not expose server stacks from the empty public router", async () => {

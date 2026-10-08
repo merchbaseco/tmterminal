@@ -247,10 +247,14 @@ if ! grep -qF 'VARLOCK_ENV=test bunx varlock run -- bun run build' "$root/packag
   exit 1
 fi
 
-# --- Deployment smoke keeps its worker-heartbeat gate ---------------------
+# --- Deployment smoke checks liveness, not ingestion freshness ------------
 
 deployment_smoke="$root/scripts/deployment-smoke"
-grep -qF 'current_error is null and last_heartbeat_at' "$deployment_smoke"
+grep -qF '/health/live' "$deployment_smoke"
+if grep -qF 'last_heartbeat_at' "$deployment_smoke"; then
+  echo "deployment smoke still fail-closes on worker freshness" >&2
+  exit 1
+fi
 if grep -qF 'source_lane' "$deployment_smoke"; then
   echo "deployment smoke still depends on the retired source lane" >&2
   exit 1

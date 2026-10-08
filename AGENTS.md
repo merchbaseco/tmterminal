@@ -15,7 +15,7 @@ to that file for Matt Pocock skills.
 - USPTO artifacts update live trademark tables in bounded transactions.
   Ingestion never gates reads.
 - Data procedures need a Clerk session or an API key. Anonymous routes are
-  readiness (`/api/health`) and aggregate `/api/status` only.
+  liveness (`/health/live`), the watcher report (`/api/health`), and aggregate `/api/status` only.
 - Annual and daily are USPTO packaging, not query-visible datasets.
 
 ## Development
