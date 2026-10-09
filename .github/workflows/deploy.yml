@@ -63,6 +63,10 @@ jobs:
 
       - name: Verify from the consumer
         run: |
-          test "$(curl --fail --show-error --silent --max-time 20 \
-            https://tmterminal.merchbase.co/api/health)" = '{"status":"ready"}'
-          echo "Public health endpoint OK."
+          body="$(curl --show-error --silent --max-time 20 \
+            https://tmterminal.merchbase.co/health/live || true)"
+          if [ "$body" != '{"status":"ok"}' ]; then
+            printf '%s\n' "$body" >&2
+            exit 1
+          fi
+          echo "Public liveness endpoint OK."

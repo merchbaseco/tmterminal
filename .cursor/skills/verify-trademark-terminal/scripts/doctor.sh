@@ -30,11 +30,11 @@ printf 'venue=%s\n' "${venue}"
 printf 'api=%s\n' "${api_origin}"
 printf 'web=%s\n' "${web_origin}"
 
-health="$(curl -sS --max-time 5 "${api_origin}/api/health" || true)"
-if [[ "${health}" == '{"status":"ready"}' ]]; then
-  ok "api health ready"
+health="$(curl -sS --max-time 5 "${api_origin}/health/live" || true)"
+if [[ "${health}" == '{"status":"ok"}' ]]; then
+  ok "api liveness ok"
 else
-  bad "api health: ${health:-unreachable}"
+  bad "api liveness: ${health:-unreachable}"
 fi
 
 web_code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "${web_origin}/" || true)"

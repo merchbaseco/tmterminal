@@ -103,11 +103,22 @@ to run that destructive cleanup.
 - database, migration, API, worker, and web health;
 - at least 20 GiB free in database and artifact volumes;
 - bounded loopback and public HTTPS probes;
-- anonymous data-free readiness;
-- source worker heartbeat without claiming source completeness.
+- anonymous liveness at `/health/live`.
 
-The anonymous readiness response is exactly `{"status":"ready"}` and contains
-no trademark data. Readiness does not claim source completeness.
+`GET /health/live` is process liveness. It runs `select 1` and returns
+`{"status":"ok"}` on HTTP 200. Docker healthchecks, Caddy, `depends_on`, and
+deployment smoke use this URL. A supervisor should use it too. The worker
+process writes `/tmp/tmterminal-worker-ready` after that same database query.
+Stale ingestion does not fail these checks.
+
+`GET /api/health` is the watcher report. HTTP 200 is `{"status":"ok"}`. HTTP
+503 is `{"status":"degraded","failing":[...]}`. The names, in order, are
+`database`, `worker`, and `uspto_data`. `database` means the health read did
+not answer within 2 seconds. `worker` fails when the heartbeat is missing or
+older than 5 minutes, or the worker is stopped. `uspto_data` fails when the
+last successful USPTO update is missing or older than 96 hours. The body has
+no trademark rows, error text, or counts, and it does not claim source
+completeness. Smoke does not call this URL.
 
 Run it explicitly on the host with:
 

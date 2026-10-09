@@ -1,12 +1,17 @@
 import cors from "@fastify/cors";
 import { fastifyTRPCPlugin } from "@trpc/server/adapters/fastify";
-import Fastify, { type FastifyRequest, type FastifyServerOptions } from "fastify";
+import Fastify, {
+  type FastifyReply,
+  type FastifyRequest,
+  type FastifyServerOptions,
+} from "fastify";
 
 import { createConfiguredTmterminalAccess, type TmterminalAccess } from "../auth/service-access.ts";
 import { createDatabaseClient } from "../db/client.ts";
 import { createTmterminalMcpAuth } from "../mcp/auth.ts";
 import { createTmterminalMcpDataSource } from "../mcp/data-source.ts";
 import { registerTmterminalMcpRoutes, resolveMcpResourceUrl } from "../mcp/http.ts";
+import { checkHealth, checkLive, type HealthReport } from "../services/health.ts";
 import { createOperatorSyncService } from "../services/operator-sync-service.ts";
 import { registerClerkWebhook } from "./clerk-webhook.ts";
 import { createAppContext, createAuthenticatedAppContext } from "./context.ts";
@@ -25,6 +30,18 @@ interface BuildServerOptions {
   logger?: FastifyServerOptions["logger"];
   mcp?: { publishableKey: string; resourceUrl: string } | null;
   nodeEnv?: string;
+}
+
+function sendHealth(reply: FastifyReply, report: HealthReport) {
+  reply.header("Cache-Control", "no-store");
+  switch (report.status) {
+    case "ok":
+      return report;
+    case "degraded":
+      return reply.code(503).send(report);
+    default:
+      return report satisfies never;
+  }
 }
 
 function resolveDevClerkSignIn(
@@ -83,14 +100,13 @@ export async function buildServer({
     });
   }
 
-  server.get("/api/health", async (_request, reply) => {
-    try {
-      await database`select 1`;
-      return { status: "ready" };
-    } catch {
-      return reply.code(503).send({ status: "unavailable" });
-    }
-  });
+  server.get("/health/live", async (_request, reply) =>
+    sendHealth(reply, await checkLive(database))
+  );
+
+  server.get("/api/health", async (_request, reply) =>
+    sendHealth(reply, await checkHealth(database))
+  );
 
   server.get("/api/status", async (_request, reply) => {
     try {

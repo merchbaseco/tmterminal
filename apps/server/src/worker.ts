@@ -9,8 +9,6 @@ import {
   createAccessReconciliationScheduler,
   reconcileActiveProjectionAccess,
 } from "./services/access-reconciliation.ts";
-import { createSyncService } from "./services/sync-service.ts";
-import { isWorkerReady } from "./worker-readiness.ts";
 
 const databaseUrl = process.env.TMTERMINAL_DATABASE_URL;
 
@@ -53,14 +51,12 @@ const scheduler = createIngestionScheduler({
   onError: (error) => console.error("Ingestion scheduler error", error),
   reconcile: () => ingestion.reconcile(),
 });
-const sync = createSyncService(database);
 const accessReconciliation = createAccessReconciliationScheduler({
   onError: (error) => console.error("Access reconciliation error", error),
   reconcile: () => reconcileActiveProjectionAccess(database, access),
 });
 let stopping = false;
 let heartbeatTimer: Timer | undefined;
-let firstReconciliationComplete = false;
 
 async function checkDatabase() {
   await database`select 1`;
@@ -69,11 +65,7 @@ async function checkDatabase() {
 async function refreshHealth() {
   await ingestion.pulse();
   await checkDatabase();
-  const status = await sync.status();
-  await Bun.write(
-    healthFile,
-    isWorkerReady(status.activeState, firstReconciliationComplete) ? String(Date.now()) : "0"
-  );
+  await Bun.write(healthFile, String(Date.now()));
 }
 
 async function stop() {
@@ -97,9 +89,6 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 }
 
 await Bun.write(healthFile, "0");
-await checkDatabase();
-await ingestion.initialize();
-accessReconciliation.start();
 heartbeatTimer = setInterval(() => {
   refreshHealth().catch(async (error) => {
     console.error("Worker database readiness failed", error);
@@ -107,11 +96,7 @@ heartbeatTimer = setInterval(() => {
     process.exit(1);
   });
 }, 10_000);
-await scheduler.start();
-// Blocks until a reconciliation actually succeeds. The heartbeat timer is
-// already running and reports "not ready" until then, so a failing upstream
-// keeps the worker unhealthy rather than wedging it: the scheduler keeps
-// retrying every ten seconds and readiness follows the first success.
-await scheduler.waitForFirstReconciliation();
-firstReconciliationComplete = true;
 await refreshHealth();
+await ingestion.initialize();
+accessReconciliation.start();
+await scheduler.start();

@@ -10,7 +10,7 @@ describe("GET /api/health", () => {
     await Promise.all(servers.splice(0).map((server) => server.close()));
   });
 
-  test("returns a safe unavailable response when PostgreSQL cannot be reached", async () => {
+  test("returns a degraded database response when PostgreSQL cannot be reached", async () => {
     const server = await buildServer({
       access: fakeTmterminalAccess(),
       databaseUrl: "postgres://postgres:postgres@127.0.0.1:1/tmterminal",
@@ -19,9 +19,14 @@ describe("GET /api/health", () => {
     servers.push(server);
 
     const response = await server.inject({ method: "GET", url: "/api/health" });
+    const live = await server.inject({ method: "GET", url: "/health/live" });
 
     expect(response.statusCode).toBe(503);
-    expect(response.json<{ status: string }>()).toEqual({ status: "unavailable" });
+    expect(response.body).toBe('{"status":"degraded","failing":["database"]}');
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(live.statusCode).toBe(503);
+    expect(live.body).toBe('{"status":"degraded","failing":["database"]}');
+    expect(live.headers["cache-control"]).toBe("no-store");
   });
 
   test("does not expose server stacks from the empty public router", async () => {

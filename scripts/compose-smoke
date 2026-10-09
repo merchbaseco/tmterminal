@@ -7,7 +7,7 @@ if [ -z "${TMTERMINAL_WEB_PORT:-}" ] || [ -z "${TMTERMINAL_API_PORT:-}" ]; then
 fi
 export TMTERMINAL_WEB_PORT TMTERMINAL_API_PORT
 
-test "$(curl --fail --silent "http://127.0.0.1:${TMTERMINAL_API_PORT}/api/health")" = '{"status":"ready"}'
+test "$(curl --fail --silent "http://127.0.0.1:${TMTERMINAL_API_PORT}/health/live")" = '{"status":"ok"}'
 curl --fail --silent --output /dev/null "http://127.0.0.1:${TMTERMINAL_WEB_PORT}/"
 
 for service in database api worker web; do

@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 const caddyfile = readFileSync(new URL("../../../../Caddyfile", import.meta.url), "utf8");
 const serverPaths = [
   "/api/*",
+  "/health/live",
   "/mcp",
   "/.well-known/oauth-protected-resource",
   "/.well-known/oauth-protected-resource/mcp",
@@ -11,7 +12,7 @@ const serverPaths = [
   "/.well-known/oauth-authorization-server/mcp",
 ];
 
-test("routes only the API, MCP, and OAuth discovery paths to Fastify", () => {
+test("routes the API, liveness, MCP, and OAuth discovery paths to Fastify", () => {
   const matcher = caddyfile.split("\n").find((line) => line.trim().startsWith("@server path "));
 
   expect(matcher?.trim()).toBe(`@server path ${serverPaths.join(" ")}`);
