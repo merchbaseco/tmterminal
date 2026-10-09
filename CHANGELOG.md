@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 1.0.2 - 2026-10-09
+
+**Features**
+
+- feat(health): `GET /api/health` is the watcher report. HTTP 200 is `{"status":"ok"}`. HTTP 503 is `{"status":"degraded","failing":[...]}` with `database`, `worker`, and `uspto_data`. `worker` fails when the USPTO heartbeat is missing, older than 5 minutes, or the worker is stopped. Discovery backoff does not fail `worker`. `uspto_data` fails when the last successful update is missing or older than 96 hours. Callers that expected `{"status":"ready"}` or `{"status":"unavailable"}` now receive `ok` or `degraded`.
+
+**Fixes**
+
+- fix(health): `GET /health/live` runs `select 1` and returns HTTP 200 `{"status":"ok"}`. Docker healthchecks, Caddy, `depends_on`, the worker supervision file, and deployment smoke use this URL. A stale worker or a stale USPTO update does not fail these checks.
+
 ## 1.0.1 - 2026-10-05
 
 **Fixes**
