@@ -73,7 +73,7 @@ PostgreSQL and production-shaped verification.
 
 Trademark Terminal is under active development. Authentication, search, exact
 lookups, the website, HTTP client, CLI, and production runtime are operational.
-The hosted MCP is implemented and awaits deployment. USPTO ingestion updates
+The hosted MCP is operational. USPTO ingestion updates
 the live trademark database directly. See
 [ingestion](docs/internals/ingestion.md) and
 [live trademark knowledge](docs/decisions/live-trademark-knowledge.md).
