@@ -84,3 +84,37 @@ HTTP contracts live in [`packages/cli`](packages/cli/README.md) and
 [`packages/http-client`](packages/http-client/README.md). Shared nouns live in
 [`GLOSSARY.md`](GLOSSARY.md). Remaining maintainer notes are listed in
 [`docs/README.md`](docs/README.md).
+
+## Troubleshooting
+
+### PostgreSQL connection errors
+
+The development environment requires PostgreSQL 16 or Docker running on `127.0.0.1:5437`. If `bun run dev` fails with a database connection error:
+
+```sh
+# Check PostgreSQL is running
+pg_isready -h 127.0.0.1 -p 5437
+```
+
+Start PostgreSQL 16 directly or via Docker Compose:
+
+```sh
+bunx varlock run -- docker compose --project-name tmterminal-dev up --detach --wait database
+```
+
+### Port already in use
+
+The dev script allocates ports dynamically using `dev-port`. If ports `5173` (website) or `3000` (API) are already bound, identify and stop the conflicting process:
+
+```sh
+lsof -ti:5173 -ti:3000
+```
+
+### Missing dependencies
+
+Run `bun install` before starting the development server. If node modules are corrupted or out of sync:
+
+```sh
+rm -rf node_modules apps/*/node_modules packages/*/node_modules
+bun install
+```
