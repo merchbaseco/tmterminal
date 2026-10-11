@@ -65,7 +65,7 @@ jobs:
         run: |
           body="$(curl --show-error --silent --max-time 20 \
             https://tmterminal.merchbase.co/health/live || true)"
-          if [ "$body" != '{"status":"ok"}' ]; then
+          if [ "$body" != "{\"status\":\"ok\",\"revision\":\"${GITHUB_SHA}\"}" ]; then
             printf '%s\n' "$body" >&2
             exit 1
           fi

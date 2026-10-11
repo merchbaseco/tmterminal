@@ -34,11 +34,13 @@ test("a migrated database with no heartbeat or successful update fails worker an
   const response = await server.inject({ method: "GET", url: "/api/health" });
 
   expect(response.statusCode).toBe(503);
-  expect(response.body).toBe('{"status":"degraded","failing":["worker","uspto_data"]}');
+  expect(response.body).toBe(
+    '{"status":"degraded","failing":["worker","uspto_data"],"revision":"dev"}'
+  );
 
   const live = await server.inject({ method: "GET", url: "/health/live" });
   expect(live.statusCode).toBe(200);
-  expect(live.body).toBe('{"status":"ok"}');
+  expect(live.body).toBe('{"status":"ok","revision":"dev"}');
 });
 
 test("a fresh heartbeat and successful update are ok", async () => {
@@ -56,7 +58,7 @@ test("a fresh heartbeat and successful update are ok", async () => {
   const response = await server.inject({ method: "GET", url: "/api/health" });
 
   expect(response.statusCode).toBe(200);
-  expect(response.body).toBe('{"status":"ok"}');
+  expect(response.body).toBe('{"status":"ok","revision":"dev"}');
 });
 
 test("a heartbeat 6 minutes in the past fails worker", async () => {
@@ -69,9 +71,9 @@ test("a heartbeat 6 minutes in the past fails worker", async () => {
   const response = await server.inject({ method: "GET", url: "/api/health" });
 
   expect(response.statusCode).toBe(503);
-  expect(response.body).toBe('{"status":"degraded","failing":["worker"]}');
+  expect(response.body).toBe('{"status":"degraded","failing":["worker"],"revision":"dev"}');
 
   const live = await server.inject({ method: "GET", url: "/health/live" });
   expect(live.statusCode).toBe(200);
-  expect(live.body).toBe('{"status":"ok"}');
+  expect(live.body).toBe('{"status":"ok","revision":"dev"}');
 });

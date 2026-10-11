@@ -22,10 +22,10 @@ describe("GET /api/health", () => {
     const live = await server.inject({ method: "GET", url: "/health/live" });
 
     expect(response.statusCode).toBe(503);
-    expect(response.body).toBe('{"status":"degraded","failing":["database"]}');
+    expect(response.body).toBe('{"status":"degraded","failing":["database"],"revision":"dev"}');
     expect(response.headers["cache-control"]).toBe("no-store");
     expect(live.statusCode).toBe(503);
-    expect(live.body).toBe('{"status":"degraded","failing":["database"]}');
+    expect(live.body).toBe('{"status":"degraded","failing":["database"],"revision":"dev"}');
     expect(live.headers["cache-control"]).toBe("no-store");
   });
 

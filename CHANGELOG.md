@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**
+
+- feat(health): `GET /health/live` and `GET /api/health` include `revision`. Deployed images report the 40-character git SHA baked from `TMTERMINAL_REVISION`. Local dev and tests report `dev`.
+
 ## 1.0.2 - 2026-10-09
 
 **Features**
