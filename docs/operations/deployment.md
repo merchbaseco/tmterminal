@@ -106,13 +106,19 @@ to run that destructive cleanup.
 - anonymous liveness at `/health/live`.
 
 `GET /health/live` is process liveness. It runs `select 1` and returns
-`{"status":"ok"}` on HTTP 200. Docker healthchecks, Caddy, `depends_on`, and
-deployment smoke use this URL. A supervisor should use it too. The worker
-process writes `/tmp/tmterminal-worker-ready` after that same database query.
-Stale ingestion does not fail these checks.
+`{"status":"ok","revision":"<value>"}` on HTTP 200. Docker healthchecks, Caddy,
+`depends_on`, and deployment smoke use this URL. A supervisor should use it
+too. The worker process writes `/tmp/tmterminal-worker-ready` after that same
+database query. Stale ingestion does not fail these checks.
 
-`GET /api/health` is the watcher report. HTTP 200 is `{"status":"ok"}`. HTTP
-503 is `{"status":"degraded","failing":[...]}`. The names, in order, are
+`GET /api/health` is the watcher report. Both health bodies include
+`revision`. Deployed responses use the 40-character SHA baked from
+`TMTERMINAL_REVISION` at image build. `bun run dev` and tests report `dev`.
+Workstation compose images report the build arg, `development` or
+`development-<project>`. Smoke compares `/health/live` to that same string.
+HTTP 200 is `{"status":"ok","revision":"<value>"}`. HTTP 503 is
+`{"status":"degraded","failing":[...],"revision":"<value>"}`. The names, in
+order, are
 `database`, `worker`, and `uspto_data`. `database` means the health read did
 not answer within 2 seconds. `worker` fails when the heartbeat is missing or
 older than 5 minutes, or the worker is stopped. `uspto_data` fails when the

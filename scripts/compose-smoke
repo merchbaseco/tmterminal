@@ -7,7 +7,11 @@ if [ -z "${TMTERMINAL_WEB_PORT:-}" ] || [ -z "${TMTERMINAL_API_PORT:-}" ]; then
 fi
 export TMTERMINAL_WEB_PORT TMTERMINAL_API_PORT
 
-test "$(curl --fail --silent "http://127.0.0.1:${TMTERMINAL_API_PORT}/health/live")" = '{"status":"ok"}'
+api_container_id="$(./scripts/compose ps --quiet api)"
+test -n "$api_container_id"
+baked_revision="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$api_container_id")"
+test -n "$baked_revision"
+test "$(curl --fail --silent "http://127.0.0.1:${TMTERMINAL_API_PORT}/health/live")" = "{\"status\":\"ok\",\"revision\":\"${baked_revision}\"}"
 curl --fail --silent --output /dev/null "http://127.0.0.1:${TMTERMINAL_WEB_PORT}/"
 
 for service in database api worker web; do

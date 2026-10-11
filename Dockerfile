@@ -20,6 +20,7 @@ FROM workspace AS test
 FROM workspace AS runtime
 ARG TMTERMINAL_REVISION=development
 LABEL org.opencontainers.image.revision=$TMTERMINAL_REVISION
+RUN bun scripts/bake-revision.ts "$TMTERMINAL_REVISION" apps/server/src/build-revision.ts
 RUN rm -rf fixtures
 
 FROM workspace AS web-build

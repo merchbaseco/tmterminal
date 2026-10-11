@@ -2,6 +2,7 @@
 set -eu
 
 : "${TMTERMINAL_REVISION:?set TMTERMINAL_REVISION to the deployed Git revision}"
+printf '%s\n' "$TMTERMINAL_REVISION" | grep -qxE '[0-9a-f]{40}'
 public_origin="https://tmterminal.merchbase.co"
 
 compose() {
@@ -14,7 +15,7 @@ probe() {
 
 require_exact_ok() {
   body="$(probe --silent "$1" || true)"
-  if [ "$body" != '{"status":"ok"}' ]; then
+  if [ "$body" != "{\"status\":\"ok\",\"revision\":\"${TMTERMINAL_REVISION}\"}" ]; then
     printf '%s\n' "$body" >&2
     exit 1
   fi
