@@ -31,7 +31,7 @@ printf 'api=%s\n' "${api_origin}"
 printf 'web=%s\n' "${web_origin}"
 
 health="$(curl -sS --max-time 5 "${api_origin}/health/live" || true)"
-if [[ "${health}" == '{"status":"ok"}' ]]; then
+if [[ "${health}" == '{"status":"ok","revision":"dev"}' ]]; then
   ok "api liveness ok"
 else
   bad "api liveness: ${health:-unreachable}"

@@ -7,6 +7,7 @@ import Fastify, {
 } from "fastify";
 
 import { createConfiguredTmterminalAccess, type TmterminalAccess } from "../auth/service-access.ts";
+import { buildRevision } from "../build-revision.ts";
 import { createDatabaseClient } from "../db/client.ts";
 import { createTmterminalMcpAuth } from "../mcp/auth.ts";
 import { createTmterminalMcpDataSource } from "../mcp/data-source.ts";
@@ -36,9 +37,15 @@ function sendHealth(reply: FastifyReply, report: HealthReport) {
   reply.header("Cache-Control", "no-store");
   switch (report.status) {
     case "ok":
-      return report;
+      // biome-ignore assist/source/useSortedKeys: The health body is exact bytes, with status before revision.
+      return { status: "ok", revision: buildRevision };
     case "degraded":
-      return reply.code(503).send(report);
+      // biome-ignore assist/source/useSortedKeys: The health body is exact bytes, with status before failing and revision last.
+      return reply.code(503).send({
+        status: "degraded",
+        failing: report.failing,
+        revision: buildRevision,
+      });
     default:
       return report satisfies never;
   }
