@@ -5,8 +5,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PROJECT_DIR}/scripts/claude-session-start",
+            "command": "[ \"${CLAUDE_CODE_REMOTE:-}\" = true ] || ${CLAUDE_PROJECT_DIR}/scripts/claude-session-start",
             "statusMessage": "Preparing the checkout"
+          }
+        ]
+      },
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"${CLAUDE_CODE_REMOTE:-}\" != true ] || bash \"$CLAUDE_PROJECT_DIR\"/.agents/cloud/bootstrap.sh claude",
+            "timeout": 900
           }
         ]
       }

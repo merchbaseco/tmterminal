@@ -187,7 +187,7 @@ grep -qF 'requiredOnWorker' "$verify_script"
 deployment_workflow="$root/.github/workflows/deploy.yml"
 grep -qF 'name: Deploy Stack' "$deployment_workflow"
 grep -qF 'DEPLOY_AGENT_PRODUCTION_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}' "$deployment_workflow"
-grep -qF 'CURSOR_CLOUD_AGENTS_DEVELOPMENT_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}' "$deployment_workflow"
+grep -qF 'CI_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}' "$deployment_workflow"
 grep -qF 'run: bun run deploy' "$deployment_workflow"
 # The exact-revision gate requires HEAD to equal origin/main, so the sync step
 # must advance the remote-tracking ref — fetching a bare SHA does not.
@@ -232,7 +232,7 @@ fi
 
 # Quality resolves install credentials through the schema, not github.token.
 quality_workflow="$root/.github/workflows/quality.yml"
-grep -qF 'CURSOR_CLOUD_AGENTS_DEVELOPMENT_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}' "$quality_workflow"
+grep -qF 'CI_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}' "$quality_workflow"
 grep -qF 'timeout-minutes: 5' "$quality_workflow"
 if grep -qF '${{ github.token }}' "$quality_workflow"; then
   echo "Quality still installs private packages with the ambient github.token" >&2

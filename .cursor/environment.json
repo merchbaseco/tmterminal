@@ -1,22 +1,22 @@
 {
   "name": "Merchbase TMTerminal",
   "user": "ubuntu",
-  "install": "bash .cursor/install.sh",
-  "start": "bash .cursor/start.sh",
+  "install": "bash .agents/cloud/install.sh",
+  "start": "bash .agents/cloud/bootstrap.sh cursor",
   "terminals": [
     {
       "name": "api",
-      "command": "bash .cursor/api.sh",
+      "command": ". .agents/cloud/env.sh && bash .agents/cloud/api.sh",
       "description": "Trademark Terminal HTTP/MCP API on port 3000 against the local database. It binds every interface here because Cursor forwards a session's ports by watching for listening sockets; the development sign-in endpoint still answers only a caller on this machine."
     },
     {
       "name": "web",
-      "command": "bash .cursor/web.sh",
+      "command": ". .agents/cloud/env.sh && bash .agents/cloud/web.sh",
       "description": "Trademark Terminal website (Vite dev server) on port 5173, proxying /api to the API and /docs to VitePress. It binds every interface for the same port-forwarding reason, and signs in automatically as the shared Merchbase Dev Sign-In user, which owns the seeded data. Open this URL to navigate the app."
     },
     {
       "name": "docs",
-      "command": "bash .cursor/docs.sh",
+      "command": ". .agents/cloud/env.sh && bash .agents/cloud/docs.sh",
       "description": "VitePress product docs on port 5174. The website proxies /docs here, so open http://127.0.0.1:5173/docs."
     }
   ],

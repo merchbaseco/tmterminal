@@ -13,7 +13,7 @@ Primary surface: the authenticated Vite website. Secondary surfaces: public Stat
 
 Two venues. Do not mix them.
 
-**Cloud Agent (this VM).** `.cursor/start.sh` already started local PostgreSQL, migrated, and seeded a fabricated week. Terminals `api` (`http://127.0.0.1:3000`) and `web` (`http://127.0.0.1:5173`, proxies `/api`) are the instance. Do not start a second pair. Ready when:
+**Cloud Agent (this VM).** The session start (`.agents/cloud/start.sh`) already started local PostgreSQL, migrated, and seeded a fabricated week. On Cursor, terminals `api` (`http://127.0.0.1:3000`) and `web` (`http://127.0.0.1:5173`, proxies `/api`) are the instance; do not start a second pair. On Claude cloud nothing is running yet: start the same pair in the background with `bash .agents/cloud/api.sh` and `bash .agents/cloud/web.sh` (add `bash .agents/cloud/docs.sh` for `/docs`), logging to `/tmp`. Ready when:
 
 ```bash
 .cursor/skills/verify-trademark-terminal/scripts/doctor.sh
@@ -23,7 +23,7 @@ prints `venue=cloud` and every check is `ok`. The website auto-signs in as the s
 
 **Workstation.** `bun run dev` talks to production PostgreSQL over Tailscale. It does not seed. Sign in by hand. Treat every write as live account state. Search, Check Text, Bulk Check, and Status are reads. Do not change Account search preferences unless the recipe restores them. Never run `bun run db:seed:dev` here — the seed refuses non-loopback hosts, and that refusal is the safety rail.
 
-Teardown: leave Cloud `api`/`web` terminals running. On a workstation, stop only the `bun run dev` pair this run started (by those PIDs). Never `pkill` by name.
+Teardown: leave Cursor `api`/`web` terminals running; on Claude cloud, stop only the pair this run started (by those PIDs). On a workstation, stop only the `bun run dev` pair this run started (by those PIDs). Never `pkill` by name.
 
 ## Doctor
 
@@ -37,7 +37,7 @@ It is read-only. It checks API `GET /health/live` (`{"status":"ok","revision":"d
 
 ## Drive
 
-Use the Cloud Agent `computerUse` subagent (or an equivalent browser) against `http://127.0.0.1:5173`. Prefer accessible names over coordinates.
+Use the Cloud Agent `computerUse` subagent (or an equivalent browser) against `http://127.0.0.1:5173`. Prefer accessible names over coordinates. On Claude cloud, capture a page with `capture-page http://127.0.0.1:5173/ /tmp/tmterminal.png --settle 8000`. `capture-page` is the fleet's Playwright wrapper around the image's Chromium; it routes external hosts such as Clerk through the agent proxy and keeps loopback direct. It captures one page load, so drive multi-step recipes with a scripted browser.
 
 | Handle | What it is |
 | --- | --- |

@@ -1,5 +1,6 @@
-# Shared PostgreSQL locations for the Trademark Terminal Cloud Agent
-# environment. Source this file; do not execute it directly.
+# Shared PostgreSQL locations for the Trademark Terminal cloud agent
+# environment and Linux `bun run dev` (scripts/dev-db). Source this file; do not
+# execute it directly.
 #
 # The cluster listens on the schema's development database port so a cloud
 # session overrides exactly ONE public value — TMTERMINAL_DATABASE_HOST — and
@@ -15,16 +16,31 @@ PG_PORT=5437
 
 export PATH="$PG_BIN:$PATH"
 
+# PostgreSQL server binaries refuse to run as root. Claude cloud runs as root,
+# so there the cluster belongs to the postgres account; any other user owns it
+# directly, as before.
+if [ "$(id -u)" -eq 0 ]; then
+  PG_OWNER=postgres
+  pg_as_owner() {
+    runuser -u postgres -- "$@"
+  }
+else
+  PG_OWNER="$(id -un)"
+  pg_as_owner() {
+    "$@"
+  }
+fi
+
 pg_is_running() {
-  "$PG_BIN/pg_ctl" --pgdata="$PGDATA" status >/dev/null 2>&1
+  pg_as_owner "$PG_BIN/pg_ctl" --pgdata="$PGDATA" status >/dev/null 2>&1
 }
 
 pg_start() {
-  mkdir -p "$PG_SOCKET_DIR"
+  pg_as_owner mkdir -p "$PG_SOCKET_DIR"
   if pg_is_running; then
     return 0
   fi
-  "$PG_BIN/pg_ctl" --pgdata="$PGDATA" --log="$PG_LOG" --wait \
+  pg_as_owner "$PG_BIN/pg_ctl" --pgdata="$PGDATA" --log="$PG_LOG" --wait \
     --options="-c listen_addresses=127.0.0.1 -c port=$PG_PORT -c unix_socket_directories=$PG_SOCKET_DIR" \
     start
 }

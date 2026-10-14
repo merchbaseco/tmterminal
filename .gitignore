@@ -15,5 +15,6 @@ fixtures/uspto/**/*.doc
 !.codex/environments/environment.toml
 .claude/*
 !.claude/settings.json
-.agents/
+.agents/*
+!.agents/cloud/
 .cursor/rules/pstack-models.mdc
