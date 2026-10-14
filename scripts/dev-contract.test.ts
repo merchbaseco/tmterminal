@@ -84,7 +84,7 @@ test("the cloud agent environment overrides the database host and the dev binds"
     await readFile(new URL("../.cursor/environment.json", import.meta.url), "utf8")
   );
   expect(environment.name).toBe("Merchbase TMTerminal");
-  expect(environment.install).toBe("bash .agents/cloud/install.sh");
+  expect(environment.install).toBe("bash .agents/cloud/bootstrap.sh cursor-install");
   expect(environment.start).toBe("bash .agents/cloud/bootstrap.sh cursor");
 
   const start = await readFile(new URL("../.agents/cloud/start.sh", import.meta.url), "utf8");
