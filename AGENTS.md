@@ -44,8 +44,8 @@ never edit it. The repo-owned scripts:
 - `postgres-lib.sh` holds the cluster helpers, also used by `scripts/dev-db`.
 
 `.claude/settings.json` runs `bootstrap.sh claude` in cloud sessions only;
-`.cursor/environment.json` installs with `install.sh` and starts with
-`bootstrap.sh cursor`. Every secret resolves through
+`.cursor/environment.json` installs with `bootstrap.sh cursor-install` and
+starts with `bootstrap.sh cursor`. Every secret resolves through
 `CLOUD_AGENTS_DEVELOPMENT_OP_TOKEN` (CI uses `CI_OP_TOKEN`).
 
 Run and screenshot the app on Claude cloud:
