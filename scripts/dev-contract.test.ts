@@ -8,7 +8,7 @@ const productionDatabaseBinding =
 const sessionHookCommand =
   /^\[ "\$\{CLAUDE_CODE_REMOTE:-\}" = true \] \|\| \$\{CLAUDE_PROJECT_DIR\}\/scripts\/claude-session-start$/;
 const cloudHookCommand =
-  '[ "${CLAUDE_CODE_REMOTE:-}" != true ] || bash "$CLAUDE_PROJECT_DIR"/.agents/cloud/bootstrap.sh claude';
+  /^\[ "\$\{CLAUDE_CODE_REMOTE:-\}" != true \] \|\| bash "\$CLAUDE_PROJECT_DIR"\/\.agents\/cloud\/bootstrap\.sh claude$/;
 const containerRuntimeCommand = /\bdocker\b|\bcompose\b/;
 const sourcesAnEnvFile = /^\s*\.\s+.*\.env\b/m;
 const testsForAnEnvFile = /-f\s+\.env\b/;
@@ -299,7 +299,7 @@ test("the session hook prepares a fresh checkout for the dev preview", async () 
   expect(settings.hooks.SessionStart[0].hooks[0].command).toMatch(sessionHookCommand);
   // Cloud sessions run the fleet bootstrap instead of the local preview hook.
   expect(settings.hooks.SessionStart[1].matcher).toBe("startup|resume");
-  expect(settings.hooks.SessionStart[1].hooks[0].command).toBe(cloudHookCommand);
+  expect(settings.hooks.SessionStart[1].hooks[0].command).toMatch(cloudHookCommand);
 
   const hook = await readFile(new URL("./claude-session-start", import.meta.url), "utf8");
   expect(hook).not.toContain("gh auth token");
