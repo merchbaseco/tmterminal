@@ -55,9 +55,12 @@ Run and screenshot the app on Claude cloud:
 bash .agents/cloud/api.sh >/tmp/tmterminal-api.log 2>&1 &
 bash .agents/cloud/web.sh >/tmp/tmterminal-web.log 2>&1 &
 .cursor/skills/verify-trademark-terminal/scripts/doctor.sh
-/opt/pw-browsers/chromium --headless=new --no-sandbox --virtual-time-budget=15000 \
-  --screenshot=/tmp/tmterminal.png --window-size=1440,900 http://127.0.0.1:5173/
+capture-page http://127.0.0.1:5173/ /tmp/tmterminal.png --settle 8000
 ```
+
+`capture-page` is the fleet's Playwright wrapper around the image's Chromium; it
+routes external hosts such as Clerk through the agent proxy and keeps loopback
+direct.
 
 Open `127.0.0.1`, not `localhost`. The website signs in automatically as the
 shared Merchbase Dev Sign-In user (`VITE_TMTERMINAL_DEV_CLERK_AUTO_SIGN_IN`,

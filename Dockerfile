@@ -1,4 +1,4 @@
-FROM oven/bun:1.3.5-alpine AS workspace
+FROM oven/bun:1.4.2-alpine AS workspace
 WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml .npmrc tsconfig.json ./

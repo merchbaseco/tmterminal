@@ -37,7 +37,7 @@ It is read-only. It checks API `GET /health/live` (`{"status":"ok","revision":"d
 
 ## Drive
 
-Use the Cloud Agent `computerUse` subagent (or an equivalent browser) against `http://127.0.0.1:5173`. Prefer accessible names over coordinates. On Claude cloud, the preinstalled Chromium captures a page: `/opt/pw-browsers/chromium --headless=new --no-sandbox --virtual-time-budget=15000 --screenshot=<file>.png --window-size=1440,900 http://127.0.0.1:5173/` (the fleet also exposes it as `google-chrome`); it captures one page load, so drive multi-step recipes with a scripted browser.
+Use the Cloud Agent `computerUse` subagent (or an equivalent browser) against `http://127.0.0.1:5173`. Prefer accessible names over coordinates. On Claude cloud, capture a page with `capture-page http://127.0.0.1:5173/ /tmp/tmterminal.png --settle 8000`. `capture-page` is the fleet's Playwright wrapper around the image's Chromium; it routes external hosts such as Clerk through the agent proxy and keeps loopback direct. It captures one page load, so drive multi-step recipes with a scripted browser.
 
 | Handle | What it is |
 | --- | --- |

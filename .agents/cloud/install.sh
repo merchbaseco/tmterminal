@@ -55,7 +55,7 @@ fi
 #    version so this works before node_modules exists.
 # shellcheck source=scripts/install-tokens
 VARLOCK_SPEC="varlock@${VARLOCK_VERSION}" . "$root/scripts/install-tokens"
-bun install --frozen-lockfile
+timeout 900 bun install --frozen-lockfile || { echo "[install] ERROR: bun install failed or timed out" >&2; exit 1; }
 
 # 4. Isolated PostgreSQL cluster. PostgreSQL refuses to run as root, so on a
 #    root host the cluster belongs to the postgres account (postgres-lib.sh).
