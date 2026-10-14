@@ -20,11 +20,49 @@ to that file for Matt Pocock skills.
 
 ## Development
 
-One model everywhere. `bun run dev` and Cloud `.cursor/start.sh` both use
+One model everywhere. `bun run dev` and cloud `.agents/cloud/start.sh` both use
 local Postgres on `127.0.0.1`, apply migrations, and seed fabricated data.
 The seed refuses any non-loopback host and never calls USPTO. Worker stays
 off. Website origin is `127.0.0.1`, not `localhost`. Docs at `/docs` on the
 website port; VitePress also serves them on `127.0.0.1:5174` during `dev`.
+
+## Cloud agents
+
+Claude and Cursor cloud sessions share the fleet contract (`zknicker/agents`
+`cloud-agent-setup` skill). `.agents/cloud/bootstrap.sh` is a fleet-owned copy;
+never edit it. The repo-owned scripts:
+
+- `install.sh` installs the pinned Bun (`packageManager`), PostgreSQL 16, and
+  `bun install --frozen-lockfile` with the two install credentials, then
+  initializes the isolated cluster at `/var/lib/tmterminal` on `127.0.0.1:5437`.
+  As root (Claude) the cluster runs as the `postgres` account via `runuser`.
+- `start.sh` runs `scripts/dev-db` each session: start Postgres, migrate, seed
+  the fabricated week. It returns; it starts no dev servers.
+- `env.sh` exports Bun's path and `TMTERMINAL_DATABASE_HOST=127.0.0.1`.
+- `api.sh`, `web.sh`, `docs.sh` run the API (`:3000`), website (`:5173`, proxies
+  `/api` and `/docs`), and VitePress (`:5174`). Cursor runs them as terminals.
+- `postgres-lib.sh` holds the cluster helpers, also used by `scripts/dev-db`.
+
+`.claude/settings.json` runs `bootstrap.sh claude` in cloud sessions only;
+`.cursor/environment.json` installs with `install.sh` and starts with
+`bootstrap.sh cursor`. Every secret resolves through
+`CLOUD_AGENTS_DEVELOPMENT_OP_TOKEN` (CI uses `CI_OP_TOKEN`).
+
+Run and screenshot the app on Claude cloud:
+
+```bash
+. .agents/cloud/env.sh
+bash .agents/cloud/api.sh >/tmp/tmterminal-api.log 2>&1 &
+bash .agents/cloud/web.sh >/tmp/tmterminal-web.log 2>&1 &
+.cursor/skills/verify-trademark-terminal/scripts/doctor.sh
+/opt/pw-browsers/chromium --headless=new --no-sandbox --virtual-time-budget=15000 \
+  --screenshot=/tmp/tmterminal.png --window-size=1440,900 http://127.0.0.1:5173/
+```
+
+Open `127.0.0.1`, not `localhost`. The website signs in automatically as the
+shared Merchbase Dev Sign-In user (`VITE_TMTERMINAL_DEV_CLERK_AUTO_SIGN_IN`,
+set by `web.sh`), which owns the seed. Full browser acceptance follows
+`.cursor/skills/verify-trademark-terminal/`.
 
 ## Secrets
 

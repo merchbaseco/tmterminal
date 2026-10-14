@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Trademark Terminal API against the isolated local database. Every value comes
-# from the committed .env.schema, resolved through the Cursor fleet Development
+# from the committed .env.schema, resolved through the fleet Development
 # identity; only the database host is overridden for the local cluster.
 set -euo pipefail
 
-root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+root="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$root"
 
 export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"

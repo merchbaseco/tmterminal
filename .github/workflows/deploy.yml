@@ -52,13 +52,13 @@ jobs:
           # VARLOCK_ENV=production and resolves every value through the schema;
           # no .env file is read and none is written.
           DEPLOY_AGENT_PRODUCTION_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}
-          # The same identity also fills the development slot: it reads both
+          # The same identity also fills the CI slot (CI_OP_TOKEN): it reads both
           # lifecycle vaults, so the deploy script's install-switch
           # `varlock printenv` calls resolve the GitHub Packages read token and
           # the licensed @hugeicons-pro key from the Development vault. Actions'
           # own `github.token` is deliberately not used for package installs —
           # it cannot download another repository's GitHub Package.
-          CURSOR_CLOUD_AGENTS_DEVELOPMENT_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}
+          CI_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}
         run: bun run deploy
 
       - name: Verify from the consumer

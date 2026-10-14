@@ -27,12 +27,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # GitHub Actions stores one secret: the 1Password token mapped into the
-    # development slot. Both the dependency install and the Compose integration
+    # CI slot (CI_OP_TOKEN). Both the dependency install and the Compose integration
     # lane resolve @internal install credentials through the schema, and neither
     # runner has the 1Password CLI, so that token is how they read the vault.
     # Everything else pins VARLOCK_ENV=test and touches no vault at all.
     env:
-      CURSOR_CLOUD_AGENTS_DEVELOPMENT_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}
+      CI_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -110,7 +110,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      CURSOR_CLOUD_AGENTS_DEVELOPMENT_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}
+      CI_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}
       DEPLOY_AGENT_PRODUCTION_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}
     steps:
       - uses: actions/checkout@v6

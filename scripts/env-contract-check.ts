@@ -184,6 +184,7 @@ const consumerPaths = [
   "apps",
   "packages",
   "scripts",
+  ".agents/cloud",
   ".cursor",
   ".codex",
   ".github",

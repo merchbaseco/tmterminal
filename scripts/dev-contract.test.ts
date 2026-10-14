@@ -5,7 +5,10 @@ import { join } from "node:path";
 
 const productionDatabaseBinding =
   /"127\.0\.0\.1:\$\{TMTERMINAL_DATABASE_PUBLISHED_PORT:-5437\}:5432"/;
-const sessionHookCommand = /^\$\{CLAUDE_PROJECT_DIR\}\/scripts\/claude-session-start$/;
+const sessionHookCommand =
+  /^\[ "\$\{CLAUDE_CODE_REMOTE:-\}" = true \] \|\| \$\{CLAUDE_PROJECT_DIR\}\/scripts\/claude-session-start$/;
+const cloudHookCommand =
+  '[ "${CLAUDE_CODE_REMOTE:-}" != true ] || bash "$CLAUDE_PROJECT_DIR"/.agents/cloud/bootstrap.sh claude';
 const containerRuntimeCommand = /\bdocker\b|\bcompose\b/;
 const sourcesAnEnvFile = /^\s*\.\s+.*\.env\b/m;
 const testsForAnEnvFile = /-f\s+\.env\b/;
@@ -35,8 +38,9 @@ test("no venue copies or reads a plaintext env file", async () => {
   expect(gitignore).not.toContain("!.env.example");
 
   const venuePaths = [
-    "../.cursor/install.sh",
-    "../.cursor/start.sh",
+    "../.agents/cloud/install.sh",
+    "../.agents/cloud/start.sh",
+    "../.agents/cloud/env.sh",
     "../scripts/dev",
     "../scripts/compose",
   ];
@@ -75,19 +79,21 @@ test("development schema host is loopback", async () => {
   expect(schema).not.toContain("zachs-mac-mini");
 });
 
-test("the Cursor cloud environment overrides the database host and the dev binds", async () => {
+test("the cloud agent environment overrides the database host and the dev binds", async () => {
   const environment = JSON.parse(
     await readFile(new URL("../.cursor/environment.json", import.meta.url), "utf8")
   );
   expect(environment.name).toBe("Merchbase TMTerminal");
+  expect(environment.install).toBe("bash .agents/cloud/install.sh");
+  expect(environment.start).toBe("bash .agents/cloud/bootstrap.sh cursor");
 
-  const start = await readFile(new URL("../.cursor/start.sh", import.meta.url), "utf8");
+  const start = await readFile(new URL("../.agents/cloud/start.sh", import.meta.url), "utf8");
   expect(start).toContain("export TMTERMINAL_DATABASE_HOST=127.0.0.1");
   expect(start).toContain("scripts/dev-db");
 
   // Cursor forwards the ports it can see, and it sees only non-loopback binds.
-  const api = await readFile(new URL("../.cursor/api.sh", import.meta.url), "utf8");
-  const web = await readFile(new URL("../.cursor/web.sh", import.meta.url), "utf8");
+  const api = await readFile(new URL("../.agents/cloud/api.sh", import.meta.url), "utf8");
+  const web = await readFile(new URL("../.agents/cloud/web.sh", import.meta.url), "utf8");
   expect(api).toContain("export TMTERMINAL_HOST=0.0.0.0");
   expect(web).toContain("export TMTERMINAL_DEV_HOST=0.0.0.0");
   expect(web).toContain("export VITE_TMTERMINAL_DEV_CLERK_AUTO_SIGN_IN=true");
@@ -102,11 +108,13 @@ test("the Cursor cloud environment overrides the database host and the dev binds
   // The cluster listens on the schema's development port, so the port is not
   // overridden anywhere; only the host is.
   const postgresLib = await readFile(
-    new URL("../.cursor/postgres-lib.sh", import.meta.url),
+    new URL("../.agents/cloud/postgres-lib.sh", import.meta.url),
     "utf8"
   );
   expect(postgresLib).toContain("PG_PORT=5437");
   expect(postgresLib).not.toMatch(hardCodedDatabasePassword);
+  // Claude cloud runs as root, and PostgreSQL refuses root.
+  expect(postgresLib).toContain("runuser -u postgres --");
 });
 
 test("development starts local API and web through varlock against loopback Postgres", async () => {
@@ -289,6 +297,9 @@ test("the session hook prepares a fresh checkout for the dev preview", async () 
     await readFile(new URL("../.claude/settings.json", import.meta.url), "utf8")
   );
   expect(settings.hooks.SessionStart[0].hooks[0].command).toMatch(sessionHookCommand);
+  // Cloud sessions run the fleet bootstrap instead of the local preview hook.
+  expect(settings.hooks.SessionStart[1].matcher).toBe("startup|resume");
+  expect(settings.hooks.SessionStart[1].hooks[0].command).toBe(cloudHookCommand);
 
   const hook = await readFile(new URL("./claude-session-start", import.meta.url), "utf8");
   expect(hook).not.toContain("gh auth token");

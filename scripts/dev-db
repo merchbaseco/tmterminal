@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Shared local-development database: loopback Postgres, migrate, fabricated seed.
-# Used by `bun run dev` and Cloud `.cursor/start.sh`. Never talks to USPTO.
+# Used by `bun run dev` and cloud `.agents/cloud/start.sh`. Never talks to USPTO.
 set -euo pipefail
 
 root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
@@ -9,8 +9,8 @@ cd "$root"
 export TMTERMINAL_DATABASE_HOST="${TMTERMINAL_DATABASE_HOST:-127.0.0.1}"
 
 if [ -x /usr/lib/postgresql/16/bin/pg_ctl ]; then
-  # shellcheck source=.cursor/postgres-lib.sh
-  . "$root/.cursor/postgres-lib.sh"
+  # shellcheck source=.agents/cloud/postgres-lib.sh
+  . "$root/.agents/cloud/postgres-lib.sh"
   pg_start
   pg_ensure_databases
 elif command -v docker >/dev/null 2>&1; then
