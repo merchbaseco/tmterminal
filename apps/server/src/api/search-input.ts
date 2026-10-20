@@ -51,4 +51,13 @@ export const searchInputSchema = z
         context.addIssue({ code: "custom", message: issue, path: ["query"] });
       }
     }
+  })
+  .meta({
+    allOf: [
+      {
+        anyOf: [{ properties: { offset: { maximum: 0 } } }, { required: ["expectedDataVersion"] }],
+      },
+    ],
+    description:
+      "Split mode requires at least one Unicode word token. Wildcard patterns containing * require at least three consecutive literal Unicode word characters. Continuation requests (offset > 0) require expectedDataVersion.",
   }) satisfies z.ZodType<SearchInput>;

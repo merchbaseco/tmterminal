@@ -85,6 +85,40 @@ describe("Trademark Terminal hosted MCP routes", () => {
     expect(authorize).not.toHaveBeenCalled();
   });
 
+  it("serves nonempty canonical discovery through the authenticated HTTP transport", async () => {
+    const app = await createApp();
+    const response = await app.inject({
+      headers: {
+        accept: "application/json, text/event-stream",
+        authorization: "Bearer oauth-token",
+        "content-type": "application/json",
+      },
+      method: "POST",
+      payload: { id: 2, jsonrpc: "2.0", method: "tools/list" },
+      url: "/mcp",
+    });
+
+    expect(response.statusCode).toBe(200);
+    const data = response.body.split("\n").find((line) => line.startsWith("data: "));
+    expect(data).toBeDefined();
+    expect(JSON.parse(data?.slice(6) ?? "null")).toMatchObject({
+      id: 2,
+      result: {
+        tools: [
+          {
+            inputSchema: { properties: { serialNumber: { pattern: "^\\d{8}$" } } },
+            name: "tmterminal_get",
+          },
+          {
+            inputSchema: { properties: { query: { minLength: 1 } }, required: ["query", "mode"] },
+            name: "tmterminal_search",
+          },
+          { inputSchema: { required: ["text"] }, name: "tmterminal_screen" },
+        ],
+      },
+    });
+  });
+
   it("creates a fresh authenticated data source for an MCP request", async () => {
     const createDataSource = mock(() => source());
     const app = await createApp(undefined, createDataSource);

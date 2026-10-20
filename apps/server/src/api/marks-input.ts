@@ -14,7 +14,12 @@ const maximumMatchTexts = 100;
 const maximumScreenQueries = 100;
 const identifierSchema = z.string().trim().min(1).max(100);
 const markTypeSchema = z.enum(["all", "design", "typeset", "text", "other"]);
-const matchTextSchema = z.string().superRefine(validateMatchText);
+const matchTextSchema = z.string().superRefine(validateMatchText).meta({
+  description:
+    "Nonblank text containing at most 4096 UTF-16 code units and at most 128 Unicode word tokens.",
+  maxLength: maximumMatchTextCodeUnits,
+  minLength: 1,
+});
 
 export const listMarksInputSchema = z
   .object({
