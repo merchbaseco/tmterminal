@@ -2,9 +2,16 @@
 
 ## Unreleased
 
+## 1.0.3 - 2026-10-20
+
 **Features**
 
 - feat(health): `GET /health/live` and `GET /api/health` include `revision`. Deployed images report the 40-character git SHA baked from `TMTERMINAL_REVISION`. Local dev and tests report `dev`.
+
+**Fixes**
+
+- fix(mcp): Publish Get and Search input fields, identity alternatives, search modes, defaults, and constraints from the canonical validation schemas. MCP clients can discover the accepted inputs while tool calls retain the same validation.
+- fix(cloud): Fetch the Cursor fleet with npx during cloud setup.
 
 ## 1.0.2 - 2026-10-09
 
