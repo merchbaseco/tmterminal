@@ -40,9 +40,15 @@ fi
 git -C "$repository" add tracked
 git -C "$repository" commit --quiet --message next
 if (cd "$repository" && "$root/scripts/deployment-revision" "$(git -C "$repository" rev-parse HEAD)") >/dev/null 2>&1; then
-  echo "deployment revision accepted HEAD different from origin/main" >&2
+  echo "deployment revision accepted HEAD that is not on origin/main" >&2
   exit 1
 fi
+
+next_revision="$(git -C "$repository" rev-parse HEAD)"
+git -C "$repository" update-ref refs/remotes/origin/main "$next_revision"
+git -C "$repository" checkout --quiet --detach "$expected_revision"
+rollback="$(cd "$repository" && "$root/scripts/deployment-revision" "$expected_revision")"
+test "$rollback" = "$expected_revision"
 
 # --- Compose wrapper: per-checkout ports, revision, and varlock delivery --
 
@@ -151,6 +157,13 @@ grep -qF '. ./scripts/install-tokens' "$deploy_script"
 grep -qF -- '--include-internal' "$deploy_script"
 # The centralized-auth cleanup is complete; any other state must refuse.
 grep -qF 'cleanupState !== "final"' "$deploy_script"
+# The shared workflow does not advance origin/main, so the script fetches it
+# and then judges HEAD. GITHUB_SHA on that caller is a different commit.
+grep -qF '["fetch", "origin", "main"]' "$deploy_script"
+if grep -qF 'process.env.GITHUB_SHA' "$deploy_script"; then
+  echo "deploy script still treats GITHUB_SHA as the deployed revision" >&2
+  exit 1
+fi
 
 line_of() {
   grep -nF "$1" "$deploy_script" | head -n 1 | cut -d: -f1
@@ -182,27 +195,31 @@ grep -qF 'notDeliveredToApi' "$verify_script"
 grep -qF '"TMTERMINAL_DATABASE_PASSWORD"' "$verify_script"
 grep -qF 'requiredOnWorker' "$verify_script"
 
-# --- Deploy workflow: VERSION-gated release, one secret, both bootstrap slots -------
+# --- Deploy workflow: Quality on main, then the shared deploy workflow -------
 
 deployment_workflow="$root/.github/workflows/deploy.yml"
 grep -qF 'name: Deploy Stack' "$deployment_workflow"
-grep -qF 'DEPLOY_AGENT_PRODUCTION_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}' "$deployment_workflow"
-grep -qF 'CI_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}' "$deployment_workflow"
-grep -qF 'run: bun run deploy' "$deployment_workflow"
-# The exact-revision gate requires HEAD to equal origin/main, so the sync step
-# must advance the remote-tracking ref — fetching a bare SHA does not.
-grep -qF 'git fetch origin main' "$deployment_workflow"
-if grep -qF 'git fetch --depth=1 origin "${GITHUB_SHA}"' "$deployment_workflow"; then
-  echo "the deploy sync fetches a bare SHA and leaves origin/main behind" >&2
+grep -qF 'workflows: [Quality]' "$deployment_workflow"
+grep -qF 'github.event.workflow_run.conclusion == '"'"'success'"'"'' "$deployment_workflow"
+grep -qF 'uses: merchbaseco/workflows/.github/workflows/deploy-service.yml@main' "$deployment_workflow"
+grep -qF 'secrets: inherit' "$deployment_workflow"
+grep -qF 'group: tmterminal-production' "$deployment_workflow"
+grep -qF 'cancel-in-progress: false' "$deployment_workflow"
+grep -qF 'production_checkout: /Users/zknicker/srv/tmterminal' "$deployment_workflow"
+grep -qF 'deploy_command: CI_OP_TOKEN="$DEPLOY_AGENT_PRODUCTION_OP_TOKEN" bun run deploy' "$deployment_workflow"
+grep -qF 'health_urls: https://tmterminal.merchbase.co/health/live' "$deployment_workflow"
+grep -qF 'runner: self-hosted' "$deployment_workflow"
+grep -qF 'published_packages: packages/http-client:@tmterminal/http-client,packages/cli:@tmterminal/cli' "$deployment_workflow"
+grep -qF 'publish_provenance: true' "$deployment_workflow"
+grep -qF 'release_token_env_name: RELEASE_AGENT_TOOLING_OP_TOKEN' "$deployment_workflow"
+grep -qF 'release_switch_env_name: TMTERMINAL_RESOLVE_RELEASE_TOKENS' "$deployment_workflow"
+grep -qF 'git merge-base --is-ancestor' "$deployment_workflow"
+if grep -qF 'paths:' "$deployment_workflow"; then
+  echo "the deploy workflow still filters pushes by path" >&2
   exit 1
 fi
-# Ordinary main merges must not deploy. The only push trigger is a VERSION bump.
-if ! grep -qF -- '- VERSION' "$deployment_workflow"; then
-  echo "the deploy workflow is not gated on VERSION" >&2
-  exit 1
-fi
-if ! grep -qF '    paths:' "$deployment_workflow"; then
-  echo "the deploy workflow still deploys on every main push" >&2
+if grep -qF -- '- VERSION' "$deployment_workflow"; then
+  echo "the deploy workflow is still gated on VERSION" >&2
   exit 1
 fi
 product_version="$(tr -d '[:space:]' < "$root/VERSION")"
@@ -255,7 +272,10 @@ grep -qF 'bun scripts/bake-revision.ts "$TMTERMINAL_REVISION"' "$dockerfile"
 deployment_smoke="$root/scripts/deployment-smoke"
 grep -qF '/health/live' "$deployment_smoke"
 grep -qF '{\"status\":\"ok\",\"revision\":\"${TMTERMINAL_REVISION}\"}' "$deployment_smoke"
-grep -qF '{\"status\":\"ok\",\"revision\":\"${GITHUB_SHA}\"}' "$deployment_workflow"
+if grep -qF 'workflow_call:' "$root/.github/workflows/quality.yml"; then
+  echo "Quality is still a reusable deploy preflight" >&2
+  exit 1
+fi
 if grep -qF 'last_heartbeat_at' "$deployment_smoke"; then
   echo "deployment smoke still fail-closes on worker freshness" >&2
   exit 1

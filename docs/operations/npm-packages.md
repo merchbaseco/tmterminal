@@ -1,5 +1,5 @@
 ---
-summary: Defines synchronized Trademark Terminal CLI and HTTP client versioning, changelog, verification, tagging, npm publishing, and GitHub release steps.
+summary: Defines synchronized Trademark Terminal CLI and HTTP client versioning, changelog, and npm publishing from the production deploy.
 read_when:
   - preparing or publishing a Trademark Terminal CLI or HTTP client release
   - changing package versions, npm metadata, release tags, or changelog policy
@@ -8,7 +8,7 @@ read_when:
 # npm Packages
 
 Release `@tmterminal/http-client` and `@tmterminal/cli` at one
-shared `X.Y.Z`. The CLI tag `cli-vX.Y.Z` is the release boundary.
+shared `X.Y.Z`. Changing a package means bumping its version in the same PR.
 
 ## Changelog
 
@@ -26,30 +26,20 @@ customer outcomes rather than implementation details.
 The release check verifies synchronized versions, the top changelog entry,
 package builds, client and CLI tests, and both publishable tarballs.
 
-## Commit and Tag
+## Commit
 
-Commit the release metadata, create annotated tag `cli-vX.Y.Z`, then push
-`main` and the tag. Never publish an unpushed release commit.
+Commit the release metadata and merge it to `main`. The deploy publishes from
+that commit. Do not push a `cli-vX.Y.Z` tag.
 
 ## Publish
 
-Publishing uses the suite-wide `MERCHBASE_NPM_PUBLISH_TOKEN`, an `@internal`
-schema item gated behind the release switch. Fetch it and pass it directly
-through npm's registry auth option; exporting it alone is insufficient:
+After a production deploy, the shared workflow publishes each package whose
+version is missing on npm. `@tmterminal/http-client` goes first, then
+`@tmterminal/cli`. The repo is public, so publish uses provenance. The
+workflow reads `MERCHBASE_NPM_PUBLISH_TOKEN` through the release client.
+`.npmrc` references that token. It does not republish an existing version.
+It then pushes `vX.Y.Z`.
 
-```bash
-npm publish --//registry.npmjs.org/:_authToken="$(TMTERMINAL_RESOLVE_RELEASE_TOKENS=true bunx varlock printenv MERCHBASE_NPM_PUBLISH_TOKEN)"
-```
-
-Publish `@tmterminal/http-client` first. Confirm its registry version, then
-publish `@tmterminal/cli` and confirm that version. Never republish
-an existing version.
-
-## GitHub Release
-
-Create a GitHub Release from `cli-vX.Y.Z`. Use the matching changelog entry as
-the release notes and title it `Trademark Terminal CLI vX.Y.Z`.
-
-Final acceptance requires the two npm registry versions, the GitHub Release,
-and a clean global install whose `tt --version`, help, and authenticated status
-command work outside the repository.
+The workflow does not open a GitHub Release. A clean global install whose
+`tt --version`, help, and authenticated status command work outside the
+repository is still the operator's check.

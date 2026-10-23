@@ -28,22 +28,33 @@ for both persistent filesystems.
 
 ## GitHub Deployment
 
-Production deployment is GitHub Actions. A release PR bumps `VERSION` and
-records `CHANGELOG.md`. Merging that `VERSION` change onto `main` runs
-`Deploy Stack` after the full check preflight. Ordinary merges to `main` do
-not deploy. `workflow_dispatch` redeploys current `main`. Use the
-`release-trademark-terminal` skill to cut the release PR.
+Production deployment is GitHub Actions. Every push to `main` runs Quality.
+When that run succeeds, `Deploy Stack` deploys that exact commit. The commit
+is the identity. `VERSION` is the product version the website shows. It does
+not select a deploy. Use the `release-trademark-terminal` skill to bump it.
 
-**A deploy can only ever ship `main`.** `scripts/deployment-revision` refuses
-unless `HEAD` equals both the workflow SHA and `origin/main`. Feature branches
-do not deploy. The operator dry run (`bun run deploy:dry-run`) needs
-Docker plus an identity that reads both lifecycle vaults, so it runs from a
-workstation with Docker, not from the mini: the host holds only the
-Production-scoped Mac Mini identity and cannot resolve the Development-vault
-install credentials.
-Quality runs first on a GitHub-hosted runner; the self-hosted Mac mini job runs
-only after it passes. The job resets the production checkout to the dispatched
-commit and runs `bun run deploy`, which is `scripts/deploy-with-varlock.ts`.
+`workflow_dispatch` takes an optional `ref`, a 40-character SHA on `main`,
+for a redeploy or a rollback. An empty ref deploys the current tip.
+
+**A deploy can only ship a commit on `main`.** The resolve job refuses any
+other SHA before the production checkout moves. `scripts/deployment-revision`
+refuses a dirty checkout, a HEAD that is not the synced commit, or a HEAD
+that is not an ancestor of `origin/main`. The deploy script fetches
+`origin/main` first. The shared workflow fetches the target SHA and does not
+move that remote-tracking ref.
+
+Quality runs on a GitHub-hosted runner. The Mac mini job is the shared
+`deploy-service` workflow. It updates `/Users/zknicker/srv/tmterminal` to the
+resolved commit and runs `bun run deploy`, which is
+`scripts/deploy-with-varlock.ts`.
+
+`bun run check` (fixtures, Compose integration, and workspace builds) does
+not run in CI before that job. An operator runs it locally before pushing.
+
+The operator dry run (`bun run deploy:dry-run`) needs Docker plus an identity
+that reads both lifecycle vaults, so it runs from a workstation with Docker,
+not from the mini: the host holds only the Production-scoped Mac Mini
+identity and cannot resolve the Development-vault install credentials.
 
 That script:
 
@@ -52,7 +63,8 @@ That script:
 2. pins `VARLOCK_ENV=production`, and fills the deploy-agent role slot from the
    repository secret (or, for an operator run, re-execs under `op run` with the
    Mac Mini identity);
-3. requires `HEAD` to equal both `origin/main` and the workflow SHA;
+3. fetches `origin/main` and requires HEAD to be the synced commit and on
+   `main`;
 4. requires the centralized-auth cleanup state to be `final`;
 5. resolves the two install credentials under the development lifecycle and
    builds core and web images labeled with that exact revision;
@@ -154,8 +166,8 @@ bunx varlock run -- ./scripts/deployment-smoke
 ```
 
 An operator rollback on the mini itself cannot resolve Development-vault
-install credentials, so rebuild from an operator MacBook or re-dispatch
-`Deploy Stack` at the target revision.
+install credentials, so rebuild from an operator MacBook or dispatch
+`Deploy Stack` with `ref` set to the target SHA on `main`.
 
 Do not run a revision against a schema it does not own. Do not delete volumes as
 part of rollback. A failed forward-only schema change requires a corrected

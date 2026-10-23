@@ -48,9 +48,6 @@ const outOfContractNames = new Set([
   "MERCHBASE_API_KEY",
   "TMTERMINAL_BASE_URL",
   "DEV",
-  // Supplied by GitHub Actions to the deploy script; not part of this repo's
-  // environment contract.
-  "GITHUB_SHA",
   "HOME",
   "NODE_ENV",
   "PATH",
@@ -144,7 +141,6 @@ const sourceScanArgs = [
   "--exclude=*.d.ts",
   "--exclude-dir=node_modules",
   "--exclude-dir=dist",
-  // This file names variables in prose; scanning it would report its own comments.
   "--exclude=env-contract-check.ts",
 ];
 
@@ -171,9 +167,6 @@ const readExplicitSourceNames = (): Set<string> => {
   return names;
 };
 
-// Whether a name appears anywhere in the shipped source. Some values are read
-// indirectly — `requiredEnvironment("NAME")`, `milliseconds("NAME", …)` — so a
-// `process.env.` scan alone would wrongly call them unused.
 const isMentionedInSource = (name: string): boolean => grepSource(["-rlF", name]).trim().length > 0;
 
 // Same question across every venue that legitimately consumes a name: the test
