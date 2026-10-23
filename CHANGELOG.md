@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Production deploys on every push to `main` after Quality succeeds for that commit. `VERSION` no longer selects the deploy.
+
 ## 1.0.3 - 2026-10-20
 
 **Features**

@@ -74,10 +74,17 @@ const capture = (command: string, args: string[], env = environment) => {
 const varlockRun = (args: string[], env = environment) =>
   run("bunx", [`varlock@${varlockVersion}`, "run", "--", ...args], env);
 
-// The exact-revision gate: refuses a dirty checkout, a HEAD that differs from
-// the dispatched commit, or a HEAD that is not origin/main.
-const expectedRevision = process.env.GITHUB_SHA || capture("git", ["rev-parse", "HEAD"]);
-const revision = capture("./scripts/deployment-revision", [expectedRevision]);
+// The shared workflow fetches the target SHA and moves HEAD. It does not
+// update origin/main, and the caller's GITHUB_SHA is the workflow event, not
+// that commit. Fetch main, then require HEAD to be the synced commit and an
+// ancestor of origin/main so a rollback still has to be a commit on main.
+const fetched = run("git", ["fetch", "origin", "main"]);
+if (fetched.status !== 0) {
+  console.error("Refusing to deploy: could not fetch origin/main.");
+  process.exit(fetched.status ?? 1);
+}
+const head = capture("git", ["rev-parse", "HEAD"]);
+const revision = capture("./scripts/deployment-revision", [head]);
 if (!revision) {
   console.error("Refusing to deploy: the checkout failed the exact-revision gate.");
   process.exit(1);

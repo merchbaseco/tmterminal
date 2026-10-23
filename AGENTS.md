@@ -71,15 +71,24 @@ set by `web.sh`), which owns the seed. Full browser acceptance follows
 
 The committed `.env.schema` is the contract. Varlock resolves values from
 1Password. There is no `.env` file. `VARLOCK_ENV` is `production`,
-`development`, or `test`. GitHub Actions stores one secret,
-`GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN`, so CI and deploy can read 1Password.
-Everything else comes from the schema.
+`development`, or `test`. GitHub Actions stores
+`GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN` and
+`GH_RELEASE_AGENT_TOOLING_OP_TOKEN`. Everything else comes from the schema.
 
 ## Release
 
-Use the `release-trademark-terminal` skill. It bumps `VERSION`, updates
-`CHANGELOG.md`, and opens a PR. Merging a release PR deploys through GitHub
-Actions. Ordinary merges to `main` do not. Do not deploy from a laptop.
+- Every push to `main` deploys after Quality succeeds for that commit. The
+  commit is the identity.
+- `workflow_dispatch` takes an optional `ref` (a SHA on `main`) for a redeploy
+  or rollback.
+- `VERSION` is the product version the website shows. Bump it with the
+  `release-trademark-terminal` skill. Do not deploy from a laptop.
+
+## Published packages
+
+- `@tmterminal/http-client` (`packages/http-client`), then `@tmterminal/cli`
+  (`packages/cli`).
+- Changing a package means bumping its version in the same PR.
 
 ## Verification
 
@@ -88,7 +97,7 @@ Actions. Ordinary merges to `main` do not. Do not deploy from a laptop.
 - Search: filter, sort, count, pagination, and index use.
 - Client and CLI: generated contracts plus JSON envelopes.
 - Website: focused tests plus the `verify-trademark-terminal` happy and adjacent paths.
-- Deploy: Compose health before release.
+- Deploy: Compose health on the production job.
 
 CI Quality is the fast lane (`bun run check:fast`). `bun run check` is the
 full set. Read [Testing](docs/operations/testing.md) before changing that split.

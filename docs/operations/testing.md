@@ -99,21 +99,18 @@ Clerk, API, or browser behavior.
 
 `bun run check:fast` is the polite lane: `env:check`, `env:contract`,
 `typecheck`, and `test`. `bun run check` is `check:fast` plus the heavy lanes —
-`test:fixtures`, `test:integration:compose`, and `build`. Total coverage is
-unchanged; the heavy lanes simply stop running on every commit.
+`test:fixtures`, `test:integration:compose`, and `build`. The heavy lanes do
+not run in CI.
 
 | Trigger | What runs |
 | --- | --- |
 | Push to `main`, pull request | Frozen install, changed-file lint, `check:fast`, migration drift. Target: under a minute. |
-| Release deploy (`VERSION` change on `main`, or dispatch) | The same fast job, plus a `full` job running `bun run check` — fixture tooling, Compose PostgreSQL integration, and every workspace build. |
 | Local, before pushing | `bun run check`. |
 
-The `full` job keys off `lint-base`, a required `workflow_call` input, so it is
-non-empty exactly when Deploy called the workflow. The Compose integration lane
-alone cost more than a minute per commit because it builds images and boots
-Compose; it now gates the thing that actually ships instead of every push.
-Builds stay out of the fast lane because the deploy path builds the images for
-real and is the build's proof.
+A push to `main` deploys after that Quality run succeeds. Quality does not run
+`bun run check`. The Compose integration lane cost more than a minute per
+commit because it builds images and boots Compose, so it stays on the
+operator's machine. The production job builds the images for real.
 
 This shape is fleet-wide, not a Trademark Terminal quirk: Quality answers one
 question per push — is the contract intact and does the fast stuff pass? — in

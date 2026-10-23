@@ -1,72 +1,84 @@
 name: Deploy Stack
 
-# GitHub Actions owns production deploys. A release PR bumps VERSION; merging
-# that change to main ships the revision after the full check preflight.
-# Ordinary main merges do not deploy. workflow_dispatch redeploys current main.
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - VERSION
+  workflow_run:
+    workflows: [Quality]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      ref:
+        description: SHA on main to deploy. Set this to roll back.
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+  packages: read
 
 concurrency:
   group: tmterminal-production
   cancel-in-progress: false
 
-permissions:
-  contents: read
-
 jobs:
-  quality:
-    uses: ./.github/workflows/quality.yml
-    secrets: inherit
-    with:
-      lint-base: ${{ github.event.before || 'HEAD^' }}
-
-  deploy:
-    name: Deploy Stack
-    needs: quality
-    # The stack is hosted on the Mac mini, so GitHub Actions stays the single
-    # deploy surface and the job runs on the mini's self-hosted runner.
-    runs-on: self-hosted
-    timeout-minutes: 30
+  resolve:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      sha: ${{ steps.target.outputs.sha }}
+      explicit_ref: ${{ steps.target.outputs.explicit_ref }}
     steps:
-      - name: Sync the deployment checkout
-        working-directory: /Users/zknicker/srv/tmterminal
+      # Full history so a rollback SHA is still an ancestor of main. Refusing
+      # here matters: the shared workflow would otherwise move the production
+      # checkout, and the next fast-forward deploy would skip.
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - id: target
+        env:
+          REF: ${{ github.event.inputs.ref }}
+          SHA: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          # Fetch the branch, not just the commit: scripts/deployment-revision
-          # requires HEAD to equal origin/main, and fetching a bare SHA leaves
-          # the remote-tracking ref behind.
-          git fetch origin main
-          git reset --hard "${GITHUB_SHA}"
-          git rev-parse HEAD
-
-      - name: Deploy
-        working-directory: /Users/zknicker/srv/tmterminal
-        env:
-          # The deploy-agent role slot, filled here by the GitHub deploy agent's
-          # read-only Production identity. The deploy script pins
-          # VARLOCK_ENV=production and resolves every value through the schema;
-          # no .env file is read and none is written.
-          DEPLOY_AGENT_PRODUCTION_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}
-          # The same identity also fills the CI slot (CI_OP_TOKEN): it reads both
-          # lifecycle vaults, so the deploy script's install-switch
-          # `varlock printenv` calls resolve the GitHub Packages read token and
-          # the licensed @hugeicons-pro key from the Development vault. Actions'
-          # own `github.token` is deliberately not used for package installs —
-          # it cannot download another repository's GitHub Package.
-          CI_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}
-        run: bun run deploy
-
-      - name: Verify from the consumer
-        run: |
-          body="$(curl --show-error --silent --max-time 20 \
-            https://tmterminal.merchbase.co/health/live || true)"
-          if [ "$body" != "{\"status\":\"ok\",\"revision\":\"${GITHUB_SHA}\"}" ]; then
-            printf '%s\n' "$body" >&2
-            exit 1
+          sha="${REF:-$SHA}"
+          explicit_ref=false
+          if [ -n "$REF" ]; then
+            explicit_ref=true
           fi
-          echo "Public liveness endpoint OK."
+          printf '%s' "$sha" | grep -Eq '^[0-9a-f]{40}$' || {
+            echo "Target must be a 40-character lowercase SHA." >&2
+            exit 1
+          }
+          git merge-base --is-ancestor "$sha" origin/main || {
+            echo "Refusing ${sha}. It is not on origin/main." >&2
+            exit 1
+          }
+          printf 'sha=%s\nexplicit_ref=%s\n' "$sha" "$explicit_ref" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: resolve
+    uses: merchbaseco/workflows/.github/workflows/deploy-service.yml@main
+    secrets: inherit
+    with:
+      sha: ${{ needs.resolve.outputs.sha }}
+      explicit_ref: ${{ needs.resolve.outputs.explicit_ref == 'true' }}
+      production_checkout: /Users/zknicker/srv/tmterminal
+      # The shared job exports the production token and not CI_OP_TOKEN. Image
+      # builds read Development-vault install credentials through the CI slot.
+      deploy_command: CI_OP_TOKEN="$DEPLOY_AGENT_PRODUCTION_OP_TOKEN" bun run deploy
+      # A root install also fetches private packages. This step only has
+      # github.token, which cannot. These two workspaces are public. The image
+      # build resolves the private credentials itself.
+      install_command: bun install --frozen-lockfile --filter @tmterminal/http-client --filter @tmterminal/cli
+      health_urls: https://tmterminal.merchbase.co/health/live
+      runner: self-hosted
+      published_packages: packages/http-client:@tmterminal/http-client,packages/cli:@tmterminal/cli
+      publish_provenance: true
+      bun_version: "1.4.2"
+      prepublish_command: bun run release:check
+      release_token_env_name: RELEASE_AGENT_TOOLING_OP_TOKEN
+      release_switch_env_name: TMTERMINAL_RESOLVE_RELEASE_TOKENS
