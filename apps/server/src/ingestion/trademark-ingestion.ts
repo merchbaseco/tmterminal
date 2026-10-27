@@ -504,55 +504,63 @@ export function createTrademarkIngestion(options: {
 
   function retainDiscovery(products: DiscoveredProduct[]) {
     const discovered = products.flatMap(validateProduct);
-    return options.database.begin(async (transaction) => {
-      await lockIngestion(transaction);
-      const retainedIdentities = await assertRetainedArtifactIdentities(transaction, discovered);
-      const [inventory] = await transaction<Array<{ count: number }>>`
+    return options.database
+      .begin(async (transaction) => {
+        await lockIngestion(transaction);
+        const retained = await acceptRetainedArtifactIdentities(transaction, discovered, now());
+        const retainedIdentities = retained.identities;
+        const [inventory] = await transaction<Array<{ count: number }>>`
         select count(*)::int as count from source_artifact
       `;
-      const bootstrap = inventory?.count === 0 ? bootstrapDisposition(discovered) : null;
-      const [retainedBroad] = bootstrap
-        ? []
-        : await transaction<Array<{ complete: boolean; fromDate: string; toDate: string }>>`
+        const bootstrap = inventory?.count === 0 ? bootstrapDisposition(discovered) : null;
+        const [retainedBroad] = bootstrap
+          ? []
+          : await transaction<Array<{ complete: boolean; fromDate: string; toDate: string }>>`
             select source_from_date::text as "fromDate", source_to_date::text as "toDate",
               bool_and(application_state = 'complete') as complete
             from source_artifact where source_from_date < source_to_date
             group by source_from_date, source_to_date
             order by source_from_date, source_to_date desc limit 1
           `;
-      const newArtifacts = discovered.filter(
-        ({ artifact, product }) => !retainedIdentities.has(`${product}:${artifact.filename}`)
-      );
-      let retainedCount = 0;
-      for (let offset = 0; offset < newArtifacts.length; offset += discoveryInsertBatchSize) {
-        const rows = newArtifacts
-          .slice(offset, offset + discoveryInsertBatchSize)
-          .map(({ artifact, product }) => {
-            const selected =
-              bootstrap?.get(`${product}:${artifact.filename}`) ??
-              retainedBroadDisposition(artifact, retainedBroad);
-            return {
-              expected_bytes: artifact.bytes,
-              filename: artifact.filename,
-              id: randomUUID(),
-              processing_disposition: selected?.disposition ?? "required",
-              product,
-              selected_broad_from_date: selected?.broadFromDate ?? null,
-              selected_broad_to_date: selected?.broadToDate ?? null,
-              source_from_date: artifact.fromDate,
-              source_to_date: artifact.toDate,
-            };
-          });
-        // biome-ignore lint/performance/noAwaitInLoops: Catalog writes stay bounded and ordered under one ingestion lock.
-        const inserted = await transaction<Array<{ id: string }>>`
+        const newArtifacts = discovered.filter(
+          ({ artifact, product }) => !retainedIdentities.has(`${product}:${artifact.filename}`)
+        );
+        let retainedCount = 0;
+        for (let offset = 0; offset < newArtifacts.length; offset += discoveryInsertBatchSize) {
+          const rows = newArtifacts
+            .slice(offset, offset + discoveryInsertBatchSize)
+            .map(({ artifact, product }) => {
+              const selected =
+                bootstrap?.get(`${product}:${artifact.filename}`) ??
+                retainedBroadDisposition(artifact, retainedBroad);
+              return {
+                expected_bytes: artifact.bytes,
+                filename: artifact.filename,
+                id: randomUUID(),
+                processing_disposition: selected?.disposition ?? "required",
+                product,
+                selected_broad_from_date: selected?.broadFromDate ?? null,
+                selected_broad_to_date: selected?.broadToDate ?? null,
+                source_from_date: artifact.fromDate,
+                source_to_date: artifact.toDate,
+              };
+            });
+          // biome-ignore lint/performance/noAwaitInLoops: Catalog writes stay bounded and ordered under one ingestion lock.
+          const inserted = await transaction<Array<{ id: string }>>`
           insert into source_artifact ${transaction(rows)}
           on conflict (product, filename) do nothing returning id
         `;
-        retainedCount += inserted.length;
-      }
-      await resolveCoveredArtifacts(transaction);
-      return retainedCount;
-    });
+          retainedCount += inserted.length;
+        }
+        await resolveCoveredArtifacts(transaction);
+        return { notices: retained.notices, retainedCount };
+      })
+      .then((result) => {
+        for (const notice of result.notices) {
+          console.info(notice);
+        }
+        return result.retainedCount;
+      });
   }
 
   async function reconcile() {
@@ -762,48 +770,179 @@ function bootstrapDisposition(
   );
 }
 
-async function assertRetainedArtifactIdentities(
+interface StoredArtifactIdentity {
+  applicationState: ArtifactRow["applicationState"];
+  contentRevision: number;
+  downloadState: ArtifactRow["downloadState"];
+  expectedBytes: string;
+  filename: string;
+  id: string;
+  product: string;
+  sha256: string | null;
+  sourceFromDate: string;
+  sourceToDate: string;
+}
+
+type CatalogIdentity = Pick<DiscoveredArtifact, "bytes" | "fromDate" | "toDate">;
+
+interface IdentityChangeBase {
+  bytes: number;
+  fromDate: string;
+  previousBytes: string;
+  previousFromDate: string;
+  previousRevision: number;
+  previousToDate: string;
+  toDate: string;
+}
+
+interface SyncIdentity extends IdentityChangeBase {
+  kind: "sync";
+}
+
+interface RepublishIdentity extends IdentityChangeBase {
+  kind: "republish";
+}
+
+type IdentityChange = SyncIdentity | RepublishIdentity;
+
+type RetainedIdentityPlan = { kind: "keep" } | { kind: "refuse"; message: string } | IdentityChange;
+
+function planRetainedIdentity(
+  stored: StoredArtifactIdentity,
+  catalog: CatalogIdentity
+): RetainedIdentityPlan {
+  const identityChanged =
+    stored.expectedBytes !== String(catalog.bytes) ||
+    stored.sourceFromDate !== catalog.fromDate ||
+    stored.sourceToDate !== catalog.toDate;
+  if (!identityChanged) {
+    return { kind: "keep" };
+  }
+  if (stored.downloadState === "downloading" || stored.applicationState === "applying") {
+    return {
+      kind: "refuse",
+      message: `USPTO catalog changed retained identity for ${stored.product}/${stored.filename}`,
+    };
+  }
+  const heldPriorBytes =
+    stored.sha256 !== null ||
+    stored.applicationState === "complete" ||
+    stored.applicationState === "needs_attention";
+  return {
+    bytes: catalog.bytes,
+    fromDate: catalog.fromDate,
+    kind: heldPriorBytes ? "republish" : "sync",
+    previousBytes: stored.expectedBytes,
+    previousFromDate: stored.sourceFromDate,
+    previousRevision: stored.contentRevision,
+    previousToDate: stored.sourceToDate,
+    toDate: catalog.toDate,
+  };
+}
+
+function retainedIdentityNotice(stored: StoredArtifactIdentity, plan: IdentityChange) {
+  const coverage = `coverage ${plan.previousFromDate}..${plan.previousToDate} to ${plan.fromDate}..${plan.toDate}`;
+  const bytes = `bytes ${plan.previousBytes} to ${plan.bytes}`;
+  switch (plan.kind) {
+    case "sync":
+      return `Updated unapplied USPTO identity ${stored.product}/${stored.filename} ${bytes}, ${coverage}`;
+    case "republish":
+      return `Accepted USPTO republish ${stored.product}/${stored.filename} content revision ${plan.previousRevision} to ${plan.previousRevision + 1}, ${bytes}, ${coverage}`;
+    default: {
+      const unreachable: never = plan;
+      throw new Error(`Unhandled retained identity plan: ${JSON.stringify(unreachable)}`);
+    }
+  }
+}
+
+async function acceptRetainedArtifactIdentities(
   database: Database,
-  discovered: Array<{ artifact: DiscoveredArtifact; product: SourceProduct }>
+  discovered: Array<{ artifact: DiscoveredArtifact; product: SourceProduct }>,
+  observedAt: Date
 ) {
   if (discovered.length === 0) {
-    return new Set<string>();
+    return { identities: new Set<string>(), notices: [] };
   }
-  const rows = await database<
-    Array<{
-      expectedBytes: string;
-      filename: string;
-      product: string;
-      sourceFromDate: string;
-      sourceToDate: string;
-    }>
-  >`
-    select expected_bytes::text as "expectedBytes", filename, product,
-      source_from_date::text as "sourceFromDate", source_to_date::text as "sourceToDate"
+  const rows = await database<StoredArtifactIdentity[]>`
+    select application_state as "applicationState", content_revision as "contentRevision",
+      download_state as "downloadState", expected_bytes::text as "expectedBytes", filename, id,
+      product, sha256, source_from_date::text as "sourceFromDate",
+      source_to_date::text as "sourceToDate"
     from source_artifact
+    order by product, filename
   `;
   const expected = new Map(
     discovered.map(({ artifact, product }) => [`${product}:${artifact.filename}`, artifact])
   );
   const retained = new Set<string>();
-  for (const row of rows) {
-    const identity = `${row.product}:${row.filename}`;
+  const accepted: Array<{ plan: IdentityChange; stored: StoredArtifactIdentity }> = [];
+  for (const stored of rows) {
+    const identity = `${stored.product}:${stored.filename}`;
     const artifact = expected.get(identity);
     if (!artifact) {
       continue;
     }
     retained.add(identity);
-    if (
-      row.expectedBytes !== String(artifact.bytes) ||
-      row.sourceFromDate !== artifact.fromDate ||
-      row.sourceToDate !== artifact.toDate
-    ) {
-      throw new SourceContractError(
-        `USPTO catalog changed retained identity for ${row.product}/${row.filename}`
-      );
+    const plan = planRetainedIdentity(stored, artifact);
+    if (plan.kind === "refuse") {
+      throw new SourceContractError(plan.message);
+    }
+    if (plan.kind !== "keep") {
+      accepted.push({ plan, stored });
     }
   }
-  return retained;
+  const notices: string[] = [];
+  for (const { plan, stored } of accepted) {
+    notices.push(retainedIdentityNotice(stored, plan));
+    switch (plan.kind) {
+      case "sync": {
+        // biome-ignore lint/performance/noAwaitInLoops: Catalog writes stay bounded and ordered under one ingestion lock.
+        const updated = await database<Array<{ id: string }>>`
+          update source_artifact set expected_bytes = ${plan.bytes},
+            source_from_date = ${plan.fromDate}, source_to_date = ${plan.toDate},
+            updated_at = ${observedAt}
+          where id = ${stored.id} and sha256 is null and application_state = 'pending'
+            and download_state in ('pending', 'blocked')
+            and content_revision = ${stored.contentRevision}
+            and expected_bytes::text = ${stored.expectedBytes}
+          returning id
+        `;
+        if (updated.length !== 1) {
+          throw new SourceContractError(
+            `USPTO catalog changed retained identity for ${stored.product}/${stored.filename}`
+          );
+        }
+        break;
+      }
+      case "republish": {
+        const updated = await database<Array<{ id: string }>>`
+          update source_artifact set content_revision = content_revision + 1,
+            expected_bytes = ${plan.bytes}, source_from_date = ${plan.fromDate},
+            source_to_date = ${plan.toDate}, download_state = 'pending',
+            application_state = 'pending', sha256 = null, bytes = null, object_key = null,
+            current_error = null, download_response_state = null, application_completed_at = null,
+            downloaded_at = null, parser_version = null, applied_record_count = 0,
+            physical_record_count = 0, projected_mark_count = 0, unresolved_record_count = 0,
+            updated_at = ${observedAt}
+          where id = ${stored.id} and content_revision = ${stored.contentRevision}
+            and download_state <> 'downloading' and application_state <> 'applying'
+            and expected_bytes::text = ${stored.expectedBytes}
+          returning id
+        `;
+        if (updated.length !== 1) {
+          throw new SourceContractError(
+            `USPTO catalog changed retained identity for ${stored.product}/${stored.filename}`
+          );
+        }
+        break;
+      }
+      default: {
+        const unreachable: never = plan;
+        throw new Error(`Unhandled retained identity plan: ${JSON.stringify(unreachable)}`);
+      }
+    }
+  }
+  return { identities: retained, notices };
 }
 
 async function resolveCoveredArtifacts(database: Database) {

@@ -1431,6 +1431,272 @@ test("a migrated legacy snapshot yields to the first equal-date logical snapshot
   ]).toEqual([{ word_mark: "CURRENT" }]);
 });
 
+test("a republished applied file is re-downloaded at the next content revision", async () => {
+  const republishedFilename = "apc260930.zip";
+  const corrected = projection({
+    filename: republishedFilename,
+    sourceTransactionDate: "2026-09-30",
+    wordMark: "OLD SHIRT",
+  });
+  const later = projection({
+    filename: "apc261001.zip",
+    sourceTransactionDate: "2026-10-01",
+    wordMark: "LATER SHIRT",
+  });
+  const dropped = projection({
+    filename: republishedFilename,
+    sourceTransactionDate: "2026-09-30",
+    wordMark: "DROPPED SHIRT",
+  });
+  if (corrected.kind !== "upsert" || later.kind !== "upsert" || dropped.kind !== "upsert") {
+    throw new Error("Expected tracked mark projections");
+  }
+  later.serialNumber = "74668072";
+  dropped.serialNumber = "74668073";
+  await database.begin((transaction) =>
+    applyTrademarkBatch(transaction, [corrected, later, dropped], now)
+  );
+  await database`
+    insert into source_artifact (
+      id, product, filename, expected_bytes, bytes, source_from_date, source_to_date,
+      download_state, application_state, sha256, content_revision, download_request_count,
+      applied_record_count
+    ) values (
+      '71000000-0000-4000-8000-000000000930', 'TRTDXFAP', ${republishedFilename},
+      37695240, 37695240, '2026-09-30', '2026-09-30', 'downloaded', 'complete', ${sha}, 1, 1, 3
+    )
+  `;
+  const notices: string[] = [];
+  const writeNotice = console.info;
+  console.info = (message?: unknown, ...rest: unknown[]) => {
+    notices.push([message, ...rest].map(String).join(" "));
+  };
+  const republishBytes = Buffer.byteLength(republishedFilename);
+  const module = ingestion(
+    catalog({
+      discover: async (product) =>
+        product === "TRTYRAP"
+          ? discovered("TRTYRAP", "YEARLY", [])
+          : discovered("TRTDXFAP", "DAILY", [
+              artifact(republishedFilename, "2026-09-30", "2026-09-30"),
+              artifact("apc261002.zip", "2026-10-02", "2026-10-02"),
+            ]),
+    }),
+    async () =>
+      Readable.from([
+        sourceDocument(
+          [
+            caseFile({
+              serialNumber: corrected.serialNumber,
+              transactionDate: "20260930",
+              wordMark: "NEW SHIRT",
+            }),
+            caseFile({
+              serialNumber: later.serialNumber,
+              transactionDate: "20260930",
+              wordMark: "STALE SHIRT",
+            }),
+          ].join("")
+        ),
+      ])
+  );
+
+  try {
+    expect(await module.reconcile()).toEqual({ action: "discovered", artifactCount: 1 });
+    expect(notices).toEqual([
+      `Accepted USPTO republish TRTDXFAP/${republishedFilename} content revision 1 to 2, bytes 37695240 to ${republishBytes}, coverage 2026-09-30..2026-09-30 to 2026-09-30..2026-09-30`,
+    ]);
+    expect([
+      ...(await database`
+        select application_state, content_revision, download_state, expected_bytes::text as expected_bytes,
+          sha256
+        from source_artifact where filename = ${republishedFilename}
+      `),
+    ]).toEqual([
+      {
+        application_state: "pending",
+        content_revision: 2,
+        download_state: "pending",
+        expected_bytes: String(republishBytes),
+        sha256: null,
+      },
+    ]);
+    expect([
+      ...(await database`
+        select download_state, processing_disposition from source_artifact
+        where filename = 'apc261002.zip'
+      `),
+    ]).toEqual([{ download_state: "pending", processing_disposition: "required" }]);
+
+    expect(await module.reconcile()).toMatchObject({
+      action: "artifact-downloaded",
+      filename: republishedFilename,
+    });
+    expect(downloaded).toEqual([republishedFilename]);
+    expect(await module.reconcile()).toMatchObject({
+      action: "artifact-applied",
+      filename: republishedFilename,
+      unresolvedRecordCount: 0,
+    });
+    expect(
+      await createMarksService(database).get({ serialNumber: corrected.serialNumber })
+    ).toMatchObject({ mark: { wordMark: "NEW SHIRT" } });
+    expect(
+      await createMarksService(database).get({ serialNumber: later.serialNumber })
+    ).toMatchObject({ mark: { wordMark: "LATER SHIRT" } });
+    expect(
+      await createMarksService(database).get({ serialNumber: dropped.serialNumber })
+    ).toMatchObject({ mark: { wordMark: "DROPPED SHIRT" } });
+    expect([
+      ...(await database`
+        select serial_number, content_revision, source_filename,
+          source_transaction_date::text as source_transaction_date
+        from trademark_recency order by serial_number
+      `),
+    ]).toEqual([
+      {
+        content_revision: 2,
+        serial_number: corrected.serialNumber,
+        source_filename: republishedFilename,
+        source_transaction_date: "2026-09-30",
+      },
+      {
+        content_revision: 1,
+        serial_number: later.serialNumber,
+        source_filename: "apc261001.zip",
+        source_transaction_date: "2026-10-01",
+      },
+      {
+        content_revision: 1,
+        serial_number: dropped.serialNumber,
+        source_filename: republishedFilename,
+        source_transaction_date: "2026-09-30",
+      },
+    ]);
+
+    now = new Date(now.getTime() + 25 * 60 * 60 * 1000);
+    expect(await module.reconcile()).toEqual({ action: "discovered", artifactCount: 0 });
+    expect(notices).toHaveLength(1);
+    expect([
+      ...(await database`
+        select content_revision, download_request_count from source_artifact
+        where filename = ${republishedFilename}
+      `),
+    ]).toEqual([{ content_revision: 2, download_request_count: 2 }]);
+    expect((await module.status()).worker.currentError).toBeNull();
+  } finally {
+    console.info = writeNotice;
+  }
+});
+
+test("an in-flight file with a changed catalog identity still stops the worker", async () => {
+  const filename = "apc260930.zip";
+  await database`
+    insert into source_artifact (
+      id, product, filename, expected_bytes, source_from_date, source_to_date, download_state,
+      application_state, sha256, content_revision
+    ) values (
+      '71000000-0000-4000-8000-000000000930', 'TRTDXFAP', ${filename}, 37695240,
+      '2026-09-30', '2026-09-30', 'downloaded', 'applying', ${sha}, 1
+    )
+  `;
+  const module = ingestion(
+    catalog({
+      discover: async (product) =>
+        product === "TRTYRAP"
+          ? discovered("TRTYRAP", "YEARLY", [])
+          : discovered("TRTDXFAP", "DAILY", [artifact(filename, "2026-09-30", "2026-09-30")]),
+    })
+  );
+
+  await expect(module.reconcile()).rejects.toThrow(
+    `USPTO catalog changed retained identity for TRTDXFAP/${filename}`
+  );
+  expect([
+    ...(await database`
+      select application_state, content_revision, expected_bytes::text as expected_bytes
+      from source_artifact where filename = ${filename}
+    `),
+  ]).toEqual([{ application_state: "applying", content_revision: 1, expected_bytes: "37695240" }]);
+  expect(await module.reconcile()).toEqual({ action: "stopped" });
+  expect(downloaded).toEqual([]);
+});
+
+test("an unapplied file takes a changed catalog identity without a new content revision", async () => {
+  await database`
+    insert into source_artifact (
+      id, product, filename, expected_bytes, source_from_date, source_to_date, download_state,
+      application_state, content_revision
+    ) values
+      ('71000000-0000-4000-8000-000000000930', 'TRTDXFAP', 'apc260930.zip', 10,
+        '2026-09-29', '2026-09-29', 'pending', 'pending', 1),
+      ('71000000-0000-4000-8000-000000000931', 'TRTDXFAP', 'apc260931.zip', 10,
+        '2026-10-01', '2026-10-01', 'blocked', 'pending', 1)
+  `;
+  const pendingBytes = Buffer.byteLength("apc260930.zip");
+  const blockedBytes = Buffer.byteLength("apc260931.zip");
+  const notices: string[] = [];
+  const writeNotice = console.info;
+  console.info = (message?: unknown, ...rest: unknown[]) => {
+    notices.push([message, ...rest].map(String).join(" "));
+  };
+  const module = ingestion(
+    catalog({
+      discover: async (product) =>
+        product === "TRTYRAP"
+          ? discovered("TRTYRAP", "YEARLY", [])
+          : discovered("TRTDXFAP", "DAILY", [
+              artifact("apc260930.zip", "2026-09-30", "2026-09-30"),
+              artifact("apc260931.zip", "2026-10-01", "2026-10-01"),
+            ]),
+    })
+  );
+
+  try {
+    expect(await module.reconcile()).toEqual({ action: "discovered", artifactCount: 0 });
+    expect(notices).toEqual([
+      `Updated unapplied USPTO identity TRTDXFAP/apc260930.zip bytes 10 to ${pendingBytes}, coverage 2026-09-29..2026-09-29 to 2026-09-30..2026-09-30`,
+      `Updated unapplied USPTO identity TRTDXFAP/apc260931.zip bytes 10 to ${blockedBytes}, coverage 2026-10-01..2026-10-01 to 2026-10-01..2026-10-01`,
+    ]);
+    expect([
+      ...(await database`
+      select filename, content_revision, download_state, expected_bytes::text as expected_bytes,
+        source_from_date::text as source_from_date, source_to_date::text as source_to_date
+      from source_artifact order by filename
+    `),
+    ]).toEqual([
+      {
+        content_revision: 1,
+        download_state: "pending",
+        expected_bytes: String(pendingBytes),
+        filename: "apc260930.zip",
+        source_from_date: "2026-09-30",
+        source_to_date: "2026-09-30",
+      },
+      {
+        content_revision: 1,
+        download_state: "blocked",
+        expected_bytes: String(blockedBytes),
+        filename: "apc260931.zip",
+        source_from_date: "2026-10-01",
+        source_to_date: "2026-10-01",
+      },
+    ]);
+    expect(await module.reconcile()).toMatchObject({
+      action: "artifact-downloaded",
+      filename: "apc260930.zip",
+    });
+    expect(downloaded).toEqual(["apc260930.zip"]);
+    expect([
+      ...(await database`
+      select content_revision, download_state from source_artifact where filename = 'apc260931.zip'
+    `),
+    ]).toEqual([{ content_revision: 1, download_state: "blocked" }]);
+  } finally {
+    console.info = writeNotice;
+  }
+});
+
 test("a completed broad source group covers an older blocked file", async () => {
   const objectKey = "sha256/broad-part-02";
   retained.add(objectKey);
@@ -1630,6 +1896,10 @@ function discovered(
 
 function sourceDocument(record: string) {
   return `<trademark-applications-daily><version><version-no>2.0</version-no><version-date>20041108</version-date></version><application-information><file-segments><file-segment>1</file-segment><action-keys><action-key>TX</action-key>${record}</action-keys></file-segments></application-information></trademark-applications-daily>`;
+}
+
+function caseFile(options: { serialNumber: string; transactionDate: string; wordMark: string }) {
+  return `<case-file><serial-number>${options.serialNumber}</serial-number><transaction-date>${options.transactionDate}</transaction-date><case-file-header><filing-date>19950501</filing-date><status-code>800</status-code><status-date>20160607</status-date><mark-identification>${options.wordMark}</mark-identification><mark-drawing-code>1</mark-drawing-code></case-file-header><classifications><international-code>025</international-code><status-code>6</status-code><status-date>19950706</status-date><primary-code>025</primary-code></classifications><case-file-statements><case-file-statement><type-code>GS0251</type-code><text>shirts</text></case-file-statement></case-file-statements></case-file>`;
 }
 
 function recordFor(filename: string) {

@@ -91,7 +91,7 @@ status events are replaced together from that snapshot.
 | Dates equal and snapshot hashes match | No-op. |
 | Dates equal, files differ, snapshots differ | Record an application issue. |
 | Exact coordinate, newer parser version | Allow corrected interpretation. |
-| Same product/filename, approved higher content revision | Allow corrected official bytes. |
+| Same product/filename, higher content revision | Allow corrected official bytes. A serial omitted from the new file stays. |
 
 Rows migrated from the earlier store carry an explicit legacy snapshot marker.
 The first equal-date logical snapshot replaces that marker instead of reporting

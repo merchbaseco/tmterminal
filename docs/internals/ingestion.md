@@ -71,8 +71,14 @@ After restart:
 - blocked downloads never retry automatically.
 
 An operator may deliberately spend one more request after seeing the durable
-request count. Changed official bytes for the same product and filename require
-operator approval and increment that file's content revision.
+request count. When the catalog changes the byte count or coverage dates of a
+product and filename that already retained bytes, discovery stores the next
+content revision, clears the old ZIP identity, and queues one new download.
+The worker then applies that revision. A file that is downloading or applying
+still stops the worker. A file that never retained bytes keeps its content
+revision and stores the new byte count and coverage dates. A blocked file that
+never retained bytes stays blocked. Every other catalog contract violation
+still stops the worker.
 
 ## Application
 
@@ -123,8 +129,14 @@ Precedence is exact:
 3. Equal date and identical snapshot is a no-op.
 4. Equal date with differing logical files is an application issue.
 5. The same source coordinate may be corrected by a newer parser version.
-6. An approved higher content revision of the same file may correct its earlier
-   revision at the same date.
+6. A higher content revision of the same file may correct its earlier revision
+   at the same date.
+
+Re-applying a higher content revision replaces records the new file still
+contains when that file is their winning source at the same transaction date.
+A later transaction date from another file stays. A serial that was in the
+earlier revision and is absent from the new file stays in Live Trademark
+Knowledge.
 
 Artifact frequency, filename, coverage, download time, and application order are
 not tie-breakers.
