@@ -1634,6 +1634,12 @@ test("an unapplied file takes a changed catalog identity without a new content r
         '2026-10-01', '2026-10-01', 'blocked', 'pending', 1)
   `;
   const pendingBytes = Buffer.byteLength("apc260930.zip");
+  const blockedBytes = Buffer.byteLength("apc260931.zip");
+  const notices: string[] = [];
+  const writeNotice = console.info;
+  console.info = (message?: unknown, ...rest: unknown[]) => {
+    notices.push([message, ...rest].map(String).join(" "));
+  };
   const module = ingestion(
     catalog({
       discover: async (product) =>
@@ -1646,41 +1652,49 @@ test("an unapplied file takes a changed catalog identity without a new content r
     })
   );
 
-  expect(await module.reconcile()).toEqual({ action: "discovered", artifactCount: 0 });
-  expect([
-    ...(await database`
+  try {
+    expect(await module.reconcile()).toEqual({ action: "discovered", artifactCount: 0 });
+    expect(notices).toEqual([
+      `Updated unapplied USPTO identity TRTDXFAP/apc260930.zip bytes 10 to ${pendingBytes}, coverage 2026-09-29..2026-09-29 to 2026-09-30..2026-09-30`,
+      `Updated unapplied USPTO identity TRTDXFAP/apc260931.zip bytes 10 to ${blockedBytes}, coverage 2026-10-01..2026-10-01 to 2026-10-01..2026-10-01`,
+    ]);
+    expect([
+      ...(await database`
       select filename, content_revision, download_state, expected_bytes::text as expected_bytes,
         source_from_date::text as source_from_date, source_to_date::text as source_to_date
       from source_artifact order by filename
     `),
-  ]).toEqual([
-    {
-      content_revision: 1,
-      download_state: "pending",
-      expected_bytes: String(pendingBytes),
+    ]).toEqual([
+      {
+        content_revision: 1,
+        download_state: "pending",
+        expected_bytes: String(pendingBytes),
+        filename: "apc260930.zip",
+        source_from_date: "2026-09-30",
+        source_to_date: "2026-09-30",
+      },
+      {
+        content_revision: 1,
+        download_state: "blocked",
+        expected_bytes: String(blockedBytes),
+        filename: "apc260931.zip",
+        source_from_date: "2026-10-01",
+        source_to_date: "2026-10-01",
+      },
+    ]);
+    expect(await module.reconcile()).toMatchObject({
+      action: "artifact-downloaded",
       filename: "apc260930.zip",
-      source_from_date: "2026-09-30",
-      source_to_date: "2026-09-30",
-    },
-    {
-      content_revision: 1,
-      download_state: "blocked",
-      expected_bytes: String(Buffer.byteLength("apc260931.zip")),
-      filename: "apc260931.zip",
-      source_from_date: "2026-10-01",
-      source_to_date: "2026-10-01",
-    },
-  ]);
-  expect(await module.reconcile()).toMatchObject({
-    action: "artifact-downloaded",
-    filename: "apc260930.zip",
-  });
-  expect(downloaded).toEqual(["apc260930.zip"]);
-  expect([
-    ...(await database`
+    });
+    expect(downloaded).toEqual(["apc260930.zip"]);
+    expect([
+      ...(await database`
       select content_revision, download_state from source_artifact where filename = 'apc260931.zip'
     `),
-  ]).toEqual([{ content_revision: 1, download_state: "blocked" }]);
+    ]).toEqual([{ content_revision: 1, download_state: "blocked" }]);
+  } finally {
+    console.info = writeNotice;
+  }
 });
 
 test("a completed broad source group covers an older blocked file", async () => {
