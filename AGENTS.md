@@ -106,7 +106,8 @@ full set. Read [Testing](docs/operations/testing.md) before changing that split.
 
 - Linear lives on the Products team (`PRD`) with the `Trademark Terminal`
   label. Triage labels are in [Issues](docs/operations/issues.md).
-- Quiet Utility and COSS rules live in [Design](docs/design/system.md).
+- Quiet Utility and COSS rules live in [Design](.design/guidelines.md).
+- Design rejections go in `.design/rejections.md`.
 - Production topology and rollback notes live in
   [Deployment](docs/operations/deployment.md).
 - Public docs live in `apps/docs` and ship at `/docs`. Write them with the

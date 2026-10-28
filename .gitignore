@@ -18,3 +18,4 @@ fixtures/uspto/**/*.doc
 .agents/*
 !.agents/cloud/
 .cursor/rules/pstack-models.mdc
+.design/renders/
