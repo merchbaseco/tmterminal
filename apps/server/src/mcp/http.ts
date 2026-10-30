@@ -1,7 +1,4 @@
-import type { IncomingMessage } from "node:http";
-
-import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import { authenticateMcpRequest, type McpAuthDependencies, type McpAuthResult } from "./auth.ts";
@@ -127,11 +124,9 @@ async function handleMcpRequest(
     merchbaseUserId: authentication.merchbaseUserId,
   });
   const server = createTmterminalMcpServer(source);
-  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-  const rawRequest = request.raw as IncomingMessage & { auth?: AuthInfo };
-  rawRequest.auth = authentication.authInfo;
+  const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+  const webRequest = toWebRequest(request);
   setMcpCorsHeaders(reply, origin);
-  reply.hijack();
 
   let closed = false;
   const close = () => {
@@ -151,17 +146,36 @@ async function handleMcpRequest(
 
   try {
     await server.connect(transport);
-    await transport.handleRequest(rawRequest, reply.raw, request.body);
+    const response = await transport.handleRequest(webRequest, {
+      authInfo: authentication.authInfo,
+      parsedBody: request.body,
+    });
+    return reply.send(response);
   } catch (error) {
     console.error(
       "Trademark Terminal MCP request failed.",
       error instanceof Error ? error.name : "UnknownError"
     );
     if (!reply.raw.headersSent) {
-      reply.raw.writeHead(500, { "content-type": "application/json" });
-      reply.raw.end(JSON.stringify({ error: "MCP request failed" }));
+      return reply.status(500).send({ error: "MCP request failed" });
     }
   }
+}
+
+function toWebRequest(request: FastifyRequest) {
+  const headers = new Headers();
+  for (const [name, value] of Object.entries(request.headers)) {
+    if (typeof value === "string") {
+      headers.set(name, value);
+    } else if (Array.isArray(value)) {
+      for (const part of value) {
+        headers.append(name, part);
+      }
+    }
+  }
+
+  const url = new URL(request.url, `${request.protocol}://${request.headers.host ?? "localhost"}`);
+  return new Request(url, { headers, method: request.method });
 }
 
 function sendAuthenticationFailure(

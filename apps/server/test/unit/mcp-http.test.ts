@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
+import { request as httpRequest } from "node:http";
 import cors from "@fastify/cors";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import Fastify, { type FastifyInstance } from "fastify";
 
 import type { TmterminalMcpDataSource } from "../../src/mcp/data-source.ts";
@@ -137,6 +140,93 @@ describe("Trademark Terminal hosted MCP routes", () => {
       accountId: "account-1",
       merchbaseUserId: "mbu-1",
     });
+  });
+
+  it("serves initialize and tools/list to an MCP client over HTTP", async () => {
+    const app = await createApp();
+    const url = new URL("/mcp", await app.listen({ host: "127.0.0.1", port: 0 }));
+    const client = new Client({ name: "tmterminal-mcp-http-test", version: "1.0.0" });
+    const transport = new StreamableHTTPClientTransport(url, {
+      requestInit: { headers: { "cf-access-jwt-assertion": "oauth-token" } },
+    });
+
+    try {
+      await client.connect(transport);
+      const { tools } = await client.listTools();
+      expect(tools.map((tool) => tool.name)).toEqual([
+        "tmterminal_get",
+        "tmterminal_search",
+        "tmterminal_screen",
+      ]);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("cleans up when an HTTP client closes an MCP response after parsing the request", async () => {
+    let resumeHandler!: () => void;
+    const handlerGate = new Promise<void>((resolve) => {
+      resumeHandler = resolve;
+    });
+    let notifyHandlerStarted!: () => void;
+    const handlerStarted = new Promise<void>((resolve) => {
+      notifyHandlerStarted = resolve;
+    });
+    const app = Fastify();
+    apps.push(app);
+    app.addHook("preHandler", async (request) => {
+      if (request.url === "/mcp") {
+        notifyHandlerStarted();
+        await handlerGate;
+      }
+    });
+    await app.register(cors, { origin: false });
+    await registerTmterminalMcpRoutes(app, {
+      auth: { authorize: mock(async () => ({ accountId: "account-1", merchbaseUserId: "mbu-1" })) },
+      createDataSource: source,
+      issuer,
+      resourceUrl,
+    });
+
+    const address = new URL(await app.listen({ host: "127.0.0.1", port: 0 }));
+    const responseStarted = new Promise<void>((resolve, reject) => {
+      const client = httpRequest(
+        {
+          headers: {
+            accept: "application/json, text/event-stream",
+            "cf-access-jwt-assertion": "oauth-token",
+            "content-type": "application/json",
+          },
+          hostname: address.hostname,
+          method: "POST",
+          path: "/mcp",
+          port: Number(address.port),
+        },
+        (response) => {
+          response.on("error", () => undefined);
+          if (response.statusCode !== 200) {
+            response.resume();
+            reject(new Error(`Expected HTTP 200, got ${response.statusCode ?? "no status"}`));
+            return;
+          }
+          response.once("data", () => {
+            response.destroy();
+            resolve();
+          });
+        }
+      );
+      client.on("error", reject);
+      client.end(JSON.stringify(initializePayload()));
+    });
+
+    try {
+      await handlerStarted;
+      resumeHandler();
+      await responseStarted;
+      await Bun.sleep(650);
+    } finally {
+      resumeHandler();
+    }
   });
 });
 
