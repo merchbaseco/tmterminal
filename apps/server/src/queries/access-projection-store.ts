@@ -2,7 +2,7 @@ import type {
   AccessProjection,
   AccessProjectionEvent,
   AccessProjectionStore,
-  ClerkIdentity,
+  ProjectionIdentity,
 } from "@merchbaseco/access";
 import type postgres from "postgres";
 
@@ -15,24 +15,17 @@ interface StoredProjection {
   subject: string;
 }
 
-export function createAccessProjectionStore(database: postgres.Sql): AccessProjectionStore {
+export function createAccessProjectionStore(
+  database: postgres.Sql,
+  authorityOrigin = process.env.MERCHBASE_ACCESS_AUTHORITY_ORIGIN ??
+    "https://access-internal.merchbase.co"
+): AccessProjectionStore {
   return {
     apply: (event) => applyProjectionEvent(database, event),
     findByIdentity: (identity) => findByIdentity(database, identity),
-    findByMerchbaseUserId: (merchbaseUserId) => findByMerchbaseUserId(database, merchbaseUserId),
+    findByMerchbaseUserId: (merchbaseUserId) =>
+      findByMerchbaseUserId(database, merchbaseUserId, authorityOrigin),
   };
-}
-
-export async function listActiveAccountProjectionMerchbaseUserIds(database: postgres.Sql) {
-  const projections = await database<Array<{ merchbaseUserId: string }>>`
-    select projection.merchbase_user_id as "merchbaseUserId"
-    from access_projection projection
-    inner join account on account.merchbase_user_id = projection.merchbase_user_id
-    where projection.merchbase_user_id is not null
-      and projection.access is not null
-    order by projection.merchbase_user_id
-  `;
-  return projections.map(({ merchbaseUserId }) => merchbaseUserId);
 }
 
 async function applyProjectionEvent(database: postgres.Sql, event: AccessProjectionEvent) {
@@ -108,7 +101,7 @@ async function applyProjectionEvent(database: postgres.Sql, event: AccessProject
   });
 }
 
-async function findByIdentity(database: postgres.Sql, identity: ClerkIdentity) {
+async function findByIdentity(database: postgres.Sql, identity: ProjectionIdentity) {
   const [projection] = await database<StoredProjection[]>`
     select
       issuer,
@@ -128,7 +121,11 @@ async function findByIdentity(database: postgres.Sql, identity: ClerkIdentity) {
   return active ? { projection: active, type: "active" as const } : { type: "tombstone" as const };
 }
 
-async function findByMerchbaseUserId(database: postgres.Sql, merchbaseUserId: string) {
+async function findByMerchbaseUserId(
+  database: postgres.Sql,
+  merchbaseUserId: string,
+  authorityOrigin: string
+) {
   const [projection] = await database<StoredProjection[]>`
     select
       issuer,
@@ -138,7 +135,9 @@ async function findByMerchbaseUserId(database: postgres.Sql, merchbaseUserId: st
       access_valid_until as "accessValidUntil",
       source_updated_at::float8 as "sourceUpdatedAt"
     from access_projection
-    where merchbase_user_id = ${merchbaseUserId}
+    where issuer = ${authorityOrigin}
+      and subject = ${merchbaseUserId}
+      and merchbase_user_id = ${merchbaseUserId}
       and access is not null
   `;
   return projection ? storedProjection(projection) : null;

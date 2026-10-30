@@ -3,7 +3,12 @@ import { TmterminalError, type Trademark, type TrademarkSearchPage } from "@tmte
 
 import { type CliClient, type CliDependencies, runCli } from "../src/run.ts";
 
-const token = "ak_test_shared_merchbase_key";
+const token = `mbk_v1.${btoa(
+  JSON.stringify({ clientId: "client.access", clientSecret: "a".repeat(64) })
+)
+  .replaceAll("+", "-")
+  .replaceAll("/", "_")
+  .replace(/[=]+$/, "")}`;
 const trademark = {
   classes: [{ internationalCode: "025", statusCode: "6", statusDate: "2010-04-08" }],
   goodsServices: [{ text: "pistols", typeCode: "GS0091" }],
@@ -178,7 +183,7 @@ test("auth set prompts for a hidden API key when stdin is not selected", async (
   expect(prompts).toBe(1);
   expect(stored).toEqual([token]);
   expect(json(result)).toEqual({
-    data: { origin: "https://tmterminal.merchbase.co" },
+    data: { origin: "https://tmterminal-api.merchbase.co" },
     ok: true,
   });
 });

@@ -12,7 +12,7 @@ read_when:
 | State | Purpose |
 | --- | --- |
 | Accounts, stable Merchbase User mappings, roles, search preferences | Durable product ownership, operator authorization, and account-level website defaults. |
-| Access Projection and receipts | Product-local Clerk identity/access cache plus idempotent webhook receipt. |
+| Access Projection and receipts | Product-local identity aliases and canonical grants plus idempotent snapshot receipts. |
 | Source Artifact | One product-plus-filename ledger row with coverage, download, application, counts, pointer, provenance, and current error. |
 | Worker Status | One current heartbeat, current file, and system error. |
 | Trademark Recency | Minimal winning source date, coordinate, and parser version for every processed serial. |

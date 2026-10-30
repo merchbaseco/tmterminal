@@ -1,10 +1,9 @@
-import { type TmterminalClient, TmterminalError } from "@tmterminal/http-client";
+import { isMerchbaseApiKey, type TmterminalClient, TmterminalError } from "@tmterminal/http-client";
 
 import { BadRequestError, CliError } from "./cli-error.js";
 import { type CliCommand, parseCli } from "./program.js";
 
-const defaultOrigin = "https://tmterminal.merchbase.co";
-const tokenPattern = /^ak_\S+$/;
+const defaultOrigin = "https://tmterminal-api.merchbase.co";
 const unicodeWordTokens = /[\p{Letter}\p{Mark}\p{Number}]+/gu;
 
 export interface Keychain {
@@ -82,6 +81,9 @@ async function credential(dependencies: CliDependencies) {
 async function authenticatedClient(dependencies: CliDependencies, explicitOrigin?: string) {
   const origin = configuredOrigin(dependencies, explicitOrigin);
   const selected = await credential(dependencies);
+  if (!isMerchbaseApiKey(selected.token)) {
+    throw new BadRequestError("Invalid Merchbase API key");
+  }
   const client = dependencies.createClient({ apiKey: selected.token, baseUrl: origin });
   return { client, origin, selected };
 }
@@ -117,7 +119,7 @@ export async function runCli(args: string[], dependencies: CliDependencies): Pro
       const token = (
         invocation.readsStdin ? dependencies.stdin : await dependencies.promptSecret()
       ).trim();
-      if (!tokenPattern.test(token)) {
+      if (!isMerchbaseApiKey(token)) {
         throw new BadRequestError("Invalid Merchbase API key");
       }
       await dependencies.keychain.set(token);

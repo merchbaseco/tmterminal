@@ -1,4 +1,5 @@
 import { fileURLToPath } from "node:url";
+import { assertDevCloudflareAccessTarget } from "@merchbaseco/access/dev";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
@@ -25,5 +26,8 @@ if (import.meta.main) {
     throw new Error("TMTERMINAL_DATABASE_URL is required");
   }
 
+  if (process.env.NODE_ENV !== "production") {
+    assertDevCloudflareAccessTarget({ databaseUrl });
+  }
   await migrateDatabase(databaseUrl);
 }

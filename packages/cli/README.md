@@ -11,7 +11,7 @@ The CLI requires Bun 1.3.5 or newer.
 bun add --global @tmterminal/cli
 ```
 
-Store a suite-wide Merchbase API key in the shared macOS Keychain entry:
+Store a suite-wide `mbk_v1` Merchbase machine credential in the shared macOS Keychain entry:
 
 ```sh
 tt auth set
@@ -25,7 +25,7 @@ printf '%s' "$MERCHBASE_API_KEY" | tt auth set --stdin
 
 Credential precedence is `MERCHBASE_API_KEY`, then the shared Keychain item
 (`co.merchbase.cli` / `api-key`). Base URL precedence is `--base-url`, then
-`TMTERMINAL_BASE_URL`, then `https://tmterminal.merchbase.co`. An invalid
+`TMTERMINAL_BASE_URL`, then `https://tmterminal-api.merchbase.co`. An invalid
 selected credential fails. The CLI never falls back to another source.
 
 ## Use

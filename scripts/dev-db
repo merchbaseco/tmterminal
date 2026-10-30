@@ -2,6 +2,7 @@
 # Shared local-development database: loopback Postgres, migrate, fabricated seed.
 # Used by `bun run dev` and cloud `.agents/cloud/start.sh`. Never talks to USPTO.
 set -euo pipefail
+export NODE_ENV=development
 
 root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$root"

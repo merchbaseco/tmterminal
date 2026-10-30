@@ -24,8 +24,6 @@ RUN bun scripts/bake-revision.ts "$TMTERMINAL_REVISION" apps/server/src/build-re
 RUN rm -rf fixtures
 
 FROM workspace AS web-build
-ARG VITE_MERCHBASE_CLERK_PUBLISHABLE_KEY
-ENV VITE_MERCHBASE_CLERK_PUBLISHABLE_KEY=$VITE_MERCHBASE_CLERK_PUBLISHABLE_KEY
 RUN bun run --cwd apps/web build
 
 FROM workspace AS docs-build

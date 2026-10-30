@@ -50,7 +50,7 @@ async function clearSeededData(
  * is identical across the cutover while the owner is not, and matching on owner
  * alone leaves that row in place for the insert to collide with on
  * `account_pkey`. Both arms are exact — this run's own deterministic id under
- * the one known fixture owner — so a developer's Clerk-created account is never
+ * the one known fixture owner — so a developer's externally authenticated account is never
  * in range.
  */
 function matchReplacedAccount(transaction: postgres.TransactionSql, plan: DevSeedPlan) {
@@ -89,7 +89,7 @@ async function insertTableRows(
 /**
  * Every account in a seeded database is an operator, so the Source Status
  * operator surface renders for whoever signs in locally. The seed cannot know
- * the Merchbase user id a developer's Clerk session resolves to, and the
+ * the Merchbase user id a developer's interactive session resolves to, and the
  * loopback guard is what keeps this grant off any shared database.
  */
 function grantOperatorRole(transaction: postgres.TransactionSql) {

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import { ServiceAccessError } from "@merchbaseco/access";
 import postgres from "postgres";
 import { searchInputSchema } from "../../src/api/search-input.ts";
 import { buildServer } from "../../src/api/server.ts";
@@ -258,15 +259,21 @@ beforeAll(async () => {
   `;
   server = await buildServer({
     access: fakeTmterminalAccess({
-      customer: (token) => {
+      api: (token) =>
+        token === "key-assertion"
+          ? Promise.resolve(
+              authorizedAccess("00000000-0000-4000-8000-000000000001", "mbu_prd65", "api_key")
+            )
+          : Promise.reject(new ServiceAccessError("unauthenticated")),
+      interactive: (token) => {
         let credentialKind: "api_key" | "session" | undefined;
-        if (token === "clerk-session") {
+        if (token === "interactive-assertion") {
           credentialKind = "session";
-        } else if (token === "ak_shared") {
+        } else if (token === "key-assertion") {
           credentialKind = "api_key";
         }
         if (!credentialKind) {
-          return Promise.reject(new Error("Unexpected test credential"));
+          return Promise.reject(new ServiceAccessError("unauthenticated"));
         }
         return Promise.resolve(
           authorizedAccess("00000000-0000-4000-8000-000000000001", "mbu_prd65", credentialKind)
@@ -274,7 +281,6 @@ beforeAll(async () => {
       },
     }),
     databaseUrl,
-    devClerkSignIn: { createToken: async () => "unused", userId: "user_prd65" },
     devOperatorMerchbaseUserId: "mbu_prd65",
     logger: false,
   });
@@ -285,9 +291,12 @@ afterAll(async () => {
   await database.end({ timeout: 1 });
 });
 
-function search(input: Record<string, unknown>, authorization = "Bearer clerk-session") {
+function search(input: Record<string, unknown>, assertion = "interactive-assertion") {
   return server.inject({
-    headers: { authorization },
+    headers: {
+      "cf-access-jwt-assertion": assertion,
+      host: assertion === "key-assertion" ? "tmterminal-api.merchbase.co" : "localhost",
+    },
     method: "GET",
     url: `/api/trpc/marks.search?input=${encodeURIComponent(JSON.stringify(input))}`,
   });
@@ -295,7 +304,7 @@ function search(input: Record<string, unknown>, authorization = "Bearer clerk-se
 
 function listMarks(input: Record<string, unknown>) {
   return server.inject({
-    headers: { authorization: "Bearer clerk-session" },
+    headers: { "cf-access-jwt-assertion": "interactive-assertion" },
     method: "GET",
     url: `/api/trpc/marks.list?input=${encodeURIComponent(JSON.stringify(input))}`,
   });
@@ -303,7 +312,7 @@ function listMarks(input: Record<string, unknown>) {
 
 function matchTexts(input: Record<string, unknown>) {
   return server.inject({
-    headers: { authorization: "Bearer clerk-session" },
+    headers: { "cf-access-jwt-assertion": "interactive-assertion" },
     method: "GET",
     url: `/api/trpc/marks.match?input=${encodeURIComponent(JSON.stringify(input))}`,
   });
@@ -311,7 +320,7 @@ function matchTexts(input: Record<string, unknown>) {
 
 function screenQueries(input: Record<string, unknown>) {
   return server.inject({
-    headers: { authorization: "Bearer clerk-session" },
+    headers: { "cf-access-jwt-assertion": "interactive-assertion" },
     method: "GET",
     url: `/api/trpc/marks.screen?input=${encodeURIComponent(JSON.stringify(input))}`,
   });
@@ -319,7 +328,7 @@ function screenQueries(input: Record<string, unknown>) {
 
 function operatorArtifacts(input: Record<string, unknown>) {
   return server.inject({
-    headers: { authorization: "Bearer clerk-session" },
+    headers: { "cf-access-jwt-assertion": "interactive-assertion" },
     method: "GET",
     url: `/api/trpc/ops.sync.artifacts?input=${encodeURIComponent(JSON.stringify(input))}`,
   });
@@ -684,14 +693,14 @@ test("text matching applies only its explicit mark type filter", async () => {
   ]);
 });
 
-test("Multi returns the same page through Clerk and API-key credentials", async () => {
+test("Multi returns the same page through interactive and API-key credentials", async () => {
   const input = { mode: "multi", query: "terminal", status: "live" };
-  const clerk = await search(input);
-  const apiKey = await search(input, "Bearer ak_shared");
+  const interactive = await search(input);
+  const apiKey = await search(input, "key-assertion");
   const anonymous = await search(input, "");
 
   expect(apiKey.statusCode).toBe(200);
-  expect(apiKey.json().result.data).toEqual(clerk.json().result.data);
+  expect(apiKey.json().result.data).toEqual(interactive.json().result.data);
   expect(anonymous.statusCode).toBe(401);
   expect(anonymous.json().error.data.code).toBe("UNAUTHORIZED");
 });
@@ -879,12 +888,12 @@ test("search modes never interpret exact identity fields as word-mark matches", 
 
 test("exact lookups return not found when an identity is absent", async () => {
   const absentSerial = await server.inject({
-    headers: { authorization: "Bearer clerk-session" },
+    headers: { "cf-access-jwt-assertion": "interactive-assertion" },
     method: "GET",
     url: `/api/trpc/marks.get?input=${encodeURIComponent(JSON.stringify({ serialNumber: "99999999" }))}`,
   });
   const absentRegistration = await server.inject({
-    headers: { authorization: "Bearer clerk-session" },
+    headers: { "cf-access-jwt-assertion": "interactive-assertion" },
     method: "GET",
     url: `/api/trpc/marks.get?input=${encodeURIComponent(JSON.stringify({ registrationNumber: "9999999" }))}`,
   });
@@ -896,7 +905,7 @@ test("exact lookups return not found when an identity is absent", async () => {
 
 test("exact mark detail reports the stored parser provenance", async () => {
   const response = await server.inject({
-    headers: { authorization: "Bearer clerk-session" },
+    headers: { "cf-access-jwt-assertion": "interactive-assertion" },
     method: "GET",
     url: `/api/trpc/marks.get?input=${encodeURIComponent(JSON.stringify({ serialNumber: "10000001" }))}`,
   });

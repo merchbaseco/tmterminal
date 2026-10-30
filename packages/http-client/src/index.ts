@@ -1,7 +1,7 @@
 import { createTRPCClient, httpLink, TRPCClientError } from "@trpc/client";
 import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
-
 import type { AuthenticatedClientRouter } from "../../../apps/server/src/api/router.ts";
+import { machineCredentialHeaders } from "./machine-credential.js";
 
 type InternalInputs = inferRouterInputs<AuthenticatedClientRouter>;
 type InternalOutputs = inferRouterOutputs<AuthenticatedClientRouter>;
@@ -35,11 +35,13 @@ export interface TmterminalClient {
   };
 }
 
-export interface TmterminalClientOptions {
-  apiKey: string;
+export type TmterminalClientOptions = (
+  | { apiKey: string; accessToken?: never }
+  | { accessToken: string; apiKey?: never }
+) & {
   baseUrl?: string;
-  fetch?: typeof globalThis.fetch;
-}
+  fetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+};
 
 export interface TmterminalErrorOptions {
   code: string;
@@ -64,18 +66,29 @@ export class TmterminalError extends Error {
   }
 }
 
-const defaultBaseUrl = "https://tmterminal.merchbase.co";
+const oauthTokenPattern = /^\S{1,16384}$/;
+const defaultBaseUrl = "https://tmterminal-api.merchbase.co";
 
 export function createTmterminalClient({
   apiKey,
+  accessToken,
   baseUrl = defaultBaseUrl,
   fetch,
 }: TmterminalClientOptions): TmterminalClient {
+  if (
+    (apiKey !== undefined && accessToken !== undefined) ||
+    (apiKey === undefined && !(accessToken && oauthTokenPattern.test(accessToken)))
+  ) {
+    throw new Error("One valid credential is required");
+  }
   const client = createTRPCClient<AuthenticatedClientRouter>({
     links: [
       httpLink({
-        ...(fetch ? { fetch } : {}),
-        headers: { authorization: `Bearer ${apiKey}` },
+        fetch: (input, init) => (fetch ?? globalThis.fetch)(input, { ...init, redirect: "manual" }),
+        headers:
+          apiKey === undefined
+            ? { authorization: `Bearer ${accessToken}` }
+            : machineCredentialHeaders(apiKey),
         url: new URL("/api/trpc", baseUrl).toString(),
       }),
     ],
@@ -141,3 +154,12 @@ function numberValue(value: unknown) {
 function stringValue(value: unknown) {
   return typeof value === "string" ? value : undefined;
 }
+
+export const isMerchbaseApiKey = (value: string): boolean => {
+  try {
+    machineCredentialHeaders(value);
+    return true;
+  } catch {
+    return false;
+  }
+};

@@ -8,5 +8,5 @@ read_when:
 
 | System | Doc |
 | --- | --- |
-| Clerk credentials, Access Projections, and stable service accounts | [Access boundary](access-boundary.md) |
+| Cloudflare credentials, Access Projections, and stable service accounts | [Access boundary](access-boundary.md) |
 | Source discovery, download, validation, application, cleanup, and restart | [Ingestion](ingestion.md) |

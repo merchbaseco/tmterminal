@@ -1,0 +1,2 @@
+DROP INDEX "access_projection_merchbase_user_id_unique";--> statement-breakpoint
+CREATE INDEX "access_projection_merchbase_user_id_index" ON "access_projection" USING btree ("merchbase_user_id") WHERE "access_projection"."merchbase_user_id" is not null;

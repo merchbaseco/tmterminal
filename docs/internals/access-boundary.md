@@ -1,88 +1,65 @@
 ---
-summary: Defines Clerk credential verification, local Access Projections, stable account ownership, repair, and background authorization.
+summary: Defines Cloudflare verification, local identity projections, stable account ownership, and development authentication.
 read_when:
-  - changing authentication, account identity, Clerk webhooks, API keys, OAuth, or operator authorization
-  - changing Access Projection persistence, reconciliation, or user-owned background work
-  - diagnosing why a locally seeded database refuses a signed-in developer, or changing the development Access Projection bootstrap
+  - changing authentication, API keys, OAuth, or operator authorization
+  - changing access projections, snapshots, or local development authentication
 ---
 
 # Access Boundary
 
-Clerk owns sessions, OAuth tokens, and suite-wide User API Keys.
-`merchbase-access` owns stable Merchbase Users. Trademark Terminal owns its
-existing account UUID, trademark data, search preferences, and operator roles.
+Cloudflare Access owns browser sessions, OAuth access tokens, and service-token
+verification. Merchbase Access owns stable Merchbase users and product grants.
+Trademark Terminal owns its account UUIDs, trademark data, preferences, and
+operator roles.
 
-## Request Flow
+## Requests
 
-Every protected request:
+The raw Host selects the verifier. `tmterminal.merchbase.co` accepts the
+interactive audience and creates session context. `tmterminal-api.merchbase.co`
+accepts the suite API audience: people receive OAuth context and bound customer
+machines receive API-key context. Both use `/api/trpc`. Public API callers cannot
+use preferences or operator procedures, even when they are people. Hosted MCP
+on the API host accepts people only. Unknown hosts and caller-supplied
+`x-merchbase-user-id` are rejected. Forwarded host headers do not select authority.
 
-1. extracts one bearer credential;
-2. verifies a route-appropriate Clerk credential through
-   `@merchbaseco/access@0.4.0`;
-3. resolves the known issuer and subject from the local Access Projection;
-4. evaluates fixed service `tmterminal`;
-5. finds or creates the local service account by stable Merchbase User ID.
+The origin verifies `CF-Access-Jwt-Assertion` cryptographically with the selected
+audience, resolves a local identity projection, evaluates service `tmterminal`,
+and finds the existing account by stable Merchbase user ID. Account ownership
+never depends on email or an external subject. Interactive writes also require
+the same production origin. `/api/session` is the browser bootstrap; browser API
+requests use same-origin cookies. Logout uses `/cdn-cgi/access/logout`.
 
-`/api/trpc` accepts sessions and User API Keys. Session-only procedures still
-require a session after authentication. `/api/oauth/trpc` accepts OAuth only.
-There is no email lookup, credential fallback, product-specific key, or
-compatibility alias.
+The exact public health routes remain anonymous. Invalid authentication returns
+401, denied grants or credential kinds return 403, and unavailable grant state
+returns 503. The native-header HTTP client disables redirects so Cloudflare
+service-token secrets cannot be forwarded to another host.
 
-Authentication maps to stable HTTP outcomes: 401 for an invalid or missing
-credential, 403 for valid but denied access or insufficient credential kind,
-and 503 when access cannot be evaluated.
+## Projection delivery
 
-## Projection
+`access_projection` has an issuer/subject primary key and a nonunique stable-user
+lookup index. Several Cloudflare identity aliases can belong to the same stable
+user. The canonical grant is the row whose issuer is
+`https://access-internal.merchbase.co` and whose subject is the stable user ID.
+`account.merchbase_user_id` remains unique. Migration 0031 removes the old
+one-alias-per-user restriction without changing account IDs or product data.
 
-`access_projection` is keyed by Clerk issuer plus subject and uniquely maps an
-active row to one Merchbase User ID. A verified `user.created` or `user.updated`
-webhook applies a newer Access Profile. A verified `user.deleted` or malformed
-profile writes a tombstone; it never deletes product data.
+A cold identity loads a snapshot from the authority through the product's own
+native Cloudflare service credential. Warm requests evaluate the stored grant
+locally. Snapshot updates are monotonic and receipt-deduplicated; a stale grant
+cannot undo a newer revocation. The receiver is exactly
+`POST https://tmterminal-internal.merchbase.co/api/internal/access-snapshot`,
+protected by its unique audience and the authority service client ID. Other
+routes on that host are refused. The authority owns delivery retries and daily
+repair; the product does not poll the identity provider.
 
-`access_projection_receipt` applies `svix-id` exactly once. Projection updates
-are monotonic by `sourceUpdatedAt`. A missing projection cold-loads Clerk once;
-the package bounds concurrent loads. Positive API-key verification is
-invalidated on identity changes. Active projections are refreshed once daily
-to repair missed webhooks or direct Clerk changes. Repair joins projections to
-existing local account mappings: account mappings without a projection do not
-trigger Clerk reads, and projection-only suite users do not create product
-accounts.
+## Development
 
-## Development Bootstrap
+`createDevCloudflareAccess` from `@merchbaseco/access/dev` supplies a deterministic
+local principal and applies the development projection through the same store.
+The pure target guard runs before automatic migration or seeding and refuses
+anything except explicit development with a loopback database. Ordinary local
+development does not resolve production Cloudflare secrets or audiences.
 
-No Clerk webhook is ever delivered to a workstation or a cloud VM, so a freshly
-migrated local database has no projection and every request fails before any
-seeded data can be seen. `bun run db:seed:dev` therefore calls
-`bootstrapDevAccessProjection` from `@merchbaseco/access/dev` first, which
-applies the projection the webhook would have written for the shared Merchbase
-Dev Sign-In user through this repository's own `AccessProjectionStore`. There is
-no hand-written projection SQL and no override: the package refuses a production
-environment, a non-loopback database, and the production Clerk issuer, and it
-claims a `sourceUpdatedAt` older than any real Clerk timestamp, so a genuine
-webhook or cold load always wins over the bootstrap and a revocation can never
-be masked. The seeded account is that user's, and every account in a seeded
-database is an operator.
-
-The issuer must be byte-identical to the one `createClerkAuthenticator` runs
-with — both read `MERCHBASE_CLERK_ISSUER` — because a projection written under a
-different issuer authorizes nobody. If the bootstrap reports that a newer event
-already owns the subject, delete the local database's `access_projection` and
-`access_projection_receipt` rows and re-seed.
-
-## Local Account
-
-`account.merchbase_user_id` is the only centralized identity mapping. It is
-required and unique. No request path matches email, a Clerk subject, or another
-mutable identity attribute. Creating a local account is valid only after a
-verified stable Merchbase User has no existing local mapping.
-
-Trademark Terminal stores no product-specific credentials or legacy identity
-mapping. Suite-wide credential creation, inspection, and retirement belong to
-the Merchbase Account Center.
-
-## Background Work
-
-Before starting user-owned work, call local `evaluateAccess(merchbaseUserId)`.
-Denied or unavailable work does not start and its product/queue data remains.
-Trademark Terminal currently has no user-owned background jobs; USPTO ingestion
-is global source maintenance and does not impersonate a user.
+Trademark Terminal has no user-owned background jobs. USPTO ingestion is global
+source maintenance and does not impersonate a user. Any future user-owned job
+must evaluate the canonical grant locally before work starts.

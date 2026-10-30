@@ -16,7 +16,7 @@ For the CLI or HTTP client, create a suite-wide API key in the [MerchBase Accoun
 export MERCHBASE_API_KEY="your_api_key"
 ```
 
-Hosted MCP uses Clerk OAuth. It rejects API keys. See [MCP](/mcp).
+Hosted MCP uses Cloudflare Access OAuth. It rejects API keys. See [MCP](/mcp).
 
 ## Step 2: Search a mark
 

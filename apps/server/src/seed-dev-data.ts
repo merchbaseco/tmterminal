@@ -1,4 +1,10 @@
-import { bootstrapDevAccessProjection } from "@merchbaseco/access/dev";
+import {
+  assertDevCloudflareAccessTarget,
+  createDevCloudflareAccess,
+  DEV_ACCESS_AUTHORITY_ORIGIN,
+  DEV_CLOUDFLARE_ISSUER,
+  DEV_SIGN_IN_MERCHBASE_USER_ID,
+} from "@merchbaseco/access/dev";
 import postgres from "postgres";
 
 import { migrateDatabase } from "./db/migrate.ts";
@@ -16,12 +22,7 @@ import { createAccessProjectionStore } from "./queries/access-projection-store.t
  *   bun run db:seed:dev
  *   bun run db:seed:dev --seed=friday --marks=200 --days=14
  *
- * Authorization comes first. A migrated database holds no Access Projection —
- * those arrive by Clerk webhook, and no webhook is ever delivered to a
- * workstation or a cloud VM — so every request would fail before any of this
- * data could be seen. `bootstrapDevAccessProjection` writes the projection the
- * webhook would have written for the shared Merchbase Dev Sign-In user through
- * this repository's own store, and the seeded account is that user's.
+ * A guarded local Access Projection authorizes the shared development user.
  *
  * Every row is fabricated locally. The seed never contacts the USPTO Open Data
  * Portal, and it never leaves an artifact in a state a running ingestion
@@ -42,13 +43,6 @@ if (!databaseUrl) {
 
 const target = assertLocalSeedTarget({ databaseUrl, nodeEnv: process.env.NODE_ENV });
 
-// The exact value `createClerkAuthenticator` runs with: a projection written
-// under a different issuer authorizes nobody.
-const issuer = process.env.MERCHBASE_CLERK_ISSUER?.trim();
-if (!issuer) {
-  throw new Error("MERCHBASE_CLERK_ISSUER is required. Run through `bunx varlock run --`.");
-}
-
 const options = {
   dayCount: readInt("--days", defaultSeedOptions.dayCount),
   markCount: readInt("--marks", defaultSeedOptions.markCount),
@@ -61,12 +55,13 @@ const startedAt = Date.now();
 const database = postgres(databaseUrl, { max: 1 });
 
 try {
+  assertDevCloudflareAccessTarget({ databaseUrl });
   await migrateDatabase(databaseUrl);
-  const access = await bootstrapDevAccessProjection({
+  await createDevCloudflareAccess({
     databaseUrl,
-    issuer,
+    projections: createAccessProjectionStore(database, DEV_ACCESS_AUTHORITY_ORIGIN),
+    resolveServicePrincipal: async () => undefined,
     service: "tmterminal",
-    store: createAccessProjectionStore(database),
   });
   const plan = buildDevSeedPlan(options);
   await writeDevSeedPlan(database, plan);
@@ -75,9 +70,8 @@ try {
     `${JSON.stringify(
       {
         accessProjection: {
-          clerkSubject: access.clerkSubject,
-          issuer: access.issuer,
-          merchbaseUserId: access.merchbaseUserId,
+          issuer: DEV_CLOUDFLARE_ISSUER,
+          merchbaseUserId: DEV_SIGN_IN_MERCHBASE_USER_ID,
         },
         dayCount: options.dayCount,
         durationMs: Date.now() - startedAt,

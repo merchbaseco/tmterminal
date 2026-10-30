@@ -6,7 +6,7 @@ import type { TmterminalMcpDataSource } from "../../src/mcp/data-source.ts";
 import { registerTmterminalMcpRoutes, resolveMcpResourceUrl } from "../../src/mcp/http.ts";
 
 const resourceUrl = "https://tmterminal.merchbase.co/mcp";
-const publishableKey = `pk_test_${Buffer.from("clerk.tmterminal.test$").toString("base64url")}`;
+const issuer = "https://example.cloudflareaccess.com";
 const apps: FastifyInstance[] = [];
 
 describe("Trademark Terminal hosted MCP routes", () => {
@@ -25,10 +25,9 @@ describe("Trademark Terminal hosted MCP routes", () => {
     for (const response of responses) {
       expect(response.statusCode).toBe(200);
       expect(response.json()).toMatchObject({
-        authorization_servers: ["https://clerk.tmterminal.test"],
+        authorization_servers: ["https://example.cloudflareaccess.com"],
         resource: resourceUrl,
         resource_name: "Trademark Terminal",
-        scopes_supported: ["openid", "email", "profile"],
       });
     }
   });
@@ -39,7 +38,7 @@ describe("Trademark Terminal hosted MCP routes", () => {
 
     const missing = await app.inject({ method: "POST", payload: initializePayload(), url: "/mcp" });
     const apiKey = await app.inject({
-      headers: { authorization: "Bearer ak_test" },
+      headers: { "cf-access-jwt-assertion": "ak_test" },
       method: "POST",
       payload: initializePayload(),
       url: "/mcp",
@@ -90,7 +89,7 @@ describe("Trademark Terminal hosted MCP routes", () => {
     const response = await app.inject({
       headers: {
         accept: "application/json, text/event-stream",
-        authorization: "Bearer oauth-token",
+        "cf-access-jwt-assertion": "oauth-token",
         "content-type": "application/json",
       },
       method: "POST",
@@ -125,7 +124,7 @@ describe("Trademark Terminal hosted MCP routes", () => {
     const response = await app.inject({
       headers: {
         accept: "application/json, text/event-stream",
-        authorization: "Bearer oauth-token",
+        "cf-access-jwt-assertion": "oauth-token",
         "content-type": "application/json",
       },
       method: "POST",
@@ -162,7 +161,7 @@ async function createApp(
         authorize ?? mock(async () => ({ accountId: "account-1", merchbaseUserId: "mbu-1" })),
     },
     createDataSource,
-    publishableKey,
+    issuer,
     resourceUrl,
   });
   return app;

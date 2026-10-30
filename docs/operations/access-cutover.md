@@ -16,8 +16,8 @@ complete; it is not a substitute for the evidence.
 Before approving the cleanup:
 
 - confirm every account has one unique, reviewed stable Merchbase User mapping;
-- confirm current runtime and published clients use only Clerk sessions,
-  suite-wide User API Keys, or OAuth;
+- confirm current runtime and published clients use the Cloudflare host/audience boundaries documented in
+  [Access boundary](../internals/access-boundary.md);
 - obtain legacy credential owner and customer acceptance that no external
   consumer still depends on product-specific authentication;
 - record account, preference, role, mark, source-artifact, projection, and
@@ -38,7 +38,7 @@ cd /Users/zknicker/srv/tmterminal
 ```
 
 Both commands use a read-only transaction and print counts or irreversible
-aggregate hashes only. They never print account IDs, Clerk subjects, emails,
+aggregate hashes only. They never print account IDs, external subjects, emails,
 credentials, or credential hashes. Save their output with the approval record
 outside the checkout.
 
@@ -107,7 +107,7 @@ AUTH_CLEANUP_DATABASE_URL="<isolated-restore-url>" \
 7. Verify ordinary worker health, exact image revision labels, and the complete
    deployment smoke.
 
-Do not delete or retire Clerk suite credentials as part of this workflow.
+Retire former provider credentials only after the suite migration acceptance and rollback window. This historical schema-cleanup workflow does not authorize credential retirement.
 Retries and later deployments detect the final schema, verify its invariant,
 and rerun migrations idempotently without requiring removed evidence tables.
 

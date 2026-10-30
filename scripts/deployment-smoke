@@ -29,7 +29,7 @@ test "$artifact_available_kb" -ge 20971520
 api_address="$(compose port api 3000)"
 web_address="$(compose port web 8080)"
 require_exact_ok "http://${api_address}/health/live"
-test "$(probe --silent --output /dev/null --write-out '%{http_code}' --request POST "http://${api_address}/api/dev/clerk-sign-in-token")" = "404"
+test "$(probe --silent --output /dev/null --write-out '%{http_code}' --header "Host: tmterminal.merchbase.co" --header "Origin: https://tmterminal.merchbase.co" --request POST "http://${api_address}/api/dev/clerk-sign-in-token")" = "404"
 probe --fail --silent --output /dev/null "http://${web_address}/"
 require_exact_ok "${public_origin}/health/live"
 probe --fail --silent --output /dev/null "${public_origin}/"

@@ -3,9 +3,7 @@ import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 
 import type { TmterminalAccess } from "../auth/service-access.ts";
 
-export const TMTERMINAL_MCP_SCOPES = ["openid", "email", "profile"] as const;
-
-const bearerTokenPattern = /^Bearer\s+(\S+)$/i;
+export const TMTERMINAL_MCP_SCOPES = [] as const;
 
 export interface McpAuthorizedPrincipal {
   accountId: string;
@@ -22,7 +20,7 @@ export type McpAuthResult =
   | { status: "unauthorized" }
   | { status: "unavailable" };
 
-export function createTmterminalMcpAuth(access: TmterminalAccess["oauth"]): McpAuthDependencies {
+export function createTmterminalMcpAuth(access: TmterminalAccess["mcp"]): McpAuthDependencies {
   return {
     authorize: async (token) => {
       const authorized = await access.authorize(token);
@@ -38,7 +36,7 @@ export async function authenticateMcpRequest(
   authorization: string | string[] | undefined,
   dependencies: McpAuthDependencies
 ): Promise<McpAuthResult> {
-  const token = bearerToken(authorization);
+  const token = typeof authorization === "string" ? authorization : null;
   if (!token || token.startsWith("ak_")) {
     return { status: "unauthorized" };
   }
@@ -48,7 +46,7 @@ export async function authenticateMcpRequest(
     return {
       ...authorized,
       authInfo: {
-        clientId: "clerk",
+        clientId: "cloudflare",
         extra: { merchbaseUserId: authorized.merchbaseUserId },
         scopes: [...TMTERMINAL_MCP_SCOPES],
         token,
@@ -70,9 +68,4 @@ export async function authenticateMcpRequest(
     }
     return { status: "unauthorized" };
   }
-}
-
-function bearerToken(authorization: string | string[] | undefined) {
-  const value = Array.isArray(authorization) ? authorization[0] : authorization;
-  return value?.match(bearerTokenPattern)?.[1] ?? null;
 }

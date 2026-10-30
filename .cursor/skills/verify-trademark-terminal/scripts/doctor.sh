@@ -10,20 +10,10 @@ failed=0
 ok() { printf 'ok    %s\n' "$1"; }
 bad() { printf 'fail  %s\n' "$1" >&2; failed=1; }
 
-local_pg=no
-# Schema development port. Prefer a TCP probe — `ss` is not on every image.
-if timeout 1 bash -c 'echo >/dev/tcp/127.0.0.1/5437' >/dev/null 2>&1; then
-  local_pg=yes
-fi
-
-ticket_file="${scratch}/ticket.json"
-ticket_code="$(curl -sS -o "${ticket_file}" -w '%{http_code}' --max-time 5 -X POST "${api_origin}/api/dev/clerk-sign-in-token" || true)"
-
-venue=workstation
-if [[ "${ticket_code}" == "200" && "${local_pg}" == "yes" ]]; then
-  venue=cloud
-elif [[ "${ticket_code}" == "200" ]]; then
-  venue=workstation-dev
+session_code="$(curl -sS -o "${scratch}/session.json" -w '%{http_code}' --max-time 5 "${api_origin}/api/session" || true)"
+venue=cloudflare
+if [[ "${session_code}" == "200" ]]; then
+  venue=local-development
 fi
 
 printf 'venue=%s\n' "${venue}"
@@ -51,13 +41,13 @@ else
   bad "anonymous /api/status HTTP ${status_code:-unreachable}"
 fi
 
-if [[ "${venue}" == "cloud" ]]; then
-  if [[ "${ticket_code}" == "200" ]] && grep -q '"ticket"' "${ticket_file}"; then
-    ok "dev clerk ticket (auto-sign-in path)"
+if [[ "${venue}" == "local-development" ]]; then
+  if grep -q '"authenticated":true' "${scratch}/session.json"; then
+    ok "development session bootstrap"
   else
-    bad "dev clerk ticket HTTP ${ticket_code:-unreachable} (cloud session should mint one)"
+    bad "development session bootstrap malformed"
   fi
 fi
 
-rm -rf "${scratch}"
+trash "${scratch}"
 exit "${failed}"

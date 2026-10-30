@@ -20,7 +20,6 @@ beforeAll(async () => {
   server = await buildServer({
     access: fakeTmterminalAccess(),
     databaseUrl,
-    devClerkSignIn: null,
     logger: false,
   });
 });

@@ -4,23 +4,23 @@ title: Sign in
 
 # Sign in
 
-Every data procedure needs a Clerk session or a suite-wide API key. There are no Trademark Terminal-only keys and no anonymous search routes.
+Every data procedure needs a Cloudflare browser session, OAuth token, or a suite-wide machine credential. There are no Trademark Terminal-only keys and no anonymous search routes.
 
 ## Website
 
-Open [tmterminal.merchbase.co](https://tmterminal.merchbase.co/search) and sign in. You can compose a Search Query while signed out. Submitting starts Clerk sign-in, keeps the query, and runs it after authentication.
+Open [tmterminal.merchbase.co](https://tmterminal.merchbase.co/search) and sign in. You can compose a Search Query while signed out. Submitting starts Cloudflare sign-in, keeps the query, and runs it after authentication.
 
 Search defaults live on [Account](https://tmterminal.merchbase.co/account). [Status](/status) and these docs stay readable while signed out.
 
 ## API keys
 
-Create and retire keys in the [MerchBase Account Center](https://merchbase.co/account/api-keys/). The same key works for `tt` and `@tmterminal/http-client`.
+Create and retire keys in the [MerchBase Account Center](https://merchbase.co/account/api-keys/). The same `mbk_v1` key works for `tt` and `@tmterminal/http-client`; it contains the native Cloudflare service-token transport.
 
 ```sh
 export MERCHBASE_API_KEY="your_api_key"
 ```
 
-Hosted MCP does not accept API keys. It uses Clerk OAuth. See [MCP](/mcp).
+Hosted MCP does not accept API keys. It uses Cloudflare Access OAuth. See [MCP](/mcp).
 
 ## What a key can call
 

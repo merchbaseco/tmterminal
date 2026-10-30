@@ -1,5 +1,11 @@
 # Trademark Terminal CLI Changelog
 
+## v5.0.0 - 2026-10-29
+
+- Breaking: API and MCP connections use `https://tmterminal-api.merchbase.co`. Replace saved Clerk credentials with a new Merchbase API key or Cloudflare sign-in.
+- The HTTP client accepts a native API key or an OAuth access token explicitly. CLI authentication continues to use the shared Merchbase credential store.
+- Account permissions are checked locally and receive revocations from Merchbase Access.
+
 ## v4.0.0 - 2026-08-10
 
 - Focus the CLI on `get`, `search`, and `screen`; account authentication remains

@@ -15,7 +15,7 @@ These pages stay because they are hard to recover from code search.
 | Topic | Doc |
 | --- | --- |
 | USPTO discovery, download, apply, restart | [Ingestion](internals/ingestion.md) |
-| Clerk credentials and Access Projections | [Access boundary](internals/access-boundary.md) |
+| Cloudflare credentials and Access Projections | [Access boundary](internals/access-boundary.md) |
 | Tables, source states, mark precedence | [Data model](reference/data-model.md) |
 | ODP quotas, XML identity, class semantics | [USPTO source](reference/uspto-source.md) |
 | Verification lanes | [Testing](operations/testing.md) |

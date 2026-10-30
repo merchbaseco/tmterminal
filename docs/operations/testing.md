@@ -89,7 +89,7 @@ generation and fails on drift.
 User-facing changes use `.cursor/skills/verify-trademark-terminal/`. Verify one
 real authenticated happy path, the riskiest adjacent failure or navigation path,
 and cleanup of smoke state. A component test alone does not prove routing,
-Clerk, API, or browser behavior.
+Cloudflare, API, or browser behavior.
 
 ## CI
 

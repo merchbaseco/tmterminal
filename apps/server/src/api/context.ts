@@ -12,13 +12,12 @@ import type { AuthenticatedAccount } from "./contracts.ts";
 import type { AppContext } from "./router.ts";
 
 interface CreateContextOptions {
-  access: TmterminalAccess["customer"] | TmterminalAccess["oauth"];
-  authorization?: string;
+  access: TmterminalAccess["interactive"] | TmterminalAccess["api"];
+  assertion?: string;
   database: postgres.Sql;
   devOperatorMerchbaseUserId?: string;
 }
 
-const bearerPattern = /^Bearer (\S+)$/i;
 const accessErrorResponse = {
   access_denied: { code: "FORBIDDEN", message: "Access denied" },
   access_unavailable: { code: "SERVICE_UNAVAILABLE", message: "Access unavailable" },
@@ -47,18 +46,13 @@ export function createAuthenticatedAppContext(
 
 export async function createAppContext({
   access,
-  authorization,
+  assertion,
   database,
   devOperatorMerchbaseUserId,
 }: CreateContextOptions): Promise<AppContext> {
-  const credential = bearerCredential(authorization);
-  if (!credential) {
-    throw new TRPCError({ code: "UNAUTHORIZED", message: "Authentication required" });
-  }
-
   let authorized: Awaited<ReturnType<typeof access.authorize>>;
   try {
-    authorized = await access.authorize(credential);
+    authorized = await access.authorize(assertion ?? "");
   } catch (error) {
     throw accessError(error);
   }
@@ -76,10 +70,6 @@ export async function createAppContext({
       (await accountIsOperator(database, authorized.principal.accountId)));
 
   return createAuthenticatedAppContext(database, auth, operator);
-}
-
-function bearerCredential(authorization: string | undefined) {
-  return authorization?.match(bearerPattern)?.[1] ?? null;
 }
 
 function accessError(error: unknown) {

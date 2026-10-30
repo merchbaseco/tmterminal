@@ -8,8 +8,6 @@ const serverPaths = [
   "/mcp",
   "/.well-known/oauth-protected-resource",
   "/.well-known/oauth-protected-resource/mcp",
-  "/.well-known/oauth-authorization-server",
-  "/.well-known/oauth-authorization-server/mcp",
 ];
 
 test("routes the API, liveness, MCP, and OAuth discovery paths to Fastify", () => {

@@ -19,9 +19,14 @@ Two venues. Do not mix them.
 .cursor/skills/verify-trademark-terminal/scripts/doctor.sh
 ```
 
-prints `venue=cloud` and every check is `ok`. The website auto-signs in as the shared Merchbase Dev Sign-In user that owns the seed. Open `http://127.0.0.1:5173/` — not `localhost` (Clerk authorized parties are the loopback origin).
+prints `venue=cloud` and every check is `ok`. The website auto-signs in as the shared Merchbase Dev Sign-In user that owns the seed. Open `http://127.0.0.1:5173/` — not `localhost` (the local development origin).
 
-**Workstation.** `bun run dev` talks to production PostgreSQL over Tailscale. It does not seed. Sign in by hand. Treat every write as live account state. Search, Check Text, Bulk Check, and Status are reads. Do not change Account search preferences unless the recipe restores them. Never run `bun run db:seed:dev` here — the seed refuses non-loopback hosts, and that refusal is the safety rail.
+**Workstation.** `bun run dev` starts loopback PostgreSQL, migrates, seeds
+fabricated data, and uses the shared guarded development principal. It does not
+connect to production storage or resolve production Cloudflare credentials.
+The pure database guard runs before migration and seeding. Use the ports printed
+by `dev-port`. Production verification is a separate venue using the deployed
+HTTPS host and real Cloudflare sign-in; never seed that venue.
 
 Teardown: leave Cursor `api`/`web` terminals running; on Claude cloud, stop only the pair this run started (by those PIDs). On a workstation, stop only the `bun run dev` pair this run started (by those PIDs). Never `pkill` by name.
 
@@ -33,11 +38,11 @@ Run the helper first whenever the page looks unsigned-in, empty, or unreachable:
 .cursor/skills/verify-trademark-terminal/scripts/doctor.sh
 ```
 
-It is read-only. It checks API `GET /health/live` (`{"status":"ok","revision":"dev"}`), website HTTP 200 on the loopback origin, anonymous `GET /api/status`, and (cloud only) that `POST /api/dev/clerk-sign-in-token` mints a ticket from this machine. Fail the run if liveness is not ok, the website is not 200, or a cloud session is signed out after a reload.
+It is read-only. It checks API `GET /health/live` (`{"status":"ok","revision":"dev"}`), website HTTP 200 on the loopback origin, anonymous `GET /api/status`, and local `GET /api/session` authenticates the guarded development principal. Fail the run if liveness is not ok, the website is not 200, or a cloud session is signed out after a reload.
 
 ## Drive
 
-Use the Cloud Agent `computerUse` subagent (or an equivalent browser) against `http://127.0.0.1:5173`. Prefer accessible names over coordinates. On Claude cloud, capture a page with `capture-page http://127.0.0.1:5173/ /tmp/tmterminal.png --settle 8000`. `capture-page` is the fleet's Playwright wrapper around the image's Chromium; it routes external hosts such as Clerk through the agent proxy and keeps loopback direct. It captures one page load, so drive multi-step recipes with a scripted browser.
+Use the Cloud Agent `computerUse` subagent (or an equivalent browser) against `http://127.0.0.1:5173`. Prefer accessible names over coordinates. On Claude cloud, capture a page with `capture-page http://127.0.0.1:5173/ /tmp/tmterminal.png --settle 8000`. `capture-page` is the fleet's Playwright wrapper around the image's Chromium; it routes external hosts such as Cloudflare through the agent proxy and keeps loopback direct. It captures one page load, so drive multi-step recipes with a scripted browser.
 
 | Handle | What it is |
 | --- | --- |
@@ -61,7 +66,7 @@ Cloud seed showcase queries (default seed): `GNOME`, `HARVEST`, `TIDEPOOL`, `WIL
 
 Workstation / live data: use a real Class 025 word the change cares about. Exact serials and registration numbers are identities — never type them into the search field as fuzzy terms.
 
-Signed-out visitors may compose a query; submit opens Clerk and preserves `q`. Cloud sessions should already be signed in; if the Sign in button is visible, doctor first.
+Signed-out visitors may compose a query; submit starts Cloudflare sign-in and preserves `q`. Cloud sessions should already be signed in; if the Sign in button is visible, doctor first.
 
 Read the feature map before driving. A proof that hits one convenient entry point is incomplete when the map lists others for that feature.
 
@@ -85,7 +90,7 @@ Name artifacts `<feature-id>-<entry>-<before|after>.png` (and a short recording 
 - Close tabs this run opened. Do not kill Cloud `api`/`web`.
 - Remove `/tmp/tmterminal-verify/<run-id>/` scratch copies if you duplicated artifacts elsewhere. Never delete `/opt/cursor/artifacts/` or the named proof directory until the handoff is done.
 - If you saved Account preferences on Cloud, re-seed (`TMTERMINAL_DATABASE_HOST=127.0.0.1 bun run db:seed:dev`) so the next agent gets the documented defaults.
-- Do not leave a Clerk sign-in modal open.
+- Close only the browser session opened for this verification.
 
 ## Helpers
 

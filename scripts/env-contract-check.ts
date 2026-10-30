@@ -76,19 +76,12 @@ const notDeliveredNames = new Map([
     "TMTERMINAL_DATABASE_PASSWORD",
     "composed into the URL; reaches the database container as POSTGRES_PASSWORD",
   ],
-  [
-    "TMTERMINAL_DEV_CLERK_SIGN_IN_USER_ID",
-    "development-only sign-in endpoint; never delivered to production",
-  ],
   ["TMTERMINAL_DEV_HOST", "development server bind address, not a container value"],
   [
     "TMTERMINAL_DEV_OPERATOR_MERCHBASE_USER_ID",
     "development-only operator surface; never delivered to production",
   ],
   ["TMTERMINAL_REVISION", "build argument and image tag, not a runtime value"],
-  ["VITE_MERCHBASE_CLERK_PUBLISHABLE_KEY", "build-time website input, passed as a build argument"],
-  ["VITE_TMTERMINAL_DEV_CLERK_AUTO_SIGN_IN", "build-time website input, development only"],
-  ["MERCHBASE_CLERK_ISSUER", "delivered to the api and worker containers"],
 ]);
 
 interface SchemaItem {

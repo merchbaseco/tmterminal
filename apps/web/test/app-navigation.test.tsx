@@ -1,5 +1,4 @@
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
-import type { ReactElement, ReactNode } from "react";
 
 if (!GlobalRegistrator.isRegistered) {
   GlobalRegistrator.register({ url: "https://example.test/search" });
@@ -54,7 +53,6 @@ class TestResizeObserver implements ResizeObserver {
 
 globalThis.ResizeObserver = TestResizeObserver;
 
-const { cloneElement } = await import("react");
 const { mock, afterEach, beforeEach, expect, test } = await import("bun:test");
 const { act, cleanup, fireEvent, render, screen, waitFor } = await import("@testing-library/react");
 const defaultMatchMedia = window.matchMedia;
@@ -68,7 +66,6 @@ let scrollOffset = 0;
 const searchInputs: unknown[] = [];
 let searchHandler: (input: { query: string }) => Promise<typeof searchResult>;
 const destinationMarkLinkPattern = /DESTINATION B/;
-const getTestToken = async () => "clerk-session";
 const sourceMarkLinkPattern = /SOURCE A/;
 const terminalMarkLinkPattern = /TERMINAL MARK, Live, serial number 70000001/;
 
@@ -157,40 +154,17 @@ const statusResult = {
   },
 };
 
-mock.module("@clerk/react", () => ({
-  Show: ({ children, when }: { children: ReactNode; when: "signed-in" | "signed-out" }) =>
-    (when === "signed-in") === signedIn ? children : null,
-  SignInButton: ({
-    children,
-  }: {
-    children: ReactElement<{ onClick?: (event: MouseEvent) => void }>;
-  }) =>
-    cloneElement(children, {
-      onClick: (event: MouseEvent) => {
-        signInModalOpens += 1;
-        children.props.onClick?.(event);
-      },
-    }),
-  useAuth: () => ({ getToken: getTestToken }),
-  useClerk: () => ({
-    openSignIn: () => {
-      signInModalOpens += 1;
-    },
-    openUserProfile: () => {
+mock.module("../src/session.tsx", () => ({
+  useSession: () => ({
+    manageAccount: () => {
       userProfileModalOpens += 1;
     },
-    signOut: ({ redirectUrl }: { redirectUrl?: string } = {}) => {
-      signOutRedirects.push(redirectUrl);
-      return Promise.resolve();
+    signedIn,
+    signIn: () => {
+      signInModalOpens += 1;
     },
-  }),
-  useSignIn: () => ({ fetchStatus: "idle", signIn: {} }),
-  useUser: () => ({
-    user: {
-      firstName: "Zach",
-      fullName: "Zach Knickerbocker",
-      imageUrl: "https://example.test/zach.png",
-      primaryEmailAddress: { emailAddress: "zach@example.com" },
+    signOut: () => {
+      signOutRedirects.push("/cdn-cgi/access/logout");
     },
   }),
 }));
@@ -298,7 +272,7 @@ test("appearance follows the system initially and persists an explicit choice", 
   render(<App />);
 
   const accountMenu = screen.getByRole("button", {
-    name: "Account menu for Zach Knickerbocker",
+    name: "Account menu",
   });
   expect(document.documentElement.classList.contains("dark")).toBe(false);
 
@@ -329,7 +303,7 @@ test("system appearance follows a dark system preference", async () => {
 
   render(<App />);
 
-  expect(screen.getByRole("button", { name: "Account menu for Zach Knickerbocker" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Account menu" })).toBeTruthy();
   await waitFor(() => expect(document.documentElement.classList.contains("dark")).toBe(true));
 });
 
@@ -365,12 +339,12 @@ test("account menu owns identity, account management, appearance, and sign out",
   render(<App />);
 
   const accountMenu = screen.getByRole("button", {
-    name: "Account menu for Zach Knickerbocker",
+    name: "Account menu",
   });
   fireEvent.click(accountMenu);
 
-  expect(await screen.findByText("Zach Knickerbocker")).toBeTruthy();
-  expect(screen.getByText("zach@example.com")).toBeTruthy();
+  expect(await screen.findByText("Merchbase account")).toBeTruthy();
+  expect(screen.getByText("Cloudflare Access")).toBeTruthy();
   expect(screen.getByRole("menuitemradio", { name: "Light" })).toBeTruthy();
   expect(screen.getByRole("menuitemradio", { name: "Dark" })).toBeTruthy();
   expect(screen.getByRole("menuitemradio", { name: "System" })).toBeTruthy();
@@ -380,7 +354,7 @@ test("account menu owns identity, account management, appearance, and sign out",
 
   fireEvent.click(accountMenu);
   fireEvent.click(await screen.findByRole("menuitem", { name: "Sign out" }));
-  await waitFor(() => expect(signOutRedirects).toEqual(["/search"]));
+  await waitFor(() => expect(signOutRedirects).toEqual(["/cdn-cgi/access/logout"]));
 });
 
 test("signed-out search offers only the mark composer", () => {
@@ -391,7 +365,7 @@ test("signed-out search offers only the mark composer", () => {
   expect(screen.queryByRole("link", { name: "Bulk check" })).toBeNull();
 });
 
-test("signed-out query composition survives modal sign-in before authenticated search", async () => {
+test("signed-out query composition survives Cloudflare sign-in before authenticated search", async () => {
   const view = render(<App />);
   fireEvent.change(screen.getByRole("searchbox", { name: "Search trademarks" }), {
     target: { value: "composed % query" },

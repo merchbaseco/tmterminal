@@ -31,7 +31,7 @@ export interface AppContext {
 const t = initTRPC.context<AppContext>().create({ isDev: false });
 const sessionProcedure = t.procedure.use(({ ctx, next }) => {
   if (ctx.auth.credential.type !== "session") {
-    throw new TRPCError({ code: "FORBIDDEN", message: "Clerk session required" });
+    throw new TRPCError({ code: "FORBIDDEN", message: "Interactive sign-in required" });
   }
   return next({ ctx });
 });

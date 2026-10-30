@@ -8,16 +8,16 @@ import { fakeTmterminalAccess } from "../fake-access.ts";
 const database = {} as postgres.Sql;
 
 describe("access boundary errors", () => {
-  test("requires one bearer credential", async () => {
+  test("rejects missing or invalid origin assertions", async () => {
     const access = fakeTmterminalAccess();
 
-    await expect(createAppContext({ access: access.customer, database })).rejects.toMatchObject({
+    await expect(createAppContext({ access: access.interactive, database })).rejects.toMatchObject({
       code: "UNAUTHORIZED",
     });
     await expect(
       createAppContext({
-        access: access.customer,
-        authorization: "Basic ignored",
+        access: access.interactive,
+        assertion: "Basic ignored",
         database,
       })
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
@@ -30,13 +30,13 @@ describe("access boundary errors", () => {
     ["access_unavailable", "SERVICE_UNAVAILABLE"],
   ] as const)("maps %s to %s", async (accessCode, trpcCode) => {
     const access = fakeTmterminalAccess({
-      customer: () => Promise.reject(new ServiceAccessError(accessCode)),
+      interactive: () => Promise.reject(new ServiceAccessError(accessCode)),
     });
 
     await expect(
       createAppContext({
-        access: access.customer,
-        authorization: "Bearer selected",
+        access: access.interactive,
+        assertion: "selected",
         database,
       })
     ).rejects.toMatchObject({ code: trpcCode });

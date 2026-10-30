@@ -14,7 +14,7 @@ to that file for Matt Pocock skills.
 - Filter and sort on the server before pagination and count.
 - USPTO artifacts update live trademark tables in bounded transactions.
   Ingestion never gates reads.
-- Data procedures need a Clerk session or an API key. Anonymous routes are
+- Data procedures need a Cloudflare browser session or an API key. Anonymous routes are
   liveness (`/health/live`), the watcher report (`/api/health`), and aggregate `/api/status` only.
 - Annual and daily are USPTO packaging, not query-visible datasets.
 
@@ -59,7 +59,7 @@ capture-page http://127.0.0.1:5173/ /tmp/tmterminal.png --settle 8000
 ```
 
 `capture-page` is the fleet's Playwright wrapper around the image's Chromium; it
-routes external hosts such as Clerk through the agent proxy and keeps loopback
+routes external hosts such as Cloudflare through the agent proxy and keeps loopback
 direct.
 
 Open `127.0.0.1`, not `localhost`. The website signs in automatically as the

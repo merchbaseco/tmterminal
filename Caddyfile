@@ -1,24 +1,31 @@
 :8080 {
 	encode zstd gzip
-
-	@server path /api/* /health/live /mcp /.well-known/oauth-protected-resource /.well-known/oauth-protected-resource/mcp /.well-known/oauth-authorization-server /.well-known/oauth-authorization-server/mcp
+	@server path /api/* /health/live /mcp /.well-known/oauth-protected-resource /.well-known/oauth-protected-resource/mcp
+	@service host tmterminal-api.merchbase.co tmterminal-internal.merchbase.co
+	handle @service {
+		handle @server {
+			reverse_proxy api:3000
+		}
+		respond 404
+	}
 	handle @server {
 		reverse_proxy api:3000
 	}
-
-	redir /help /docs 308
-	redir /help/ /docs 308
-	redir /docs /docs/ 308
-
-	handle /docs* {
-		root * /srv
-		try_files {path} {path}.html {path}/index.html /docs/index.html
-		file_server
+	@site host tmterminal.merchbase.co localhost 127.0.0.1 ::1
+	handle @site {
+		redir /help /docs 308
+		redir /help/ /docs 308
+		redir /docs /docs/ 308
+		handle /docs* {
+			root * /srv
+			try_files {path} {path}.html {path}/index.html /docs/index.html
+			file_server
+		}
+		handle {
+			root * /srv
+			try_files {path} /index.html
+			file_server
+		}
 	}
-
-	handle {
-		root * /srv
-		try_files {path} /index.html
-		file_server
-	}
+	respond 404
 }

@@ -51,17 +51,17 @@ retains named documents and occurrence spans for richer applications.
 
 ## Authorization
 
-| Surface | Credential |
-| --- | --- |
-| Trademark reads, `status`, `account.me` | Clerk session or API key |
-| Search preferences | Clerk session |
-| Operator source pages | Clerk session plus operator role |
-| `/api/oauth/trpc` | Clerk OAuth access token |
-| Hosted MCP (`/mcp`) | Clerk OAuth only. API keys are rejected. |
-| `/health/live`, `/api/health`, and aggregate `/api/status` | Anonymous |
+The default origin is `https://tmterminal-api.merchbase.co`. `apiKey` accepts a
+suite-wide `mbk_v1` machine credential from the
+[Merchbase Account Center](https://merchbase.co/account/api-keys/). It becomes
+native Cloudflare service-token headers. OAuth callers instead pass
+`{ accessToken }`; the opaque token is sent as Bearer to the edge. Supply exactly
+one credential. Redirects are not followed.
 
-API keys are suite-wide Clerk User API Keys from the
-[MerchBase Account Center](https://merchbase.co/account/api-keys/).
+Browser sessions use the interactive website and same-origin cookies. Public
+API credentials can read trademarks, status, and account context; they cannot
+change browser preferences or use operator pages. Hosted MCP accepts OAuth
+people only. Health routes remain anonymous.
 
 ## Pagination and errors
 
@@ -76,4 +76,4 @@ dependency failure. It never means ingestion is incomplete.
 
 Hosted MCP exposes `tmterminal_get`, `tmterminal_search`, and
 `tmterminal_screen` over Streamable HTTP at
-`https://tmterminal.merchbase.co/mcp`.
+`https://tmterminal-api.merchbase.co/mcp`.

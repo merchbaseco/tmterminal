@@ -17,7 +17,7 @@ A seller types a word mark, submits Search, and gets a ranked Class 025 list wit
 - Open `/` or `/search`, or click `Trademark Terminal home`, or primary nav `Search`
 - From Check Text or Bulk Check, click `Search marks` in `Search mode` (empty composer only)
 - After results, `Start a new search` stays in Search Marks
-- Signed-out: same composer; submit opens Clerk and keeps `q` in the URL
+- Signed-out: same composer; submit starts Cloudflare sign-in and keeps `q` in the URL
 
 ## Driving it with the browser
 
@@ -40,6 +40,6 @@ Preconditions:
 - Mode switcher (`Search marks` / `Check text` / `Bulk check`) is only on the empty composer. After results it yields to `Start a new search`.
 - Account preferences seed only a new search. A URL with explicit params wins.
 - Workstation live data will not contain `GNOME` as a showcase family. Do not fail a live proof because seed counts differ.
-- Signed-out submit is Clerk, not a 401 page. Do not complete a seller's live sign-in unless this run owns that account.
+- Signed-out submit reloads through the Cloudflare gateway. Do not complete a seller's live sign-in unless this run owns that account.
 - `Give me a word` replaces the Search label for about 1.8 seconds and is also a polite `role=status`. Miss it if you look away.
 - The empty-results graphic is a faint circle with a diagonal bar. It is not a spinner. Do not fail the path because the words `No marks match` are missing from the pixels.

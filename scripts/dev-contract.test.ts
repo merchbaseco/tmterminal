@@ -96,7 +96,7 @@ test("the cloud agent environment overrides the database host and the dev binds"
   const web = await readFile(new URL("../.agents/cloud/web.sh", import.meta.url), "utf8");
   expect(api).toContain("export TMTERMINAL_HOST=0.0.0.0");
   expect(web).toContain("export TMTERMINAL_DEV_HOST=0.0.0.0");
-  expect(web).toContain("export VITE_TMTERMINAL_DEV_CLERK_AUTO_SIGN_IN=true");
+  expect(web).not.toContain("CLERK");
 
   // The seed's receipt is the boot's receipt; a discarded one leaves a session
   // with no evidence of what it is looking at.

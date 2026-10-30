@@ -28,9 +28,10 @@ Trademark data is informational, not legal advice. Verify consequential decision
 | `@tmterminal/cli` (`tt`) | JSON-first exact lookup, search, and listing-text screening. |
 | Hosted MCP | OAuth-authorized tools for trademark research agents. |
 
-The website uses a Clerk session. The HTTP API, client, and CLI accept suite-wide
-MerchBase User API Keys managed in the MerchBase Account Center. MerchBase
-consumes the shared OAuth API. Hosted MCP accepts Clerk OAuth access tokens only.
+The website uses a Cloudflare Access browser session. The HTTP API at
+`tmterminal-api.merchbase.co`, client, and CLI accept suite-wide Merchbase machine
+credentials from the Account Center. OAuth clients use the same API host. Hosted
+MCP accepts Cloudflare OAuth people only.
 
 ## Data coverage
 

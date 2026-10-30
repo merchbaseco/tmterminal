@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 2.0.0 - 2026-10-29
+
+**Changed**
+
+- Breaking: sign in through Cloudflare Access. API and MCP connections move to `https://tmterminal-api.merchbase.co` and require a replacement Merchbase API key or fresh Cloudflare sign-in.
+- Account permissions and revocations reach API requests and background work without Clerk verification calls.
+
 - Production deploys on every push to `main` after Quality succeeds for that commit. `VERSION` no longer selects the deploy.
 
 ## 1.0.3 - 2026-10-20

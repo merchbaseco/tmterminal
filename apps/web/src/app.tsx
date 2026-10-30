@@ -1,4 +1,3 @@
-import { Show, SignInButton, useAuth, useClerk } from "@clerk/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Cancel01Icon,
@@ -29,13 +28,13 @@ import { AccountPage, type AccountPreferencesApi } from "./account-page.tsx";
 import { appearanceChangedEvent, applyAppearance, savedAppearance } from "./appearance.ts";
 import { type BulkCheckApi, BulkCheckPage } from "./bulk-check-page.tsx";
 import { CheckTextPage, type TextCheckApi } from "./check-text-page.tsx";
-import { DevAutoSignIn } from "./dev-auto-sign-in.tsx";
 import { LegalFooter } from "./legal-footer.tsx";
 import { type MarkApi, MarkDetailPage } from "./mark-detail-page.tsx";
 import type { OperatorSyncApi, PublicStatusApi } from "./operator-sync-page.tsx";
 import { SearchComposer, SearchMasthead } from "./search-composer.tsx";
 import { type SearchApi, SearchPage } from "./search-page.tsx";
 import { defaultSearchPreferences, type SearchPreferences } from "./search-preferences.ts";
+import { useSession } from "./session.tsx";
 import { StatusPageSkeleton } from "./status-page-skeleton.tsx";
 
 type SearchToolRestoreState =
@@ -130,21 +129,16 @@ function plainPrimaryClick(event: ReactMouseEvent) {
 }
 
 function SignedInApp({ location }: { location: BrowserLocation }) {
-  const { getToken } = useAuth();
   const client = useMemo(
     () =>
       createTRPCClient<AppRouter>({
         links: [
           httpLink({
-            headers: async () => {
-              const token = await getToken();
-              return token ? { authorization: `Bearer ${token}` } : {};
-            },
             url: "/api/trpc",
           }),
         ],
       }),
-    [getToken]
+    []
   );
   const accountApi = useMemo<AccountPreferencesApi>(
     () => ({
@@ -355,6 +349,7 @@ const navItemClassName =
 const activeNavItemClassName = "topbar-control-active border-transparent";
 
 function TopBar({ pathname }: { pathname: string }) {
+  const { signedIn, signIn } = useSession();
   const headerRef = useRef<HTMLElement>(null);
   const searchActive = pathname === "/" || ["/search", "/check", "/bulk"].includes(pathname);
   const navigate = useCallback((event: ReactMouseEvent<HTMLAnchorElement>) => {
@@ -410,7 +405,7 @@ function TopBar({ pathname }: { pathname: string }) {
           />
         </a>
         <nav aria-label="Primary" className="hidden items-center gap-1.5 text-sm min-[48rem]:flex">
-          <Show when="signed-in">
+          {signedIn ? (
             <a
               aria-current={searchActive ? "page" : undefined}
               className={cn(navItemClassName, searchActive && activeNavItemClassName)}
@@ -419,7 +414,7 @@ function TopBar({ pathname }: { pathname: string }) {
             >
               Search
             </a>
-          </Show>
+          ) : null}
           <a
             aria-current={pathname === "/status" ? "page" : undefined}
             className={cn(navItemClassName, pathname === "/status" && activeNavItemClassName)}
@@ -431,7 +426,7 @@ function TopBar({ pathname }: { pathname: string }) {
           <a className={navItemClassName} href="/docs/">
             Docs
           </a>
-          <Show when="signed-in">
+          {signedIn ? (
             <a
               aria-current={pathname === "/account" ? "page" : undefined}
               className={cn(navItemClassName, pathname === "/account" && activeNavItemClassName)}
@@ -440,22 +435,22 @@ function TopBar({ pathname }: { pathname: string }) {
             >
               Account
             </a>
-          </Show>
+          ) : null}
         </nav>
-        <Show when="signed-in">
+        {signedIn ? (
           <div className="ml-3.5 flex items-center gap-2 max-[48rem]:col-start-2 max-[48rem]:row-start-1 max-[48rem]:ml-2">
             <AccountMenu />
             <MobileNavMenu navigate={navigate} pathname={pathname} signedIn />
           </div>
-        </Show>
-        <Show when="signed-out">
+        ) : null}
+        {signedIn ? null : (
           <div className="ml-3.5 flex items-center gap-2 max-[48rem]:col-start-2 max-[48rem]:row-start-1 max-[48rem]:ml-2">
-            <SignInButton mode="modal">
-              <Button className="pill-button">Sign in</Button>
-            </SignInButton>
+            <Button className="pill-button" onClick={signIn}>
+              Sign in
+            </Button>
             <MobileNavMenu navigate={navigate} pathname={pathname} signedIn={false} />
           </div>
-        </Show>
+        )}
       </div>
     </header>
   );
@@ -537,7 +532,7 @@ function MobileNavMenu({
 }
 
 function SignedOutSearch({ search }: { search: string }) {
-  const { openSignIn } = useClerk();
+  const { signIn } = useSession();
   const locationQuery = new URLSearchParams(search).get("q") ?? "";
   const [query, setQuery] = useState(locationQuery);
   useEffect(() => setQuery(locationQuery), [locationQuery]);
@@ -559,9 +554,9 @@ function SignedOutSearch({ search }: { search: string }) {
         type: "all",
       });
       setBrowserLocation(`/search?${parameters.toString()}`, { replace: true });
-      openSignIn();
+      signIn();
     },
-    [openSignIn, query]
+    [signIn, query]
   );
 
   return (
@@ -594,6 +589,7 @@ function RedirectToDocs() {
 }
 
 export function App() {
+  const { signedIn } = useSession();
   const location = useBrowserLocation();
   const [queryClient] = useState(
     () =>
@@ -611,14 +607,13 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AppearanceSync />
-      <Show when="signed-in">
-        <SignedInApp location={location} />
-      </Show>
-      <Show when="signed-out">
-        <TopBar pathname={location.pathname} />
-        <DevAutoSignIn />
-        {signedOutPage}
-      </Show>
+      {signedIn ? <SignedInApp location={location} /> : null}
+      {signedIn ? null : (
+        <>
+          <TopBar pathname={location.pathname} />
+          {signedOutPage}
+        </>
+      )}
     </QueryClientProvider>
   );
 }

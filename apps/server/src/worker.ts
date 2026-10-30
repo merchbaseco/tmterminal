@@ -1,14 +1,9 @@
-import { createConfiguredCustomerAccess } from "./auth/service-access.ts";
 import { createDatabaseClient } from "./db/client.ts";
 import { createIngestionScheduler } from "./ingestion/ingestion-scheduler.ts";
 import { createLocalArtifactStore } from "./ingestion/local-artifact-store.ts";
 import { createOdpSourceCatalog } from "./ingestion/odp-source-catalog.ts";
 import { createTrademarkIngestion } from "./ingestion/trademark-ingestion.ts";
 import { extractZipXml } from "./ingestion/zip-artifact-xml.ts";
-import {
-  createAccessReconciliationScheduler,
-  reconcileActiveProjectionAccess,
-} from "./services/access-reconciliation.ts";
 
 const databaseUrl = process.env.TMTERMINAL_DATABASE_URL;
 
@@ -29,7 +24,6 @@ function milliseconds(name: string, fallback: number) {
 }
 
 const database = createDatabaseClient(databaseUrl);
-const access = createConfiguredCustomerAccess(database);
 const healthFile = "/tmp/tmterminal-worker-ready";
 const requestTimeoutMs = milliseconds("TMTERMINAL_USPTO_REQUEST_TIMEOUT_MS", 15 * 60 * 1000);
 const artifactStore = createLocalArtifactStore(
@@ -50,10 +44,6 @@ const ingestion = createTrademarkIngestion({
 const scheduler = createIngestionScheduler({
   onError: (error) => console.error("Ingestion scheduler error", error),
   reconcile: () => ingestion.reconcile(),
-});
-const accessReconciliation = createAccessReconciliationScheduler({
-  onError: (error) => console.error("Access reconciliation error", error),
-  reconcile: () => reconcileActiveProjectionAccess(database, access),
 });
 let stopping = false;
 let heartbeatTimer: Timer | undefined;
@@ -76,7 +66,6 @@ async function stop() {
   if (heartbeatTimer) {
     clearInterval(heartbeatTimer);
   }
-  await accessReconciliation.stop();
   await scheduler.stop();
   await database.end({ timeout: 1 });
   process.exit(0);
@@ -98,5 +87,4 @@ heartbeatTimer = setInterval(() => {
 }, 10_000);
 await refreshHealth();
 await ingestion.initialize();
-accessReconciliation.start();
 await scheduler.start();

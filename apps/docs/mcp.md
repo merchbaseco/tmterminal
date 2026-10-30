@@ -4,9 +4,9 @@ title: MCP
 
 # MCP
 
-Hosted MCP is at `https://tmterminal.merchbase.co/mcp`. Streamable HTTP. Tools only. No resources, prompts, or stdio.
+Hosted MCP is at `https://tmterminal-api.merchbase.co/mcp`. Streamable HTTP. Tools only. No resources, prompts, or stdio.
 
-Every request needs a Clerk OAuth bearer token for service `tmterminal`. API keys are rejected.
+Every request needs a Cloudflare Access OAuth bearer token for service `tmterminal`. API keys are rejected.
 
 ## Tools
 
@@ -24,8 +24,7 @@ Search continuation passes `meta.dataVersion` as `expectedDataVersion`. After `C
 
 - `/.well-known/oauth-protected-resource`
 - `/.well-known/oauth-protected-resource/mcp`
-- `/.well-known/oauth-authorization-server`
-- `/.well-known/oauth-authorization-server/mcp`
+OAuth authorization-server metadata is hosted by the Cloudflare issuer advertised in the protected-resource metadata.
 
 The same limits and error codes as the HTTP client apply. Details live in the [MCP reference](https://github.com/merchbaseco/tmterminal/blob/main/docs/reference/mcp.md).
 

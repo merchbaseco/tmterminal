@@ -1,6 +1,6 @@
 {
   "name": "@tmterminal/cli",
-  "version": "4.0.0",
+  "version": "5.0.0",
   "description": "Command-line access to Trademark Terminal exact lookup, search, and listing-text screening",
   "repository": {
     "type": "git",

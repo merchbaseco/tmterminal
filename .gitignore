@@ -19,3 +19,5 @@ fixtures/uspto/**/*.doc
 !.agents/cloud/
 .cursor/rules/pstack-models.mdc
 .design/renders/
+
+.context/

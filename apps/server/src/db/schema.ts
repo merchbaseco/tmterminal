@@ -67,7 +67,7 @@ export const accessProjection = pgTable(
   },
   (table) => [
     primaryKey({ columns: [table.issuer, table.subject] }),
-    uniqueIndex("access_projection_merchbase_user_id_unique")
+    index("access_projection_merchbase_user_id_index")
       .on(table.merchbaseUserId)
       .where(sql`${table.merchbaseUserId} is not null`),
     check(

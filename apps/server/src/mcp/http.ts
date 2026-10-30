@@ -1,25 +1,14 @@
 import type { IncomingMessage } from "node:http";
 
-import {
-  corsHeaders,
-  fetchClerkAuthorizationServerMetadata,
-  generateClerkProtectedResourceMetadata,
-} from "@clerk/mcp-tools/server";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
-import {
-  authenticateMcpRequest,
-  type McpAuthDependencies,
-  type McpAuthResult,
-  TMTERMINAL_MCP_SCOPES,
-} from "./auth.ts";
+import { authenticateMcpRequest, type McpAuthDependencies, type McpAuthResult } from "./auth.ts";
 import type { TmterminalMcpDataSource } from "./data-source.ts";
 import { createTmterminalMcpServer } from "./server.ts";
 
 const protectedResourceBasePath = "/.well-known/oauth-protected-resource";
-const authorizationServerBasePath = "/.well-known/oauth-authorization-server";
 
 const mcpCors = {
   allowedHeaders: [
@@ -46,7 +35,7 @@ export interface RegisterTmterminalMcpRoutesOptions {
     accountId: string;
     merchbaseUserId: string;
   }) => Promise<TmterminalMcpDataSource> | TmterminalMcpDataSource;
-  publishableKey: string;
+  issuer: string;
   resourceUrl: string;
 }
 
@@ -54,32 +43,16 @@ export function registerTmterminalMcpRoutes(
   fastify: FastifyInstance,
   options: RegisterTmterminalMcpRoutesOptions
 ) {
-  const protectedResourceMetadata = generateClerkProtectedResourceMetadata({
-    properties: {
-      resource_name: "Trademark Terminal",
-      scopes_supported: [...TMTERMINAL_MCP_SCOPES],
-    },
-    publishableKey: options.publishableKey,
-    resourceUrl: options.resourceUrl,
-  });
-
+  const protectedResourceMetadata = {
+    authorization_servers: [options.issuer],
+    bearer_methods_supported: ["header"],
+    resource: options.resourceUrl,
+    resource_name: "Trademark Terminal",
+  };
   for (const path of [protectedResourceBasePath, `${protectedResourceBasePath}/mcp`]) {
     fastify.get(path, { config: { cors: metadataCors } }, (_request, reply) =>
-      sendJson(reply, protectedResourceMetadata, corsHeaders)
+      sendJson(reply, protectedResourceMetadata, { "Access-Control-Allow-Origin": "*" })
     );
-  }
-
-  for (const path of [authorizationServerBasePath, `${authorizationServerBasePath}/mcp`]) {
-    fastify.get(path, { config: { cors: metadataCors } }, async (_request, reply) => {
-      try {
-        const metadata = await fetchClerkAuthorizationServerMetadata({
-          publishableKey: options.publishableKey,
-        });
-        return sendJson(reply, metadata, corsHeaders);
-      } catch {
-        return reply.status(503).send({ error: "Authorization server metadata unavailable" });
-      }
-    });
   }
 
   fastify.options("/mcp", { config: { cors: mcpCors } }, (_request, reply) =>
@@ -126,7 +99,10 @@ async function handleMcpRequest(
     return reply.status(403).send({ error: "Invalid Origin" });
   }
 
-  const authentication = await authenticateMcpRequest(request.headers.authorization, options.auth);
+  const authentication = await authenticateMcpRequest(
+    request.headers["cf-access-jwt-assertion"],
+    options.auth
+  );
   if (authentication.status !== "authenticated") {
     return sendAuthenticationFailure(reply, authentication, options.resourceUrl);
   }
@@ -162,7 +138,10 @@ async function handleMcpRequest(
     await server.connect(transport);
     await transport.handleRequest(rawRequest, reply.raw, request.body);
   } catch (error) {
-    console.error("Trademark Terminal MCP request failed.", error);
+    console.error(
+      "Trademark Terminal MCP request failed.",
+      error instanceof Error ? error.name : "UnknownError"
+    );
     if (!reply.raw.headersSent) {
       reply.raw.writeHead(500, { "content-type": "application/json" });
       reply.raw.end(JSON.stringify({ error: "MCP request failed" }));

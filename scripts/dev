@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+export NODE_ENV=development
 
 root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$root"
@@ -9,15 +10,12 @@ cd "$root"
 if [ -z "${TMTERMINAL_DEV_ENV_READY:-}" ]; then
   web_port="$(dev-port 0)"
   api_port="$(dev-port 1)"
-  TMTERMINAL_CLERK_AUTHORIZED_PARTIES="http://127.0.0.1:${web_port}"
   TMTERMINAL_PORT="$api_port"
   TMTERMINAL_API_PORT="$api_port"
   TMTERMINAL_WEB_PORT="$web_port"
   TMTERMINAL_DATABASE_HOST=127.0.0.1
-  VITE_TMTERMINAL_DEV_CLERK_AUTO_SIGN_IN=true
   TMTERMINAL_DEV_ENV_READY=1
-  export TMTERMINAL_CLERK_AUTHORIZED_PARTIES TMTERMINAL_PORT TMTERMINAL_API_PORT
-  export TMTERMINAL_WEB_PORT TMTERMINAL_DATABASE_HOST VITE_TMTERMINAL_DEV_CLERK_AUTO_SIGN_IN
+  export TMTERMINAL_PORT TMTERMINAL_API_PORT TMTERMINAL_WEB_PORT TMTERMINAL_DATABASE_HOST
   export TMTERMINAL_DEV_ENV_READY
   bash "$root/scripts/dev-db"
   exec bunx varlock run -- "$0" "$@"
