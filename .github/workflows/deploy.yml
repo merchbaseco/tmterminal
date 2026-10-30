@@ -74,7 +74,7 @@ jobs:
       # github.token, which cannot. These two workspaces are public. The image
       # build resolves the private credentials itself.
       install_command: bun install --frozen-lockfile --filter @tmterminal/http-client --filter @tmterminal/cli
-      health_urls: https://tmterminal.merchbase.co/health/live
+      health_urls: https://tmterminal-api.merchbase.co/health/live
       runner: self-hosted
       published_packages: packages/http-client:@tmterminal/http-client,packages/cli:@tmterminal/cli
       publish_provenance: true

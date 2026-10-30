@@ -8,8 +8,9 @@ read_when:
 # Deployment
 
 Trademark Terminal runs from `/Users/zknicker/srv/tmterminal` as Compose project
-`tmterminal`. Cloudflare Tunnel sends `https://tmterminal.merchbase.co` to loopback
-Caddy on port 8095. API diagnostics use loopback port 3095; PostgreSQL uses
+`tmterminal`. Cloudflare Tunnel sends the UI host `tmterminal.merchbase.co`, API
+host `tmterminal-api.merchbase.co`, and internal receiver host
+`tmterminal-internal.merchbase.co` to loopback Caddy on port 8095. API diagnostics use loopback port 3095; PostgreSQL uses
 loopback 5437 for host and Tailscale operator access.
 
 ## Topology
@@ -115,7 +116,7 @@ to run that destructive cleanup.
 - database, migration, API, worker, and web health;
 - at least 20 GiB free in database and artifact volumes;
 - bounded loopback and public HTTPS probes;
-- anonymous liveness at `/health/live`.
+- anonymous liveness at `https://tmterminal-api.merchbase.co/health/live`.
 
 `GET /health/live` is process liveness. It runs `select 1` and returns
 `{"status":"ok","revision":"<value>"}` on HTTP 200. Docker healthchecks, Caddy,

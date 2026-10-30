@@ -3,7 +3,8 @@ set -eu
 
 : "${TMTERMINAL_REVISION:?set TMTERMINAL_REVISION to the deployed Git revision}"
 printf '%s\n' "$TMTERMINAL_REVISION" | grep -qxE '[0-9a-f]{40}'
-public_origin="https://tmterminal.merchbase.co"
+public_origin="https://tmterminal-api.merchbase.co"
+ui_origin="https://tmterminal.merchbase.co"
 
 compose() {
   docker compose --project-name tmterminal "$@"
@@ -32,7 +33,7 @@ require_exact_ok "http://${api_address}/health/live"
 test "$(probe --silent --output /dev/null --write-out '%{http_code}' --header "Host: tmterminal.merchbase.co" --header "Origin: https://tmterminal.merchbase.co" --request POST "http://${api_address}/api/dev/clerk-sign-in-token")" = "404"
 probe --fail --silent --output /dev/null "http://${web_address}/"
 require_exact_ok "${public_origin}/health/live"
-probe --fail --silent --output /dev/null "${public_origin}/"
+probe --fail --silent --output /dev/null "${ui_origin}/"
 
 for service in database api worker web; do
   container_id="$(compose ps --quiet "$service")"
