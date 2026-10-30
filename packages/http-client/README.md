@@ -76,4 +76,5 @@ dependency failure. It never means ingestion is incomplete.
 
 Hosted MCP exposes `tmterminal_get`, `tmterminal_search`, and
 `tmterminal_screen` over Streamable HTTP at
-`https://tmterminal-api.merchbase.co/mcp`.
+`https://tmterminal.merchbase.co/mcp`. The API hostname remains available as an
+alias, with metadata and OAuth challenges matching the requested host.

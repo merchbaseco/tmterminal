@@ -6,7 +6,7 @@ import Fastify, {
   type FastifyRequest,
   type FastifyServerOptions,
 } from "fastify";
-import { originAssertion, requestSurface } from "../auth/request-boundary.ts";
+import { isMcpPath, originAssertion, requestSurface } from "../auth/request-boundary.ts";
 import { createConfiguredTmterminalAccess, type TmterminalAccess } from "../auth/service-access.ts";
 import { buildRevision } from "../build-revision.ts";
 import { createDatabaseClient } from "../db/client.ts";
@@ -85,12 +85,12 @@ export async function buildServer({
     }
     try {
       const [path] = request.url.split("?");
-      const surface = requestSurface(request.headers, resolvedAccess.development);
+      const surface = requestSurface(request.headers, resolvedAccess.development, path);
       if (surface !== "internal" && "x-merchbase-user-id" in request.headers) {
         throw new ServiceAccessError("unauthenticated");
       }
       const snapshot = path === "/api/internal/access-snapshot";
-      const discovery = path?.startsWith("/.well-known/") || path === "/mcp";
+      const discovery = isMcpPath(path);
       if (
         (surface === "internal") !== snapshot ||
         (discovery && surface !== "api" && !resolvedAccess.development)

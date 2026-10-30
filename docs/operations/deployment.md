@@ -93,7 +93,10 @@ containers as environment, never as a generated plaintext file. The deploy
 script refuses to run if a `.env` reappears in the checkout.
 
 `TMTERMINAL_MCP_RESOURCE_URL` is non-secret configuration owned by the schema.
-It must remain an absolute HTTP URL with the exact `/mcp` path.
+Its production default is the canonical
+`https://tmterminal.merchbase.co/mcp` resource. The API host remains available
+as an alias, and each host publishes matching MCP metadata and challenges. It
+must remain an absolute HTTP URL with the exact `/mcp` path.
 
 `scripts/verify-deployed-secrets.ts` runs after every deploy and name-diffs
 what Docker baked into the containers against the schema's sensitivity split: a

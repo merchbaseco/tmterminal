@@ -43,16 +43,20 @@ export function registerTmterminalMcpRoutes(
   fastify: FastifyInstance,
   options: RegisterTmterminalMcpRoutesOptions
 ) {
-  const protectedResourceMetadata = {
-    authorization_servers: [options.issuer],
-    bearer_methods_supported: ["header"],
-    resource: options.resourceUrl,
-    resource_name: "Trademark Terminal",
-  };
   for (const path of [protectedResourceBasePath, `${protectedResourceBasePath}/mcp`]) {
-    fastify.get(path, { config: { cors: metadataCors } }, (_request, reply) =>
-      sendJson(reply, protectedResourceMetadata, { "Access-Control-Allow-Origin": "*" })
-    );
+    fastify.get(path, { config: { cors: metadataCors } }, (request, reply) => {
+      const resourceUrl = resourceUrlForHost(request.headers.host, options.resourceUrl);
+      return sendJson(
+        reply,
+        {
+          authorization_servers: [options.issuer],
+          bearer_methods_supported: ["header"],
+          resource: resourceUrl,
+          resource_name: "Trademark Terminal",
+        },
+        { "Access-Control-Allow-Origin": "*" }
+      );
+    });
   }
 
   fastify.options("/mcp", { config: { cors: mcpCors } }, (_request, reply) =>
@@ -61,10 +65,21 @@ export function registerTmterminalMcpRoutes(
 
   fastify.route({
     config: { cors: mcpCors },
-    handler: (request, reply) => handleMcpRequest(request, reply, options),
+    handler: (request, reply) =>
+      handleMcpRequest(request, reply, {
+        ...options,
+        resourceUrl: resourceUrlForHost(request.headers.host, options.resourceUrl),
+      }),
     method: ["GET", "POST", "DELETE"],
     url: "/mcp",
   });
+}
+
+function resourceUrlForHost(host: string | undefined, fallback: string) {
+  if (host === "tmterminal.merchbase.co" || host === "tmterminal-api.merchbase.co") {
+    return `https://${host}/mcp`;
+  }
+  return fallback;
 }
 
 export function resolveMcpResourceUrl(value: string | undefined) {

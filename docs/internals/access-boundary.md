@@ -18,9 +18,12 @@ The raw Host selects the verifier. `tmterminal.merchbase.co` accepts the
 interactive audience and creates session context. `tmterminal-api.merchbase.co`
 accepts the suite API audience: people receive OAuth context and bound customer
 machines receive API-key context. Both use `/api/trpc`. Public API callers cannot
-use preferences or operator procedures, even when they are people. Hosted MCP
-on the API host accepts people only. Unknown hosts and caller-supplied
-`x-merchbase-user-id` are rejected. Forwarded host headers do not select authority.
+use preferences or operator procedures, even when they are people. Exact MCP
+paths (`/mcp` and the two protected-resource metadata paths) on either public
+host use the suite API audience; hosted MCP accepts people only. Metadata and
+OAuth challenges name the exact host used for the MCP request. Unknown hosts and
+caller-supplied `x-merchbase-user-id` are rejected. Forwarded host headers do not
+select authority.
 
 The origin verifies `CF-Access-Jwt-Assertion` cryptographically with the selected
 audience, resolves a local identity projection, evaluates service `tmterminal`,
