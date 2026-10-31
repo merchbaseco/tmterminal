@@ -83,7 +83,7 @@
     },
     "packages/cli": {
       "name": "@tmterminal/cli",
-      "version": "5.0.0",
+      "version": "5.0.1",
       "bin": {
         "tt": "dist/tt.js",
       },
@@ -94,7 +94,7 @@
     },
     "packages/http-client": {
       "name": "@tmterminal/http-client",
-      "version": "5.0.0",
+      "version": "5.0.1",
       "dependencies": {
         "@trpc/client": "11.18.0",
         "@trpc/server": "11.18.0",

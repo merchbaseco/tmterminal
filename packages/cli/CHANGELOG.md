@@ -1,5 +1,9 @@
 # Trademark Terminal CLI Changelog
 
+## v5.0.1 - 2026-10-30
+
+- Hosted MCP setup now points to the canonical Trademark Terminal URL; the API hostname remains available as an alias.
+
 ## v5.0.0 - 2026-10-29
 
 - Breaking: API and MCP connections use `https://tmterminal-api.merchbase.co`. Replace saved Clerk credentials with a new Merchbase API key or Cloudflare sign-in.
