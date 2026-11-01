@@ -8,7 +8,8 @@ read_when:
 # Access Boundary
 
 Cloudflare Access owns browser sessions, OAuth access tokens, and service-token
-verification. Merchbase Access owns stable Merchbase users and product grants.
+verification; people sign in through the approved Google identity provider.
+Merchbase Access owns stable Merchbase users and product grants.
 Trademark Terminal owns its account UUIDs, trademark data, preferences, and
 operator roles.
 

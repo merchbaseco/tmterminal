@@ -21,7 +21,7 @@ These pages stay because they are hard to recover from code search.
 | Verification lanes | [Testing](operations/testing.md) |
 | Mac mini release | [Deployment](operations/deployment.md) |
 | Linear routing and triage labels | [Issues](operations/issues.md) |
-| Quiet Utility / COSS | [Design](design/system.md) |
+| Quiet Utility / COSS | [Design guidelines](../.design/guidelines.md) |
 | Live data is immediately queryable | [Live trademark knowledge](decisions/live-trademark-knowledge.md) |
 | Thin authenticated website | [Thin website](decisions/thin-website-v1.md) |
 | Mac mini hosting | [Mac mini hosting](decisions/mac-mini-v1-hosting.md) |

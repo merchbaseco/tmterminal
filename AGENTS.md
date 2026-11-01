@@ -62,9 +62,10 @@ capture-page http://127.0.0.1:5173/ /tmp/tmterminal.png --settle 8000
 routes external hosts such as Cloudflare through the agent proxy and keeps loopback
 direct.
 
-Open `127.0.0.1`, not `localhost`. The website signs in automatically as the
-shared Merchbase Dev Sign-In user (`VITE_TMTERMINAL_DEV_CLERK_AUTO_SIGN_IN`,
-set by `web.sh`), which owns the seed. Full browser acceptance follows
+Open `127.0.0.1`, not `localhost`. The guarded local API session signs the
+website in as the shared Merchbase Dev Sign-In user, which owns the seed.
+`web.sh` only sets the forwarded bind address and API port. Full browser
+acceptance follows
 `.cursor/skills/verify-trademark-terminal/`.
 
 ## Secrets

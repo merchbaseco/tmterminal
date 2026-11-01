@@ -7,7 +7,7 @@ read_when:
 
 # Include A Thin Authenticated Website
 
-Status: Accepted
+Status: Accepted and deployed
 
 Date: 2026-07-14
 
@@ -20,11 +20,12 @@ marketing and dashboard surface would distract from the trademark service.
 
 ## Decision
 
-V1 includes a private Vite/React website using shared MerchBase Clerk
-authentication. It exposes authenticated search, text matching, bulk screening,
-mark detail, and API-key management; Status and `/docs` are public. Source errors,
-file details, and repair remain operator-only. Stock COSS UI and the documented
-visual system keep the surface narrow.
+V1 includes a private Vite/React website protected by Cloudflare Access, with
+Google sign-in through the approved identity provider. It exposes authenticated
+search, text matching, bulk screening, mark detail, and API-key management;
+Status and `/docs` are public. Source errors, file details, and repair remain
+operator-only. Stock COSS UI and the documented visual system keep the surface
+narrow.
 
 ## Consequences
 
