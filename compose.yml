@@ -1,5 +1,7 @@
 services:
   database:
+    sysctls:
+      net.mptcp.enabled: "0"
     image: postgres:16.14-alpine
     deploy:
       resources:
@@ -29,6 +31,8 @@ services:
       - database-data:/var/lib/postgresql/data
 
   migrate:
+    sysctls:
+      net.mptcp.enabled: "0"
     image: tmterminal-core:${TMTERMINAL_REVISION:-development}
     # The workspace script, not the root one: the root `db:migrate` wraps this
     # in `varlock run` for operators, and the image deliberately carries no
@@ -51,6 +55,8 @@ services:
     restart: "no"
 
   api:
+    sysctls:
+      net.mptcp.enabled: "0"
     build:
       context: .
       target: runtime
@@ -95,6 +101,8 @@ services:
     restart: unless-stopped
 
   worker:
+    sysctls:
+      net.mptcp.enabled: "0"
     image: tmterminal-core:${TMTERMINAL_REVISION:-development}
     command: ["bun", "run", "--cwd", "apps/server", "worker"]
     deploy:
@@ -122,6 +130,8 @@ services:
       - artifact-data:/var/lib/tmterminal/artifacts
 
   web:
+    sysctls:
+      net.mptcp.enabled: "0"
     build:
       context: .
       target: web
@@ -149,6 +159,8 @@ services:
     restart: unless-stopped
 
   test-database:
+    sysctls:
+      net.mptcp.enabled: "0"
     profiles: ["test"]
     image: postgres:16.14-alpine
     environment:
@@ -164,6 +176,8 @@ services:
       - /var/lib/postgresql/data
 
   integration-test:
+    sysctls:
+      net.mptcp.enabled: "0"
     profiles: ["test"]
     build:
       context: .
