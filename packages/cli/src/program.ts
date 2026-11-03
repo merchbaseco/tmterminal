@@ -13,19 +13,28 @@ export type CliCommand =
   | { kind: "auth-clear" }
   | { kind: "auth-set"; readsStdin: boolean }
   | { kind: "auth-status" }
+  | {
+      kind: "bulk-check";
+      phrases: string[];
+      readsStdin: boolean;
+      singular: boolean;
+      type: MarkType;
+    }
   | { input: TrademarkGetInput; kind: "get" }
   | {
       kind: "screen";
       readsStdin: boolean;
       singular: boolean;
-      text?: string;
-      type: ScreenOptions["type"];
+      texts: string[];
+      type: MarkType;
     }
   | { input: TrademarkSearchInput; kind: "search" };
 
 export type ParsedCli =
   | { baseUrl?: string; command: CliCommand; kind: "command" }
   | { kind: "text"; text: string };
+
+type MarkType = "all" | "design" | "other" | "text" | "typeset";
 
 interface PageOptions {
   dataVersion?: string;
@@ -45,8 +54,19 @@ interface SearchOptions extends PageOptions {
 interface ScreenOptions {
   singular: boolean;
   stdin?: boolean;
-  text?: string;
-  type: "all" | "design" | "other" | "text" | "typeset";
+  text: string[];
+  type: MarkType;
+}
+
+interface BulkCheckOptions {
+  phrase: string[];
+  singular: boolean;
+  stdin?: boolean;
+  type: MarkType;
+}
+
+function repeated(value: string, previous: string[]) {
+  return [...previous, value];
 }
 
 function nonnegativeInteger(value: string) {
@@ -238,21 +258,43 @@ export async function parseCli(args: string[], version: string): Promise<ParsedC
   program
     .command("screen")
     .description("Screen listing text against live trademarks")
-    .option("--text <text>", "Text to inspect")
-    .option("--stdin", "Read text from stdin")
+    .option("--text <text>", "Text to inspect; repeat to screen several texts", repeated, [])
+    .option("--stdin", "Read one text from stdin")
     .addOption(
       choices("--type <type>", ["all", "design", "typeset", "text", "other"]).default("all")
     )
     .option("--no-singular", "Match only the words as written, not their singulars")
     .action((options: ScreenOptions) => {
-      if (Boolean(options.text) === Boolean(options.stdin)) {
-        throw new BadRequestError("Supply exactly one of --text or --stdin");
+      if (options.text.length > 0 === Boolean(options.stdin)) {
+        throw new BadRequestError("Supply --text or --stdin, not both");
       }
       command = {
         kind: "screen",
         readsStdin: options.stdin === true,
         singular: options.singular,
-        ...(options.text ? { text: options.text } : {}),
+        texts: options.text,
+        type: options.type,
+      };
+    });
+
+  program
+    .command("bulk-check")
+    .description("Count live exact and partial matches for each phrase")
+    .option("--phrase <phrase>", "Phrase to check; repeat for several", repeated, [])
+    .option("--stdin", "Read phrases from stdin, one per line")
+    .addOption(
+      choices("--type <type>", ["all", "design", "typeset", "text", "other"]).default("all")
+    )
+    .option("--no-singular", "Match only the words as written, not their singulars")
+    .action((options: BulkCheckOptions) => {
+      if (options.phrase.length > 0 === Boolean(options.stdin)) {
+        throw new BadRequestError("Supply --phrase or --stdin, not both");
+      }
+      command = {
+        kind: "bulk-check",
+        phrases: options.phrase,
+        readsStdin: options.stdin === true,
+        singular: options.singular,
         type: options.type,
       };
     });

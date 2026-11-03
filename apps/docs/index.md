@@ -28,7 +28,7 @@ Paste listing copy. Live marks that appear as exact phrases.
 
 ### [Bulk Check](/bulk-check)
 
-One Screen Query per line. Live exact and live partial counts.
+One phrase per line. Live exact and live partial counts.
 
 ### [CLI](/cli), [HTTP client](/http-client), [MCP](/mcp)
 

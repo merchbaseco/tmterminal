@@ -35,6 +35,7 @@ tt search "TERMINAL CLUB" --status live
 tt get --serial 60146682
 tt get --registration 0146682
 printf '%s' "shirt title" | tt screen --stdin
+printf '%s\n' "Kitten Nuggets" "Ocean Supply" | tt bulk-check --stdin
 ```
 
 ```text
@@ -45,15 +46,22 @@ tt search <query> [--mode multi|split|wildcard] [--match both|exact|partial]
   [--offset 0] [--data-version <version>]
 tt get --serial <eight-digit-number>
 tt get --registration <seven-digit-number>
-tt screen --text <text> [--type all|design|typeset|text|other] [--no-singular]
+tt screen --text <text> [--text <text> ...] [--type all|design|typeset|text|other]
+  [--no-singular]
 tt screen --stdin [--type all|design|typeset|text|other] [--no-singular]
+tt bulk-check --phrase <phrase> [--phrase <phrase> ...]
+  [--type all|design|typeset|text|other] [--no-singular]
+tt bulk-check --stdin [--type all|design|typeset|text|other] [--no-singular]
 ```
 
 `--match` is valid only for Multi. `--singular` also matches plural words as
-singular and is valid for Multi and Split; `tt screen` matches singulars unless
-you pass `--no-singular`. Wildcard patterns that contain `*` need at
-least three consecutive literal word characters. `--text` and `--stdin` are
-mutually exclusive. Search requests one 25-item page. Follow-up pages pass
+singular and is valid for Multi and Split; `tt screen` and `tt bulk-check` match
+singulars unless you pass `--no-singular`. Repeat `--text` to screen several
+texts in one call; they come back as `texts` with ids `1`, `2`, and so on.
+`tt bulk-check` takes one phrase per `--phrase`, or one per stdin line, and
+returns live exact and partial counts per phrase. Wildcard patterns that contain `*` need at
+least three consecutive literal word characters. `--text` or `--phrase` and
+`--stdin` are mutually exclusive. Search requests one 25-item page. Follow-up pages pass
 `--data-version`; changed live data returns `CONFLICT`.
 
 Normal commands write one JSON envelope to stdout on success or stderr on

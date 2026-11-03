@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { AccountPreferenceSaveStatus } from "./account-preference-save-status.tsx";
 import { AccountPreferenceSelect } from "./account-preference-select.tsx";
 import { LegalFooter } from "./legal-footer.tsx";
+import { markTypeOptions } from "./mark-type-options.ts";
 import { PageMasthead } from "./page-masthead.tsx";
 import type { SearchPreferences } from "./search-preferences.ts";
 
@@ -35,12 +36,6 @@ const statusOptions = [
   { label: "All", value: "all" },
   { label: "Live", value: "live" },
   { label: "Dead", value: "dead" },
-] as const;
-const typeOptions = [
-  { label: "All", value: "all" },
-  { label: "Design", value: "design" },
-  { label: "Typeset", value: "typeset" },
-  { label: "Text", value: "text" },
 ] as const;
 
 export interface AccountPreferencesApi {
@@ -253,7 +248,7 @@ export function AccountPage({
                 label="Default type"
                 name="default-type"
                 onValueChange={changeDefaultType}
-                options={typeOptions}
+                options={markTypeOptions}
                 value={draftPreferences.defaultType}
               />
             </div>

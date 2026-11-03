@@ -350,6 +350,36 @@ test("URL state drives exact-only, partial-only, both, and server filters", asyn
   );
 });
 
+test("Mode switches between Multi, Split, and Wildcard requests", async () => {
+  const inputs: Parameters<SearchApi["search"]>[0][] = [];
+  const api: SearchApi = {
+    search: (input) => {
+      inputs.push(input);
+      return Promise.resolve(resultPage(0, 0, 0));
+    },
+  };
+  renderSearch(api, "?q=kitten+nuggets&mode=split&singular=true&type=other");
+
+  await screen.findByRole("status", { name: "No marks match “kitten nuggets”" });
+  expect(inputs[0]).toMatchObject({ mode: "split", singular: true, type: "other" });
+  expect(inputs[0]).not.toHaveProperty("match");
+  expect(screen.queryByRole("checkbox", { name: "Exact" })).toBeNull();
+
+  fireEvent.click(screen.getByRole("button", { name: "Mode: Split" }));
+  fireEvent.click(await screen.findByRole("menuitemradio", { name: "Wildcard" }));
+  await waitFor(() => expect(inputs.at(-1)?.mode).toBe("wildcard"));
+  expect(inputs.at(-1)).not.toHaveProperty("singular");
+  expect(inputs.at(-1)).not.toHaveProperty("match");
+  expect(screen.getByText("Whole mark, as written")).toBeTruthy();
+  expect(screen.queryByRole("checkbox", { name: "Singular" })).toBeNull();
+
+  fireEvent.click(screen.getByRole("button", { name: "Mode: Wildcard" }));
+  fireEvent.click(await screen.findByRole("menuitemradio", { name: "Multi" }));
+  await waitFor(() =>
+    expect(inputs.at(-1)).toMatchObject({ match: "both", mode: "multi", singular: true })
+  );
+});
+
 test("submitting a draft query updates the URL-owned request", async () => {
   const queries: string[] = [];
   const api: SearchApi = {

@@ -2,16 +2,17 @@ import { z } from "zod";
 
 import { countTextTokens } from "../search/text-matching.ts";
 import type {
+  BulkCheckInput,
   ListMarksInput,
   MatchTextsInput,
-  ScreenQueriesInput,
+  ScreenInput,
   ScreenTextInput,
 } from "./contracts.ts";
 
 const maximumMatchTextCodeUnits = 4096;
 const maximumMatchTextTokens = 128;
 const maximumMatchTexts = 100;
-const maximumScreenQueries = 100;
+const maximumBulkCheckQueries = 100;
 const identifierSchema = z.string().trim().min(1).max(100);
 const markTypeSchema = z.enum(["all", "design", "typeset", "text", "other"]);
 // Screens look for trademark evidence, where a miss costs more than an extra mark, so they match
@@ -70,7 +71,7 @@ export const matchTextsInputSchema = z
     validateUniqueIds(input.texts, context)
   ) satisfies z.ZodType<MatchTextsInput>;
 
-export const screenQueriesInputSchema = z
+export const bulkCheckInputSchema = z
   .object({
     queries: z
       .array(
@@ -82,22 +83,28 @@ export const screenQueriesInputSchema = z
           .strict()
       )
       .min(1)
-      .max(maximumScreenQueries),
+      .max(maximumBulkCheckQueries),
     singular: screenSingularSchema,
     type: markTypeSchema.default("all"),
   })
   .strict()
   .superRefine((input, context) =>
     validateUniqueIds(input.queries, context)
-  ) satisfies z.ZodType<ScreenQueriesInput>;
+  ) satisfies z.ZodType<BulkCheckInput>;
 
-export const screenTextInputSchema = z
+const screenTextInputSchema = z
   .object({
     singular: screenSingularSchema,
     text: matchTextSchema,
     type: markTypeSchema.default("all"),
   })
   .strict() satisfies z.ZodType<ScreenTextInput>;
+
+// One text returns its trademarks; named texts return trademarks per text, in input order.
+export const screenInputSchema = z.union([
+  screenTextInputSchema,
+  matchTextsInputSchema,
+]) satisfies z.ZodType<ScreenInput>;
 
 function validateMatchText(text: string, context: z.RefinementCtx) {
   if (text.length > maximumMatchTextCodeUnits) {

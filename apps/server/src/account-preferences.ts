@@ -6,7 +6,7 @@ export const searchPreferencesSchema = z
     defaultRegistered: z.enum(["all", "yes", "no"]),
     defaultSort: z.enum(["relevance", "newest-activity", "oldest-activity"]),
     defaultStatus: z.enum(["all", "live", "dead"]),
-    defaultType: z.enum(["all", "design", "typeset", "text"]),
+    defaultType: z.enum(["all", "design", "typeset", "text", "other"]),
     pageSize: z.union([z.literal(25), z.literal(50), z.literal(100)]),
     resultDensity: z.enum(["compact", "comfortable"]),
   })

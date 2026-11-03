@@ -3,9 +3,11 @@ import { afterEach, expect, test } from "bun:test";
 import {
   createTmterminalClient,
   TmterminalError,
+  type TrademarkBulkCheckInput,
   type TrademarkGetInput,
   type TrademarkMatchInput,
-  type TrademarkScreenInput,
+  type TrademarkScreenTextInput,
+  type TrademarkScreenTextsInput,
   type TrademarkSearchInput,
 } from "../src/index.ts";
 
@@ -69,8 +71,10 @@ test("derives trademark operation contracts from the server router", async () =>
         data = { ...data, liveMatchCounts: { exact: 0, partial: 0 } };
       } else if (url.pathname.endsWith("marks.match")) {
         data = { meta: { dataVersion: "7" }, texts: [] };
-      } else if (url.pathname.endsWith("marks.screenText")) {
+      } else if (url.pathname.endsWith("marks.screen")) {
         data = { meta: { dataVersion: "7" }, trademarks: [] };
+      } else if (url.pathname.endsWith("marks.bulkCheck")) {
+        data = { meta: { dataVersion: "7" }, queries: [] };
       }
       return Response.json({ result: { data } });
     },
@@ -91,26 +95,39 @@ test("derives trademark operation contracts from the server router", async () =>
     texts: [{ id: "title", text: "terminal club" }],
     type: "text",
   };
-  const screen: TrademarkScreenInput = {
+  const screen: TrademarkScreenTextInput = {
     text: "terminal club",
     type: "text",
+  };
+  const screenTexts: TrademarkScreenTextsInput = {
+    singular: false,
+    texts: [{ id: "title", text: "terminal club" }],
+  };
+  const bulkCheck: TrademarkBulkCheckInput = {
+    queries: [{ id: "line-1", query: "terminal club" }],
   };
 
   await client.trademarks.search(search);
   await client.trademarks.match(match);
   await client.trademarks.screen(screen);
+  await client.trademarks.screen(screenTexts);
+  await client.trademarks.bulkCheck(bulkCheck);
   await client.trademarks.list();
 
   expect(requests.map((request) => request.pathname)).toEqual([
     "/api/trpc/marks.search",
     "/api/trpc/marks.match",
-    "/api/trpc/marks.screenText",
+    "/api/trpc/marks.screen",
+    "/api/trpc/marks.screen",
+    "/api/trpc/marks.bulkCheck",
     "/api/trpc/marks.list",
   ]);
   expect(requests.map((request) => JSON.parse(request.searchParams.get("input") ?? "{}"))).toEqual([
     search,
     match,
     screen,
+    screenTexts,
+    bulkCheck,
     {},
   ]);
 });

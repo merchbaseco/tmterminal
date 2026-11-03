@@ -49,7 +49,9 @@ export function SearchOptionSelect<T extends string>({
         className="group grid min-h-16 w-full min-w-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] content-center gap-x-3 gap-y-1 border-0 border-border border-r bg-transparent px-4 py-3 text-left text-inherit hover:bg-accent focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2 data-[popup-open]:bg-accent max-[48rem]:border-b"
         name={name}
       >
-        <span className="utility-label col-span-full text-muted-foreground">{label}</span>
+        <span className="utility-label col-span-full min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-muted-foreground">
+          {label}
+        </span>
         <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-base text-foreground">
           {selected.label}
         </span>

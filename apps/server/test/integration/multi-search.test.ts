@@ -5,8 +5,8 @@ import { searchInputSchema } from "../../src/api/search-input.ts";
 import { buildServer } from "../../src/api/server.ts";
 import { migrateDatabase } from "../../src/db/migrate.ts";
 import type { ProjectedMark } from "../../src/ingestion/mark-types.ts";
+import { buildBulkCheckQuery } from "../../src/queries/bulk-check.ts";
 import { readTrademarkApplicationActivity } from "../../src/queries/operator-sync-repository.ts";
-import { buildScreenQuery } from "../../src/queries/screen.ts";
 import { buildSearchQueries } from "../../src/queries/search.ts";
 import { createOperatorSyncService } from "../../src/services/operator-sync-service.ts";
 import { authorizedAccess, fakeTmterminalAccess } from "../fake-access.ts";
@@ -322,11 +322,11 @@ function matchTexts(input: Record<string, unknown>) {
   });
 }
 
-function screenQueries(input: Record<string, unknown>) {
+function bulkCheck(input: Record<string, unknown>) {
   return server.inject({
     headers: { "cf-access-jwt-assertion": "interactive-assertion" },
     method: "GET",
-    url: `/api/trpc/marks.screen?input=${encodeURIComponent(JSON.stringify(input))}`,
+    url: `/api/trpc/marks.bulkCheck?input=${encodeURIComponent(JSON.stringify(input))}`,
   });
 }
 
@@ -606,7 +606,7 @@ test("text matching evaluates named documents in one stable snapshot", async () 
 });
 
 test("bulk screening preserves query order and counts live exact and partial matches", async () => {
-  const response = await screenQueries({
+  const response = await bulkCheck({
     queries: [
       { id: "clear", query: "NO MARK LIKE THIS" },
       { id: "exact", query: "TERMINAL" },
@@ -638,7 +638,7 @@ test("bulk screening preserves query order and counts live exact and partial mat
 });
 
 test("bulk screening counts on the punctuation-folded key", async () => {
-  const response = await screenQueries({
+  const response = await bulkCheck({
     queries: [
       { id: "apostrophe", query: "it's fine" },
       { id: "hyphen", query: "ITS-FINE" },
@@ -1233,7 +1233,7 @@ test("representative-scale search modes use exact and trigram indexes", async ()
   expect(liveExact).toContain("mark_live_word_mark_folded_idx");
   expect(livePartial).toContain("mark_live_word_mark_folded_trgm_idx");
   expect(split).toContain("mark_word_mark_folded_idx");
-  const bulk = buildScreenQuery({
+  const bulk = buildBulkCheckQuery({
     queries: [{ id: "plan", query: "needle 042400" }],
     singular: false,
     type: "all",
@@ -1245,7 +1245,7 @@ test("representative-scale search modes use exact and trigram indexes", async ()
   expect(singularExact).toContain("mark_word_mark_singular_idx");
   expect(singularLivePartial).toContain("mark_live_word_mark_folded_trgm_idx");
   expect(singularLivePartial).toContain("mark_live_word_mark_singular_trgm_idx");
-  const singularBulk = buildScreenQuery({
+  const singularBulk = buildBulkCheckQuery({
     queries: [{ id: "plan", query: "needles 042400" }],
     singular: true,
     type: "all",

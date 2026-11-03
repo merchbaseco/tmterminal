@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 
 import {
+  bulkCheckInputSchema,
   listMarksInputSchema,
   matchTextsInputSchema,
-  screenQueriesInputSchema,
 } from "../../src/api/marks-input.ts";
 import { searchInputSchema } from "../../src/api/search-input.ts";
 
@@ -74,7 +74,7 @@ test("text matching rejects listing text beyond its explicit input boundaries", 
 
 test("bulk screening accepts ordered unique phrase ids", () => {
   expect(
-    screenQueriesInputSchema.parse({
+    bulkCheckInputSchema.parse({
       queries: [
         { id: "a", query: "TERMINAL CLUB" },
         { id: "b", query: "  café  " },
@@ -89,7 +89,7 @@ test("bulk screening accepts ordered unique phrase ids", () => {
     type: "all",
   });
   expect(
-    screenQueriesInputSchema.safeParse({
+    bulkCheckInputSchema.safeParse({
       queries: [
         { id: "a", query: "one" },
         { id: "a", query: "two" },

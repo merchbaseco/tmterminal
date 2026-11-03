@@ -10,13 +10,13 @@ import type {
   SyncService,
 } from "./contracts.ts";
 import {
+  bulkCheckInputSchema,
   listMarksInputSchema,
   markIdentitySchema,
   matchTextsInputSchema,
-  screenQueriesInputSchema,
-  screenTextInputSchema,
+  screenInputSchema,
 } from "./marks-input.ts";
-import { summarizeScreenedText } from "./screen-text.ts";
+import { screenTexts } from "./screen-text.ts";
 import { searchInputSchema } from "./search-input.ts";
 
 export interface AppContext {
@@ -60,6 +60,9 @@ const accountRouter = t.router({
 });
 
 const marksRouter = t.router({
+  bulkCheck: t.procedure
+    .input(bulkCheckInputSchema)
+    .query(({ ctx, input }) => ctx.marks.bulkCheck(input)),
   get: t.procedure.input(markIdentitySchema).query(async ({ ctx, input }) => {
     const mark = await ctx.marks.get(input);
     if (!mark) {
@@ -80,17 +83,8 @@ const marksRouter = t.router({
   }),
   match: t.procedure.input(matchTextsInputSchema).query(({ ctx, input }) => ctx.marks.match(input)),
   screen: t.procedure
-    .input(screenQueriesInputSchema)
-    .query(({ ctx, input }) => ctx.marks.screen(input)),
-  screenText: t.procedure.input(screenTextInputSchema).query(async ({ ctx, input }) =>
-    summarizeScreenedText(
-      await ctx.marks.match({
-        singular: input.singular,
-        texts: [{ id: "text", text: input.text }],
-        type: input.type,
-      })
-    )
-  ),
+    .input(screenInputSchema)
+    .query(({ ctx, input }) => screenTexts(ctx.marks, input)),
   search: t.procedure.input(searchInputSchema).query(async ({ ctx, input }) => {
     try {
       return await ctx.marks.search(input);

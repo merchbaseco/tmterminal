@@ -27,6 +27,7 @@ Preconditions:
 - Empty submit: Click `Bulk check` with no phrases. Observable: `Add a phrase`; no navigator.
 - Submit: Paste the three Cloud lines and click `Bulk check`. Observable: heading `Bulk trademark check`; `Checked phrases` navigator lists each line; `GNOME` is selected (first phrase with a live match, not the first line if a earlier line is empty of live hits — `GNOME` is first here); `Trademark results for GNOME` with a non-zero total. `ZZZXQNOTAMARK` shows no live matches.
 - Navigator: Click `HARVEST`. Observable: the result section becomes `Trademark results for HARVEST`; the navigator selection moves; you do not get a second stacked list.
+- Options: `Check options` under the action shows `Singular` (checked) and `Type: All`. Changing either reruns the counts, and the selected phrase's results use the same options.
 - Open mark: Open a `HARVEST` row, then `Back to results`. Observable: Bulk Check results for `HARVEST` return, not an empty Search Marks page.
 
 ## Gotchas

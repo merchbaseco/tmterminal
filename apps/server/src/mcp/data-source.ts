@@ -1,7 +1,6 @@
 import type {
   MarkDetail,
-  MatchTextsInput,
-  ScreenTextInput,
+  ScreenInput,
   ScreenTextResult,
   ScreenTextsResult,
   SearchInput,
@@ -9,13 +8,11 @@ import type {
 } from "../api/contracts.ts";
 import type { AppContext } from "../api/router.ts";
 import { authenticatedClientRouter } from "../api/router.ts";
-import { summarizeScreenedTexts } from "../api/screen-text.ts";
 
 export interface TmterminalMcpDataSource {
   trademarks: {
     get: (input: { registrationNumber: string } | { serialNumber: string }) => Promise<MarkDetail>;
-    screen: (input: ScreenTextInput) => Promise<ScreenTextResult>;
-    screenTexts: (input: MatchTextsInput) => Promise<ScreenTextsResult>;
+    screen: (input: ScreenInput) => Promise<ScreenTextResult | ScreenTextsResult>;
     search: (input: SearchInput) => Promise<SearchPage>;
   };
 }
@@ -26,8 +23,7 @@ export function createTmterminalMcpDataSource(context: AppContext): TmterminalMc
   return {
     trademarks: {
       get: caller.marks.get,
-      screen: caller.marks.screenText,
-      screenTexts: async (input) => summarizeScreenedTexts(await caller.marks.match(input)),
+      screen: caller.marks.screen,
       search: caller.marks.search,
     },
   };

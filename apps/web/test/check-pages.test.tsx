@@ -7,7 +7,7 @@ if (!GlobalRegistrator.isRegistered) {
 Element.prototype.getAnimations ??= () => [];
 
 const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
-const { cleanup, fireEvent, render, screen } = await import("@testing-library/react");
+const { cleanup, fireEvent, render, screen, waitFor } = await import("@testing-library/react");
 const { afterEach, expect, test } = await import("bun:test");
 const { BulkCheckPage } = await import("../src/bulk-check-page.tsx");
 const { CheckTextPage } = await import("../src/check-text-page.tsx");
@@ -115,7 +115,9 @@ test("checks text, filters from its highlight, and opens a canonical result row"
     })
   );
   expect(opened).toEqual(["70000001"]);
-  expect(restoreStates).toEqual([{ kind: "text", singular: true, text: "Terminal Club shirts" }]);
+  expect(restoreStates).toEqual([
+    { kind: "text", options: { singular: true, type: "all" }, text: "Terminal Club shirts" },
+  ]);
 
   fireEvent.click(screen.getByRole("checkbox", { name: "Singular" }));
   await screen.findByRole("button", { name: "Terminal Club, 1 matching trademark" });
@@ -131,7 +133,7 @@ test("checks text, filters from its highlight, and opens a canonical result row"
 });
 
 test("screens named phrases and shows canonical results for the selected phrase", async () => {
-  const inputs: Parameters<BulkCheckApi["screen"]>[0][] = [];
+  const inputs: Parameters<BulkCheckApi["bulkCheck"]>[0][] = [];
   const searches: Parameters<BulkCheckApi["search"]>[0][] = [];
   const opened: string[] = [];
   const restoreStates: unknown[] = [];
@@ -140,7 +142,7 @@ test("screens named phrases and shows canonical results for the selected phrase"
     restoreStates.push(restoreState);
   };
   const api: BulkCheckApi = {
-    screen: (input) => {
+    bulkCheck: (input) => {
       inputs.push(input);
       return Promise.resolve({
         meta: { dataVersion: "7" },
@@ -214,8 +216,8 @@ test("screens named phrases and shows canonical results for the selected phrase"
   expect(restoreStates).toEqual([
     {
       kind: "bulk",
+      options: { singular: true, type: "all" },
       selectedQueryId: "line-1",
-      singular: true,
       value: "Terminal Club\nOcean Supply",
     },
   ]);
@@ -224,6 +226,17 @@ test("screens named phrases and shows canonical results for the selected phrase"
   await screen.findByRole("link", { name: "TERMINAL CLUB, Live, serial number 70000001" });
   expect(inputs.at(-1)?.singular).toBe(false);
   expect(searches.at(-1)).toMatchObject({ query: "Terminal Club", singular: false });
+
+  fireEvent.click(screen.getByRole("button", { name: "Type: All" }));
+  fireEvent.click(await screen.findByRole("menuitemradio", { name: "Other" }));
+  await waitFor(() => expect(inputs.at(-1)).toMatchObject({ singular: false, type: "other" }));
+  await waitFor(() =>
+    expect(searches.at(-1)).toMatchObject({
+      query: "Terminal Club",
+      singular: false,
+      type: "other",
+    })
+  );
 
   fireEvent.click(screen.getByRole("button", { name: "Ocean Supply, no live matches" }));
   expect(await screen.findByText("No live matches")).toBeTruthy();
@@ -239,7 +252,7 @@ test("screens named phrases and shows canonical results for the selected phrase"
 
 test("restores submitted check tools after returning from trademark detail", async () => {
   const matchInputs: Parameters<TextCheckApi["match"]>[0][] = [];
-  const screenInputs: Parameters<BulkCheckApi["screen"]>[0][] = [];
+  const screenInputs: Parameters<BulkCheckApi["bulkCheck"]>[0][] = [];
   const textApi: TextCheckApi = {
     match: (input) => {
       matchInputs.push(input);
@@ -250,7 +263,7 @@ test("restores submitted check tools after returning from trademark detail", asy
     },
   };
   const bulkApi: BulkCheckApi = {
-    screen: (input) => {
+    bulkCheck: (input) => {
       screenInputs.push(input);
       return Promise.resolve({
         meta: { dataVersion: "7" },
@@ -276,7 +289,11 @@ test("restores submitted check tools after returning from trademark detail", asy
     const textView = renderPage(
       <CheckTextPage
         api={textApi}
-        initialState={{ kind: "text", singular: false, text: "Restored title" }}
+        initialState={{
+          kind: "text",
+          options: { singular: false, type: "text" },
+          text: "Restored title",
+        }}
         onNavigate={ignoreNavigation}
         onOpenMark={onOpenMark}
         restoreScrollOffset={240}
@@ -286,7 +303,7 @@ test("restores submitted check tools after returning from trademark detail", asy
     const restoredText = screen.getByLabelText("Text to check") as HTMLInputElement;
     expect(restoredText.value).toBe("Restored title");
     expect(matchInputs).toEqual([
-      { singular: false, texts: [{ id: "text", text: "Restored title" }], type: "all" },
+      { singular: false, texts: [{ id: "text", text: "Restored title" }], type: "text" },
     ]);
     expect((screen.getByRole("checkbox", { name: "Singular" }) as HTMLInputElement).checked).toBe(
       false
@@ -302,8 +319,8 @@ test("restores submitted check tools after returning from trademark detail", asy
         api={bulkApi}
         initialState={{
           kind: "bulk",
+          options: { singular: true, type: "all" },
           selectedQueryId: "line-2",
-          singular: true,
           value: "First phrase\nSecond phrase",
         }}
         onNavigate={ignoreNavigation}
@@ -341,9 +358,9 @@ test("restores submitted check tools after returning from trademark detail", asy
 
 test("refreshes screening when pinned bulk results conflict", async () => {
   let dataVersion = "7";
-  const screenInputs: Parameters<BulkCheckApi["screen"]>[0][] = [];
+  const screenInputs: Parameters<BulkCheckApi["bulkCheck"]>[0][] = [];
   const api: BulkCheckApi = {
-    screen: (input) => {
+    bulkCheck: (input) => {
       screenInputs.push(input);
       return Promise.resolve({
         meta: { dataVersion },
@@ -389,9 +406,9 @@ test("refreshes screening when pinned bulk results conflict", async () => {
 });
 
 test("does not silently truncate a bulk check over 100 phrases", () => {
-  const inputs: Parameters<BulkCheckApi["screen"]>[0][] = [];
+  const inputs: Parameters<BulkCheckApi["bulkCheck"]>[0][] = [];
   const api: BulkCheckApi = {
-    screen: (input) => {
+    bulkCheck: (input) => {
       inputs.push(input);
       return Promise.resolve({ meta: { dataVersion: "7" }, queries: [] });
     },

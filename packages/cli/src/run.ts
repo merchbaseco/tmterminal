@@ -5,6 +5,7 @@ import { type CliCommand, parseCli } from "./program.js";
 
 const defaultOrigin = "https://tmterminal-api.merchbase.co";
 const unicodeWordTokens = /[\p{Letter}\p{Mark}\p{Number}]+/gu;
+const lineBreakPattern = /\r?\n/u;
 
 export interface Keychain {
   clear: () => Promise<void>;
@@ -92,18 +93,54 @@ function remoteFailure(error: unknown) {
   return error instanceof TmterminalError ? failureResult(error.code, error.message) : null;
 }
 
-function screenInput(invocation: Extract<CliCommand, { kind: "screen" }>, stdin: string) {
-  const text = invocation.readsStdin ? stdin : (invocation.text ?? "");
-  if (text.trim().length === 0) {
-    throw new BadRequestError("Screen text is required");
+function screen(
+  client: CliClient,
+  invocation: Extract<CliCommand, { kind: "screen" }>,
+  stdin: string
+) {
+  const texts = invocation.readsStdin ? [stdin] : invocation.texts;
+  if (texts.length > 100) {
+    throw new BadRequestError("Screen accepts at most 100 texts");
   }
-  if (text.length > 4096) {
-    throw new BadRequestError("Screen text must contain at most 4096 UTF-16 code units");
+  for (const text of texts) {
+    if (text.trim().length === 0) {
+      throw new BadRequestError("Screen text is required");
+    }
+    if (text.length > 4096) {
+      throw new BadRequestError("Screen text must contain at most 4096 UTF-16 code units");
+    }
+    if ((text.match(unicodeWordTokens) ?? []).length > 128) {
+      throw new BadRequestError("Screen text must contain at most 128 Unicode word tokens");
+    }
   }
-  if ((text.match(unicodeWordTokens) ?? []).length > 128) {
-    throw new BadRequestError("Screen text must contain at most 128 Unicode word tokens");
+  const { singular, type } = invocation;
+  const [text] = texts;
+  // Several texts are named by their position, starting at 1.
+  return texts.length === 1 && text !== undefined
+    ? client.trademarks.screen({ singular, text, type })
+    : client.trademarks.screen({
+        singular,
+        texts: texts.map((value, index) => ({ id: String(index + 1), text: value })),
+        type,
+      });
+}
+
+function bulkCheckInput(invocation: Extract<CliCommand, { kind: "bulk-check" }>, stdin: string) {
+  const phrases = (invocation.readsStdin ? stdin.split(lineBreakPattern) : invocation.phrases)
+    .map((phrase) => phrase.trim())
+    .filter(Boolean);
+  if (phrases.length === 0 || phrases.length > 100) {
+    throw new BadRequestError("Bulk check takes between 1 and 100 phrases");
   }
-  return { singular: invocation.singular, text, type: invocation.type };
+  if (phrases.some((phrase) => phrase.length > 200)) {
+    throw new BadRequestError("Each phrase must contain at most 200 characters");
+  }
+  // Ids match the website's Bulk Check lines.
+  return {
+    queries: phrases.map((query, index) => ({ id: `line-${index + 1}`, query })),
+    singular: invocation.singular,
+    type: invocation.type,
+  };
 }
 
 export async function runCli(args: string[], dependencies: CliDependencies): Promise<CliResult> {
@@ -133,6 +170,12 @@ export async function runCli(args: string[], dependencies: CliDependencies): Pro
 
     const authenticated = await authenticatedClient(dependencies, parsed.baseUrl);
     switch (invocation.kind) {
+      case "bulk-check":
+        return success(
+          await authenticated.client.trademarks.bulkCheck(
+            bulkCheckInput(invocation, dependencies.stdin)
+          )
+        );
       case "auth-status": {
         const account = await authenticated.client.account.get();
         if (account.credential.type !== "api-key") {
@@ -153,9 +196,7 @@ export async function runCli(args: string[], dependencies: CliDependencies): Pro
       case "search":
         return success(await authenticated.client.trademarks.search(invocation.input));
       case "screen":
-        return success(
-          await authenticated.client.trademarks.screen(screenInput(invocation, dependencies.stdin))
-        );
+        return success(await screen(authenticated.client, invocation, dependencies.stdin));
       default:
         throw new CliError("INTERNAL_ERROR", "Unsupported command");
     }

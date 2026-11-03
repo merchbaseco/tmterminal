@@ -1,13 +1,26 @@
 import { expect, test } from "bun:test";
 
-import type { MarkSummary, MatchTextsResult } from "../../src/api/contracts.ts";
-import { summarizeScreenedText, summarizeScreenedTexts } from "../../src/api/screen-text.ts";
+import type { MarkSummary, MatchTextsInput, MatchTextsResult } from "../../src/api/contracts.ts";
+import { screenTexts } from "../../src/api/screen-text.ts";
 
 const first = { serialNumber: "70000001", wordMark: "TERMINAL CLUB" } as MarkSummary;
 const second = { serialNumber: "70000002", wordMark: "CLUB" } as MarkSummary;
 
-test("summarizes screened text as first-seen unique trademarks", () => {
-  const result = {
+function matcher(result: MatchTextsResult) {
+  const inputs: MatchTextsInput[] = [];
+  return {
+    inputs,
+    marks: {
+      match: (input: MatchTextsInput) => {
+        inputs.push(input);
+        return Promise.resolve(result);
+      },
+    },
+  };
+}
+
+test("screens one text as first-seen unique trademarks", async () => {
+  const { inputs, marks } = matcher({
     meta: { dataVersion: "7" },
     texts: [
       {
@@ -19,16 +32,30 @@ test("summarizes screened text as first-seen unique trademarks", () => {
         text: "Terminal Club shirt",
       },
     ],
-  } satisfies MatchTextsResult;
+  });
 
-  expect(summarizeScreenedText(result)).toEqual({
+  expect(
+    await screenTexts(marks, { singular: false, text: "Terminal Club shirt", type: "text" })
+  ).toEqual({
     meta: { dataVersion: "7" },
     trademarks: [first, second],
   });
+  expect(inputs).toEqual([
+    { singular: false, texts: [{ id: "text", text: "Terminal Club shirt" }], type: "text" },
+  ]);
 });
 
-test("summarizes each named text as its own first-seen unique trademarks", () => {
-  const result = {
+test("screens each named text as its own first-seen unique trademarks", async () => {
+  const input = {
+    singular: true,
+    texts: [
+      { id: "a", text: "Terminal Club shirt" },
+      { id: "b", text: "Club" },
+      { id: "c", text: "mug" },
+    ],
+    type: "all",
+  } satisfies MatchTextsInput;
+  const { inputs, marks } = matcher({
     meta: { dataVersion: "7" },
     texts: [
       {
@@ -42,9 +69,9 @@ test("summarizes each named text as its own first-seen unique trademarks", () =>
       { id: "b", matches: [{ end: 4, start: 0, trademarks: [second] }], text: "Club" },
       { id: "c", matches: [], text: "mug" },
     ],
-  } satisfies MatchTextsResult;
+  });
 
-  expect(summarizeScreenedTexts(result)).toEqual({
+  expect(await screenTexts(marks, input)).toEqual({
     meta: { dataVersion: "7" },
     texts: [
       { id: "a", trademarks: [first, second] },
@@ -52,4 +79,5 @@ test("summarizes each named text as its own first-seen unique trademarks", () =>
       { id: "c", trademarks: [] },
     ],
   });
+  expect(inputs).toEqual([input]);
 });

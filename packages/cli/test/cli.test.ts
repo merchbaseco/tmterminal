@@ -443,11 +443,77 @@ test("screen accepts explicit text or stdin and returns only unique matching tra
   );
   await runCli(["screen", "--stdin", "--no-singular"], authenticated(createClient, { stdin }));
 
+  await runCli(
+    ["screen", "--text", "Kitten Nuggets", "--text", "Milk And Cookies"],
+    authenticated(createClient)
+  );
+  const both = await runCli(
+    ["screen", "--text", "shirt", "--stdin"],
+    authenticated(createClient, { stdin })
+  );
+
   expect(inputs).toEqual([
     { singular: true, text: "🐢 Cafe\u0301", type: "text" },
     { singular: false, text: stdin, type: "all" },
+    {
+      singular: true,
+      texts: [
+        { id: "1", text: "Kitten Nuggets" },
+        { id: "2", text: "Milk And Cookies" },
+      ],
+      type: "all",
+    },
   ]);
   expect(json(explicit)).toEqual({ data, ok: true });
+  expect(json(both).error.message).toBe("Supply --text or --stdin, not both");
+});
+
+test("bulk-check counts phrases from flags or stdin lines", async () => {
+  const inputs: unknown[] = [];
+  const data = { meta: { dataVersion: "7" }, queries: [] };
+  const createClient = () =>
+    asClient({
+      trademarks: {
+        bulkCheck: (input: unknown) => {
+          inputs.push(input);
+          return Promise.resolve(data);
+        },
+      },
+    });
+
+  const flagged = await runCli(
+    ["bulk-check", "--phrase", "Kitten Nuggets", "--phrase", "Ocean Supply", "--type", "text"],
+    authenticated(createClient)
+  );
+  await runCli(
+    ["bulk-check", "--stdin", "--no-singular"],
+    authenticated(createClient, { stdin: "Kitten Nuggets\r\n\n  Ocean Supply  \n" })
+  );
+  const empty = await runCli(
+    ["bulk-check", "--stdin"],
+    authenticated(createClient, { stdin: "\n \n" })
+  );
+
+  expect(inputs).toEqual([
+    {
+      queries: [
+        { id: "line-1", query: "Kitten Nuggets" },
+        { id: "line-2", query: "Ocean Supply" },
+      ],
+      singular: true,
+      type: "text",
+    },
+    {
+      queries: [
+        { id: "line-1", query: "Kitten Nuggets" },
+        { id: "line-2", query: "Ocean Supply" },
+      ],
+      singular: false,
+      type: "all",
+    },
+  ]);
+  expect(json(flagged)).toEqual({ data, ok: true });
+  expect(json(empty).error.message).toBe("Bulk check takes between 1 and 100 phrases");
 });
 
 test("typed remote errors preserve code and message on stderr", async () => {

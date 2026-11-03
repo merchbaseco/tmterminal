@@ -25,6 +25,7 @@ Preconditions:
 - Compose: Open `/check`. Observable: masthead, `Check text` current in `Search mode`, placeholder `Paste a title, description, or block of copy`, action `Check text`.
 - Empty submit: Click `Check text` with the field blank. Observable: label becomes `Paste some text`; no result summary.
 - Submit: Paste the Cloud sentence and click `Check text`. Observable: heading `Trademark matches in checked text` (screen-reader); checked text region `Checked text with trademark matches`; `Text check results` with a trademark count and `Live exact` > 0; `Live partial` is `0` (text matching returns exact phrase occurrences). At least one `GNOME` row on the seed.
+- Options: Under the composer, `Check options` shows `Singular` (checked) and `Type: All`. Unchecking Singular or picking a Type reruns the check on the same text.
 - Highlight: Click a highlighted passage. Observable: the result list narrows to the marks behind that passage; clicking it again restores every distinct mark.
 - Open mark: Open one row, then `Back to results`. Observable: the checked text and list return; you do not land on an empty Search Marks page.
 

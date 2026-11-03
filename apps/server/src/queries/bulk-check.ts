@@ -1,25 +1,22 @@
 import type postgres from "postgres";
 
-import type { ScreenQueriesInput, ScreenQueriesResult } from "../api/contracts.ts";
+import type { BulkCheckInput, BulkCheckResult } from "../api/contracts.ts";
 import { foldedMatchKeySql, matchKeySql } from "../db/match-keys.ts";
 import { readDataSnapshot } from "./data-snapshot.ts";
 import { markTypeSql } from "./mark-page.ts";
 
-interface ScreenRow {
+interface BulkCheckRow {
   id: string;
   liveExact: number;
   livePartial: number;
   query: string;
 }
 
-export function screenQueries(
-  database: postgres.Sql,
-  input: ScreenQueriesInput
-): Promise<ScreenQueriesResult> {
+export function bulkCheck(database: postgres.Sql, input: BulkCheckInput): Promise<BulkCheckResult> {
   return database.begin("isolation level repeatable read read only", async (transaction) => {
     const snapshot = await readDataSnapshot(transaction);
-    const query = buildScreenQuery(input);
-    const rows = await transaction.unsafe<ScreenRow[]>(query.text, query.values);
+    const query = buildBulkCheckQuery(input);
+    const rows = await transaction.unsafe<BulkCheckRow[]>(query.text, query.values);
 
     return {
       meta: snapshot,
@@ -35,9 +32,9 @@ export function screenQueries(
   });
 }
 
-// A singular screen keeps every literal match: a mark containing the folded query, or whose
+// A singular Bulk Check keeps every literal match: a mark containing the folded query, or whose
 // singular key contains the query's.
-export function buildScreenQuery(input: ScreenQueriesInput) {
+export function buildBulkCheckQuery(input: BulkCheckInput) {
   const typePredicate = input.type === "all" ? "" : `and ${markTypeSql} = $2`;
   const values =
     input.type === "all"

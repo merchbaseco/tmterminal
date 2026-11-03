@@ -1,10 +1,12 @@
 # Trademark Terminal CLI Changelog
 
-## v5.1.0 - 2026-11-03
+## v6.0.0 - 2026-11-03
 
-- `tt screen` matches plural words as singular marks, so `Kitten Nuggets` finds KITTEN NUGGET. Pass `--no-singular` to match the words as written.
+- Breaking: the HTTP client's `trademarks.screen` calls the server's `marks.screen`, which replaces `marks.screenText`. It takes one `text` or up to 100 named `texts`; named texts return `texts: [{ id, trademarks }]`.
+- `tt bulk-check` and `client.trademarks.bulkCheck` return live exact and partial counts per phrase, like the website's Bulk Check.
+- Repeat `tt screen --text` to screen several texts in one call.
+- `tt screen` and `tt bulk-check` match plural words as singular marks, so `Kitten Nuggets` finds KITTEN NUGGET. Pass `--no-singular` to match the words as written.
 - `tt search --singular` does the same for Multi and Split.
-- The HTTP client's `screen`, `match`, and `search` inputs take `singular`.
 
 ## v5.0.1 - 2026-10-30
 

@@ -11,11 +11,16 @@ import {
   useState,
 } from "react";
 import type { AppRouter } from "../../server/src/api/router.ts";
+import {
+  CheckOptions,
+  type CheckOptionValues,
+  defaultCheckOptions,
+  submittedCheckOptions,
+} from "./check-options.tsx";
 import { type HighlightTone, highlightTones } from "./highlight-tones.ts";
 import { LegalFooter } from "./legal-footer.tsx";
 import { SearchComposer, SearchMasthead } from "./search-composer.tsx";
 import { defaultSearchPreferences, type SearchPreferences } from "./search-preferences.ts";
-import { SingularOption } from "./singular-option.tsx";
 import { TextHighlight } from "./text-highlight.tsx";
 import {
   TrademarkEmptyState,
@@ -45,8 +50,12 @@ export interface TextCheckApi {
 
 export interface TextCheckRestoreState {
   kind: "text";
-  singular: boolean;
+  options: CheckOptionValues;
   text: string;
+}
+
+function matchInput(text: string, options: CheckOptionValues): MatchInput {
+  return { ...options, texts: [{ id: "text", text }] };
 }
 
 export function CheckTextPage({
@@ -69,7 +78,9 @@ export function CheckTextPage({
   restoreScrollOffset?: number;
 }) {
   const [text, setText] = useState(initialState ? initialState.text : "");
-  const [singular, setSingular] = useState(initialState ? initialState.singular : true);
+  const [options, setOptions] = useState<CheckOptionValues>(
+    initialState ? initialState.options : defaultCheckOptions
+  );
   const [selectedHighlight, setSelectedHighlight] = useState<string | null>(null);
   const restored = useRef(false);
   const scrollRestored = useRef(false);
@@ -92,11 +103,7 @@ export function CheckTextPage({
       return;
     }
     restored.current = true;
-    mutation.mutate({
-      singular: initialState.singular,
-      texts: [{ id: "text", text: initialState.text }],
-      type: "all",
-    });
+    mutation.mutate(matchInput(initialState.text, initialState.options));
   }, [initialState, mutation]);
 
   useLayoutEffect(() => {
@@ -122,31 +129,28 @@ export function CheckTextPage({
       if (!text.trim()) {
         return;
       }
-      mutation.mutate({ singular, texts: [{ id: "text", text }], type: "all" });
+      mutation.mutate(matchInput(text, options));
     },
-    [mutation, singular, text]
+    [mutation, options, text]
   );
-  const changeSingular = useCallback(
-    (checked: boolean) => {
-      setSingular(checked);
+  const changeOptions = useCallback(
+    (nextOptions: CheckOptionValues) => {
+      setOptions(nextOptions);
       if (result) {
-        mutation.mutate({
-          singular: checked,
-          texts: [{ id: "text", text: result.text }],
-          type: "all",
-        });
+        mutation.mutate(matchInput(result.text, nextOptions));
       }
     },
     [mutation, result]
   );
+  const checkedOptions = submittedCheckOptions(mutation.variables, options);
   const openMark = useCallback(
     (serialNumber: string, scrollOffset: number) =>
       onOpenMark(serialNumber, scrollOffset, {
         kind: "text",
-        singular: mutation.variables?.singular ?? singular,
+        options: checkedOptions,
         text: result?.text ?? text,
       }),
-    [mutation.variables?.singular, onOpenMark, result?.text, singular, text]
+    [checkedOptions, onOpenMark, result?.text, text]
   );
 
   return (
@@ -169,7 +173,7 @@ export function CheckTextPage({
           startOverLabel={result ? "Check different text" : undefined}
           value={text}
         />
-        <SingularOption checked={singular} onCheckedChange={changeSingular} />
+        <CheckOptions onChange={changeOptions} value={options} />
       </div>
 
       {mutation.error ? (

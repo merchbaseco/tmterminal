@@ -190,17 +190,17 @@ mock.module("@trpc/client", () => ({
       },
     },
     marks: {
+      bulkCheck: {
+        query: async () => ({
+          meta: { dataVersion: "7" },
+          queries: [],
+        }),
+      },
       get: { query: () => Promise.resolve(mark) },
       match: {
         query: async () => ({
           meta: { dataVersion: "7" },
           texts: [],
-        }),
-      },
-      screen: {
-        query: async () => ({
-          meta: { dataVersion: "7" },
-          queries: [],
         }),
       },
       search: {

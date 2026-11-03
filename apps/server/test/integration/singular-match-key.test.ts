@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import postgres from "postgres";
 import {
+  bulkCheckInputSchema,
   matchTextsInputSchema,
-  screenQueriesInputSchema,
-  screenTextInputSchema,
+  screenInputSchema,
 } from "../../src/api/marks-input.ts";
-import { summarizeScreenedText } from "../../src/api/screen-text.ts";
+import { screenTexts } from "../../src/api/screen-text.ts";
 import { searchInputSchema } from "../../src/api/search-input.ts";
 import { foldedMatchKeySql, matchKeySql } from "../../src/db/match-keys.ts";
 import { migrateDatabase } from "../../src/db/migrate.ts";
@@ -134,13 +134,11 @@ test("screens match plural spans against singular marks unless singular is false
     );
   };
   const screened = async (input: Record<string, unknown>) => {
-    const { singular, text: screenedText, type } = screenTextInputSchema.parse(input);
-    const result = await marks.match({
-      singular,
-      texts: [{ id: "text", text: screenedText }],
-      type,
-    });
-    return serialNumbers(summarizeScreenedText(result).trademarks);
+    const result = await screenTexts(marks, screenInputSchema.parse(input));
+    if (!("trademarks" in result)) {
+      throw new Error("One text screens to one trademark list");
+    }
+    return serialNumbers(result.trademarks);
   };
 
   expect(await spans({})).toEqual([
@@ -160,7 +158,7 @@ test("singular bulk screening counts equal their singular Multi drill-down", asy
     { id: "literal", query: "nuggets bakery" },
   ];
   const counts = async (singular: boolean) => {
-    const result = await marks.screen(screenQueriesInputSchema.parse({ queries, singular }));
+    const result = await marks.bulkCheck(bulkCheckInputSchema.parse({ queries, singular }));
     return result.queries.map(({ liveMatches }) => liveMatches);
   };
   const drillDowns = (singular: boolean) =>
@@ -185,7 +183,7 @@ test("singular bulk screening counts equal their singular Multi drill-down", asy
   ]);
   expect(await drillDowns(true)).toEqual(await counts(true));
   expect(await drillDowns(false)).toEqual(await counts(false));
-  expect(screenQueriesInputSchema.parse({ queries }).singular).toBe(true);
+  expect(bulkCheckInputSchema.parse({ queries }).singular).toBe(true);
   expect(searchInputSchema.parse({ mode: "multi", query: "cats" }).singular).toBe(false);
 });
 

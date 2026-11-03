@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import type { AppRouter } from "../../server/src/api/router.ts";
 import { ComposerScrim } from "./composer-scrim.tsx";
 import { LegalFooter } from "./legal-footer.tsx";
+import { isMarkTypeFilter, type MarkTypeFilter, markTypeOptions } from "./mark-type-options.ts";
 import { SearchComposer, SearchMasthead } from "./search-composer.tsx";
 import { SearchOptionSelect } from "./search-option-select.tsx";
 import { defaultSearchPreferences, type SearchPreferences } from "./search-preferences.ts";
@@ -40,15 +41,18 @@ export interface SearchApi {
   search: (input: SearchInput) => Promise<SearchPageResult>;
 }
 
+type SearchMode = "multi" | "split" | "wildcard";
+
 interface SearchState {
   exact: boolean;
+  mode: SearchMode;
   partial: boolean;
   query: string;
   registered: "all" | "yes" | "no";
   singular: boolean;
   sort: "relevance" | "newest-activity" | "oldest-activity";
   status: "all" | "live" | "dead";
-  type: "all" | "design" | "typeset" | "text";
+  type: MarkTypeFilter;
 }
 
 const matchLabels = { exact: "", partial: "Partial" } as const;
@@ -63,16 +67,20 @@ const sortOptions = [
   { label: "Newest activity", value: "newest-activity" },
   { label: "Oldest activity", value: "oldest-activity" },
 ] as const;
+const modeOptions = [
+  { label: "Multi", value: "multi" },
+  { label: "Split", value: "split" },
+  { label: "Wildcard", value: "wildcard" },
+] as const;
+const modePlaceholders = {
+  multi: "Search a word mark",
+  split: "Search every word combination in a phrase",
+  wildcard: "Search a pattern, such as IN * WE TRUST",
+} as const;
 const statusOptions = [
   { label: "All", value: "all" },
   { label: "Live", value: "live" },
   { label: "Dead", value: "dead" },
-] as const;
-const typeOptions = [
-  { label: "All", value: "all" },
-  { label: "Design", value: "design" },
-  { label: "Typeset", value: "typeset" },
-  { label: "Text", value: "text" },
 ] as const;
 
 function readSearchState(search: string, preferences: SearchPreferences): SearchState {
@@ -83,12 +91,14 @@ function readSearchState(search: string, preferences: SearchPreferences): Search
   const partial = parameters.has("partial")
     ? parameters.get("partial") !== "false"
     : partialDefault;
+  const mode = parameters.get("mode");
   const registered = parameters.get("registered");
   const sort = parameters.get("sort");
   const status = parameters.get("status");
   const type = parameters.get("type");
   return {
     exact,
+    mode: mode === "split" || mode === "wildcard" ? mode : "multi",
     partial: exact || partial ? partial : true,
     query: parameters.get("q")?.trim() ?? "",
     registered:
@@ -104,17 +114,14 @@ function readSearchState(search: string, preferences: SearchPreferences): Search
       status === "all" || status === "live" || status === "dead"
         ? status
         : preferences.defaultStatus,
-    type:
-      type === "all" || type === "design" || type === "typeset" || type === "text"
-        ? type
-        : preferences.defaultType,
+    type: isMarkTypeFilter(type) ? type : preferences.defaultType,
   };
 }
 
 function searchHref(state: SearchState) {
   const parameters = new URLSearchParams({
     exact: String(state.exact),
-    mode: "multi",
+    mode: state.mode,
     partial: String(state.partial),
     q: state.query,
     registered: state.registered,
@@ -133,21 +140,30 @@ function matchFor(state: SearchState): "exact" | "partial" | "both" {
   return state.exact ? "exact" : "partial";
 }
 
-function requestFor(state: SearchState, pageSize: SearchPreferences["pageSize"]) {
-  return {
+function requestFor(state: SearchState, pageSize: SearchPreferences["pageSize"]): SearchInput {
+  const common = {
     limit: pageSize,
-    match: matchFor(state),
-    mode: "multi" as const,
     query: state.query,
     registered: state.registered,
-    singular: state.singular,
     sort: state.sort,
     status: state.status,
     type: state.type,
   };
+  // Match is Multi's alone, and Wildcard matches the pattern literally, without singulars.
+  if (state.mode === "multi") {
+    return { ...common, match: matchFor(state), mode: "multi", singular: state.singular };
+  }
+  return state.mode === "split"
+    ? { ...common, mode: "split", singular: state.singular }
+    : { ...common, mode: "wildcard" };
 }
 
-function searchErrorMessage(code: string | null, conflict: boolean, replacementFailure: boolean) {
+function searchErrorMessage(
+  code: string | null,
+  conflict: boolean,
+  replacementFailure: boolean,
+  mode: SearchMode
+) {
   if (conflict) {
     return "Trademark data changed. Run the search again before continuing.";
   }
@@ -156,6 +172,12 @@ function searchErrorMessage(code: string | null, conflict: boolean, replacementF
   }
   if (code === "SERVICE_UNAVAILABLE" || code === "UPSTREAM_UNAVAILABLE") {
     return "Search is temporarily unavailable. Try again shortly.";
+  }
+  if (code === "BAD_REQUEST" && mode === "wildcard") {
+    return "A pattern with * needs at least three letters or digits in a row.";
+  }
+  if (code === "BAD_REQUEST" && mode === "split") {
+    return "Split needs at least one word.";
   }
   return "Search could not be loaded.";
 }
@@ -405,7 +427,7 @@ export function SearchPage({
           // biome-ignore lint/performance/noJsxPropsBind: The local submit handler reads URL-owned search state.
           onSubmit={submit}
           onValueChange={setDraftQuery}
-          placeholder="Search a word mark"
+          placeholder={modePlaceholders[state.mode]}
           startOverLabel={state.query ? "Start a new search" : undefined}
           value={draftQuery}
         />
@@ -439,7 +461,15 @@ export function SearchPage({
           hidden={!state.query}
           id="search-options"
         >
-          <div className="grid min-w-0 grid-cols-[minmax(14rem,1.4fr)_repeat(3,minmax(7rem,1fr))] max-[48rem]:contents min-[48rem]:[&_[name=registered]]:border-r-0">
+          <div className="grid min-w-0 grid-cols-[minmax(6.5rem,0.8fr)_minmax(8.5rem,1.4fr)_repeat(3,minmax(5rem,1fr))] max-[48rem]:contents max-[48rem]:[&_[name=mode]]:col-span-full max-[48rem]:[&_[name=mode]]:border-r-0 min-[48rem]:[&_[name=registered]]:border-r-0">
+            <SearchOptionSelect
+              label="Mode"
+              name="mode"
+              // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
+              onValueChange={(mode) => updateState({ mode })}
+              options={modeOptions}
+              value={state.mode}
+            />
             {/* biome-ignore lint/a11y/useSemanticElements: A native fieldset legend sits off-grid and breaks the shared filter baseline. */}
             <div
               aria-labelledby="search-match-label"
@@ -452,38 +482,48 @@ export function SearchPage({
               >
                 Match
               </span>
-              <label>
-                <input
-                  checked={state.exact}
-                  disabled={state.exact && !state.partial}
-                  name="exact"
-                  // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
-                  onChange={(event) => updateState({ exact: event.target.checked })}
-                  type="checkbox"
-                />
-                Exact
-              </label>
-              <label>
-                <input
-                  checked={state.partial}
-                  disabled={state.partial && !state.exact}
-                  name="partial"
-                  // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
-                  onChange={(event) => updateState({ partial: event.target.checked })}
-                  type="checkbox"
-                />
-                Partial
-              </label>
-              <label title="Plural words also match singular marks: kitten nuggets finds KITTEN NUGGET.">
-                <input
-                  checked={state.singular}
-                  name="singular"
-                  // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
-                  onChange={(event) => updateState({ singular: event.target.checked })}
-                  type="checkbox"
-                />
-                Singular
-              </label>
+              {state.mode === "multi" ? (
+                <>
+                  <label>
+                    <input
+                      checked={state.exact}
+                      disabled={state.exact && !state.partial}
+                      name="exact"
+                      // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
+                      onChange={(event) => updateState({ exact: event.target.checked })}
+                      type="checkbox"
+                    />
+                    Exact
+                  </label>
+                  <label>
+                    <input
+                      checked={state.partial}
+                      disabled={state.partial && !state.exact}
+                      name="partial"
+                      // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
+                      onChange={(event) => updateState({ partial: event.target.checked })}
+                      type="checkbox"
+                    />
+                    Partial
+                  </label>
+                </>
+              ) : null}
+              {state.mode === "wildcard" ? (
+                <span className="font-semibold text-base text-muted-foreground">
+                  Whole mark, as written
+                </span>
+              ) : (
+                <label title="Plural words also match singular marks: kitten nuggets finds KITTEN NUGGET.">
+                  <input
+                    checked={state.singular}
+                    name="singular"
+                    // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
+                    onChange={(event) => updateState({ singular: event.target.checked })}
+                    type="checkbox"
+                  />
+                  Singular
+                </label>
+              )}
             </div>
             <SearchOptionSelect
               label="Status"
@@ -498,7 +538,7 @@ export function SearchPage({
               name="type"
               // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
               onValueChange={(type) => updateState({ type })}
-              options={typeOptions}
+              options={markTypeOptions}
               value={state.type}
             />
             <SearchOptionSelect
@@ -535,7 +575,12 @@ export function SearchPage({
             )}
             role="alert"
           >
-            {searchErrorMessage(trpcErrorCode(query.error), conflict, replacementFailure)}
+            {searchErrorMessage(
+              trpcErrorCode(query.error),
+              conflict,
+              replacementFailure,
+              state.mode
+            )}
           </p>
           {conflict ? (
             <Button

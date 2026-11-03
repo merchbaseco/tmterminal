@@ -36,6 +36,17 @@ const screened = await client.trademarks.screen({
   type: "all",
 });
 
+const screenedTexts = await client.trademarks.screen({
+  texts: [
+    { id: "title", text: "Kitten Nuggets shirt" },
+    { id: "slogan", text: "Milk And Cookies" },
+  ],
+});
+
+const counts = await client.trademarks.bulkCheck({
+  queries: [{ id: "line-1", query: "Kitten Nuggets" }],
+});
+
 const matches = await client.trademarks.match({
   texts: [
     { id: "title", text: "Terminal Club shirt" },
@@ -46,10 +57,12 @@ const matches = await client.trademarks.match({
 ```
 
 Methods return promises directly. Named input and output types are derived from
-the server router. `screen` returns each matching live trademark once; `match`
-retains named documents and occurrence spans for richer applications. Both
-match plural words as singular marks unless `singular` is `false`; `search`
-does so only with `singular: true`.
+the server router. `screen` returns each matching live trademark once: `trademarks` for one
+`text`, or `texts: [{ id, trademarks }]` for named `texts`. `bulkCheck` returns
+live exact and partial counts per phrase. `match` retains named documents and
+occurrence spans for richer applications. All three match plural words as
+singular marks unless `singular` is `false`; `search` does so only with
+`singular: true`.
 `TmterminalError` is the stable error surface.
 
 ## Authorization

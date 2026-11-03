@@ -104,7 +104,7 @@ export interface MatchTextsResult {
   }>;
 }
 
-export interface ScreenQueriesInput {
+export interface BulkCheckInput {
   queries: Array<{
     id: string;
     query: string;
@@ -113,7 +113,7 @@ export interface ScreenQueriesInput {
   type: "all" | "design" | "typeset" | "text" | "other";
 }
 
-export interface ScreenQueriesResult {
+export interface BulkCheckResult {
   meta: MarkPage["meta"];
   queries: Array<{
     id: string;
@@ -131,6 +131,8 @@ export interface ScreenTextInput {
   type: "all" | "design" | "typeset" | "text" | "other";
 }
 
+export type ScreenInput = ScreenTextInput | MatchTextsInput;
+
 export interface ScreenTextResult {
   meta: MarkPage["meta"];
   trademarks: MarkSummary[];
@@ -145,12 +147,12 @@ export interface ScreenTextsResult {
 }
 
 export interface MarksService {
+  bulkCheck: (input: BulkCheckInput) => Promise<BulkCheckResult>;
   get: (
     identity: { registrationNumber: string } | { serialNumber: string }
   ) => Promise<MarkDetail | null>;
   list: (input: ListMarksInput) => Promise<MarkPage>;
   match: (input: MatchTextsInput) => Promise<MatchTextsResult>;
-  screen: (input: ScreenQueriesInput) => Promise<ScreenQueriesResult>;
   search: (input: SearchInput) => Promise<SearchPage>;
 }
 

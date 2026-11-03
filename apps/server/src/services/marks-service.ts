@@ -2,9 +2,9 @@ import type postgres from "postgres";
 
 import { legalDisclaimer, type MarkDetail, type MarksService } from "../api/contracts.ts";
 import type { ProjectedMark } from "../ingestion/mark-types.ts";
+import { bulkCheck } from "../queries/bulk-check.ts";
 import { listMarks } from "../queries/list-marks.ts";
 import { createMarkRepository } from "../queries/mark-repository.ts";
-import { screenQueries } from "../queries/screen.ts";
 import { searchMarks } from "../queries/search.ts";
 import { matchTexts } from "../queries/text-matches.ts";
 import { markStatusForCode } from "../search/status-policy.ts";
@@ -23,6 +23,7 @@ export function createMarksService(database: postgres.Sql): MarksService {
   }
 
   return {
+    bulkCheck: (input) => bulkCheck(database, input),
     async get(identity) {
       const materialization =
         "serialNumber" in identity
@@ -32,7 +33,6 @@ export function createMarksService(database: postgres.Sql): MarksService {
     },
     list: (input) => listMarks(database, input),
     match: (input) => matchTexts(database, input),
-    screen: (input) => screenQueries(database, input),
     search: (input) => searchMarks(database, input),
   };
 }

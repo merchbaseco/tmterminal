@@ -1,11 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ListToolsRequestSchema, ToolSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import {
-  markIdentitySchema,
-  matchTextsInputSchema,
-  screenTextInputSchema,
-} from "../api/marks-input.ts";
+import { markIdentitySchema, screenInputSchema } from "../api/marks-input.ts";
 import { searchInputSchema } from "../api/search-input.ts";
 import type { TmterminalMcpDataSource } from "./data-source.ts";
 import { runMcpTool } from "./tool-result.ts";
@@ -48,7 +44,7 @@ const tools = {
     annotations: readOnlyAnnotations,
     description:
       "Screen complete listing text against live word marks. Pass text for one document, or texts with up to 100 {id, text} items (ids unique) to screen several in one call. One text returns trademarks: each matching trademark once. Texts returns texts: [{id, trademarks}] in input order, each matching trademark once per text. Every contiguous word span is compared as a whole word mark, ignoring case, compatibility forms, and punctuation: apostrophes are dropped (it's matches ITS) and other punctuation separates words. With singular (default true), plural words also match singular marks on both sides: kitten nuggets matches KITTEN NUGGET, milk and cookies matches MILK AND COOKIE. Returns no source-text positions; failures return a stable Trademark Terminal error.",
-    inputSchema: z.union([screenTextInputSchema, matchTextsInputSchema]),
+    inputSchema: screenInputSchema,
     title: "Screen listing text",
   },
   tmterminal_search: {
@@ -73,9 +69,7 @@ export function createTmterminalMcpServer(source: TmterminalMcpDataSource) {
     runMcpTool(() => source.trademarks.search(input))
   );
   server.registerTool("tmterminal_screen", tools.tmterminal_screen, (input) =>
-    runMcpTool(() =>
-      "texts" in input ? source.trademarks.screenTexts(input) : source.trademarks.screen(input)
-    )
+    runMcpTool(() => source.trademarks.screen(input))
   );
 
   // The SDK validates root unions but only exports root objects in tools/list.

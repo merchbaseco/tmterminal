@@ -11,15 +11,21 @@ prose. Do not invent corpus-era synonyms.
 The single word-mark phrase or wildcard pattern submitted for search.
 _Avoid_: Query list
 
-**Screen Query**:
-One independent word-mark phrase in a Trademark Screen.
-_Avoid_: Listing, Batch search term
+**Bulk Check Phrase**:
+One independent word-mark phrase in a Bulk Check.
+_Avoid_: Screen Query, Listing, Batch search term
 
-**Trademark Screen**:
-An ordered batch of Screen Queries evaluated for live exact and partial match
-counts. It returns evidence for caller-owned policy; it does not declare a
-phrase safe.
-_Avoid_: Bulk query, Listing checker, Safety check
+**Bulk Check**:
+An ordered batch of Bulk Check Phrases evaluated for live exact and partial
+match counts. It returns evidence for caller-owned policy; it does not declare
+a phrase safe.
+_Avoid_: Trademark Screen, Bulk query, Listing checker, Safety check
+
+**Screen**:
+Check one Text Document, or up to 100 named ones, for live word marks. Returns
+each matching trademark once per text, without source positions; a Text Match
+keeps the positions.
+_Avoid_: Safety check
 
 **Search Mode**:
 The interpretation applied to a Search Query: Multi, Split, or Wildcard.

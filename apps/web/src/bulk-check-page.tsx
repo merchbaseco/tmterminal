@@ -12,11 +12,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { AppRouter } from "../../server/src/api/router.ts";
+import {
+  CheckOptions,
+  type CheckOptionValues,
+  defaultCheckOptions,
+  submittedCheckOptions,
+} from "./check-options.tsx";
 import { type HighlightTone, highlightTones } from "./highlight-tones.ts";
 import { LegalFooter } from "./legal-footer.tsx";
 import { SearchComposer, SearchMasthead } from "./search-composer.tsx";
 import { defaultSearchPreferences, type SearchPreferences } from "./search-preferences.ts";
-import { SingularOption } from "./singular-option.tsx";
 import { TextHighlight } from "./text-highlight.tsx";
 import {
   TrademarkEmptyState,
@@ -27,9 +32,9 @@ import { trpcErrorCode } from "./trpc-error-code.ts";
 
 type RouterInputs = inferRouterInputs<AppRouter>;
 type RouterOutputs = inferRouterOutputs<AppRouter>;
-type ScreenInput = RouterInputs["marks"]["screen"];
-type ScreenResult = RouterOutputs["marks"]["screen"];
-type ScreenResultItem = ScreenResult["queries"][number];
+type BulkCheckInput = RouterInputs["marks"]["bulkCheck"];
+type BulkCheckResult = RouterOutputs["marks"]["bulkCheck"];
+type BulkCheckItem = BulkCheckResult["queries"][number];
 type SearchInput = RouterInputs["marks"]["search"];
 type SearchResult = RouterOutputs["marks"]["search"];
 interface SearchPageParam {
@@ -42,14 +47,14 @@ const lineBreakPattern = /\r?\n/u;
 const matchLabels = { exact: "", partial: "Partial" } as const;
 
 export interface BulkCheckApi {
-  screen: (input: ScreenInput) => Promise<ScreenResult>;
+  bulkCheck: (input: BulkCheckInput) => Promise<BulkCheckResult>;
   search: (input: SearchInput) => Promise<SearchResult>;
 }
 
 export interface BulkCheckRestoreState {
   kind: "bulk";
+  options: CheckOptionValues;
   selectedQueryId: string | null;
-  singular: boolean;
   value: string;
 }
 
@@ -90,7 +95,9 @@ export function BulkCheckPage({
   restoreScrollOffset?: number;
 }) {
   const [value, setValue] = useState(initialState ? initialState.value : "");
-  const [singular, setSingular] = useState(initialState ? initialState.singular : true);
+  const [options, setOptions] = useState<CheckOptionValues>(
+    initialState ? initialState.options : defaultCheckOptions
+  );
   const [selectedQueryId, setSelectedQueryId] = useState<string | null>(
     initialState?.selectedQueryId ?? null
   );
@@ -99,7 +106,7 @@ export function BulkCheckPage({
   const queries = useMemo(() => queriesFrom(value), [value]);
   const hasTooManyQueries = queries.length > 100;
   const mutation = useMutation({
-    mutationFn: (input: ScreenInput) => api.screen(input),
+    mutationFn: (input: BulkCheckInput) => api.bulkCheck(input),
     onSuccess: (result) => {
       setSelectedQueryId((current) =>
         current && result.queries.some((item) => item.id === current)
@@ -122,11 +129,7 @@ export function BulkCheckPage({
       return;
     }
     restored.current = true;
-    mutation.mutate({
-      queries: queriesFrom(initialState.value),
-      singular: initialState.singular,
-      type: "all",
-    });
+    mutation.mutate({ ...initialState.options, queries: queriesFrom(initialState.value) });
   }, [initialState, mutation]);
 
   useLayoutEffect(() => {
@@ -150,38 +153,38 @@ export function BulkCheckPage({
       if (queries.length === 0 || hasTooManyQueries) {
         return;
       }
-      mutation.mutate({ queries, singular, type: "all" });
+      mutation.mutate({ ...options, queries });
     },
-    [hasTooManyQueries, mutation, queries, singular]
+    [hasTooManyQueries, mutation, options, queries]
   );
-  const screenedSingular = mutation.variables?.singular ?? singular;
+  const checkedOptions = submittedCheckOptions(mutation.variables, options);
   const openMark = useCallback(
     (serialNumber: string, scrollOffset: number) =>
       onOpenMark(serialNumber, scrollOffset, {
         kind: "bulk",
+        options: checkedOptions,
         selectedQueryId: selectedQuery?.id ?? null,
-        singular: screenedSingular,
         value: mutation.data?.queries.map(({ query }) => query).join("\n") ?? value,
       }),
-    [mutation.data?.queries, onOpenMark, screenedSingular, selectedQuery?.id, value]
+    [checkedOptions, mutation.data?.queries, onOpenMark, selectedQuery?.id, value]
   );
-  const rescreen = useCallback(
-    (nextSingular: boolean) => {
-      const screenedQueries =
+  const recheck = useCallback(
+    (nextOptions: CheckOptionValues) => {
+      const checkedQueries =
         mutation.data?.queries.map(({ id, query }) => ({ id, query })) ?? queries;
-      mutation.mutate({ queries: screenedQueries, singular: nextSingular, type: "all" });
+      mutation.mutate({ ...nextOptions, queries: checkedQueries });
     },
     [mutation, mutation.data?.queries, queries]
   );
-  const refreshScreen = useCallback(() => rescreen(screenedSingular), [rescreen, screenedSingular]);
-  const changeSingular = useCallback(
-    (checked: boolean) => {
-      setSingular(checked);
+  const refreshCheck = useCallback(() => recheck(checkedOptions), [checkedOptions, recheck]);
+  const changeOptions = useCallback(
+    (nextOptions: CheckOptionValues) => {
+      setOptions(nextOptions);
       if (mutation.data) {
-        rescreen(checked);
+        recheck(nextOptions);
       }
     },
-    [mutation.data, rescreen]
+    [mutation.data, recheck]
   );
 
   return (
@@ -205,7 +208,7 @@ export function BulkCheckPage({
           startOverLabel={mutation.data ? "Check different phrases" : undefined}
           value={value}
         />
-        <SingularOption checked={singular} onCheckedChange={changeSingular} />
+        <CheckOptions onChange={changeOptions} value={options} />
         {hasTooManyQueries ? (
           <p className="m-0 border-border border-x border-b px-4 py-3 text-destructive-foreground">
             Bulk check accepts up to 100 phrases.
@@ -234,10 +237,10 @@ export function BulkCheckPage({
               api={api}
               dataVersion={mutation.data.meta.dataVersion}
               item={selectedQuery}
-              onConflict={refreshScreen}
+              onConflict={refreshCheck}
               onOpenMark={openMark}
+              options={checkedOptions}
               preferences={preferences}
-              singular={screenedSingular}
               tone={selectedTone}
             />
           ) : null}
@@ -254,7 +257,7 @@ function PhraseNavigator({
   selectedId,
 }: {
   onSelect: (id: string) => void;
-  queries: ScreenResultItem[];
+  queries: BulkCheckItem[];
   selectedId: string | null;
 }) {
   return (
@@ -289,7 +292,7 @@ function PhraseSelection({
   tone,
 }: {
   active: boolean;
-  item: ScreenResultItem;
+  item: BulkCheckItem;
   onSelect: (id: string) => void;
   tone: HighlightTone;
 }) {
@@ -330,17 +333,17 @@ function BulkTrademarkResults({
   item,
   onConflict,
   onOpenMark,
+  options,
   preferences,
-  singular,
   tone,
 }: {
   api: BulkCheckApi;
   dataVersion: string;
-  item: ScreenResultItem;
+  item: BulkCheckItem;
   onConflict: () => void;
   onOpenMark: (serialNumber: string, scrollOffset: number) => void;
+  options: CheckOptionValues;
   preferences: SearchPreferences;
-  singular: boolean;
   tone: HighlightTone;
 }) {
   const request = useMemo(
@@ -351,12 +354,12 @@ function BulkTrademarkResults({
         mode: "multi",
         query: item.query,
         registered: "all",
-        singular,
+        singular: options.singular,
         sort: "relevance",
         status: "live",
-        type: "all",
+        type: options.type,
       }) as const,
-    [item.query, preferences.pageSize, singular]
+    [item.query, options.singular, options.type, preferences.pageSize]
   );
   const queryKey = useMemo(
     () => ["marks.bulk-search", dataVersion, request] as const,
@@ -471,6 +474,6 @@ function BulkTrademarkResults({
   );
 }
 
-function matchCount(item: ScreenResultItem) {
+function matchCount(item: BulkCheckItem) {
   return item.liveMatches.exact + item.liveMatches.partial;
 }

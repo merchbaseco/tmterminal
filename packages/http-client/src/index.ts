@@ -11,11 +11,22 @@ export type ServiceStatus = InternalOutputs["sync"]["status"];
 export type Trademark = InternalOutputs["marks"]["get"];
 export type TrademarkGetInput = InternalInputs["marks"]["get"];
 export type TrademarkListInput = InternalInputs["marks"]["list"];
+export type TrademarkBulkCheckInput = InternalInputs["marks"]["bulkCheck"];
+export type TrademarkBulkCheckResult = InternalOutputs["marks"]["bulkCheck"];
 export type TrademarkListPage = InternalOutputs["marks"]["list"];
 export type TrademarkMatchInput = InternalInputs["marks"]["match"];
 export type TrademarkMatchResult = InternalOutputs["marks"]["match"];
-export type TrademarkScreenInput = InternalInputs["marks"]["screenText"];
-export type TrademarkScreenResult = InternalOutputs["marks"]["screenText"];
+export type TrademarkScreenInput = InternalInputs["marks"]["screen"];
+export type TrademarkScreenTextInput = Extract<TrademarkScreenInput, { text: string }>;
+export type TrademarkScreenTextsInput = Extract<TrademarkScreenInput, { texts: unknown }>;
+export type TrademarkScreenResult = Extract<
+  InternalOutputs["marks"]["screen"],
+  { trademarks: unknown }
+>;
+export type TrademarkScreenTextsResult = Extract<
+  InternalOutputs["marks"]["screen"],
+  { texts: unknown }
+>;
 export type TrademarkSearchInput = InternalInputs["marks"]["search"];
 export type TrademarkSearchPage = InternalOutputs["marks"]["search"];
 
@@ -27,10 +38,14 @@ export interface TmterminalClient {
     get: () => Promise<ServiceStatus>;
   };
   trademarks: {
+    bulkCheck: (input: TrademarkBulkCheckInput) => Promise<TrademarkBulkCheckResult>;
     get: (input: TrademarkGetInput) => Promise<Trademark>;
     list: (input?: TrademarkListInput) => Promise<TrademarkListPage>;
     match: (input: TrademarkMatchInput) => Promise<TrademarkMatchResult>;
-    screen: (input: TrademarkScreenInput) => Promise<TrademarkScreenResult>;
+    screen: {
+      (input: TrademarkScreenTextInput): Promise<TrademarkScreenResult>;
+      (input: TrademarkScreenTextsInput): Promise<TrademarkScreenTextsResult>;
+    };
     search: (input: TrademarkSearchInput) => Promise<TrademarkSearchPage>;
   };
 }
@@ -109,10 +124,13 @@ export function createTmterminalClient({
       get: () => call(() => client.sync.status.query()),
     },
     trademarks: {
+      bulkCheck: (input) => call(() => client.marks.bulkCheck.query(input)),
       get: (input) => call(() => client.marks.get.query(input)),
       list: (input = {}) => call(() => client.marks.list.query(input)),
       match: (input) => call(() => client.marks.match.query(input)),
-      screen: (input) => call(() => client.marks.screenText.query(input)),
+      // The server answers one text with trademarks and named texts with texts.
+      screen: ((input: TrademarkScreenInput) =>
+        call(() => client.marks.screen.query(input))) as TmterminalClient["trademarks"]["screen"],
       search: (input) => call(() => client.marks.search.query(input)),
     },
   };

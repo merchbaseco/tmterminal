@@ -26,8 +26,16 @@ import type { AppRouter } from "../../server/src/api/router.ts";
 import { AccountMenu } from "./account-menu.tsx";
 import { AccountPage, type AccountPreferencesApi } from "./account-page.tsx";
 import { appearanceChangedEvent, applyAppearance, savedAppearance } from "./appearance.ts";
-import { type BulkCheckApi, BulkCheckPage } from "./bulk-check-page.tsx";
-import { CheckTextPage, type TextCheckApi } from "./check-text-page.tsx";
+import {
+  type BulkCheckApi,
+  BulkCheckPage,
+  type BulkCheckRestoreState,
+} from "./bulk-check-page.tsx";
+import {
+  CheckTextPage,
+  type TextCheckApi,
+  type TextCheckRestoreState,
+} from "./check-text-page.tsx";
 import { LegalFooter } from "./legal-footer.tsx";
 import { type MarkApi, MarkDetailPage } from "./mark-detail-page.tsx";
 import type { OperatorSyncApi, PublicStatusApi } from "./operator-sync-page.tsx";
@@ -37,9 +45,7 @@ import { defaultSearchPreferences, type SearchPreferences } from "./search-prefe
 import { useSession } from "./session.tsx";
 import { StatusPageSkeleton } from "./status-page-skeleton.tsx";
 
-type SearchToolRestoreState =
-  | { kind: "bulk"; selectedQueryId: string | null; singular: boolean; value: string }
-  | { kind: "text"; singular: boolean; text: string };
+type SearchToolRestoreState = BulkCheckRestoreState | TextCheckRestoreState;
 
 interface BrowserLocation {
   pathname: string;
@@ -205,7 +211,7 @@ function SignedInApp({ location }: { location: BrowserLocation }) {
   );
   const bulkCheckApi = useMemo<BulkCheckApi>(
     () => ({
-      screen: (input) => client.marks.screen.query(input),
+      bulkCheck: (input) => client.marks.bulkCheck.query(input),
       search: (input) => client.marks.search.query(input),
     }),
     [client]

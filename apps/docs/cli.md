@@ -32,6 +32,7 @@ tt search "TERMINAL CLUB" --status live
 ```sh
 tt get --serial 60146682
 printf '%s' "shirt title" | tt screen --stdin
+printf '%s\n' "Kitten Nuggets" "Ocean Supply" | tt bulk-check --stdin
 ```
 
 ## Commands
@@ -44,11 +45,15 @@ tt search <query> [--mode multi|split|wildcard] [--match both|exact|partial]
   [--offset 0] [--data-version <version>]
 tt get --serial <eight-digit-number>
 tt get --registration <seven-digit-number>
-tt screen --text <text> [--type all|design|typeset|text|other] [--no-singular]
+tt screen --text <text> [--text <text> ...] [--type all|design|typeset|text|other]
+  [--no-singular]
 tt screen --stdin [--type all|design|typeset|text|other] [--no-singular]
+tt bulk-check --phrase <phrase> [--phrase <phrase> ...]
+  [--type all|design|typeset|text|other] [--no-singular]
+tt bulk-check --stdin [--type all|design|typeset|text|other] [--no-singular]
 ```
 
-`--match` is valid only for Multi. `--singular` also matches plural words as singular and is valid for Multi and Split. `tt screen` matches singulars unless you pass `--no-singular`. `--text` and `--stdin` are mutually exclusive. Search returns one 25-item page. Follow-up pages pass `--data-version`. Changed live data returns `CONFLICT`.
+`--match` is valid only for Multi. `--singular` also matches plural words as singular and is valid for Multi and Split. `tt screen` and `tt bulk-check` match singulars unless you pass `--no-singular`. Repeat `--text` to screen several texts in one call; they come back as `texts` with ids `1`, `2`, and so on. `tt bulk-check` takes one phrase per `--phrase`, or one per stdin line, and returns live exact and partial counts per phrase. `--text` or `--phrase` and `--stdin` are mutually exclusive. Search returns one 25-item page. Follow-up pages pass `--data-version`. Changed live data returns `CONFLICT`.
 
 ## Output
 

@@ -209,7 +209,7 @@ test("tools/call accepts both identities and all search modes", async () => {
 test("tools/call rejects invalid inputs before reading data", async () => {
   const reads: unknown[] = [];
   const testSource = source();
-  for (const operation of ["get", "search", "screen", "screenTexts"] as const) {
+  for (const operation of ["get", "search", "screen"] as const) {
     testSource.trademarks[operation] = (input: unknown) => {
       reads.push(input);
       return Promise.resolve({}) as never;
@@ -345,7 +345,7 @@ test("screens several named texts in one call, passing singular through", async 
     ],
   };
   const testSource = source();
-  testSource.trademarks.screenTexts = (input) => {
+  testSource.trademarks.screen = (input) => {
     inputs.push(input);
     return Promise.resolve(data);
   };
@@ -405,7 +405,6 @@ function source(): TmterminalMcpDataSource {
     trademarks: {
       get: async () => ({}) as never,
       screen: async () => ({ meta: page.meta, trademarks: [] }),
-      screenTexts: async () => ({ meta: page.meta, texts: [] }),
       search: async () => ({ ...page, liveMatchCounts: { exact: 0, partial: 0 } }),
     },
   };
