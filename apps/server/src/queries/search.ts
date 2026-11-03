@@ -1,6 +1,7 @@
 import type postgres from "postgres";
 
 import type { SearchInput, SearchPage } from "../api/contracts.ts";
+import { foldedMatchKeySql } from "../db/match-keys.ts";
 import { splitSearchTerms } from "../search/search-patterns.ts";
 import { assertDataVersion, readDataSnapshot } from "./data-snapshot.ts";
 import { markFilterConditions, markSummarySql } from "./mark-page.ts";
@@ -10,14 +11,13 @@ type QueryValue = number | string;
 function matchQuery(input: SearchInput) {
   if (input.mode === "split") {
     return {
-      join: "join split_terms matched on m.word_mark_normalized = matched.value",
+      join: "join split_terms matched on m.word_mark_folded = matched.value",
       kind: "'exact'",
       normalized: `split_terms as (
         select distinct on (value) value, rank from (
-          select lower(normalize(term, NFKC) collate "und-x-icu") collate "default" as value,
-            (ordinal - 1)::int as rank
+          select ${foldedMatchKeySql("term")} as value, (ordinal - 1)::int as rank
           from jsonb_array_elements_text($1::text::jsonb) with ordinality as terms(term, ordinal)
-        ) normalized_terms order by value, rank
+        ) folded_terms where value <> '' order by value, rank
       )`,
       predicate: "true",
       relevanceOrder: "matched.rank, m.serial_number",
@@ -25,18 +25,22 @@ function matchQuery(input: SearchInput) {
     };
   }
 
-  const containsPredicate =
-    "m.word_mark_normalized like '%' || normalized.pattern || '%' escape E'\\\\'";
+  // Multi compares punctuation-folded keys; Wildcard keeps punctuation literal around `*`.
   const wildcard = input.mode === "wildcard";
+  const column = wildcard ? "m.word_mark_normalized" : "m.word_mark_folded";
+  const value = wildcard
+    ? `lower(normalize(btrim($1::text), NFKC) collate "und-x-icu") collate "default"`
+    : foldedMatchKeySql("$1::text");
+  const containsPredicate = `normalized.value <> '' and ${column} like '%' || normalized.pattern || '%' escape E'\\\\'`;
   let predicate = containsPredicate;
   if (wildcard) {
     predicate = input.query.normalize("NFKC").includes("*")
-      ? "m.word_mark_normalized like normalized.pattern escape E'\\\\'"
-      : "m.word_mark_normalized = normalized.value";
+      ? `${column} like normalized.pattern escape E'\\\\'`
+      : `${column} = normalized.value`;
   } else if (input.match === "exact") {
-    predicate = "m.word_mark_normalized = normalized.value";
+    predicate = `${column} = normalized.value`;
   } else if (input.match === "partial") {
-    predicate = `${containsPredicate} and m.word_mark_normalized <> normalized.value`;
+    predicate = `${containsPredicate} and ${column} <> normalized.value`;
   }
   const escapedLiteral = `replace(
     replace(replace(value, chr(92), chr(92) || chr(92)), '%', chr(92) || '%'),
@@ -46,13 +50,12 @@ function matchQuery(input: SearchInput) {
 
   return {
     join: "cross join normalized",
-    kind: "case when m.word_mark_normalized = normalized.value then 'exact' else 'partial' end",
-    normalized: `query_value as (
-      select lower(normalize(btrim($1::text), NFKC) collate "und-x-icu") collate "default" as value
-    ), normalized as (select value, ${pattern} as pattern from query_value)`,
+    kind: `case when ${column} = normalized.value then 'exact' else 'partial' end`,
+    normalized: `query_value as (select ${value} as value),
+      normalized as (select value, ${pattern} as pattern from query_value)`,
     predicate,
-    relevanceOrder: `case when m.word_mark_normalized = normalized.value then 0 else 1 end,
-      similarity(m.word_mark_normalized, normalized.value) desc,
+    relevanceOrder: `case when ${column} = normalized.value then 0 else 1 end,
+      similarity(${column}, normalized.value) desc,
       m.serial_number`,
     values: [input.query] satisfies QueryValue[],
   };

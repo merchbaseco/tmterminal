@@ -52,13 +52,13 @@ test("creates the perpetual live schema idempotently", async () => {
     )
   `;
   const [mark] = await database<
-    Array<{ normalized: string; status: string }>
-  >`select word_mark_normalized normalized, search_status status from mark`;
+    Array<{ folded: string; normalized: string; status: string }>
+  >`select word_mark_folded folded, word_mark_normalized normalized, search_status status from mark`;
   const tables = await database<Array<{ name: string }>>`
     select table_name as name from information_schema.tables
     where table_schema = 'public' and table_type = 'BASE TABLE' order by table_name
   `;
-  expect(mark).toEqual({ normalized: "café", status: "unknown" });
+  expect(mark).toEqual({ folded: "café", normalized: "café", status: "unknown" });
   expect(tables.map(({ name }) => name)).toEqual(
     expect.arrayContaining([
       "access_projection",
@@ -385,7 +385,9 @@ async function authCleanupState(sql: postgres.Sql) {
         select jsonb_agg(to_jsonb(source_artifact) order by product, filename)
         from source_artifact
       ) artifacts,
-      (select jsonb_agg(to_jsonb(mark) order by serial_number) from mark) marks
+      (
+        select jsonb_agg(to_jsonb(mark) - 'word_mark_folded' order by serial_number) from mark
+      ) marks
   `;
   return state;
 }

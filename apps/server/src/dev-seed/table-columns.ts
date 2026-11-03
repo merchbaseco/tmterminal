@@ -5,8 +5,8 @@
  * PostgreSQL enum type rather than `text`, because there is no implicit cast
  * from text into an enum on insert.
  *
- * `mark.search_status` and `mark.word_mark_normalized` are absent by design:
- * both are GENERATED ALWAYS, so the seed sets `status_code` and `word_mark`
+ * `mark.search_status`, `mark.word_mark_normalized` and `mark.word_mark_folded` are absent by design:
+ * all are GENERATED ALWAYS, so the seed sets `status_code` and `word_mark`
  * and lets the database derive the rest, exactly as ingestion does.
  */
 

@@ -1,6 +1,7 @@
 import type postgres from "postgres";
 
 import type { MarkSummary, MatchTextsInput, MatchTextsResult } from "../api/contracts.ts";
+import { foldedMatchKeySql } from "../db/match-keys.ts";
 import { candidateTextTerms, findTextSpans } from "../search/text-matching.ts";
 import { readDataSnapshot } from "./data-snapshot.ts";
 import { markSummarySql, markTypeSql } from "./mark-page.ts";
@@ -72,13 +73,13 @@ function readCandidates(
   const values = type === "all" ? [JSON.stringify(terms)] : [JSON.stringify(terms), type];
   return transaction.unsafe<Candidate[]>(
     `with terms as (
-      select distinct lower(normalize(term, NFKC) collate "und-x-icu") collate "default" as value
+      select distinct term, ${foldedMatchKeySql("term")} as value
       from jsonb_array_elements_text($1::text::jsonb) source_terms(term)
     )
-    select ${markSummarySql}, m.word_mark_normalized as "normalizedTerm"
-    from mark m join terms on terms.value = m.word_mark_normalized
-    where m.search_status = 'live' ${typePredicate}
-    order by m.word_mark_normalized, m.serial_number`,
+    select ${markSummarySql}, terms.term as "normalizedTerm"
+    from mark m join terms on terms.value = m.word_mark_folded
+    where terms.value <> '' and m.search_status = 'live' ${typePredicate}
+    order by terms.term, m.word_mark_normalized, m.serial_number`,
     values
   );
 }

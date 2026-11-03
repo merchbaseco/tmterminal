@@ -1,0 +1,5 @@
+ALTER TABLE "mark" ADD COLUMN "word_mark_folded" text GENERATED ALWAYS AS (btrim(regexp_replace(regexp_replace(lower(normalize(btrim(word_mark), NFKC) collate "und-x-icu"), '[''‘’ʼ]', '', 'g'), '[[:punct:][:space:]]+', ' ', 'g'), ' ') collate "default") STORED;--> statement-breakpoint
+CREATE INDEX "mark_word_mark_folded_idx" ON "mark" USING hash ("word_mark_folded");--> statement-breakpoint
+CREATE INDEX "mark_word_mark_folded_trgm_idx" ON "mark" USING gin ("word_mark_folded" gin_trgm_ops);--> statement-breakpoint
+CREATE INDEX "mark_live_word_mark_folded_idx" ON "mark" USING hash ("word_mark_folded") WHERE "mark"."search_status" = 'live';--> statement-breakpoint
+CREATE INDEX "mark_live_word_mark_folded_trgm_idx" ON "mark" USING gin ("word_mark_folded" gin_trgm_ops) WHERE "mark"."search_status" = 'live';

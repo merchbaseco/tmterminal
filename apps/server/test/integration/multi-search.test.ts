@@ -6,6 +6,7 @@ import { buildServer } from "../../src/api/server.ts";
 import { migrateDatabase } from "../../src/db/migrate.ts";
 import type { ProjectedMark } from "../../src/ingestion/mark-types.ts";
 import { readTrademarkApplicationActivity } from "../../src/queries/operator-sync-repository.ts";
+import { buildScreenQuery } from "../../src/queries/screen.ts";
 import { buildSearchQueries } from "../../src/queries/search.ts";
 import { createOperatorSyncService } from "../../src/services/operator-sync-service.ts";
 import { authorizedAccess, fakeTmterminalAccess } from "../fake-access.ts";
@@ -103,6 +104,9 @@ beforeAll(async () => {
   await repository.replace(mark("11000009", "PUNCTALPHA PUNCTBETA"));
   await repository.replace(mark("11000010", "PUNCTALPHA"));
   await repository.replace(mark("11000011", "PUNCTBETA"));
+  await repository.replace(mark("11000012", "IT'S FINE"));
+  await repository.replace(mark("11000013", "ITS FINE"));
+  await repository.replace(mark("11000014", "IT S FINE"));
   await repository.replace({
     ...mark("50000001", "FILED REPORT MARK", {
       filingDate: reportWindow.from,
@@ -427,7 +431,7 @@ test("operator status presents processed cleanup and actionable source failures"
   expect(status.source.applicationActivity.at(-1)).toEqual({
     applicationUpdates: 0,
     date: "2026-01-01",
-    newApplications: 41,
+    newApplications: 44,
   });
   expect(status.attention).toMatchObject({
     items: [
@@ -499,7 +503,7 @@ test("list returns source transaction activity in stable pages", async () => {
     limit: 25,
     meta: { dataVersion: "7" },
     offset: 0,
-    total: 123,
+    total: 126,
   });
   expect(first.json().result.data.items.slice(0, 2)).toEqual([
     expect.objectContaining({ serialNumber: "10000005" }),
@@ -508,7 +512,7 @@ test("list returns source transaction activity in stable pages", async () => {
   expect(first.json().result.data.items).toHaveLength(25);
   expect(missingVersion.statusCode).toBe(400);
   expect(second.statusCode).toBe(200);
-  expect(second.json().result.data).toMatchObject({ limit: 25, offset: 25, total: 123 });
+  expect(second.json().result.data).toMatchObject({ limit: 25, offset: 25, total: 126 });
   expect(
     new Set(
       [...first.json().result.data.items, ...second.json().result.data.items].map(
@@ -631,6 +635,29 @@ test("bulk screening preserves query order and counts live exact and partial mat
       },
     ],
   });
+});
+
+test("bulk screening counts on the punctuation-folded key", async () => {
+  const response = await screenQueries({
+    queries: [
+      { id: "apostrophe", query: "it's fine" },
+      { id: "hyphen", query: "ITS-FINE" },
+      { id: "word", query: "fine" },
+      { id: "punctuation", query: "!!!" },
+    ],
+  });
+
+  expect(response.statusCode).toBe(200);
+  expect(
+    response
+      .json()
+      .result.data.queries.map(({ id, liveMatches }: Record<string, unknown>) => [id, liveMatches])
+  ).toEqual([
+    ["apostrophe", { exact: 2, partial: 0 }],
+    ["hyphen", { exact: 2, partial: 0 }],
+    ["word", { exact: 0, partial: 3 }],
+    ["punctuation", { exact: 0, partial: 0 }],
+  ]);
 });
 
 test("text matching groups trademark records on the same occurrence", async () => {
@@ -787,7 +814,7 @@ test("Split rejects punctuation-only queries and Multi-only match selection", as
 
 test("Split treats retained word punctuation as token separators", async () => {
   const responses = await Promise.all(
-    ["punctalpha.punctbeta", "punctalpha_punctbeta", "punctalpha'punctbeta"].map((query) =>
+    ["punctalpha.punctbeta", "punctalpha_punctbeta"].map((query) =>
       search({ mode: "split", query })
     )
   );
@@ -798,6 +825,63 @@ test("Split treats retained word punctuation as token separators", async () => {
       response.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber)
     ).toEqual(["11000009", "11000010", "11000011"]);
   }
+});
+
+test("Split drops apostrophes instead of splitting on them", async () => {
+  const responses = await Promise.all(
+    ["it's fine", "ITS FINE", "It\u2019s  fine!", "punctalpha'punctbeta"].map((query) =>
+      search({ mode: "split", query })
+    )
+  );
+  const serials = responses.map((response) => {
+    expect(response.statusCode).toBe(200);
+    return response
+      .json()
+      .result.data.items.map((item: { serialNumber: string }) => item.serialNumber);
+  });
+
+  expect(serials).toEqual([
+    ["11000012", "11000013"],
+    ["11000012", "11000013"],
+    ["11000012", "11000013"],
+    ["11000010", "11000011"],
+  ]);
+});
+
+test("text matching folds apostrophes and punctuation in each named document", async () => {
+  const text = "It's fine. its-fine";
+  const response = await matchTexts({
+    texts: [
+      { id: "apostrophe", text },
+      { id: "spaced", text: "it s fine" },
+    ],
+  });
+  const results = response.json().result.data.texts as Array<{
+    id: string;
+    matches: Array<{ end: number; start: number; trademarks: Array<{ serialNumber: string }> }>;
+  }>;
+
+  expect(response.statusCode).toBe(200);
+  expect(
+    results.map(({ id, matches }) => [
+      id,
+      matches
+        .filter(({ trademarks }) => trademarks.length > 0)
+        .map(({ end, start, trademarks }) => [
+          (id === "apostrophe" ? text : "it s fine").slice(start, end),
+          trademarks.map((trademark) => trademark.serialNumber),
+        ]),
+    ])
+  ).toEqual([
+    [
+      "apostrophe",
+      [
+        ["It's fine", ["11000012", "11000013"]],
+        ["its-fine", ["11000012", "11000013"]],
+      ],
+    ],
+    ["spaced", [["it s fine", ["11000014"]]]],
+  ]);
 });
 
 test("Wildcard matches the whole normalized mark and treats SQL pattern characters literally", async () => {
@@ -914,20 +998,33 @@ test("exact mark detail reports the stored parser provenance", async () => {
   expect(response.json().result.data.provenance.versions.projection).toBe("uspto-projection-v1");
 });
 
-test("Multi partial treats percent, underscore, and the escape character literally", async () => {
+test("Multi folds percent, underscore, and backslash like other punctuation", async () => {
   const percent = await search({ match: "partial", mode: "multi", query: "50%" });
   const underscore = await search({ match: "partial", mode: "multi", query: "A_B" });
   const backslash = await search({ match: "partial", mode: "multi", query: "PATH\\MARK" });
 
   expect(
     percent.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber)
-  ).toEqual(["10000007"]);
+  ).toEqual(["10000007", "10000008"]);
   expect(
     underscore.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber)
   ).toEqual(["10000009"]);
   expect(
     backslash.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber)
   ).toEqual(["10000011"]);
+});
+
+test("Multi matches apostrophe variants and finds nothing for punctuation alone", async () => {
+  const exact = await search({ match: "exact", mode: "multi", query: "it's fine" });
+  const partial = await search({ match: "partial", mode: "multi", query: "fine" });
+  const punctuation = await search({ mode: "multi", query: "!!!" });
+  const serials = (response: Awaited<ReturnType<typeof search>>) =>
+    response.json().result.data.items.map((item: { serialNumber: string }) => item.serialNumber);
+
+  expect(serials(exact)).toEqual(["11000012", "11000013"]);
+  expect(serials(partial).sort()).toEqual(["11000012", "11000013", "11000014"]);
+  expect(punctuation.statusCode).toBe(200);
+  expect(punctuation.json().result.data.total).toBe(0);
 });
 
 test("activity sorts use source transaction date and serial-number tie-breakers", async () => {
@@ -1118,10 +1215,18 @@ test("representative-scale search modes use exact and trigram indexes", async ()
     query: "plan*042421",
   });
 
-  expect(generalExact).toContain("mark_word_mark_exact_idx");
-  expect(generalPartial).toContain("mark_word_mark_normalized_trgm_idx");
-  expect(liveExact).toContain("mark_live_word_mark_exact_idx");
-  expect(livePartial).toContain("mark_live_word_mark_normalized_trgm_idx");
-  expect(split).toContain("mark_word_mark_exact_idx");
+  expect(generalExact).toContain("mark_word_mark_folded_idx");
+  expect(generalPartial).toContain("mark_word_mark_folded_trgm_idx");
+  expect(liveExact).toContain("mark_live_word_mark_folded_idx");
+  expect(livePartial).toContain("mark_live_word_mark_folded_trgm_idx");
+  expect(split).toContain("mark_word_mark_folded_idx");
+  const bulk = buildScreenQuery({
+    queries: [{ id: "plan", query: "needle 042400" }],
+    type: "all",
+  });
+  const bulkPlan = JSON.stringify(
+    await database.unsafe(`explain (format json) ${bulk.text}`, bulk.values)
+  );
+  expect(bulkPlan).toContain("mark_live_word_mark_folded_trgm_idx");
   expect(wildcard).toContain("mark_word_mark_normalized_trgm_idx");
 }, 60_000);

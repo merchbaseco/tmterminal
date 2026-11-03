@@ -1,13 +1,21 @@
 const unicodeWordTokens = /[\p{Letter}\p{Mark}\p{Number}]+/gu;
 
+// Terms are source slices, not re-joined tokens, so "it's" stays "it's" for the folded match key.
 export function splitSearchTerms(query: string) {
-  const tokens = query.normalize("NFKC").match(unicodeWordTokens) ?? [];
+  const normalized = query.normalize("NFKC");
+  const tokens = Array.from(normalized.matchAll(unicodeWordTokens), (match) => ({
+    end: match.index + match[0].length,
+    start: match.index,
+  }));
   const terms: string[] = [];
   const { length: tokenCount } = tokens;
 
   for (let length = tokenCount; length > 0; length -= 1) {
-    for (let start = 0; start + length <= tokenCount; start += 1) {
-      terms.push(tokens.slice(start, start + length).join(" "));
+    for (const [index, first] of tokens.slice(0, tokenCount - length + 1).entries()) {
+      const last = tokens[index + length - 1];
+      if (last) {
+        terms.push(normalized.slice(first.start, last.end));
+      }
     }
   }
 

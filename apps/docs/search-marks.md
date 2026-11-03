@@ -12,9 +12,11 @@ Open [Search](https://tmterminal.merchbase.co/search). Signed-in users get Multi
 tt search "TERMINAL CLUB" --status live
 ```
 
+Multi, Split, Bulk Check, and text screening ignore punctuation. Apostrophes are dropped, so `it's fine` finds both IT'S FINE and ITS FINE. Other punctuation, including `%`, `&`, and `-`, separates words, so `rock-n-roll` finds ROCK N ROLL. Symbols such as `♥` and `+` still count. Wildcard keeps punctuation literal.
+
 ## Multi
 
-Search the query as written.
+Search the query as written, ignoring punctuation.
 
 - **Exact** means the word mark equals the query.
 - **Partial** means the word mark contains the query.

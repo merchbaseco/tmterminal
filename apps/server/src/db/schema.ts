@@ -19,6 +19,7 @@ import {
 
 import { defaultSearchPreferences, type SearchPreferences } from "../account-preferences.ts";
 import { markSearchStatusSql } from "../search/status-policy.ts";
+import { foldedMatchKeySql } from "./match-keys.ts";
 
 export const sourceArtifactDownloadState = pgEnum("source_artifact_download_state_v2", [
   "pending",
@@ -180,6 +181,9 @@ export const mark = pgTable(
     statusCode: text("status_code"),
     statusDate: date("status_date"),
     wordMark: text("word_mark").notNull(),
+    wordMarkFolded: text("word_mark_folded").generatedAlwaysAs(
+      sql.raw(foldedMatchKeySql("word_mark"))
+    ),
     wordMarkNormalized: text("word_mark_normalized").generatedAlwaysAs(
       sql`lower(normalize(btrim(word_mark), NFKC) collate "und-x-icu") collate "default"`
     ),
@@ -190,6 +194,7 @@ export const mark = pgTable(
       .on(table.registrationNumber)
       .where(sql`${table.registrationNumber} is not null`),
     index("mark_word_mark_exact_idx").using("hash", table.wordMarkNormalized),
+    index("mark_word_mark_folded_idx").using("hash", table.wordMarkFolded),
     index("mark_filing_date_idx").on(table.filingDate, table.serialNumber),
     index("mark_registration_date_idx").on(table.registrationDate, table.serialNumber),
     index("mark_status_activity_idx").on(
@@ -202,8 +207,15 @@ export const mark = pgTable(
       "gin",
       sql`${table.wordMarkNormalized} gin_trgm_ops`
     ),
+    index("mark_word_mark_folded_trgm_idx").using("gin", sql`${table.wordMarkFolded} gin_trgm_ops`),
     index("mark_live_word_mark_exact_idx")
       .using("hash", table.wordMarkNormalized)
+      .where(sql`${table.searchStatus} = 'live'`),
+    index("mark_live_word_mark_folded_idx")
+      .using("hash", table.wordMarkFolded)
+      .where(sql`${table.searchStatus} = 'live'`),
+    index("mark_live_word_mark_folded_trgm_idx")
+      .using("gin", sql`${table.wordMarkFolded} gin_trgm_ops`)
       .where(sql`${table.searchStatus} = 'live'`),
     index("mark_live_word_mark_normalized_trgm_idx")
       .using("gin", sql`${table.wordMarkNormalized} gin_trgm_ops`)

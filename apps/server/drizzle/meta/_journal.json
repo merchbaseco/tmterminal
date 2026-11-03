@@ -225,6 +225,13 @@
       "when": 1793298331418,
       "tag": "0031_cloudflare_access_aliases",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793721626575,
+      "tag": "0032_word_mark_folded",
+      "breakpoints": true
     }
   ]
 }
