@@ -21,12 +21,14 @@ Get an identity. Search a word or phrase. Screen complete listing text.
 Screen several texts in one call with `texts`. Ids must be unique. The result lists each text in input order with its own matching marks:
 
 ```json
-{ "texts": [{ "id": "title", "text": "It's fine shirt" }, { "id": "slogan", "text": "Stay cozy" }] }
+{ "texts": [{ "id": "title", "text": "It's fine shirt" }, { "id": "slogan", "text": "Kitten Nuggets" }], "singular": true, "type": "all" }
 ```
 
 ```json
 { "meta": { "dataVersion": "7" }, "texts": [{ "id": "title", "trademarks": [] }, { "id": "slogan", "trademarks": [] }] }
 ```
+
+Screening matches singulars by default: `Kitten Nuggets` finds KITTEN NUGGET. Pass `"singular": false` to match the words as written. `tmterminal_search` takes `singular` for Multi and Split, off by default. See [Search Marks](/search-marks#singular) for the rules.
 
 Search continuation passes `meta.dataVersion` as `expectedDataVersion`. After `CONFLICT`, restart at offset zero.
 

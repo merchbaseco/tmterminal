@@ -14,6 +14,11 @@ const searchInputBase = {
   type: z.enum(["all", "design", "typeset", "text", "other"]).default("all"),
 };
 
+const searchSingularSchema = z.boolean().default(false).meta({
+  description:
+    "Multi and Split only. Also match the query with its plural words made singular, on the query and the mark alike: kitten nuggets matches KITTEN NUGGET. Only adds matches. Defaults to false.",
+});
+
 export const searchInputSchema = z
   .discriminatedUnion("mode", [
     z
@@ -21,13 +26,24 @@ export const searchInputSchema = z
         ...searchInputBase,
         match: z.enum(["exact", "partial", "both"]).default("both"),
         mode: z.literal("multi"),
+        singular: searchSingularSchema,
       })
       .strict(),
     z
-      .object({ ...searchInputBase, match: z.never().optional(), mode: z.literal("split") })
+      .object({
+        ...searchInputBase,
+        match: z.never().optional(),
+        mode: z.literal("split"),
+        singular: searchSingularSchema,
+      })
       .strict(),
     z
-      .object({ ...searchInputBase, match: z.never().optional(), mode: z.literal("wildcard") })
+      .object({
+        ...searchInputBase,
+        match: z.never().optional(),
+        mode: z.literal("wildcard"),
+        singular: z.never().optional(),
+      })
       .strict(),
   ])
   .superRefine((input, context) => {
@@ -59,5 +75,5 @@ export const searchInputSchema = z
       },
     ],
     description:
-      "Split mode requires at least one Unicode word token. Wildcard patterns containing * require at least three consecutive literal Unicode word characters. Continuation requests (offset > 0) require expectedDataVersion.",
+      "Split mode requires at least one Unicode word token. Wildcard matches literally and rejects singular. Wildcard patterns containing * require at least three consecutive literal Unicode word characters. Continuation requests (offset > 0) require expectedDataVersion.",
   }) satisfies z.ZodType<SearchInput>;

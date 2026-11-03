@@ -1,6 +1,6 @@
 {
   "name": "@tmterminal/http-client",
-  "version": "5.0.1",
+  "version": "5.1.0",
   "description": "Typed HTTP client for the Trademark Terminal API",
   "repository": {
     "type": "git",

@@ -35,12 +35,13 @@ const trademark = await client.trademarks.get({
 });
 
 const screened = await client.trademarks.screen({
-  text: "Terminal Club shirt",
+  singular: true,
+  text: "Kitten Nuggets shirt",
   type: "all",
 });
 ```
 
-`screen` returns each matching live trademark once. `match` keeps named documents and occurrence spans. `TmterminalError` is the stable error surface.
+`screen` returns each matching live trademark once. `singular`, on by default for `screen` and `match` and off for `search`, also matches plural words as singular marks. `match` keeps named documents and occurrence spans. `TmterminalError` is the stable error surface.
 
 Filtering, sorting, count, and offset happen on the server. Paged responses include `meta.dataVersion`. Pass it back as `expectedDataVersion`. A material live-data change returns `CONFLICT`.
 

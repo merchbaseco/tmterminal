@@ -14,7 +14,13 @@ export type CliCommand =
   | { kind: "auth-set"; readsStdin: boolean }
   | { kind: "auth-status" }
   | { input: TrademarkGetInput; kind: "get" }
-  | { kind: "screen"; readsStdin: boolean; text?: string; type: ScreenOptions["type"] }
+  | {
+      kind: "screen";
+      readsStdin: boolean;
+      singular: boolean;
+      text?: string;
+      type: ScreenOptions["type"];
+    }
   | { input: TrademarkSearchInput; kind: "search" };
 
 export type ParsedCli =
@@ -30,12 +36,14 @@ interface SearchOptions extends PageOptions {
   match?: "both" | "exact" | "partial";
   mode: "multi" | "split" | "wildcard";
   registered: "all" | "yes" | "no";
+  singular?: boolean;
   sort: "newest-activity" | "oldest-activity" | "relevance";
   status: "all" | "dead" | "live";
   type: "all" | "design" | "other" | "text" | "typeset";
 }
 
 interface ScreenOptions {
+  singular: boolean;
   stdin?: boolean;
   text?: string;
   type: "all" | "design" | "other" | "text" | "typeset";
@@ -74,6 +82,9 @@ function searchInput(query: string, options: SearchOptions): TrademarkSearchInpu
   if (options.mode !== "multi" && options.match) {
     throw new BadRequestError("--match is valid only for Multi search");
   }
+  if (options.mode === "wildcard" && options.singular) {
+    throw new BadRequestError("--singular is valid only for Multi and Split search");
+  }
   const normalizedQuery = query.trim().normalize("NFKC");
   if (options.mode === "split" && !unicodeWordCharacter.test(normalizedQuery)) {
     throw new BadRequestError("Split search requires at least one word token");
@@ -97,8 +108,12 @@ function searchInput(query: string, options: SearchOptions): TrademarkSearchInpu
     status: options.status,
     type: options.type,
   };
-  return options.mode === "multi"
-    ? { ...common, match: options.match ?? "both", mode: options.mode }
+  const singular = options.singular === true;
+  if (options.mode === "multi") {
+    return { ...common, match: options.match ?? "both", mode: options.mode, singular };
+  }
+  return options.mode === "split"
+    ? { ...common, mode: options.mode, singular }
     : { ...common, mode: options.mode };
 }
 
@@ -185,6 +200,7 @@ export async function parseCli(args: string[], version: string): Promise<ParsedC
         choices("--type <type>", ["all", "design", "typeset", "text", "other"]).default("all")
       )
       .addOption(choices("--registered <value>", ["all", "yes", "no"]).default("all"))
+      .option("--singular", "Also match plural words as singular (Multi and Split)")
       .addOption(
         choices("--sort <sort>", ["relevance", "newest-activity", "oldest-activity"]).default(
           "relevance"
@@ -227,6 +243,7 @@ export async function parseCli(args: string[], version: string): Promise<ParsedC
     .addOption(
       choices("--type <type>", ["all", "design", "typeset", "text", "other"]).default("all")
     )
+    .option("--no-singular", "Match only the words as written, not their singulars")
     .action((options: ScreenOptions) => {
       if (Boolean(options.text) === Boolean(options.stdin)) {
         throw new BadRequestError("Supply exactly one of --text or --stdin");
@@ -234,6 +251,7 @@ export async function parseCli(args: string[], version: string): Promise<ParsedC
       command = {
         kind: "screen",
         readsStdin: options.stdin === true,
+        singular: options.singular,
         ...(options.text ? { text: options.text } : {}),
         type: options.type,
       };

@@ -24,13 +24,19 @@ Search the query as written, ignoring punctuation.
 
 `--match` on the CLI is valid only for Multi.
 
+## Singular
+
+Check **Singular** under Match, or pass `singular: true` (`--singular` on the CLI), to also match plural words as singular, on the query and the mark alike. `kitten nuggets` then finds KITTEN NUGGET as an exact match. Multi and Split take it. Search leaves it off, so it finds what you typed. Check Text and Bulk Check turn it on by default.
+
+A word that reads as a regular plural loses its ending: `-ies` becomes `-y` (`puppies`, PUPPY), `-ches`, `-shes`, `-xes`, `-zes`, and `-sses` drop `-es`, and other `-s` words drop `-s`. Words of three letters or fewer, words ending in `-ss`, `-us`, or `-is`, and words such as `this`, `its`, `yes`, and `news` stay as they are. A final `-ie` matches `-y`, so `cookies` finds MILK AND COOKIE.
+
 ## Split
 
 Break a phrase into adjacent word combinations and search each combination as an exact mark. Use this when a longer listing phrase might hide a shorter claimed mark.
 
 ## Wildcard
 
-Use `*` for unknown text inside a word mark, such as `IN * WE TRUST`. Other punctuation stays literal. A pattern that contains `*` needs at least three consecutive literal word characters.
+Use `*` for unknown text inside a word mark, such as `IN * WE TRUST`. Other punctuation stays literal, and Wildcard takes no `singular`. A pattern that contains `*` needs at least three consecutive literal word characters.
 
 ## Filters
 

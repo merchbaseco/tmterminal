@@ -351,6 +351,7 @@ test("search maps Multi filters and stable continuation fields", async () => {
       offset: 25,
       query: "Terminal %",
       registered: "yes",
+      singular: false,
       sort: "newest-activity",
       status: "dead",
       type: "design",
@@ -359,7 +360,7 @@ test("search maps Multi filters and stable continuation fields", async () => {
   expect(json(result)).toEqual({ data: searchPage, ok: true });
 });
 
-test("search maps Split and Wildcard without Multi-only match", async () => {
+test("search maps Split with singular and Wildcard without Multi-only match", async () => {
   const inputs: unknown[] = [];
   const createClient = () =>
     asClient({
@@ -371,7 +372,10 @@ test("search maps Split and Wildcard without Multi-only match", async () => {
       },
     });
 
-  await runCli(["search", "terminal club", "--mode", "split"], authenticated(createClient));
+  await runCli(
+    ["search", "terminal clubs", "--mode", "split", "--singular"],
+    authenticated(createClient)
+  );
   await runCli(["search", "terminal*", "--mode", "wildcard"], authenticated(createClient));
 
   expect(inputs).toEqual([
@@ -379,8 +383,9 @@ test("search maps Split and Wildcard without Multi-only match", async () => {
       limit: 25,
       mode: "split",
       offset: 0,
-      query: "terminal club",
+      query: "terminal clubs",
       registered: "all",
+      singular: true,
       sort: "relevance",
       status: "all",
       type: "all",
@@ -404,10 +409,17 @@ test("search rejects mode-specific flags and unsafe continuations before HTTP", 
     dependencies()
   );
   const unsafeWildcard = await runCli(["search", "*a*b*", "--mode", "wildcard"], dependencies());
+  const singularWildcard = await runCli(
+    ["search", "terminal*", "--mode", "wildcard", "--singular"],
+    dependencies()
+  );
   const missingVersion = await runCli(["search", "terminal", "--offset", "25"], dependencies());
 
   expect(json(splitMatch).error.message).toBe("--match is valid only for Multi search");
   expect(json(unsafeWildcard).error.message).toContain("at least three consecutive");
+  expect(json(singularWildcard).error.message).toBe(
+    "--singular is valid only for Multi and Split search"
+  );
   expect(json(missingVersion).error.message).toContain("--data-version is required");
 });
 
@@ -429,11 +441,11 @@ test("screen accepts explicit text or stdin and returns only unique matching tra
     ["screen", "--text", "🐢 Cafe\u0301", "--type", "text"],
     authenticated(createClient)
   );
-  await runCli(["screen", "--stdin"], authenticated(createClient, { stdin }));
+  await runCli(["screen", "--stdin", "--no-singular"], authenticated(createClient, { stdin }));
 
   expect(inputs).toEqual([
-    { text: "🐢 Cafe\u0301", type: "text" },
-    { text: stdin, type: "all" },
+    { singular: true, text: "🐢 Cafe\u0301", type: "text" },
+    { singular: false, text: stdin, type: "all" },
   ]);
   expect(json(explicit)).toEqual({ data, ok: true });
 });

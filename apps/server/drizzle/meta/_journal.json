@@ -232,6 +232,13 @@
       "when": 1793721626575,
       "tag": "0032_word_mark_folded",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793725684747,
+      "tag": "0033_word_mark_singular",
+      "breakpoints": true
     }
   ]
 }

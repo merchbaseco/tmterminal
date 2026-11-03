@@ -16,6 +16,7 @@ import { type HighlightTone, highlightTones } from "./highlight-tones.ts";
 import { LegalFooter } from "./legal-footer.tsx";
 import { SearchComposer, SearchMasthead } from "./search-composer.tsx";
 import { defaultSearchPreferences, type SearchPreferences } from "./search-preferences.ts";
+import { SingularOption } from "./singular-option.tsx";
 import { TextHighlight } from "./text-highlight.tsx";
 import {
   TrademarkEmptyState,
@@ -48,6 +49,7 @@ export interface BulkCheckApi {
 export interface BulkCheckRestoreState {
   kind: "bulk";
   selectedQueryId: string | null;
+  singular: boolean;
   value: string;
 }
 
@@ -88,6 +90,7 @@ export function BulkCheckPage({
   restoreScrollOffset?: number;
 }) {
   const [value, setValue] = useState(initialState ? initialState.value : "");
+  const [singular, setSingular] = useState(initialState ? initialState.singular : true);
   const [selectedQueryId, setSelectedQueryId] = useState<string | null>(
     initialState?.selectedQueryId ?? null
   );
@@ -119,7 +122,11 @@ export function BulkCheckPage({
       return;
     }
     restored.current = true;
-    mutation.mutate({ queries: queriesFrom(initialState.value), type: "all" });
+    mutation.mutate({
+      queries: queriesFrom(initialState.value),
+      singular: initialState.singular,
+      type: "all",
+    });
   }, [initialState, mutation]);
 
   useLayoutEffect(() => {
@@ -143,24 +150,39 @@ export function BulkCheckPage({
       if (queries.length === 0 || hasTooManyQueries) {
         return;
       }
-      mutation.mutate({ queries, type: "all" });
+      mutation.mutate({ queries, singular, type: "all" });
     },
-    [hasTooManyQueries, mutation, queries]
+    [hasTooManyQueries, mutation, queries, singular]
   );
+  const screenedSingular = mutation.variables?.singular ?? singular;
   const openMark = useCallback(
     (serialNumber: string, scrollOffset: number) =>
       onOpenMark(serialNumber, scrollOffset, {
         kind: "bulk",
         selectedQueryId: selectedQuery?.id ?? null,
+        singular: screenedSingular,
         value: mutation.data?.queries.map(({ query }) => query).join("\n") ?? value,
       }),
-    [mutation.data?.queries, onOpenMark, selectedQuery?.id, value]
+    [mutation.data?.queries, onOpenMark, screenedSingular, selectedQuery?.id, value]
   );
-  const refreshScreen = useCallback(() => {
-    const screenedQueries =
-      mutation.data?.queries.map(({ id, query }) => ({ id, query })) ?? queries;
-    mutation.mutate({ queries: screenedQueries, type: "all" });
-  }, [mutation, mutation.data?.queries, queries]);
+  const rescreen = useCallback(
+    (nextSingular: boolean) => {
+      const screenedQueries =
+        mutation.data?.queries.map(({ id, query }) => ({ id, query })) ?? queries;
+      mutation.mutate({ queries: screenedQueries, singular: nextSingular, type: "all" });
+    },
+    [mutation, mutation.data?.queries, queries]
+  );
+  const refreshScreen = useCallback(() => rescreen(screenedSingular), [rescreen, screenedSingular]);
+  const changeSingular = useCallback(
+    (checked: boolean) => {
+      setSingular(checked);
+      if (mutation.data) {
+        rescreen(checked);
+      }
+    },
+    [mutation.data, rescreen]
+  );
 
   return (
     <main className="page-shell page-start isolate flex min-h-[calc(100dvh-var(--topbar-height,4.5rem))] flex-col [--search-side-column:clamp(13rem,18vw,16rem)]">
@@ -183,6 +205,7 @@ export function BulkCheckPage({
           startOverLabel={mutation.data ? "Check different phrases" : undefined}
           value={value}
         />
+        <SingularOption checked={singular} onCheckedChange={changeSingular} />
         {hasTooManyQueries ? (
           <p className="m-0 border-border border-x border-b px-4 py-3 text-destructive-foreground">
             Bulk check accepts up to 100 phrases.
@@ -214,6 +237,7 @@ export function BulkCheckPage({
               onConflict={refreshScreen}
               onOpenMark={openMark}
               preferences={preferences}
+              singular={screenedSingular}
               tone={selectedTone}
             />
           ) : null}
@@ -307,6 +331,7 @@ function BulkTrademarkResults({
   onConflict,
   onOpenMark,
   preferences,
+  singular,
   tone,
 }: {
   api: BulkCheckApi;
@@ -315,6 +340,7 @@ function BulkTrademarkResults({
   onConflict: () => void;
   onOpenMark: (serialNumber: string, scrollOffset: number) => void;
   preferences: SearchPreferences;
+  singular: boolean;
   tone: HighlightTone;
 }) {
   const request = useMemo(
@@ -325,11 +351,12 @@ function BulkTrademarkResults({
         mode: "multi",
         query: item.query,
         registered: "all",
+        singular,
         sort: "relevance",
         status: "live",
         type: "all",
       }) as const,
-    [item.query, preferences.pageSize]
+    [item.query, preferences.pageSize, singular]
   );
   const queryKey = useMemo(
     () => ["marks.bulk-search", dataVersion, request] as const,

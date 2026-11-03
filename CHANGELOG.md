@@ -4,6 +4,8 @@
 
 **Features**
 
+- feat(search): `singular` matches plural words as singular marks, on both sides, so `kitten nuggets` finds KITTEN NUGGET and `milk and cookies` finds MILK AND COOKIE. Screening (`screen`, `screenText`, `match`, MCP `tmterminal_screen`, `tt screen`, Check Text, Bulk Check) has it on by default; Multi and Split search take it off by default; Wildcard rejects it. The rules match Factory's `tm_forms.py`. Migration 0033 adds `singular_match_key()` and four expression indexes; it builds indexes without rewriting `mark`.
+
 - feat(mcp): `tmterminal_screen` accepts `texts`, up to 100 `{id, text}` items, and returns `texts: [{id, trademarks}]` in input order. The single `text` form is unchanged.
 - feat(search): Multi, Split, Bulk Check, and text screening match on a punctuation-folded key. Apostrophes are dropped and other punctuation separates words, so `it's fine` finds IT'S FINE and ITS FINE. Split no longer turns `it's` into `it s`. Wildcard keeps punctuation literal.
 - Changed: `%`, `_`, and `\` count as punctuation outside Wildcard, so Multi `50%` also finds 50X SYMBOL. A punctuation-only Multi query or Bulk Check line matches nothing.

@@ -38,8 +38,8 @@ import { useSession } from "./session.tsx";
 import { StatusPageSkeleton } from "./status-page-skeleton.tsx";
 
 type SearchToolRestoreState =
-  | { kind: "bulk"; selectedQueryId: string | null; value: string }
-  | { kind: "text"; text: string };
+  | { kind: "bulk"; selectedQueryId: string | null; singular: boolean; value: string }
+  | { kind: "text"; singular: boolean; text: string };
 
 interface BrowserLocation {
   pathname: string;

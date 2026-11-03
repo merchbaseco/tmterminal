@@ -103,7 +103,7 @@ function screenInput(invocation: Extract<CliCommand, { kind: "screen" }>, stdin:
   if ((text.match(unicodeWordTokens) ?? []).length > 128) {
     throw new BadRequestError("Screen text must contain at most 128 Unicode word tokens");
   }
-  return { text, type: invocation.type };
+  return { singular: invocation.singular, text, type: invocation.type };
 }
 
 export async function runCli(args: string[], dependencies: CliDependencies): Promise<CliResult> {

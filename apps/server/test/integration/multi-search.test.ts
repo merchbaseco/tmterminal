@@ -1214,6 +1214,19 @@ test("representative-scale search modes use exact and trigram indexes", async ()
     mode: "wildcard",
     query: "plan*042421",
   });
+  const singularExact = await indexPlan({
+    match: "exact",
+    mode: "multi",
+    query: "plan needles 042421",
+    singular: true,
+  });
+  const singularLivePartial = await indexPlan({
+    match: "partial",
+    mode: "multi",
+    query: "needles 042400",
+    singular: true,
+    status: "live",
+  });
 
   expect(generalExact).toContain("mark_word_mark_folded_idx");
   expect(generalPartial).toContain("mark_word_mark_folded_trgm_idx");
@@ -1222,11 +1235,24 @@ test("representative-scale search modes use exact and trigram indexes", async ()
   expect(split).toContain("mark_word_mark_folded_idx");
   const bulk = buildScreenQuery({
     queries: [{ id: "plan", query: "needle 042400" }],
+    singular: false,
     type: "all",
   });
   const bulkPlan = JSON.stringify(
     await database.unsafe(`explain (format json) ${bulk.text}`, bulk.values)
   );
   expect(bulkPlan).toContain("mark_live_word_mark_folded_trgm_idx");
+  expect(singularExact).toContain("mark_word_mark_singular_idx");
+  expect(singularLivePartial).toContain("mark_live_word_mark_folded_trgm_idx");
+  expect(singularLivePartial).toContain("mark_live_word_mark_singular_trgm_idx");
+  const singularBulk = buildScreenQuery({
+    queries: [{ id: "plan", query: "needles 042400" }],
+    singular: true,
+    type: "all",
+  });
+  const singularBulkPlan = JSON.stringify(
+    await database.unsafe(`explain (format json) ${singularBulk.text}`, singularBulk.values)
+  );
+  expect(singularBulkPlan).toContain("mark_live_word_mark_singular_trgm_idx");
   expect(wildcard).toContain("mark_word_mark_normalized_trgm_idx");
 }, 60_000);

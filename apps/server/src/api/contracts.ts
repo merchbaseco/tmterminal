@@ -39,9 +39,9 @@ interface SearchInputBase {
 
 export type SearchInput = SearchInputBase &
   (
-    | { match: "exact" | "partial" | "both"; mode: "multi" }
-    | { match?: never; mode: "split" }
-    | { match?: never; mode: "wildcard" }
+    | { match: "exact" | "partial" | "both"; mode: "multi"; singular: boolean }
+    | { match?: never; mode: "split"; singular: boolean }
+    | { match?: never; mode: "wildcard"; singular?: never }
   );
 
 export interface MarkSummary {
@@ -83,6 +83,7 @@ export interface ListMarksInput {
 }
 
 export interface MatchTextsInput {
+  singular: boolean;
   texts: Array<{
     id: string;
     text: string;
@@ -108,6 +109,7 @@ export interface ScreenQueriesInput {
     id: string;
     query: string;
   }>;
+  singular: boolean;
   type: "all" | "design" | "typeset" | "text" | "other";
 }
 
@@ -124,6 +126,7 @@ export interface ScreenQueriesResult {
 }
 
 export interface ScreenTextInput {
+  singular: boolean;
   text: string;
   type: "all" | "design" | "typeset" | "text" | "other";
 }

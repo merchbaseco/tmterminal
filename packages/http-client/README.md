@@ -31,7 +31,8 @@ const trademark = await client.trademarks.get({
 });
 
 const screened = await client.trademarks.screen({
-  text: "Terminal Club shirt",
+  singular: true,
+  text: "Kitten Nuggets shirt",
   type: "all",
 });
 
@@ -46,7 +47,9 @@ const matches = await client.trademarks.match({
 
 Methods return promises directly. Named input and output types are derived from
 the server router. `screen` returns each matching live trademark once; `match`
-retains named documents and occurrence spans for richer applications.
+retains named documents and occurrence spans for richer applications. Both
+match plural words as singular marks unless `singular` is `false`; `search`
+does so only with `singular: true`.
 `TmterminalError` is the stable error surface.
 
 ## Authorization

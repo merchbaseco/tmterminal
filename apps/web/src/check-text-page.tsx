@@ -15,6 +15,7 @@ import { type HighlightTone, highlightTones } from "./highlight-tones.ts";
 import { LegalFooter } from "./legal-footer.tsx";
 import { SearchComposer, SearchMasthead } from "./search-composer.tsx";
 import { defaultSearchPreferences, type SearchPreferences } from "./search-preferences.ts";
+import { SingularOption } from "./singular-option.tsx";
 import { TextHighlight } from "./text-highlight.tsx";
 import {
   TrademarkEmptyState,
@@ -44,6 +45,7 @@ export interface TextCheckApi {
 
 export interface TextCheckRestoreState {
   kind: "text";
+  singular: boolean;
   text: string;
 }
 
@@ -67,6 +69,7 @@ export function CheckTextPage({
   restoreScrollOffset?: number;
 }) {
   const [text, setText] = useState(initialState ? initialState.text : "");
+  const [singular, setSingular] = useState(initialState ? initialState.singular : true);
   const [selectedHighlight, setSelectedHighlight] = useState<string | null>(null);
   const restored = useRef(false);
   const scrollRestored = useRef(false);
@@ -89,7 +92,11 @@ export function CheckTextPage({
       return;
     }
     restored.current = true;
-    mutation.mutate({ texts: [{ id: "text", text: initialState.text }], type: "all" });
+    mutation.mutate({
+      singular: initialState.singular,
+      texts: [{ id: "text", text: initialState.text }],
+      type: "all",
+    });
   }, [initialState, mutation]);
 
   useLayoutEffect(() => {
@@ -115,14 +122,31 @@ export function CheckTextPage({
       if (!text.trim()) {
         return;
       }
-      mutation.mutate({ texts: [{ id: "text", text }], type: "all" });
+      mutation.mutate({ singular, texts: [{ id: "text", text }], type: "all" });
     },
-    [mutation, text]
+    [mutation, singular, text]
+  );
+  const changeSingular = useCallback(
+    (checked: boolean) => {
+      setSingular(checked);
+      if (result) {
+        mutation.mutate({
+          singular: checked,
+          texts: [{ id: "text", text: result.text }],
+          type: "all",
+        });
+      }
+    },
+    [mutation, result]
   );
   const openMark = useCallback(
     (serialNumber: string, scrollOffset: number) =>
-      onOpenMark(serialNumber, scrollOffset, { kind: "text", text: result?.text ?? text }),
-    [onOpenMark, result?.text, text]
+      onOpenMark(serialNumber, scrollOffset, {
+        kind: "text",
+        singular: mutation.variables?.singular ?? singular,
+        text: result?.text ?? text,
+      }),
+    [mutation.variables?.singular, onOpenMark, result?.text, singular, text]
   );
 
   return (
@@ -145,6 +169,7 @@ export function CheckTextPage({
           startOverLabel={result ? "Check different text" : undefined}
           value={text}
         />
+        <SingularOption checked={singular} onCheckedChange={changeSingular} />
       </div>
 
       {mutation.error ? (

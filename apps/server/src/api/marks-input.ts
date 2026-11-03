@@ -14,6 +14,12 @@ const maximumMatchTexts = 100;
 const maximumScreenQueries = 100;
 const identifierSchema = z.string().trim().min(1).max(100);
 const markTypeSchema = z.enum(["all", "design", "typeset", "text", "other"]);
+// Screens look for trademark evidence, where a miss costs more than an extra mark, so they match
+// singulars by default. Search matches what was typed unless asked (search-input.ts).
+const screenSingularSchema = z.boolean().default(true).meta({
+  description:
+    "Also match each word span with its plural words made singular, on the text and the mark alike: kitten nuggets matches KITTEN NUGGET, and milk and cookies matches MILK AND COOKIE. Only adds matches. Defaults to true.",
+});
 const matchTextSchema = z.string().superRefine(validateMatchText).meta({
   description:
     "Nonblank text containing at most 4096 UTF-16 code units and at most 128 Unicode word tokens.",
@@ -45,6 +51,7 @@ export const markIdentitySchema = z.union([
 
 export const matchTextsInputSchema = z
   .object({
+    singular: screenSingularSchema,
     texts: z
       .array(
         z
@@ -76,6 +83,7 @@ export const screenQueriesInputSchema = z
       )
       .min(1)
       .max(maximumScreenQueries),
+    singular: screenSingularSchema,
     type: markTypeSchema.default("all"),
   })
   .strict()
@@ -85,6 +93,7 @@ export const screenQueriesInputSchema = z
 
 export const screenTextInputSchema = z
   .object({
+    singular: screenSingularSchema,
     text: matchTextSchema,
     type: markTypeSchema.default("all"),
   })

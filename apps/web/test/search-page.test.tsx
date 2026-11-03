@@ -332,13 +332,17 @@ test("URL state drives exact-only, partial-only, both, and server filters", asyn
     offset: 0,
     query: "terminal",
     registered: "yes",
+    singular: false,
     sort: "oldest-activity",
     status: "dead",
     type: "design",
   });
 
+  fireEvent.click(screen.getByRole("checkbox", { name: "Singular" }));
+  await waitFor(() => expect(inputs.at(-1)?.singular).toBe(true));
   fireEvent.click(screen.getByRole("checkbox", { name: "Partial" }));
   await waitFor(() => expect(inputs.at(-1)?.match).toBe("both"));
+  expect(inputs.at(-1)?.singular).toBe(true);
   fireEvent.click(screen.getByRole("checkbox", { name: "Exact" }));
   await waitFor(() => expect(inputs.at(-1)?.match).toBe("partial"));
   expect((screen.getByRole("checkbox", { name: "Partial" }) as HTMLInputElement).disabled).toBe(

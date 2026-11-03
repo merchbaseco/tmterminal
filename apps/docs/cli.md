@@ -39,15 +39,16 @@ printf '%s' "shirt title" | tt screen --stdin
 ```text
 tt search <query> [--mode multi|split|wildcard] [--match both|exact|partial]
   [--status all|live|dead] [--type all|design|typeset|text|other]
-  [--registered all|yes|no] [--sort relevance|newest-activity|oldest-activity]
+  [--registered all|yes|no] [--singular]
+  [--sort relevance|newest-activity|oldest-activity]
   [--offset 0] [--data-version <version>]
 tt get --serial <eight-digit-number>
 tt get --registration <seven-digit-number>
-tt screen --text <text> [--type all|design|typeset|text|other]
-tt screen --stdin [--type all|design|typeset|text|other]
+tt screen --text <text> [--type all|design|typeset|text|other] [--no-singular]
+tt screen --stdin [--type all|design|typeset|text|other] [--no-singular]
 ```
 
-`--match` is valid only for Multi. `--text` and `--stdin` are mutually exclusive. Search returns one 25-item page. Follow-up pages pass `--data-version`. Changed live data returns `CONFLICT`.
+`--match` is valid only for Multi. `--singular` also matches plural words as singular and is valid for Multi and Split. `tt screen` matches singulars unless you pass `--no-singular`. `--text` and `--stdin` are mutually exclusive. Search returns one 25-item page. Follow-up pages pass `--data-version`. Changed live data returns `CONFLICT`.
 
 ## Output
 

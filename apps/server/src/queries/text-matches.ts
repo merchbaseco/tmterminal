@@ -1,7 +1,7 @@
 import type postgres from "postgres";
 
 import type { MarkSummary, MatchTextsInput, MatchTextsResult } from "../api/contracts.ts";
-import { foldedMatchKeySql } from "../db/match-keys.ts";
+import { foldedMatchKeySql, matchKeySql } from "../db/match-keys.ts";
 import { candidateTextTerms, findTextSpans } from "../search/text-matching.ts";
 import { readDataSnapshot } from "./data-snapshot.ts";
 import { markSummarySql, markTypeSql } from "./mark-page.ts";
@@ -29,7 +29,7 @@ export function matchTexts(
         queriedTerms.add(term);
       }
       // biome-ignore lint/performance/noAwaitInLoops: Sequential reads keep O(tokens²) candidate materialization bounded to one document.
-      const candidates = await readCandidates(transaction, terms, input.type);
+      const candidates = await readCandidates(transaction, terms, input);
       for (const candidate of candidates) {
         const matches = candidatesByTerm.get(candidate.normalizedTerm) ?? [];
         matches.push(candidate);
@@ -64,7 +64,7 @@ export function matchTexts(
 function readCandidates(
   transaction: postgres.TransactionSql,
   terms: string[],
-  type: MatchTextsInput["type"]
+  { singular, type }: Pick<MatchTextsInput, "singular" | "type">
 ) {
   if (terms.length === 0) {
     return Promise.resolve([]);
@@ -73,11 +73,11 @@ function readCandidates(
   const values = type === "all" ? [JSON.stringify(terms)] : [JSON.stringify(terms), type];
   return transaction.unsafe<Candidate[]>(
     `with terms as (
-      select distinct term, ${foldedMatchKeySql("term")} as value
+      select distinct term, ${matchKeySql(foldedMatchKeySql("term"), singular)} as value
       from jsonb_array_elements_text($1::text::jsonb) source_terms(term)
     )
     select ${markSummarySql}, terms.term as "normalizedTerm"
-    from mark m join terms on terms.value = m.word_mark_folded
+    from mark m join terms on terms.value = ${matchKeySql("m.word_mark_folded", singular)}
     where terms.value <> '' and m.search_status = 'live' ${typePredicate}
     order by terms.term, m.word_mark_normalized, m.serial_number`,
     values

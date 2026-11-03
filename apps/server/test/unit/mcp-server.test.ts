@@ -66,17 +66,22 @@ test("tools/list preserves identity alternatives, search modes, constraints, and
           properties: {
             match: { default: "both", enum: ["exact", "partial", "both"] },
             mode: { const: "multi" },
+            singular: { default: false, type: "boolean" },
           },
           required: ["query", "mode"],
         },
         {
           additionalProperties: false,
-          properties: { match: { not: {} }, mode: { const: "split" } },
+          properties: {
+            match: { not: {} },
+            mode: { const: "split" },
+            singular: { default: false, type: "boolean" },
+          },
           required: ["query", "mode"],
         },
         {
           additionalProperties: false,
-          properties: { match: { not: {} }, mode: { const: "wildcard" } },
+          properties: { match: { not: {} }, mode: { const: "wildcard" }, singular: { not: {} } },
           required: ["query", "mode"],
         },
       ],
@@ -96,6 +101,11 @@ test("tools/list preserves identity alternatives, search modes, constraints, and
         { additionalProperties: false, required: ["texts"] },
       ],
       properties: {
+        singular: {
+          default: true,
+          description: expect.stringContaining("KITTEN NUGGET"),
+          type: "boolean",
+        },
         text: {
           description: expect.stringContaining("UTF-16"),
           maxLength: 4096,
@@ -222,10 +232,15 @@ test("tools/call rejects invalid inputs before reading data", async () => {
       { arguments: { mode: "split", query: "!!!" }, name: "tmterminal_search" },
       { arguments: { match: "both", mode: "split", query: "shirt" }, name: "tmterminal_search" },
       { arguments: { mode: "wildcard", query: "a*b*" }, name: "tmterminal_search" },
+      {
+        arguments: { mode: "wildcard", query: "shirt", singular: false },
+        name: "tmterminal_search",
+      },
       { arguments: { text: " " }, name: "tmterminal_screen" },
       { arguments: { text: "x".repeat(4097) }, name: "tmterminal_screen" },
       { arguments: { text: "word ".repeat(129) }, name: "tmterminal_screen" },
       { arguments: { text: "shirt", type: "unknown" }, name: "tmterminal_screen" },
+      { arguments: { singular: "yes", text: "shirt" }, name: "tmterminal_screen" },
       { arguments: { texts: [] }, name: "tmterminal_screen" },
       { arguments: { texts: [{ id: "a", text: " " }] }, name: "tmterminal_screen" },
       {
@@ -285,6 +300,7 @@ test("uses canonical search defaults and returns identical portable JSON", async
         offset: 0,
         query: "Terminal Club",
         registered: "all",
+        singular: false,
         sort: "relevance",
         status: "all",
         type: "all",
@@ -312,14 +328,14 @@ test("screens one text document and returns unique trademarks without positions"
       name: "tmterminal_screen",
     });
 
-    expect(inputs).toEqual([{ text: "Terminal Club shirt", type: "all" }]);
+    expect(inputs).toEqual([{ singular: true, text: "Terminal Club shirt", type: "all" }]);
     expect(result.structuredContent).toEqual(data);
   } finally {
     await close();
   }
 });
 
-test("screens several named texts in one call and tags trademarks with their text id", async () => {
+test("screens several named texts in one call, passing singular through", async () => {
   const inputs: unknown[] = [];
   const data = {
     meta: { dataVersion: "7" },
@@ -337,6 +353,7 @@ test("screens several named texts in one call and tags trademarks with their tex
   try {
     const result = await client.callTool({
       arguments: {
+        singular: false,
         texts: [
           { id: "first", text: "it's fine" },
           { id: "second", text: "Terminal Club" },
@@ -347,6 +364,7 @@ test("screens several named texts in one call and tags trademarks with their tex
 
     expect(inputs).toEqual([
       {
+        singular: false,
         texts: [
           { id: "first", text: "it's fine" },
           { id: "second", text: "Terminal Club" },

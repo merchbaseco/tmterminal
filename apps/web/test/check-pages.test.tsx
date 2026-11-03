@@ -99,6 +99,7 @@ test("checks text, filters from its highlight, and opens a canonical result row"
   ).toBeTruthy();
   expect(inputs).toEqual([
     {
+      singular: true,
       texts: [{ id: "text", text: "Terminal Club shirts" }],
       type: "all",
     },
@@ -114,7 +115,15 @@ test("checks text, filters from its highlight, and opens a canonical result row"
     })
   );
   expect(opened).toEqual(["70000001"]);
-  expect(restoreStates).toEqual([{ kind: "text", text: "Terminal Club shirts" }]);
+  expect(restoreStates).toEqual([{ kind: "text", singular: true, text: "Terminal Club shirts" }]);
+
+  fireEvent.click(screen.getByRole("checkbox", { name: "Singular" }));
+  await screen.findByRole("button", { name: "Terminal Club, 1 matching trademark" });
+  expect(inputs.at(-1)).toEqual({
+    singular: false,
+    texts: [{ id: "text", text: "Terminal Club shirts" }],
+    type: "all",
+  });
 
   fireEvent.click(screen.getByRole("button", { name: "Check different text" }));
   expect((screen.getByLabelText("Text to check") as HTMLInputElement).value).toBe("");
@@ -188,6 +197,7 @@ test("screens named phrases and shows canonical results for the selected phrase"
       { id: "line-1", query: "Terminal Club" },
       { id: "line-2", query: "Ocean Supply" },
     ],
+    singular: true,
     type: "all",
   });
   const resultLink = await screen.findByRole("link", {
@@ -195,6 +205,7 @@ test("screens named phrases and shows canonical results for the selected phrase"
   });
   expect(searches[0]?.query).toBe("Terminal Club");
   expect(searches[0]?.expectedDataVersion).toBe("7");
+  expect(searches[0]?.singular).toBe(true);
   fireEvent.change(phrasesField, {
     target: { value: "Unsubmitted draft" },
   });
@@ -204,9 +215,15 @@ test("screens named phrases and shows canonical results for the selected phrase"
     {
       kind: "bulk",
       selectedQueryId: "line-1",
+      singular: true,
       value: "Terminal Club\nOcean Supply",
     },
   ]);
+
+  fireEvent.click(screen.getByRole("checkbox", { name: "Singular" }));
+  await screen.findByRole("link", { name: "TERMINAL CLUB, Live, serial number 70000001" });
+  expect(inputs.at(-1)?.singular).toBe(false);
+  expect(searches.at(-1)).toMatchObject({ query: "Terminal Club", singular: false });
 
   fireEvent.click(screen.getByRole("button", { name: "Ocean Supply, no live matches" }));
   expect(await screen.findByText("No live matches")).toBeTruthy();
@@ -259,7 +276,7 @@ test("restores submitted check tools after returning from trademark detail", asy
     const textView = renderPage(
       <CheckTextPage
         api={textApi}
-        initialState={{ kind: "text", text: "Restored title" }}
+        initialState={{ kind: "text", singular: false, text: "Restored title" }}
         onNavigate={ignoreNavigation}
         onOpenMark={onOpenMark}
         restoreScrollOffset={240}
@@ -268,7 +285,12 @@ test("restores submitted check tools after returning from trademark detail", asy
     expect(await screen.findByText("No live matches")).toBeTruthy();
     const restoredText = screen.getByLabelText("Text to check") as HTMLInputElement;
     expect(restoredText.value).toBe("Restored title");
-    expect(matchInputs).toEqual([{ texts: [{ id: "text", text: "Restored title" }], type: "all" }]);
+    expect(matchInputs).toEqual([
+      { singular: false, texts: [{ id: "text", text: "Restored title" }], type: "all" },
+    ]);
+    expect((screen.getByRole("checkbox", { name: "Singular" }) as HTMLInputElement).checked).toBe(
+      false
+    );
     fireEvent.change(restoredText, { target: { value: "Second title" } });
     fireEvent.click(screen.getByRole("button", { name: "Check text" }));
     await screen.findByText("No live matches");
@@ -281,6 +303,7 @@ test("restores submitted check tools after returning from trademark detail", asy
         initialState={{
           kind: "bulk",
           selectedQueryId: "line-2",
+          singular: true,
           value: "First phrase\nSecond phrase",
         }}
         onNavigate={ignoreNavigation}
@@ -300,6 +323,7 @@ test("restores submitted check tools after returning from trademark detail", asy
           { id: "line-1", query: "First phrase" },
           { id: "line-2", query: "Second phrase" },
         ],
+        singular: true,
         type: "all",
       },
     ]);

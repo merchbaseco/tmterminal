@@ -42,6 +42,13 @@ query.
 **Wildcard**:
 Search the whole mark using a pattern where `*` means zero or more characters.
 
+**Singular Match**:
+A match on the singular key: every word that reads as a regular plural made
+singular, on the query or text and on the mark alike, so "kitten nuggets"
+matches KITTEN NUGGET. On by default for screening, off by default for search,
+never for Wildcard. The rules are Factory's `tm_forms.numberless`.
+_Avoid_: Stemming, Plural folding
+
 **Text Match**:
 One occurrence found in a named Text Document, paired with a half-open
 JavaScript UTF-16 source span and every live word mark for that occurrence.

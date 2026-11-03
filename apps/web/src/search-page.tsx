@@ -45,6 +45,7 @@ interface SearchState {
   partial: boolean;
   query: string;
   registered: "all" | "yes" | "no";
+  singular: boolean;
   sort: "relevance" | "newest-activity" | "oldest-activity";
   status: "all" | "live" | "dead";
   type: "all" | "design" | "typeset" | "text";
@@ -94,6 +95,7 @@ function readSearchState(search: string, preferences: SearchPreferences): Search
       registered === "all" || registered === "yes" || registered === "no"
         ? registered
         : preferences.defaultRegistered,
+    singular: parameters.get("singular") === "true",
     sort:
       sort === "relevance" || sort === "newest-activity" || sort === "oldest-activity"
         ? sort
@@ -116,6 +118,7 @@ function searchHref(state: SearchState) {
     partial: String(state.partial),
     q: state.query,
     registered: state.registered,
+    singular: String(state.singular),
     sort: state.sort,
     status: state.status,
     type: state.type,
@@ -137,6 +140,7 @@ function requestFor(state: SearchState, pageSize: SearchPreferences["pageSize"])
     mode: "multi" as const,
     query: state.query,
     registered: state.registered,
+    singular: state.singular,
     sort: state.sort,
     status: state.status,
     type: state.type,
@@ -439,11 +443,11 @@ export function SearchPage({
             {/* biome-ignore lint/a11y/useSemanticElements: A native fieldset legend sits off-grid and breaks the shared filter baseline. */}
             <div
               aria-labelledby="search-match-label"
-              className="grid min-h-16 grid-cols-[auto_auto] content-center justify-start gap-x-4 gap-y-1 border-0 border-border border-r px-4 py-3 max-[48rem]:col-span-full max-[48rem]:border-r-0 max-[48rem]:border-b [&_input]:accent-primary [&_label]:flex [&_label]:items-center [&_label]:gap-2 [&_label]:font-semibold [&_label]:text-base"
+              className="flex min-h-16 min-w-0 flex-wrap content-center items-center gap-x-4 gap-y-1 border-0 border-border border-r px-4 py-3 max-[48rem]:col-span-full max-[48rem]:border-r-0 max-[48rem]:border-b [&_input]:accent-primary [&_label]:flex [&_label]:items-center [&_label]:gap-2 [&_label]:font-semibold [&_label]:text-base"
               role="group"
             >
               <span
-                className="utility-label col-span-full text-muted-foreground"
+                className="utility-label basis-full text-muted-foreground"
                 id="search-match-label"
               >
                 Match
@@ -469,6 +473,16 @@ export function SearchPage({
                   type="checkbox"
                 />
                 Partial
+              </label>
+              <label title="Plural words also match singular marks: kitten nuggets finds KITTEN NUGGET.">
+                <input
+                  checked={state.singular}
+                  name="singular"
+                  // biome-ignore lint/performance/noJsxPropsBind: Search option handlers are local leaf callbacks.
+                  onChange={(event) => updateState({ singular: event.target.checked })}
+                  type="checkbox"
+                />
+                Singular
               </label>
             </div>
             <SearchOptionSelect

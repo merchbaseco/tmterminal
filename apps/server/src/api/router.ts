@@ -82,13 +82,15 @@ const marksRouter = t.router({
   screen: t.procedure
     .input(screenQueriesInputSchema)
     .query(({ ctx, input }) => ctx.marks.screen(input)),
-  screenText: t.procedure
-    .input(screenTextInputSchema)
-    .query(async ({ ctx, input }) =>
-      summarizeScreenedText(
-        await ctx.marks.match({ texts: [{ id: "text", text: input.text }], type: input.type })
-      )
-    ),
+  screenText: t.procedure.input(screenTextInputSchema).query(async ({ ctx, input }) =>
+    summarizeScreenedText(
+      await ctx.marks.match({
+        singular: input.singular,
+        texts: [{ id: "text", text: input.text }],
+        type: input.type,
+      })
+    )
+  ),
   search: t.procedure.input(searchInputSchema).query(async ({ ctx, input }) => {
     try {
       return await ctx.marks.search(input);

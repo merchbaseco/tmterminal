@@ -1,5 +1,11 @@
 # Trademark Terminal CLI Changelog
 
+## v5.1.0 - 2026-11-03
+
+- `tt screen` matches plural words as singular marks, so `Kitten Nuggets` finds KITTEN NUGGET. Pass `--no-singular` to match the words as written.
+- `tt search --singular` does the same for Multi and Split.
+- The HTTP client's `screen`, `match`, and `search` inputs take `singular`.
+
 ## v5.0.1 - 2026-10-30
 
 - Hosted MCP setup now points to the canonical Trademark Terminal URL; the API hostname remains available as an alias.

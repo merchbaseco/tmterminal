@@ -19,7 +19,7 @@ import {
 
 import { defaultSearchPreferences, type SearchPreferences } from "../account-preferences.ts";
 import { markSearchStatusSql } from "../search/status-policy.ts";
-import { foldedMatchKeySql } from "./match-keys.ts";
+import { foldedMatchKeySql, matchKeySql } from "./match-keys.ts";
 
 export const sourceArtifactDownloadState = pgEnum("source_artifact_download_state_v2", [
   "pending",
@@ -208,6 +208,14 @@ export const mark = pgTable(
       sql`${table.wordMarkNormalized} gin_trgm_ops`
     ),
     index("mark_word_mark_folded_trgm_idx").using("gin", sql`${table.wordMarkFolded} gin_trgm_ops`),
+    index("mark_word_mark_singular_idx").using(
+      "hash",
+      sql.raw(matchKeySql('"word_mark_folded"', true))
+    ),
+    index("mark_word_mark_singular_trgm_idx").using(
+      "gin",
+      sql.raw(`${matchKeySql('"word_mark_folded"', true)} gin_trgm_ops`)
+    ),
     index("mark_live_word_mark_exact_idx")
       .using("hash", table.wordMarkNormalized)
       .where(sql`${table.searchStatus} = 'live'`),
@@ -216,6 +224,12 @@ export const mark = pgTable(
       .where(sql`${table.searchStatus} = 'live'`),
     index("mark_live_word_mark_folded_trgm_idx")
       .using("gin", sql`${table.wordMarkFolded} gin_trgm_ops`)
+      .where(sql`${table.searchStatus} = 'live'`),
+    index("mark_live_word_mark_singular_idx")
+      .using("hash", sql.raw(matchKeySql('"word_mark_folded"', true)))
+      .where(sql`${table.searchStatus} = 'live'`),
+    index("mark_live_word_mark_singular_trgm_idx")
+      .using("gin", sql.raw(`${matchKeySql('"word_mark_folded"', true)} gin_trgm_ops`))
       .where(sql`${table.searchStatus} = 'live'`),
     index("mark_live_word_mark_normalized_trgm_idx")
       .using("gin", sql`${table.wordMarkNormalized} gin_trgm_ops`)

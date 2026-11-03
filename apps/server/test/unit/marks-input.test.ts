@@ -28,6 +28,7 @@ test("text matching preserves source offsets and accepts only its mark type filt
   const text = "  Cafe\u0301 terminal\n";
 
   expect(matchTextsInputSchema.parse({ texts: [{ id: "title", text }] })).toEqual({
+    singular: true,
     texts: [{ id: "title", text }],
     type: "all",
   });
@@ -84,6 +85,7 @@ test("bulk screening accepts ordered unique phrase ids", () => {
       { id: "a", query: "TERMINAL CLUB" },
       { id: "b", query: "café" },
     ],
+    singular: true,
     type: "all",
   });
   expect(
