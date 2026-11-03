@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**Features**
+
+- feat(mcp): `tmterminal_screen` accepts `texts`, up to 100 `{id, text}` items, and returns `texts: [{id, trademarks}]` in input order. The single `text` form is unchanged.
+- feat(search): Multi, Split, Bulk Check, and text screening match on a punctuation-folded key. Apostrophes are dropped and other punctuation separates words, so `it's fine` finds IT'S FINE and ITS FINE. Split no longer turns `it's` into `it s`. Wildcard keeps punctuation literal.
+- Changed: `%`, `_`, and `\` count as punctuation outside Wildcard, so Multi `50%` also finds 50X SYMBOL. A punctuation-only Multi query or Bulk Check line matches nothing.
+
 ## 2.0.0 - 2026-10-29
 
 **Changed**

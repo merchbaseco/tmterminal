@@ -14,9 +14,19 @@ Every request needs a Cloudflare Access OAuth bearer token for service `tmtermin
 | --- | --- |
 | `tmterminal_search` | One Search Query, one page |
 | `tmterminal_get` | One exact serial or registration |
-| `tmterminal_screen` | One listing text; each matching live mark once |
+| `tmterminal_screen` | One listing text, or up to 100 named texts; each matching live mark once per text |
 
 Get an identity. Search a word or phrase. Screen complete listing text.
+
+Screen several texts in one call with `texts`. Ids must be unique. The result lists each text in input order with its own matching marks:
+
+```json
+{ "texts": [{ "id": "title", "text": "It's fine shirt" }, { "id": "slogan", "text": "Stay cozy" }] }
+```
+
+```json
+{ "meta": { "dataVersion": "7" }, "texts": [{ "id": "title", "trademarks": [] }, { "id": "slogan", "trademarks": [] }] }
+```
 
 Search continuation passes `meta.dataVersion` as `expectedDataVersion`. After `CONFLICT`, restart at offset zero.
 

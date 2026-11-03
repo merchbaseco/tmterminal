@@ -115,7 +115,10 @@ describe("Trademark Terminal hosted MCP routes", () => {
             inputSchema: { properties: { query: { minLength: 1 } }, required: ["query", "mode"] },
             name: "tmterminal_search",
           },
-          { inputSchema: { required: ["text"] }, name: "tmterminal_screen" },
+          {
+            inputSchema: { anyOf: [{ required: ["text"] }, { required: ["texts"] }] },
+            name: "tmterminal_screen",
+          },
         ],
       },
     });

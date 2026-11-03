@@ -91,7 +91,10 @@ test("tools/list preserves identity alternatives, search modes, constraints, and
       type: "object",
     });
     expect(tools.find((tool) => tool.name === "tmterminal_screen")?.inputSchema).toMatchObject({
-      additionalProperties: false,
+      anyOf: [
+        { additionalProperties: false, required: ["text"] },
+        { additionalProperties: false, required: ["texts"] },
+      ],
       properties: {
         text: {
           description: expect.stringContaining("UTF-16"),
@@ -99,9 +102,21 @@ test("tools/list preserves identity alternatives, search modes, constraints, and
           minLength: 1,
           type: "string",
         },
+        texts: {
+          items: {
+            additionalProperties: false,
+            properties: {
+              id: { maxLength: 100, minLength: 1, type: "string" },
+              text: { maxLength: 4096, minLength: 1, type: "string" },
+            },
+            required: ["id", "text"],
+          },
+          maxItems: 100,
+          minItems: 1,
+          type: "array",
+        },
         type: { default: "all", enum: ["all", "design", "typeset", "text", "other"] },
       },
-      required: ["text"],
       type: "object",
     });
   } finally {
@@ -184,7 +199,7 @@ test("tools/call accepts both identities and all search modes", async () => {
 test("tools/call rejects invalid inputs before reading data", async () => {
   const reads: unknown[] = [];
   const testSource = source();
-  for (const operation of ["get", "search", "screen"] as const) {
+  for (const operation of ["get", "search", "screen", "screenTexts"] as const) {
     testSource.trademarks[operation] = (input: unknown) => {
       reads.push(input);
       return Promise.resolve({}) as never;
@@ -211,6 +226,25 @@ test("tools/call rejects invalid inputs before reading data", async () => {
       { arguments: { text: "x".repeat(4097) }, name: "tmterminal_screen" },
       { arguments: { text: "word ".repeat(129) }, name: "tmterminal_screen" },
       { arguments: { text: "shirt", type: "unknown" }, name: "tmterminal_screen" },
+      { arguments: { texts: [] }, name: "tmterminal_screen" },
+      { arguments: { texts: [{ id: "a", text: " " }] }, name: "tmterminal_screen" },
+      {
+        arguments: {
+          texts: [
+            { id: "a", text: "shirt" },
+            { id: "a", text: "mug" },
+          ],
+        },
+        name: "tmterminal_screen",
+      },
+      {
+        arguments: { texts: Array.from({ length: 101 }, (_, id) => ({ id: `${id}`, text: "x" })) },
+        name: "tmterminal_screen",
+      },
+      {
+        arguments: { text: "shirt", texts: [{ id: "a", text: "shirt" }] },
+        name: "tmterminal_screen",
+      },
     ];
     for (const result of await Promise.all(invalid.map((request) => client.callTool(request)))) {
       expect(result.isError).toBe(true);
@@ -285,6 +319,47 @@ test("screens one text document and returns unique trademarks without positions"
   }
 });
 
+test("screens several named texts in one call and tags trademarks with their text id", async () => {
+  const inputs: unknown[] = [];
+  const data = {
+    meta: { dataVersion: "7" },
+    texts: [
+      { id: "first", trademarks: [] },
+      { id: "second", trademarks: [] },
+    ],
+  };
+  const testSource = source();
+  testSource.trademarks.screenTexts = (input) => {
+    inputs.push(input);
+    return Promise.resolve(data);
+  };
+  const { client, close } = await connectedClient(testSource);
+  try {
+    const result = await client.callTool({
+      arguments: {
+        texts: [
+          { id: "first", text: "it's fine" },
+          { id: "second", text: "Terminal Club" },
+        ],
+      },
+      name: "tmterminal_screen",
+    });
+
+    expect(inputs).toEqual([
+      {
+        texts: [
+          { id: "first", text: "it's fine" },
+          { id: "second", text: "Terminal Club" },
+        ],
+        type: "all",
+      },
+    ]);
+    expect(result.structuredContent).toEqual(data);
+  } finally {
+    await close();
+  }
+});
+
 test("returns stable tool errors without structured content", async () => {
   const testSource = source();
   testSource.trademarks.get = () =>
@@ -312,6 +387,7 @@ function source(): TmterminalMcpDataSource {
     trademarks: {
       get: async () => ({}) as never,
       screen: async () => ({ meta: page.meta, trademarks: [] }),
+      screenTexts: async () => ({ meta: page.meta, texts: [] }),
       search: async () => ({ ...page, liveMatchCounts: { exact: 0, partial: 0 } }),
     },
   };

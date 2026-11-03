@@ -133,6 +133,14 @@ export interface ScreenTextResult {
   trademarks: MarkSummary[];
 }
 
+export interface ScreenTextsResult {
+  meta: MarkPage["meta"];
+  texts: Array<{
+    id: string;
+    trademarks: MarkSummary[];
+  }>;
+}
+
 export interface MarksService {
   get: (
     identity: { registrationNumber: string } | { serialNumber: string }
