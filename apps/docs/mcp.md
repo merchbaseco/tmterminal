@@ -38,7 +38,7 @@ Search continuation passes `meta.dataVersion` as `expectedDataVersion`. After `C
 - `/.well-known/oauth-protected-resource/mcp`
 OAuth authorization-server metadata is hosted by the Cloudflare issuer advertised in the protected-resource metadata.
 
-The same limits and error codes as the HTTP client apply. Details live in the [MCP reference](https://github.com/merchbaseco/tmterminal/blob/main/docs/reference/mcp.md).
+The same limits and error codes as the [HTTP client](/http-client) apply.
 
 ## What's next
 
