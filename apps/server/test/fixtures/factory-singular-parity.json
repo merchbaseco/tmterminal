@@ -113,55 +113,37 @@
     },
     {
       "word": "cats",
-      "singulars": [
-        "cat"
-      ],
+      "singulars": ["cat"],
       "key": "cat"
     },
     {
       "word": "kittens",
-      "singulars": [
-        "kitten"
-      ],
+      "singulars": ["kitten"],
       "key": "kitten"
     },
     {
       "word": "nuggets",
-      "singulars": [
-        "nugget"
-      ],
+      "singulars": ["nugget"],
       "key": "nugget"
     },
     {
       "word": "cookies",
-      "singulars": [
-        "cookie",
-        "cooky"
-      ],
+      "singulars": ["cookie", "cooky"],
       "key": "cooky"
     },
     {
       "word": "puppies",
-      "singulars": [
-        "puppie",
-        "puppy"
-      ],
+      "singulars": ["puppie", "puppy"],
       "key": "puppy"
     },
     {
       "word": "pies",
-      "singulars": [
-        "pie",
-        "py"
-      ],
+      "singulars": ["pie", "py"],
       "key": "py"
     },
     {
       "word": "ties",
-      "singulars": [
-        "tie",
-        "ty"
-      ],
+      "singulars": ["tie", "ty"],
       "key": "ty"
     },
     {
@@ -181,51 +163,37 @@
     },
     {
       "word": "boxes",
-      "singulars": [
-        "box"
-      ],
+      "singulars": ["box"],
       "key": "box"
     },
     {
       "word": "watches",
-      "singulars": [
-        "watch"
-      ],
+      "singulars": ["watch"],
       "key": "watch"
     },
     {
       "word": "wishes",
-      "singulars": [
-        "wish"
-      ],
+      "singulars": ["wish"],
       "key": "wish"
     },
     {
       "word": "buzzes",
-      "singulars": [
-        "buzz"
-      ],
+      "singulars": ["buzz"],
       "key": "buzz"
     },
     {
       "word": "glasses",
-      "singulars": [
-        "glass"
-      ],
+      "singulars": ["glass"],
       "key": "glass"
     },
     {
       "word": "kisses",
-      "singulars": [
-        "kiss"
-      ],
+      "singulars": ["kiss"],
       "key": "kiss"
     },
     {
       "word": "dresses",
-      "singulars": [
-        "dress"
-      ],
+      "singulars": ["dress"],
       "key": "dress"
     },
     {
@@ -255,9 +223,7 @@
     },
     {
       "word": "gases",
-      "singulars": [
-        "gase"
-      ],
+      "singulars": ["gase"],
       "key": "gase"
     },
     {
@@ -282,67 +248,47 @@
     },
     {
       "word": "dogs",
-      "singulars": [
-        "dog"
-      ],
+      "singulars": ["dog"],
       "key": "dog"
     },
     {
       "word": "heroes",
-      "singulars": [
-        "heroe"
-      ],
+      "singulars": ["heroe"],
       "key": "heroe"
     },
     {
       "word": "potatoes",
-      "singulars": [
-        "potatoe"
-      ],
+      "singulars": ["potatoe"],
       "key": "potatoe"
     },
     {
       "word": "series",
-      "singulars": [
-        "serie",
-        "sery"
-      ],
+      "singulars": ["serie", "sery"],
       "key": "sery"
     },
     {
       "word": "species",
-      "singulars": [
-        "specie",
-        "specy"
-      ],
+      "singulars": ["specie", "specy"],
       "key": "specy"
     },
     {
       "word": "jeans",
-      "singulars": [
-        "jean"
-      ],
+      "singulars": ["jean"],
       "key": "jean"
     },
     {
       "word": "texas",
-      "singulars": [
-        "texa"
-      ],
+      "singulars": ["texa"],
       "key": "texa"
     },
     {
       "word": "vegas",
-      "singulars": [
-        "vega"
-      ],
+      "singulars": ["vega"],
       "key": "vega"
     },
     {
       "word": "mars",
-      "singulars": [
-        "mar"
-      ],
+      "singulars": ["mar"],
       "key": "mar"
     },
     {
@@ -352,9 +298,7 @@
     },
     {
       "word": "christmas",
-      "singulars": [
-        "christma"
-      ],
+      "singulars": ["christma"],
       "key": "christma"
     },
     {
@@ -384,33 +328,22 @@
     },
     {
       "word": "ladies",
-      "singulars": [
-        "ladie",
-        "lady"
-      ],
+      "singulars": ["ladie", "lady"],
       "key": "lady"
     },
     {
       "word": "babies",
-      "singulars": [
-        "babie",
-        "baby"
-      ],
+      "singulars": ["babie", "baby"],
       "key": "baby"
     },
     {
       "word": "flies",
-      "singulars": [
-        "flie",
-        "fly"
-      ],
+      "singulars": ["flie", "fly"],
       "key": "fly"
     },
     {
       "word": "knives",
-      "singulars": [
-        "knive"
-      ],
+      "singulars": ["knive"],
       "key": "knive"
     },
     {
@@ -463,20 +396,12 @@
     {
       "text": "Cats",
       "key": "cat",
-      "singularForms": [
-        [
-          "cat"
-        ]
-      ]
+      "singularForms": [["cat"]]
     },
     {
       "text": "funny cats",
       "key": "funny cat",
-      "singularForms": [
-        [
-          "funny cat"
-        ]
-      ]
+      "singularForms": [["funny cat"]]
     },
     {
       "text": "cat lover",
@@ -486,11 +411,7 @@
     {
       "text": "CATS",
       "key": "cat",
-      "singularForms": [
-        [
-          "cat"
-        ]
-      ]
+      "singularForms": [["cat"]]
     },
     {
       "text": "gardening lover",
@@ -511,25 +432,15 @@
       "text": "Plant Lady Funny Cats Gardening",
       "key": "plant lady funny cat gardening",
       "singularForms": [
-        [
-          "plant lady funny cat"
-        ],
-        [
-          "lady funny cat"
-        ],
-        [
-          "funny cat"
-        ]
+        ["plant lady funny cat"],
+        ["lady funny cat"],
+        ["funny cat"]
       ]
     },
     {
       "text": "cats",
       "key": "cat",
-      "singularForms": [
-        [
-          "cat"
-        ]
-      ]
+      "singularForms": [["cat"]]
     },
     {
       "text": "hogwarts garden",
@@ -565,33 +476,15 @@
       "text": "kitty biscuits we knead em cat mom funny cats kneading",
       "key": "kitty biscuit we knead em cat mom funny cat kneading",
       "singularForms": [
-        [
-          "kitty biscuit"
-        ],
-        [
-          "kitty biscuits we knead em cat mom funny cat"
-        ],
-        [
-          "biscuits we knead em cat mom funny cat"
-        ],
-        [
-          "we knead em cat mom funny cat"
-        ],
-        [
-          "knead em cat mom funny cat"
-        ],
-        [
-          "em cat mom funny cat"
-        ],
-        [
-          "cat mom funny cat"
-        ],
-        [
-          "mom funny cat"
-        ],
-        [
-          "funny cat"
-        ]
+        ["kitty biscuit"],
+        ["kitty biscuits we knead em cat mom funny cat"],
+        ["biscuits we knead em cat mom funny cat"],
+        ["we knead em cat mom funny cat"],
+        ["knead em cat mom funny cat"],
+        ["em cat mom funny cat"],
+        ["cat mom funny cat"],
+        ["mom funny cat"],
+        ["funny cat"]
       ]
     },
     {
@@ -602,11 +495,7 @@
     {
       "text": "kitty biscuits",
       "key": "kitty biscuit",
-      "singularForms": [
-        [
-          "kitty biscuit"
-        ]
-      ]
+      "singularForms": [["kitty biscuit"]]
     },
     {
       "text": "we knead em",
@@ -616,11 +505,7 @@
     {
       "text": "making biscuits",
       "key": "making biscuit",
-      "singularForms": [
-        [
-          "making biscuit"
-        ]
-      ]
+      "singularForms": [["making biscuit"]]
     },
     {
       "text": "cat kneading",
@@ -665,11 +550,7 @@
     {
       "text": "Kitty Biscuits, We Knead 'Em",
       "key": "kitty biscuit we knead em",
-      "singularForms": [
-        [
-          "kitty biscuit"
-        ]
-      ]
+      "singularForms": [["kitty biscuit"]]
     },
     {
       "text": "biscuits we knead",
@@ -684,20 +565,12 @@
     {
       "text": "kitty biscuits we knead em",
       "key": "kitty biscuit we knead em",
-      "singularForms": [
-        [
-          "kitty biscuit"
-        ]
-      ]
+      "singularForms": [["kitty biscuit"]]
     },
     {
       "text": "Kitty Biscuits We Knead Em",
       "key": "kitty biscuit we knead em",
-      "singularForms": [
-        [
-          "kitty biscuit"
-        ]
-      ]
+      "singularForms": [["kitty biscuit"]]
     },
     {
       "text": "cat mom",
@@ -787,38 +660,17 @@
     {
       "text": "We Love Cats Forever Funny Cat Lover",
       "key": "we love cat forever funny cat lover",
-      "singularForms": [
-        [
-          "we love cat"
-        ],
-        [
-          "love cat"
-        ]
-      ]
+      "singularForms": [["we love cat"], ["love cat"]]
     },
     {
       "text": "we love cats forever",
       "key": "we love cat forever",
-      "singularForms": [
-        [
-          "we love cat"
-        ],
-        [
-          "love cat"
-        ]
-      ]
+      "singularForms": [["we love cat"], ["love cat"]]
     },
     {
       "text": "WE LOVE CATS",
       "key": "we love cat",
-      "singularForms": [
-        [
-          "we love cat"
-        ],
-        [
-          "love cat"
-        ]
-      ]
+      "singularForms": [["we love cat"], ["love cat"]]
     },
     {
       "text": "succulent queen",
@@ -873,12 +725,7 @@
     {
       "text": "Milk And Cookies",
       "key": "milk and cooky",
-      "singularForms": [
-        [
-          "milk and cookie",
-          "milk and cooky"
-        ]
-      ]
+      "singularForms": [["milk and cookie", "milk and cooky"]]
     },
     {
       "text": "milk and cookie",
@@ -908,14 +755,7 @@
     {
       "text": "my beekeeper costumes",
       "key": "my beekeeper costume",
-      "singularForms": [
-        [
-          "my beekeeper costume"
-        ],
-        [
-          "beekeeper costume"
-        ]
-      ]
+      "singularForms": [["my beekeeper costume"], ["beekeeper costume"]]
     },
     {
       "text": "beekeeper costume",
@@ -925,11 +765,7 @@
     {
       "text": "beekeeper costumes",
       "key": "beekeeper costume",
-      "singularForms": [
-        [
-          "beekeeper costume"
-        ]
-      ]
+      "singularForms": [["beekeeper costume"]]
     },
     {
       "text": "this is my beekeeper",
@@ -989,14 +825,7 @@
     {
       "text": "We Love Cats Forever",
       "key": "we love cat forever",
-      "singularForms": [
-        [
-          "we love cat"
-        ],
-        [
-          "love cat"
-        ]
-      ]
+      "singularForms": [["we love cat"], ["love cat"]]
     },
     {
       "text": "Plant Lady Barbiecore",
@@ -1011,29 +840,17 @@
     {
       "text": "Kitten Nuggets",
       "key": "kitten nugget",
-      "singularForms": [
-        [
-          "kitten nugget"
-        ]
-      ]
+      "singularForms": [["kitten nugget"]]
     },
     {
       "text": "kitten nuggets",
       "key": "kitten nugget",
-      "singularForms": [
-        [
-          "kitten nugget"
-        ]
-      ]
+      "singularForms": [["kitten nugget"]]
     },
     {
       "text": "NUGGETS",
       "key": "nugget",
-      "singularForms": [
-        [
-          "nugget"
-        ]
-      ]
+      "singularForms": [["nugget"]]
     },
     {
       "text": "Let's Go Brandon Grill Club",
