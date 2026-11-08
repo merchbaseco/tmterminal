@@ -78,7 +78,7 @@ jobs:
       runner: self-hosted
       published_packages: packages/http-client:@tmterminal/http-client,packages/cli:@tmterminal/cli
       publish_provenance: true
-      bun_version: "1.4.2"
+      bun_version: "1.4.4"
       prepublish_command: bun run release:check
       release_token_env_name: RELEASE_AGENT_TOOLING_OP_TOKEN
       release_switch_env_name: TMTERMINAL_RESOLVE_RELEASE_TOKENS
