@@ -10,8 +10,16 @@ compose() {
   docker compose --project-name tmterminal "$@"
 }
 
+# macOS system curl uses Apple's trust store, which still trusts the revoked
+# eMudhra roots (SEC-47). Prefer Homebrew's current CA bundle when present.
+ca_bundle=/opt/homebrew/etc/ca-certificates/cert.pem
+
 probe() {
-  curl --connect-timeout 5 --max-time 15 "$@"
+  if [ -r "$ca_bundle" ]; then
+    curl --cacert "$ca_bundle" --connect-timeout 5 --max-time 15 "$@"
+  else
+    curl --connect-timeout 5 --max-time 15 "$@"
+  fi
 }
 
 require_exact_ok() {
