@@ -51,6 +51,13 @@ const environment: NodeJS.ProcessEnv = {
   VARLOCK_ENV: "production",
 };
 
+// macOS system curl (used by scripts/deployment-smoke) still trusts the revoked
+// eMudhra roots (SEC-47). Point it at Homebrew's current CA bundle when present.
+const homebrewCaBundle = "/opt/homebrew/etc/ca-certificates/cert.pem";
+if (!environment.CURL_CA_BUNDLE && existsSync(homebrewCaBundle)) {
+  environment.CURL_CA_BUNDLE = homebrewCaBundle;
+}
+
 if (!process.env[bootstrapName]) {
   const reexec = spawnSync(
     "op",
