@@ -34,8 +34,13 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 if ! grep -q 'BUN_INSTALL' "$HOME/.bashrc" 2>/dev/null; then
   printf '\nexport BUN_INSTALL="$HOME/.bun"\nexport PATH="$BUN_INSTALL/bin:$PATH"\n' >> "$HOME/.bashrc"
 fi
-"${as_root[@]}" ln -sf "$BUN_INSTALL/bin/bun" /usr/local/bin/bun
-"${as_root[@]}" ln -sf "$BUN_INSTALL/bin/bunx" /usr/local/bin/bunx
+# Link only a Bun that lives under $BUN_INSTALL. An image whose own Bun already
+# matched the pin (Capy ships one at /usr/local/bin/bun) leaves $BUN_INSTALL
+# empty, and linking it would replace that Bun with a dangling symlink.
+if [ -x "$BUN_INSTALL/bin/bun" ]; then
+  "${as_root[@]}" ln -sf "$BUN_INSTALL/bin/bun" /usr/local/bin/bun
+  "${as_root[@]}" ln -sf "$BUN_INSTALL/bin/bunx" /usr/local/bin/bunx
+fi
 
 # 2. System PostgreSQL 16 (matches the Compose and production database major).
 #    Pipelining is disabled because some build-network proxies answer pipelined
