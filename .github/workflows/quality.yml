@@ -78,3 +78,11 @@ jobs:
         run: |
           bun run db:generate
           git diff --exit-code -- apps/server/drizzle
+
+  published-package-version-bump:
+    name: Published package version bump
+    permissions:
+      contents: read
+    uses: merchbaseco/workflows/.github/workflows/published-package-bump.yml@main
+    with:
+      published_packages: packages/http-client:@tmterminal/http-client,packages/cli:@tmterminal/cli
