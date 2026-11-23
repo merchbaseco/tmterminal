@@ -19,13 +19,6 @@ jobs:
     name: Check
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # GitHub Actions stores the 1Password token mapped into the CI slot
-    # (CI_OP_TOKEN). The dependency install resolves @internal install
-    # credentials through the schema, and the runner has no 1Password CLI, so
-    # that token is how it reads the vault. Everything else pins
-    # VARLOCK_ENV=test and touches no vault at all.
-    env:
-      CI_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -39,12 +32,17 @@ jobs:
       # token: Actions' own `github.token` cannot download another repository's
       # package unless that package grants this repository access, so it is not
       # a substitute. Both install credentials are @internal schema items,
-      # resolved here from the Development vault through the deploy identity.
+      # resolved from the Development vault through CI_OP_TOKEN, the CI
+      # development identity, since the runner has no 1Password CLI. Only this
+      # step gets a token, and never a production one, because pull requests
+      # run it; every other step pins VARLOCK_ENV=test and touches no vault.
       # The plugin version is pinned in .env.schema, so this works before
       # node_modules exists. With a bad token `bun install` hangs rather than
       # failing, hence the timeout.
       - name: Install frozen dependencies
         timeout-minutes: 5
+        env:
+          CI_OP_TOKEN: ${{ secrets.GH_CI_DEVELOPMENT_OP_TOKEN }}
         run: |
           set -euo pipefail
           MERCHBASE_GITHUB_NPM_TOKEN="$(
