@@ -249,7 +249,11 @@ fi
 
 # Quality resolves install credentials through the schema, not github.token.
 quality_workflow="$root/.github/workflows/quality.yml"
-grep -qF 'CI_OP_TOKEN: ${{ secrets.GH_DEPLOY_AGENT_PRODUCTION_OP_TOKEN }}' "$quality_workflow"
+grep -qF 'CI_OP_TOKEN: ${{ secrets.GH_CI_DEVELOPMENT_OP_TOKEN }}' "$quality_workflow"
+if grep -qF 'PRODUCTION_OP_TOKEN' "$quality_workflow"; then
+  echo "Quality hands a production 1Password token to pull-request jobs" >&2
+  exit 1
+fi
 grep -qF 'timeout-minutes: 5' "$quality_workflow"
 if grep -qF '${{ github.token }}' "$quality_workflow"; then
   echo "Quality still installs private packages with the ambient github.token" >&2
